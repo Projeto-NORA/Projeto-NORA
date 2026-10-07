@@ -23,8 +23,8 @@
 - [x] Conferir repositório, branch, remotos e alterações locais.
 - [x] Revisar o conteúdo e executar as validações pertinentes.
 - [x] Conferir e integrar o estado remoto, se necessário.
-- [ ] Criar o commit com arquivos revisados.
-- [ ] Executar o push na `main` e conferir o resultado.
+- [x] Criar o commit com arquivos revisados.
+- [x] Executar o push na `main` e conferir o resultado.
 
 ## Estado
 
@@ -37,4 +37,8 @@
 - `tests/desktop-startup.ps1`: **2/2** executáveis abriram janelas reais e responsivas; somente os processos do teste foram encerrados.
 - `git diff --check`: passou. Revisão dos arquivos novos e alterados e busca de padrões de credenciais não identificaram segredos a publicar.
 - Android não foi alterado neste conjunto; suas suites não foram repetidas. Limites funcionais e de ambiente continuam registrados em P-001, P-002, P-003, P-007, P-009 e P-011, sem representar bloqueio deste commit/push.
-- Commit e push serão executados após esta revisão. A primeira solicitação de execução elevada de fetch expirou na revisão automática; a única repetição permitida passou.
+- Commit principal criado: `01e3893`, `Implementa fundação da API e corrige inicialização e navegação WPF` — 28 arquivos, 828 inserções e 24 remoções.
+- `git push origin main`: sucesso, `07f8b04..01e3893 main -> main`. Conferência posterior confirmou `HEAD` e `origin/main` iguais e árvore limpa.
+- Este fechamento do documento acompanha um commit documental complementar, para manter o resultado real da publicação versionado sem reescrever o commit já publicado.
+- Pedido conferido item por item: commit realizado e push na `main` realizado; nenhuma pendência desta solicitação. Pendências anteriores permanecem no registro único do projeto.
+- A primeira solicitação de execução elevada de fetch expirou na revisão automática; a única repetição permitida passou.
