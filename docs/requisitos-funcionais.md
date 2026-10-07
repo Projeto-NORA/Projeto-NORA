@@ -10,7 +10,7 @@ O ZIP contém também prompts internos em `src/imports/`, incluindo `NORA_SUPER_
 
 OBS possui perfis de atendente e administrador da clínica. Ambos podem criar contas de pacientes e operar a fila. O aplicativo Android usa conta individual de cada paciente. Municipal possui um login para a gestão e acesso somente a indicadores agregados, sem acesso a dados individuais dos pacientes neste início.
 
-O identificador de login ainda aguarda a resposta à confirmação já enviada: e-mail e senha em todos os perfis, ou CPF e senha para pacientes. A criação de atendentes pelo administrador e o provisionamento inicial de administrador/Municipal por comando de instalação foram propostos na mesma pergunta; não estão aprovados ainda.
+O usuário autorizou criar uma conta para cada sistema usando os dados fornecidos privadamente: OBS e Municipal previamente cadastrados e paciente Android cadastrado por meio do OBS. CPF, e-mail e senha foram fornecidos; a pergunta complementar é se o login aceita CPF, e-mail ou ambos. Os dados pessoais e a senha não fazem parte desta documentação nem de seeds versionados. A criação de outros atendentes pelo administrador ainda não foi confirmada.
 
 ## Persistência
 
@@ -18,7 +18,7 @@ O banco escolhido pelo usuário é **PostgreSQL**. Nesta retomada, a fundação 
 
 ## Fila e Vaga Relâmpago
 
-A fila é operada pelo atendente ou administrador no OBS. Existe fila para aceitar Vaga Relâmpago. O usuário mencionou 10 minutos para todos e 30 minutos para o primeiro notificado. Foi enviada confirmação da interpretação: oferta sequencial por ordem de entrada, primeiro paciente com 30 minutos e seguintes com 10; recusa/expiração oferece ao próximo. Essa interpretação ainda aguarda resposta e não foi codificada.
+A fila é operada pelo atendente ou administrador no OBS. Existe fila para aceitar Vaga Relâmpago. Na resposta atual, o usuário definiu **10 minutos para todos**, independentemente da posição, corrigindo a proposta anterior de 30 minutos para o primeiro. Recusa ou expiração passa a oferta ao próximo. O critério de escolha do próximo ainda precisa de confirmação; não inferir prioridade clínica ou ordenação por entrada. A regra ainda não está implementada.
 
 As decisões restantes de acesso e oferta estão registradas na pendência única P-001 em `PENDENCIAS.md`. Não será inferida prioridade clínica a partir de ordem administrativa, nem confirmação de atendimento a partir de aceite no protótipo.
 
