@@ -1,0 +1,18 @@
+# Build outputs and local IDE state
+**/bin/
+**/obj/
+**/.vs/
+.build/
+.artifacts/
+**/build/
+**/.gradle/
+**/local.properties
+*.csproj.user
+*.log
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks

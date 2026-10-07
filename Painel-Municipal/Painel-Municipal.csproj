@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,4 +9,5 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup><ProjectReference Include="../Nora.Desktop/Nora.Desktop.csproj" /></ItemGroup>
 </Project>
