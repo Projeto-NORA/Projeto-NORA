@@ -1,6 +1,8 @@
 <Solution>
+  <Project Path="Nora.Api/Nora.Api.csproj" />
   <Project Path="Nora.Desktop/Nora.Desktop.csproj" />
   <Project Path="OBS-NORA/OBS-NORA.csproj" />
   <Project Path="Painel-Municipal/Painel-Municipal.csproj" />
   <Project Path="tests/Nora.Desktop.Checks/Nora.Desktop.Checks.csproj" />
+  <Project Path="tests/Nora.Api.Checks/Nora.Api.Checks.csproj" />
 </Solution>

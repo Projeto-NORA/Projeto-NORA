@@ -93,7 +93,7 @@
           </StackPanel>
         </Grid>
       </Border>
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid x:Name="PageContainer" Margin="32,32,32,24">
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />

@@ -9,11 +9,22 @@ dotnet build NORA.slnx --configuration Release --nologo -m:1
 dotnet run --project OBS-NORA/OBS-NORA.csproj
 dotnet run --project Painel-Municipal/Painel-Municipal.csproj
 dotnet run --configuration Release --project tests/Nora.Desktop.Checks/Nora.Desktop.Checks.csproj
+.\tests\desktop-startup.ps1
 ```
 
 No sandbox desta sessão, a tentativa inicial de build da solução com paralelismo padrão falhou sem diagnóstico de compilação. A execução sequencial com `-m:1 --disable-build-servers` passou com zero erros e avisos. Os builds individuais também passaram. `dotnet --info` encontrou restrição de acesso ao Service Control Manager; isso não impediu os builds.
 
 Os checks verificam preferências, corrupção de arquivo, isolamento dos aplicativos, erros de armazenamento, tema dinâmico, contraste, evento atrasado do Windows, navegação, restauração, seleção acessível de aparência, tabela/contexto, rolagem e binding. Renderizam as telas nativas para PNG, com janelas fora da área visível. O parâmetro `--preview-dir <pasta>` após `--` escolhe a pasta das prévias. Preferências do usuário são preservadas: os testes usam diretórios temporários próprios.
+
+Na retomada de 2026-10-07, passaram **23/23** checks, incluindo acionamento dos botões por `ButtonAutomationPeer` e diálogo nativo de fechamento/cancelamento. O teste separado `tests/desktop-startup.ps1` abre os executáveis reais Release, exige janela principal com título correto e responsiva, e encerra somente os processos que criou. Esse teste reproduziu crash nos dois clientes antes da correção de P-008 e passou nos dois depois. A aplicação OBS também foi mantida aberta e seu processo confirmou `Responding=True`.
+
+O helper de controle Windows retornou timeout ao iniciar o executável e depois indicou solicitação ativa mesmo após reset. A abertura real foi validada pelo processo e pelo teste de regressão; não houve validação completa de cliques/atalhos físicos, DPI ou múltiplos monitores (P-007). Prévias nativas desta retomada estão em `.build/previews-retomada`.
+
+Na conferência complementar, a regressão de navegação falhou antes da correção de P-010 e passou depois: **24/24 checks**, incluindo navegação entre telas no topo nos dois perfis, com e sem animação, além da medição dos botões no diálogo de fechamento. Build integrado Release e teste de abertura dos dois executáveis atualizados passaram; prévias em `.build/previews-conferencia`. Uma tentativa de build encontrou a DLL bloqueada pelo OBS aberto na etapa anterior; encerrada somente essa instância de teste, a nova execução concluiu com zero erros/avisos.
+
+## API
+
+Execução e contratos estão em `api.md`. A solução integrada agora compila também `Nora.Api` e `Nora.Api.Checks`. A revisão integrada confirmou Release com zero erros/avisos e **20/20** verificações HTTP reais, sem banco ou autenticação simulados.
 
 ## Android
 
@@ -30,9 +41,11 @@ Set-Location APPNORA
 
 Artefatos: `APPNORA/app/build/outputs/apk/debug/app-debug.apk` e APK de testes em `APPNORA/app/build/outputs/apk/androidTest/debug/`. Relatórios de lint e testes locais ficam em `APPNORA/app/build/reports/`.
 
-Build do app, build dos testes, três testes locais e lint passaram. O lint reportou zero erros e um aviso de versão Kotlin 2.4.20 disponível; a versão documentada e compatível 2.4.10 foi mantida. Quatro casos instrumentados foram compilados, incluindo regressão de rolagem, mas não executados. `connectedDebugAndroidTest` foi tentado e falhou com “No connected devices”. O AVD existente exige o driver de hypervisor ausente; não foram instalados drivers nem alteradas configurações do Windows.
+Na etapa inicial, build do app/testes, três testes locais e lint passaram; quatro casos instrumentados apenas compilaram e `connectedDebugAndroidTest` falhou com “No connected devices”. Essa evidência histórica não descreve o ambiente atual do notebook.
 
-É necessário conectar um Android ou preparar o emulador para confirmar toque, reabertura real, tema Sistema, fonte ampliada e layout em telas maiores. Ver P-003.
+Na retomada de 2026-10-07, o AVD `Pixel_4` API31 iniciou com WHPX já instalado fora do sandbox. O comando integrado de build, testes locais, lint e `connectedDebugAndroidTest` concluiu com sucesso: **3/3 testes locais e 4/4 instrumentados**, zero falhas/erros/skips. Lint com zero erros e um aviso de versão de dependência disponível. Não foi preciso instalar driver nem alterar/reiniciar Windows. Relatório instrumentado em `APPNORA/app/build/outputs/androidTest-results/connected/debug/`.
+
+Os testes instrumentados confirmam interação, rolagem e persistência em novas instâncias do armazenamento. A conferência extra de reabertura e captura de tela ficou limitada por crashes/ANRs do `System UI` do AVD, inclusive após reinicialização com dois núcleos e GPU software. Não foi registrado crash do processo NORA. Ainda faltam reabertura/render estáveis, tema Sistema, fonte ampliada e layout em telas maiores (P-003). O passo a passo para executar no Android Studio e criar um novo AVD está em `android-emulador.md`; o AVD existente não foi apagado.
 
 ## Referências oficiais de compatibilidade
 

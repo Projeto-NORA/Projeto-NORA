@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -98,6 +100,95 @@ internal static partial class Program
                 }
                 finally { window.ViewModel.ConfirmClose = false; window.Close(); }
             });
+            Check("Botões de aparência e restauração aplicam comandos e persistem", () =>
+            {
+                var isolatedStorage = Path.Combine(storageRoot, "commands");
+                var window = new ShellWindow(DesktopProfile.Operational, isolatedStorage);
+                try
+                {
+                    window.ViewModel.ConfirmClose = false;
+                    window.ViewModel.Animations = false;
+                    window.ViewModel.Navigate("settings");
+                    PrepareWindow(window);
+                    var content = Layout(window, 1280, 820);
+                    var dark = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "Dark");
+                    InvokeButton(dark);
+                    Layout(window, 1280, 820);
+                    Require(window.ViewModel.DarkSelected, "Ação do card não atualizou aparência.");
+                    Require(new PreferencesService("obs", isolatedStorage).Load().Appearance == Appearance.Dark, "Ação do card não persistiu aparência.");
+                    var restore = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Restaurar padrões");
+                    InvokeButton(restore);
+                    Layout(window, 1280, 820);
+                    var restored = new PreferencesService("obs", isolatedStorage).Load();
+                    Require(window.ViewModel.SystemSelected && window.ViewModel.IsSettings && restored.Appearance == Appearance.System && restored.LastPage == "home", "Ação de restauração deixou interface ou persistência inconsistente.");
+                }
+                finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+            });
+            Check("Os dois desktops abrem cada tela no topo com e sem animação", () =>
+            {
+                foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
+                foreach (var animations in new[] { false, true })
+                {
+                    var window = new ShellWindow(profile, Path.Combine(storageRoot, "page-scroll", profile.Id, animations.ToString()));
+                    try
+                    {
+                        window.ViewModel.ConfirmClose = false;
+                        window.ViewModel.Animations = animations;
+                        PrepareWindow(window);
+                        var content = Layout(window, 980, 640);
+                        var scrolling = Descendants<ScrollViewer>(content).First();
+                        scrolling.ScrollToEnd();
+                        Layout(window, 980, 640);
+                        Require(scrolling.VerticalOffset > 0, "Cenário não rolou a Home.");
+                        var open = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Personalizar minha experiência");
+                        InvokeButton(open);
+                        Layout(window, 980, 640);
+                        Require(window.ViewModel.IsSettings && scrolling.VerticalOffset == 0, "Configurações herdou a rolagem da Home e escondeu seu início.");
+                        scrolling.ScrollToEnd();
+                        Layout(window, 980, 640);
+                        Require(scrolling.VerticalOffset > 0, "Cenário não rolou Configurações.");
+                        var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home");
+                        InvokeButton(home);
+                        Layout(window, 980, 640);
+                        Require(window.ViewModel.IsHome && scrolling.VerticalOffset == 0, "Home herdou a rolagem de Configurações.");
+                    }
+                    finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+                }
+            });
+            Check("Confirmação de fechamento permite cancelar e fechar a janela", () =>
+            {
+                var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "closing"));
+                var closed = false;
+                string? layoutError = null;
+                window.Closed += (_, _) => closed = true;
+                try
+                {
+                    PrepareWindow(window);
+                    application.Dispatcher.BeginInvoke(() =>
+                    {
+                        var dialog = window.OwnedWindows.Cast<Window>().Single();
+                        dialog.UpdateLayout();
+                        var panel = (StackPanel)dialog.Content;
+                        var actions = (FrameworkElement)panel.Children[^1];
+                        var bottom = actions.TranslatePoint(new Point(0, actions.ActualHeight), panel).Y;
+                        if (bottom > panel.ActualHeight + 1)
+                            layoutError = $"Diálogo corta os botões: limite {bottom:F0}, disponível {panel.ActualHeight:F0}.";
+                        dialog.DialogResult = false;
+                    }, DispatcherPriority.ApplicationIdle);
+                    window.Close();
+                    Require(!closed && window.IsVisible, "Cancelar fechou a janela principal.");
+                    Require(layoutError == null, layoutError ?? "");
+                    application.Dispatcher.BeginInvoke(() =>
+                    {
+                        var dialog = window.OwnedWindows.Cast<Window>().Single();
+                        var close = Descendants<Button>(dialog).Single(button => button.Content?.ToString() == "Fechar");
+                        InvokeButton(close);
+                    }, DispatcherPriority.ApplicationIdle);
+                    window.Close();
+                    Require(closed, "Confirmar não fechou a janela principal.");
+                }
+                finally { if (!closed) { window.ViewModel.ConfirmClose = false; window.Close(); } }
+            });
             Check("Tela cheia remove borda e restaura tamanho e estado", () =>
             {
                 var window = new Window { Width = 1080, Height = 700, Left = 100, Top = 100, Opacity = 0, ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
@@ -121,6 +212,13 @@ internal static partial class Program
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(errors); }
         Console.WriteLine($"Prévias WPF: {Path.GetFullPath(previewRoot)}");
+    }
+
+    private static void InvokeButton(Button button)
+    {
+        var peer = new ButtonAutomationPeer(button);
+        ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+        button.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
     }
 
     private static FrameworkElement Layout(ShellWindow window, double width, double height)

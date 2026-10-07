@@ -30,8 +30,12 @@ public partial class ShellWindow : Window
     private void OnPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ShellViewModel.FullScreen) && IsLoaded) fullScreen.Apply(ViewModel.FullScreen);
-        if (args.PropertyName == nameof(ShellViewModel.Page) && ViewModel.Animations)
-            PageContainer.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(160)));
+        if (args.PropertyName == nameof(ShellViewModel.Page))
+        {
+            PageScroll.ScrollToTop();
+            if (ViewModel.Animations)
+                PageContainer.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(160)));
+        }
         if (args.PropertyName == nameof(ShellViewModel.Animations) && !ViewModel.Animations)
             PageContainer.BeginAnimation(OpacityProperty, null);
     }

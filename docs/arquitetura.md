@@ -4,7 +4,7 @@
 
 `APPNORA` é o cliente Android Kotlin/Jetpack Compose. `MainActivity` inicializa `SettingsStore` e apresenta `NoraApp`; `NoraContent` organiza Início e Configurações, com retorno nativo e estados de rolagem independentes. `preferences/UserSettings.kt` define os valores locais, `SettingsStore.kt` encapsula persistência e estado observável, e `ui/NoraTheme.kt` aplica as paletas e a aparência das barras do sistema.
 
-`OBS-NORA` e `Painel-Municipal` são executáveis WPF .NET 10. Cada `App` abre sua `MainWindow`, derivada do shell compartilhado com o perfil correspondente. As antigas janelas XAML vazias foram substituídas pela composição compartilhada; as soluções individuais continuam válidas. `NORA.slnx` reúne os dois executáveis, a biblioteca e o harness de verificações.
+`OBS-NORA` e `Painel-Municipal` são executáveis WPF .NET 10. Cada `App` instancia diretamente `Nora.Desktop.Views.ShellWindow` com seu perfil e a atribui a `Application.MainWindow`. A herança anterior em outra assembly impedia o carregamento do XAML na abertura dos executáveis; foi removida após reprodução nos dois clientes (P-008). As soluções individuais continuam válidas. `NORA.slnx` reúne os dois executáveis, a biblioteca, a API e os harnesses de verificações.
 
 `Nora.Desktop` concentra as responsabilidades comuns:
 
@@ -15,7 +15,7 @@
 - `Generics`: notificação de propriedades e comando reutilizável.
 - `Themes`: paletas Clara/Escura e templates compartilhados de controles.
 
-Não há banco nem DAOs nesta etapa, pois o escopo confirmado é a interface com preferências locais. Não foram criados schemas, domínio clínico, contas ou endpoints da API. O acesso futuro a dados de saúde deve ser definido em uma tarefa própria; nenhuma interface acessa banco diretamente.
+Não há banco nem DAOs implementados. A retomada acrescentou `Nora.Api`, ASP.NET Core .NET 10, com host e pipeline HTTP reais, liveness e erros padronizados; veja `api.md`. PostgreSQL e os perfis de acesso foram confirmados pelo usuário em `requisitos-funcionais.md`. Schemas, contas e endpoints clínicos aguardam as decisões restantes de acesso/fila (P-001). Nenhuma interface acessa banco diretamente.
 
 ## Identidade e temas
 
