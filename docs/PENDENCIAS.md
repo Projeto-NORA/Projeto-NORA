@@ -2,7 +2,7 @@
 
 ## Abertas
 
-- **P-014** · 2026-10-08 · Acesso OBS por chave: solicitação posterior à entrega interrompida, com geração no painel e referência `C:/Users/mateu/source/repos/OliverImportsBusinnes`. Falta decidir alcance da chave (clínica/computador), validade e revogação após pesquisa. Executar depois da implementação → limpeza → conferência anterior.
+- **P-014** · 2026-10-08 · Acesso OBS por chave: entrega anterior publicada e estudo concluído em `estudo-acesso-obs.md`, com referência Oliver Imports somente lida e fontes oficiais. Aguarda confirmação da proposta de chave de uso único por computador/perfil Windows, prazo de 24 horas, acesso online sem login após ativação e revogação central; também falta definir uma clínica por API ou várias clínicas compartilhando a API. Perguntas enviadas, sem resposta até este registro. Não implementar isolamento ou política de autorização presumidos.
 - **P-015** · 2026-10-08 · Painel administrativo do dono da marca substitui Municipal: usuário confirmou totais operacionais e financeiros, sem dados sensíveis de pacientes. Origem/registro dos valores financeiros ainda não definidos; implementar depois da chave OBS, respeitando fila.
 
 - **P-012** · 2026-10-07 · Provisionamento na instância PostgreSQL 18 de uso: usuário postgres confirmado, mas não existe conexão privada/pgpass/variável de ambiente disponível nesta sessão. A senha PostgreSQL não foi informada; a senha das contas NORA não será presumida como senha do banco. Implementação e testes podem avançar em PostgreSQL 18 descartável; configurar a conexão privada e provisionar as contas definitivas na instância de uso permanece necessário.

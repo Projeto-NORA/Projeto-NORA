@@ -35,10 +35,12 @@ Concluir os fluxos aprovados da plataforma, preservar o trabalho anterior, execu
 - [x] Concluir conferência e atualizar seu documento próprio.
 - [x] Atualizar requisitos/documentação e registro único de pendências.
 - [x] Executar build, testes, fluxos reais e revisão final integrada.
-- [ ] Revisar diff, criar commit e publicar main; verificar remoto e status.
-- [ ] Conferir pedido item por item e informar pendências reais.
+- [x] Revisar diff, criar commit e publicar main; verificar remoto e status.
+- [x] Conferir pedido item por item e informar pendências reais.
 
 ## Estado
+
+Publicação confirmada em2026-10-08: `48a6f81` implementação e `7f32528` limpeza; push origin/main concluído (`463c4c2..7f32528`). HEAD/remoto `7f32528793e989b7d9efd2c32531e75f8c6decd0` iguais e árvore limpa após push. Escopo anterior concluído e conferido, exceto ações externas/decisões explicitamente registradas P-012/P-013/P-003/P-007. Próxima solicitação iniciada em tarefa própria `2026-10-08-acesso-obs-por-chave.md`.
 
 Fechamento em 2026-10-08: escopo anterior implementado e integrado, HTTP 20/20 e PostgreSQL 15/15; WPF 34/34 E2E real, Android 10/10 instrumentados sem skips, executáveis 2/2 e bootstrap 5080/liveness reais. Regressões Refresh WPF e decisão Android após falha de recarga reproduzidas antes e verdes após. Limpeza37 artefatos retirados do índice sem apagar locais (hashes iguais). Build/testes locais finais e publicação em andamento; docs tarefa2026-10-08 é a continuidade atual. Novas mudanças OBS chave/painel marca são etapas posteriores P-014/P-015.
 Nesta continuação, baseline integrado Release: zero erros, dois avisos NU1900 por auditoria NuGet sem rede. Desktop inicial29/29; HTTP 20/20; PostgreSQL real7/15 devido criações retornando200 em vez201 e efeitos dependentes. Depois dos contratos corrigidos,20/20 HTTP e14/15 PostgreSQL: cenário{} retornou200 e recusou a oferta; JsonRequired aplicado após vermelho. Worker encerrava com OperationCanceledException no timer, corrigido. Navegação WPF/ações/restauração e logout Android offline revisados/corrigidos. Suites finais e E2E clientes em preparação.
