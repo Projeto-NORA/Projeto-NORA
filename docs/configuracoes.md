@@ -30,6 +30,10 @@ Os atalhos são exibidos e fixos nesta etapa; não há editor de atalhos. Não f
 
 `SettingsStore` usa SharedPreferences privadas chamadas `nora_preferences`. Tema e quatro escolhas são persistidos: avisos de consultas, avisos de Vaga Relâmpago, mostrar orientações e espaçamento confortável. Valores com tipos inválidos são substituídos pelos padrões seguros na leitura. Tema é Sistema e as quatro opções são ativadas inicialmente.
 
-Mostrar orientações controla o card de personalização da Home; espaçamento confortável alterna os intervalos entre cards. As opções de avisos são salvas, mas só produzirão notificações após integração do serviço. Sobre o app mostra versão e estado da conta; sair está indisponível enquanto não houver conta. A restauração de padrões pede confirmação.
+Mostrar orientações controla o card de personalização da Home; espaçamento confortável alterna intervalos entre cards. Avisos são preferências locais, entrega externa em P-013. Sobre mostra versão/estado da conta; sair é habilitado para sessão conectada. Restaurar padrões pede confirmação e não encerra a conta.
+
+Endpoint é salvo em SharedPreferences `nora_connection` após login válido. HTTPS é obrigatório em Release; Debug permite HTTP10.0.2.2 para emulador. Trocar endereço exige sair da conta. Token e identidade ficam somente em memória e não entram em backup/preferências. Desktop permite endereço HTTPS ou HTTP loopback, informado na tela ou por NORA_API_URL. Reabrir os três clientes exige login CPF/e-mail novamente.
 
 Home e Configurações têm rolagens independentes. Abrir Configurações volta ao topo, e o retorno preserva a rolagem da Home; a interação foi confirmada pelos testes instrumentados no Pixel_4. O conteúdo fica centralizado e limitado a 640 dp em telas amplas; a conferência visual de tela larga, fonte ampliada e reabertura estável continua em P-003.
+
+Quando a API confirma uma resposta de oferta e a atualização posterior falha, o Android mantém a oferta como aceita/recusada e informa que a resposta foi confirmada, orientando Atualizar. Não oferece os botões de resposta novamente com dados pendentes antigos. Se a atualização retorna401, limpa os dados da conta e pede nova entrada. O OBS também distingue mutação confirmada de falha de recarga; Atualizar concluído informa sucesso em vez de continuar exibindo conexão em andamento.

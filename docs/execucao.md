@@ -26,6 +26,18 @@ Na conferência complementar, a regressão de navegação falhou antes da corre�
 
 Execução e contratos estão em `api.md`. A solução integrada agora compila também `Nora.Api` e `Nora.Api.Checks`. A revisão integrada confirmou Release com zero erros/avisos e **20/20** verificações HTTP reais, sem banco ou autenticação simulados.
 
+Para repetir os fluxos persistidos sem acessar bases de uso, compile Release e execute os harnesses com PowerShell7:
+
+```powershell
+pwsh -NoProfile -File tests/validar-postgres-descartavel.ps1
+# Com emulador já iniciado e boot concluído:
+pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -Android -JavaHome 'C:/Program Files/Android/Android Studio/jbr'
+```
+
+O primeiro cria cluster PostgreSQL 18 e valida HTTP, migrações, autorização e fluxo. O segundo cria outro cluster/schema, inicia API com contas sintéticas, testa WPF pelos controles nativos e depois Android conectado com argumento `noraApiUrl`. Os scripts preservam logs em `.build/` e encerram somente instâncias próprias. Não executar concorrentes: metadata de fixture é compartilhada; o harness recusa uma já existente. Sem `-Android`, o segundo valida somente WPF. O JDK21 precisa ser explícito quando `JAVA_HOME` pessoal aponta para outra versão.
+
+Em2026-10-08, baseline .NET Release zero erros/avisos, HTTP 20/20 e PostgreSQL 15/15. E2E WPF 34/34 passou. Bootstrap da DLL iniciada da raiz reproduziu porta 5000 antes da correção de content root; depois carregou appsettings do diretório da DLL, escutou 5080 e respondeu liveness real. Rodada final Android passou10/10 instrumentados sem skips, incluindo integração PostgreSQL, e7/7 testes locais reexecutados. Lint zero erros/um aviso de versão disponível. Limpeza preservou37 arquivos locais por hashes e retirou somente do Git; build final Release passou. Publicação no documento da retomada de2026-10-08.
+
 ## Android
 
 O projeto mantém AGP 9.4.1, Gradle 9.6, compile/target SDK 37 e min SDK 24. Usa Compose BOM 2026.09.00, plugin Compose Kotlin 2.4.10 e Activity Compose 1.13.0. O Java 21 instalado substituiu o critério Java 25 do template, cujo provisionamento via Foojay retornava HTTP 400. JDK 21 atende ao mínimo 17 documentado para AGP 9.4.

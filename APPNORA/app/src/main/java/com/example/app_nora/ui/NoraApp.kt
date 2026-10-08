@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -23,14 +24,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.app_nora.BuildConfig
 import com.example.app_nora.preferences.*
+import com.example.app_nora.api.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import kotlinx.coroutines.launch
 
 @Composable
 fun NoraApp(store: SettingsStore) {
-    NoraContent(store.settings, store::update)
+    val context = LocalContext.current.applicationContext
+    val controller = remember { PatientController(context) }
+    val scope = rememberCoroutineScope()
+    NoraPatientContent(store.settings, store::update, controller.state,
+        onAddressChange = controller::changeAddress,
+        onLogin = { identifier, password -> scope.launch { controller.login(identifier, password) } },
+        onRefresh = { scope.launch { controller.refresh() } },
+        onRespond = { id, accept -> scope.launch { controller.respond(id, accept) } },
+        onLogout = { scope.launch { controller.logout() } })
 }
 
 @Composable
 fun NoraContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit) {
+    NoraPatientContent(settings, onSettingsChange)
+}
+
+@Composable
+fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit,
+    patient: PatientState = PatientState(), onAddressChange: (String) -> Unit = {},
+    onLogin: ((String, String) -> Unit)? = null, onRefresh: () -> Unit = {},
+    onRespond: (String, Boolean) -> Unit = { _, _ -> }, onLogout: () -> Unit = {}) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val homeScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
@@ -69,8 +89,9 @@ fun NoraContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit
                         }
                         Text("Seu app, do seu jeito. As preferências são salvas neste dispositivo.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        SettingsScreen(settings, onSettingsChange)
-                    } else HomeScreen(settings.showGuidance, onOpenSettings = { settingsOpen = true })
+                        SettingsScreen(settings, onSettingsChange, patient, onAddressChange, onLogout)
+                    } else HomeScreen(settings.showGuidance, onOpenSettings = { settingsOpen = true },
+                        patient, onAddressChange, onLogin, onRefresh, onRespond)
                 }
             }
         }
@@ -78,11 +99,102 @@ fun NoraContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit
 }
 
 @Composable
-private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit) {
+private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
+    onLogin: (String, String) -> Unit) {
+    var identifier by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    SectionCard("Entrar na sua conta", "Use o CPF ou e-mail cadastrado pela unidade") {
+        OutlinedTextField(patient.address, onAddressChange, label = { Text("Endereço do serviço NORA") },
+            singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
+            supportingText = { Text(if (BuildConfig.DEBUG) "HTTPS da unidade ou http://10.0.2.2:5080 no emulador" else "Informe o endereço HTTPS fornecido pela unidade") })
+        OutlinedTextField(identifier, { identifier = it }, label = { Text("CPF ou e-mail") },
+            singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(password, { password = it }, label = { Text("Senha") },
+            visualTransformation = PasswordVisualTransformation(), singleLine = true,
+            enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
+        Button(onClick = { onLogin(identifier, password); password = "" },
+            enabled = !patient.busy && identifier.isNotBlank() && password.isNotBlank() && patient.address.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()) { Text("Entrar") }
+        MutedText("Para criar ou recuperar sua conta, procure a unidade de saúde.")
+    }
+}
+
+@Composable
+private fun PatientCards(patient: PatientState, onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
+    Text(patient.session?.user?.fullName.orEmpty(), style = MaterialTheme.typography.titleLarge)
+    OutlinedButton(onClick = onRefresh, enabled = !patient.busy) { Text("Atualizar acompanhamento") }
+    val overview = patient.overview
+    SectionCard("Fila de atendimento", "Solicitações registradas pela unidade") {
+        if (overview == null) MutedText("Atualize para carregar seu acompanhamento.")
+        else if (overview.queue.isEmpty()) MutedText("Você não tem solicitação em fila.")
+        else overview.queue.forEach { entry ->
+            Text("Solicitação ${entry.id} · ${statusTitle(entry.status)}", fontWeight = FontWeight.SemiBold)
+            MutedText("Entrada: ${displayDate(entry.enteredAt)}")
+        }
+    }
+    SectionCard("Vaga Relâmpago", "Cada oferta tem prazo de 10 minutos para resposta") {
+        if (overview == null) MutedText("Atualize para carregar suas ofertas.")
+        else if (overview.offers.isEmpty()) MutedText("Nenhuma oferta disponível para sua conta.")
+        else overview.offers.forEach { offer ->
+            HorizontalDivider()
+            Text(offer.label, fontWeight = FontWeight.SemiBold)
+            MutedText("${statusTitle(offer.status)} · Prazo: ${displayDate(offer.expiresAt)}")
+            if (offer.status == "pending") {
+                Button(onClick = { onRespond(offer.id, true) }, enabled = !patient.busy,
+                    modifier = Modifier.fillMaxWidth()) { Text("Aceitar oferta") }
+                OutlinedButton(onClick = { onRespond(offer.id, false) }, enabled = !patient.busy,
+                    modifier = Modifier.fillMaxWidth()) { Text("Recusar oferta") }
+            }
+        }
+        MutedText("O serviço confirma a disponibilidade ao receber a resposta. O aceite não confirma um atendimento realizado.")
+    }
+    SectionCard("Consultas", "Seus próximos cuidados") {
+        MutedText("Para consultar agendamentos, procure sua unidade. A agenda ainda não está disponível no aplicativo.")
+    }
+}
+
+private fun statusTitle(value: String): String = when (value) {
+    "waiting" -> "Aguardando"
+    "offered" -> "Oferta enviada"
+    "called" -> "Chamado pela unidade"
+    "completed" -> "Concluído"
+    "cancelled" -> "Cancelado"
+    "pending" -> "Aguardando resposta"
+    "accepted" -> "Oferta aceita"
+    "declined" -> "Oferta recusada"
+    "expired" -> "Prazo encerrado"
+    else -> value
+}
+
+private fun displayDate(value: String): String = try {
+    val normalized = value.replace(Regex("\\.(\\d+)")) { match ->
+        "." + match.groupValues[1].take(3).padEnd(3, '0')
+    }
+    val pattern = if (normalized.contains('.')) "yyyy-MM-dd'T'HH:mm:ss.SSSXXX" else "yyyy-MM-dd'T'HH:mm:ssXXX"
+    val parser = java.text.SimpleDateFormat(pattern, java.util.Locale.ROOT).apply { isLenient = false }
+    parser.parse(normalized)?.let { date ->
+        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(date)
+    } ?: value
+} catch (_: java.text.ParseException) { value }
+
+@Composable
+private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit, patient: PatientState,
+    onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?,
+    onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
     Text("NORA", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.ExtraBold)
     Text("Cuidar de você começa aqui", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     Text("Consultas, acompanhamento e oportunidades em um só lugar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
+    if (patient.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    if (patient.session == null && onLogin != null) LoginCard(patient, onAddressChange, onLogin)
+    if (patient.session != null) {
+        PatientCards(patient, onRefresh, onRespond)
+        if (showGuidance) SectionCard("Deixe o app mais confortável", "Aparência e preferências") {
+            Button(onClick = onOpenSettings) { Text("Abrir configurações") }
+        }
+        return
+    }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         shape = RoundedCornerShape(24.dp)) {
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -113,7 +225,8 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit) {
+private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit,
+    patient: PatientState, onAddressChange: (String) -> Unit, onLogout: () -> Unit) {
     SectionCard("Aparência", "Escolha como a NORA aparece para você") {
         Appearance.entries.forEach { appearance ->
             val selected = settings.appearance == appearance
@@ -154,9 +267,14 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
     }
     SectionCard("Sobre o app", "NORA · Saúde digital") {
         Text("Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        MutedText("Configurações locais disponíveis. Conta e serviços de saúde ainda não conectados.")
-        OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Sair da conta") }
-        MutedText("Nenhuma conta conectada neste dispositivo.")
+        MutedText(patient.session?.user?.fullName ?: "Nenhuma conta conectada neste dispositivo.")
+        if (patient.session == null) OutlinedTextField(patient.address, onAddressChange,
+            label = { Text("Endereço do serviço NORA") }, singleLine = true,
+            enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
+        if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}. Para trocar o endereço, saia e configure na tela de entrada.")
+        if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
+        OutlinedButton(onClick = onLogout, enabled = patient.session != null && !patient.busy,
+            modifier = Modifier.fillMaxWidth()) { Text(if (patient.busy) "Aguarde…" else "Sair da conta") }
     }
     var resetOpen by rememberSaveable { mutableStateOf(false) }
     OutlinedButton(onClick = { resetOpen = true }, modifier = Modifier.fillMaxWidth()) { Text("Restaurar preferências padrão") }

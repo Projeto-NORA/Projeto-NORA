@@ -31,7 +31,35 @@
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding Id}" Value="home" />
-                            <Condition Binding="{Binding DataContext.IsHome, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="home" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="patients" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="patients" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="queue" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="queue" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="slots" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="slots" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="indicators" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="indicators" />
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
                         </MultiDataTrigger>
@@ -50,8 +78,8 @@
         <StackPanel DockPanel.Dock="Bottom">
           <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="12" Padding="14" Margin="0,0,0,18" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}">
             <StackPanel>
-              <TextBlock Text="Em construção, com propósito." FontWeight="SemiBold" FontSize="13" />
-              <TextBlock Text="A base da sua plataforma de cuidado." Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" />
+              <TextBlock Text="Seu espaço de cuidado." FontWeight="SemiBold" FontSize="13" />
+              <TextBlock Text="Uma jornada organizada, com acesso seguro." Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" />
             </StackPanel>
           </Border>
           <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" Margin="0,0,0,8" BorderThickness="0" ToolTip="Configurações · Ctrl+," ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
@@ -87,7 +115,7 @@
           <TextBlock Text="{Binding PageLabel}" VerticalAlignment="Center" FontWeight="SemiBold" />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
             <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="15" Padding="12,7">
-              <TextBlock Text="Integração pendente" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" />
+              <TextBlock Text="{Binding Workspace.ConnectionLabel}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" />
             </Border>
             <TextBlock Text="{Binding Profile.Name}" FontWeight="SemiBold" Margin="18,0,0,0" VerticalAlignment="Center" />
           </StackPanel>

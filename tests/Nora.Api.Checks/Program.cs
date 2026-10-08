@@ -12,6 +12,7 @@ var directory = new DirectoryInfo(AppContext.BaseDirectory);
 while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj")))
     directory = directory.Parent;
 if (directory == null) throw new InvalidOperationException("Projeto Nora.Api não encontrado a partir do harness.");
+if (args.Contains("--client-fixture")) return await ClientFixture.RunAsync(directory.FullName);
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -90,12 +91,19 @@ foreach (var environment in new[] { "Development", "Production" })
             var body = await response.Content.ReadAsStringAsync();
             Require(!body.Contains("private-exception") && !body.Contains("InvalidOperationException") && !body.Contains("stack"), "Diagnóstico interno exposto.");
         });
-        await Check("Readiness e endpoints clínicos não são anunciados", async () =>
+        await Check("Readiness informa banco ausente e rotas clínicas exigem sessão", async () =>
         {
-            foreach (var path in new[] { "/health/ready", "/api/patients", "/api/auth/login" })
+            using (var readiness = await client.GetAsync("/health/ready"))
             {
-                using var response = await client.GetAsync(path);
-                await RequireProblem(response, 404, "not-found");
+                Require((int)readiness.StatusCode == 503, "Readiness anunciou banco não configurado.");
+            }
+            using (var protectedRoute = await client.GetAsync("/api/patients"))
+            {
+                Require((int)protectedRoute.StatusCode == 401, "Pacientes não exigem autenticação.");
+            }
+            using (var wrongMethod = await client.GetAsync("/api/auth/login"))
+            {
+                await RequireProblem(wrongMethod, 405, "method-not-allowed");
             }
         });
         await Check("32 solicitações concorrentes preservam respostas e traceIds", async () =>
@@ -126,7 +134,8 @@ foreach (var environment in new[] { "Development", "Production" })
 }
 
 Console.WriteLine($"{checks - failures}/{checks} verificações HTTP passaram.");
-return failures == 0 ? 0 : 1;
+var workflowFailures = await WorkflowChecks.RunAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

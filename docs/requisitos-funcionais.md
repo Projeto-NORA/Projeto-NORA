@@ -10,18 +10,26 @@ O ZIP contém também prompts internos em `src/imports/`, incluindo `NORA_SUPER_
 
 OBS possui perfis de atendente e administrador da clínica. Ambos podem criar contas de pacientes e operar a fila. O aplicativo Android usa conta individual de cada paciente. Municipal possui um login para a gestão e acesso somente a indicadores agregados, sem acesso a dados individuais dos pacientes neste início.
 
-O usuário autorizou criar uma conta para cada sistema usando os dados fornecidos privadamente: OBS e Municipal previamente cadastrados e paciente Android cadastrado por meio do OBS. CPF, e-mail e senha foram fornecidos; a pergunta complementar é se o login aceita CPF, e-mail ou ambos. Os dados pessoais e a senha não fazem parte desta documentação nem de seeds versionados. A criação de outros atendentes pelo administrador ainda não foi confirmada.
+O usuário autorizou uma conta para cada sistema: OBS e Municipal previamente cadastrados e paciente Android cadastrado pelo OBS. Login aceita **CPF ou e-mail**; nome aprovado: **Mateus Todeschini Monteiro**. CPF, e-mail e senha pessoais não fazem parte desta documentação nem de seeds versionados. Criar outros atendentes pela interface ainda não foi confirmado.
 
 ## Persistência
 
-O banco escolhido pelo usuário é **PostgreSQL**. Nesta retomada, a fundação HTTP da API está implementada; ainda não há schema, migration, autenticação, conexão de banco ou dados clínicos persistidos. Nenhum banco existente foi alterado.
+Banco escolhido: **PostgreSQL 18**, usuário **postgres** na instância de uso. API usa Npgsql, migrações aditivas e contas/sessões/fila/ofertas persistidas. Testes usam PostgreSQL18 descartável e schemas aleatórios. Conexão privada e provisionamento definitivo permanecem em P-012; não presumir a senha das contas como senha PostgreSQL.
 
 ## Fila e Vaga Relâmpago
 
-A fila é operada pelo atendente ou administrador no OBS. Existe fila para aceitar Vaga Relâmpago. Na resposta atual, o usuário definiu **10 minutos para todos**, independentemente da posição, corrigindo a proposta anterior de 30 minutos para o primeiro. Recusa ou expiração passa a oferta ao próximo. O critério de escolha do próximo ainda precisa de confirmação; não inferir prioridade clínica ou ordenação por entrada. A regra ainda não está implementada.
+A fila de Vaga Relâmpago é operada por atendente/administrador no OBS. A ordem confirmada é **entrada**, desempate pelo identificador. Toda oferta tem **10 minutos**. Recusa, cancelamento ou expiração libera a vaga para o próximo. O servidor verifica prazo antes das operações e periodicamente a cada15 segundos; aceita somente uma resposta concorrente.
 
-As decisões restantes de acesso e oferta estão registradas na pendência única P-001 em `PENDENCIAS.md`. Não será inferida prioridade clínica a partir de ordem administrativa, nem confirmação de atendimento a partir de aceite no protótipo.
+A fila desta entrega é administrativa, para ofertas. Aceite confirma a oportunidade, sem afirmar atendimento clínico realizado. Entrada concluída encerra o ciclo da oferta, inclusive recusa/expiração; nova inclusão pelo OBS cria outra entrada. Não se infere prioridade clínica.
 
 ## Estado de implementação
 
-Base visual e preferências nativas existem nos três clientes. A API atual fornece `/health/live` e contratos de erro documentados em `api.md`. Nenhum cliente está autenticado ou integrado a dados de saúde. Telas de pacientes, consultas, fila, vagas e indicadores reais continuam sem operações implementadas; esse trabalho faz parte do pedido ativo, ainda não concluído.
+Escopo aprovado: acesso nos três aplicativos, cadastro de pacientes pelo OBS, fila por entrada, Vaga Relâmpago de10 minutos e totais agregados no Municipal. Consultas/agendamento, regras clínicas adicionais, notificações externas e séries/filtros analíticos dependem de definição posterior (P-013). Opções de notificação são preferências locais; ofertas são consultadas por Atualizar.
+
+Provisionamento definitivo das contas e conexão à base de uso permanecem em P-012. Validar com dados sintéticos descartáveis não equivale à criação das contas definitivas.
+
+## Evoluções solicitadas em 2026-10-08
+
+Depois de concluir a entrega anterior, o OBS deverá usar chave de acesso gerada pelo painel do administrador, sem login de atendente/administrador. O usuário pediu pesquisar o modelo e aprimoramentos, comparando `OliverImportsBusinnes`. Alcance, validade e revogação serão definidos pela pesquisa e confirmação do usuário (P-014).
+
+Em seguida, o Painel Municipal será substituído pelo painel administrativo do dono da marca da clínica. Não poderá consultar dados sensíveis de pacientes. O usuário confirmou totais operacionais e financeiros; origem dos lançamentos financeiros ainda em definição (P-015). Esses itens são solicitações separadas e não alteram silenciosamente a etapa anterior validada.

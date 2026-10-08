@@ -14,10 +14,10 @@ public partial class ShellWindow : Window
     private readonly ThemeService themes;
     private readonly FullScreenService fullScreen;
     public ShellViewModel ViewModel { get; }
-    public ShellWindow(DesktopProfile profile, string? storageRoot = null)
+    public ShellWindow(DesktopProfile profile, string? storageRoot = null, NoraApiClient? api = null)
     {
         themes = new ThemeService(Application.Current);
-        ViewModel = new ShellViewModel(profile, new PreferencesService(profile.Id, storageRoot), themes);
+        ViewModel = new ShellViewModel(profile, new PreferencesService(profile.Id, storageRoot), themes, api);
         InitializeComponent();
         DataContext = ViewModel;
         fullScreen = new(this);
@@ -25,7 +25,7 @@ public partial class ShellWindow : Window
         PreviewKeyDown += OnKeyDown;
         Loaded += (_, _) => fullScreen.Apply(ViewModel.FullScreen);
         Closing += OnClosing;
-        Closed += (_, _) => { ViewModel.PropertyChanged -= OnPreferenceChanged; themes.Dispose(); };
+        Closed += (_, _) => { ViewModel.PropertyChanged -= OnPreferenceChanged; ViewModel.Workspace.Dispose(); themes.Dispose(); };
     }
     private void OnPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {

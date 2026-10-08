@@ -1,12 +1,12 @@
 # Projeto-NORA
 
-Plataforma NORA para a jornada do paciente, operação de unidades de saúde e gestão municipal. Esta primeira entrega, confirmada pelo usuário, implementa a base visual e as configurações locais dos três aplicativos.
+Plataforma NORA para acompanhamento do paciente, operação de unidades de saúde e gestão municipal. Implementa acesso por CPF/e-mail, cadastro de pacientes pelo OBS, fila por entrada, Vaga Relâmpago de10 minutos e totais agregados, além dos temas/configurações dos três aplicativos.
 
 - **APPNORA:** aplicativo Android em Kotlin e Jetpack Compose.
 - **OBS-NORA:** aplicativo WPF para operação da unidade.
 - **Painel-Municipal:** aplicativo WPF para leitura gerencial.
 - **Nora.Desktop:** biblioteca compartilhada de interface, temas e preferências dos desktops.
-- **Nora.Api:** fundação ASP.NET Core .NET 10 com liveness e erros HTTP padronizados, validada com requisições reais.
+- **Nora.Api:** ASP.NET Core .NET10 com PostgreSQL18, autenticação/sessões, pacientes, fila/ofertas, agregados e erros HTTP padronizados.
 
 A identidade usa roxo, cartões e navegação inspirados no protótipo fornecido, reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
 
@@ -14,7 +14,9 @@ A identidade usa roxo, cartões e navegação inspirados no protótipo fornecido
 
 Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configurações. Os desktops compartilham preferências da interface e atalhos; o Android possui preferências locais da interface e de notificações. A interface exibe estados vazios quando não há integração de dados.
 
-A fundação HTTP da API está implementada. O usuário confirmou PostgreSQL, perfis de atendente/administrador no OBS, contas individuais no Android e acesso Municipal somente a indicadores agregados. Autenticação, banco, cadastros, agendamento, filas, entrega de notificações e regras de Vaga Relâmpago ainda não estão implementados; decisões restantes constam em P-001. Não há pacientes, indicadores ou serviços clínicos simulados. As preferências são locais ao dispositivo; os perfis desktop usam armazenamento separado por aplicativo.
+A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal só recebe totais, sem pacientes nominais. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
+
+Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; fixtures de testes usam somente banco descartável.
 
 ## Documentação
 
@@ -30,6 +32,8 @@ A fundação HTTP da API está implementada. O usuário confirmou PostgreSQL, pe
 - [Emulador Android e passo a passo](docs/android-emulador.md).
 - [Retomada atual](docs/tarefas/2026-10-07-continuacao-funcionalidades-testes-api.md).
 - [Conferência do prompt e pendências do usuário](docs/tarefas/2026-10-07-conferencia-prompt-visual.md).
+- [Retomada e publicação atual](docs/tarefas/2026-10-07-retomada-implementacao-publicacao.md).
+- [Retomada e fila de solicitações de 08/10](docs/tarefas/2026-10-08-retomada-e-fila-solicitacoes.md).
 
 ## Desenvolvimento
 
@@ -48,6 +52,8 @@ dotnet run --configuration Release --project tests/Nora.Api.Checks/Nora.Api.Chec
 
 O Android é aberto pela pasta `APPNORA` no Android Studio. Use o wrapper do próprio projeto para compilar; os comandos e requisitos de ambiente estão em `docs/execucao.md`. O APK de depuração está em `APPNORA/app/build/outputs/apk/debug/app-debug.apk` após o build.
 
+Para iniciar PostgreSQL18/API local e provisionar contas privadamente, após build use `scripts/iniciar-local.ps1 -ProvisionAccounts` (senha oculta). Cadastre o paciente pela interface OBS. Nas próximas aberturas use o script sem a opção de provisionamento; configure endpoint nos clientes. Veja `docs/api.md`.
+
 ## 2026-10-07 — Fundação da plataforma
 
 - **Alteração:** reconstrução nativa da base visual e das configurações dos três aplicativos.
@@ -62,3 +68,9 @@ O Android é aberto pela pasta `APPNORA` no Android Studio. Use o wrapper do pr�
 - **Estado:** implementação clínica, banco e logins ainda pendentes de decisões/implementação (P-001). Inspeção Android extra bloqueada por falhas do System UI do AVD (P-003); teclado/DPI/monitores WPF em P-007. Limpeza solicitada depois registrada na fila (P-009). Evidências e continuidade no documento da retomada.
 
 Conferência complementar: corrigida navegação WPF que herdava a rolagem da tela anterior (P-010). **24/24 checks desktop**, build Release zero erros/avisos e abertura dos dois executáveis atualizados passaram. O prompt reenviado mantém o mesmo escopo visual; análise e limites da implementação estão no documento de conferência, sem apresentar os módulos clínicos como prontos.
+
+## 2026-10-08 — Acesso, fila e persistência integrados
+
+Login por CPF/e-mail, cadastro OBS, fila por entrada, ofertas de dez minutos e totais isolados estão implementados nos clientes/API/PostgreSQL 18. Passaram HTTP 20/20, persistência/fluxos 15/15, WPF 34/34 incluindo controles nativos com banco real e Android 10/10 instrumentados sem skips. Os dois executáveis abriram responsivos; build Release zero erros/avisos. Android 7/7 locais reexecutados, lint zero erros/um aviso de versão disponível. Corrigidas mensagem de atualização WPF, inicialização da API em pasta diferente e manutenção da decisão Android confirmada após falha de recarga. Harnesses reproduzíveis em docs/execucao.md.
+
+Limpeza retirou 37 artefatos de IDE/build somente do Git, preservando arquivos locais e hashes. P-001/P-002/P-009/P-011 resolvidas; provisionamento definitivo P-012 e definições clínicas P-013 permanecem. As novas solicitações de chave OBS e painel administrativo com totais operacionais/financeiros estão na fila P-014/P-015.

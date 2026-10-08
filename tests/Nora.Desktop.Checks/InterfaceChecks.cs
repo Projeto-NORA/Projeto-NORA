@@ -69,7 +69,7 @@ internal static partial class Program
                     window.ViewModel.Rows.Add(row);
                     PrepareWindow(window);
                     var content = Layout(window, 980, 640);
-                    var table = Descendants<DataGrid>(content).Single();
+                    var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Atendimentos da unidade");
                     table.SelectedItem = row;
                     Layout(window, 980, 640);
                     Require(window.ViewModel.HasSelection && table.ActualHeight > table.ColumnHeaderHeight, "Linha não pode ser vista/selecionada.");

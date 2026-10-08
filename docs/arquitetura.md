@@ -15,7 +15,11 @@
 - `Generics`: notificação de propriedades e comando reutilizável.
 - `Themes`: paletas Clara/Escura e templates compartilhados de controles.
 
-Não há banco nem DAOs implementados. A retomada acrescentou `Nora.Api`, ASP.NET Core .NET 10, com host e pipeline HTTP reais, liveness e erros padronizados; veja `api.md`. PostgreSQL e os perfis de acesso foram confirmados pelo usuário em `requisitos-funcionais.md`. Schemas, contas e endpoints clínicos aguardam as decisões restantes de acesso/fila (P-001). Nenhuma interface acessa banco diretamente.
+A API usa PostgreSQL 18 via Npgsql10.0.3. Models define contratos; Services valida contas/autenticação/fila; DAOs usa SQL parametrizado e transações; Database contém helper e migrações aditivas incorporadas. Sessões revogáveis são persistidas pelo hash do token. WorkflowDao serializa oferta/resposta/expiração com advisory lock PostgreSQL. OfferExpirationWorker verifica prazo a cada15s; operações também verificam antes de responder. Nenhuma interface acessa banco diretamente. Contratos em `api.md`.
+
+`Nora.Desktop/Services/NoraApiClient.cs` encapsula HTTP e guarda token somente em memória. `WorkspaceViewModel` publica dados após recarga completa, controla busy/erros e limpa dados ao sair ou receber401; WorkspaceView contém login, cadastro, pacientes/fila/vagas e Municipal agregado. O endpoint pode vir de NORA_API_URL ou da tela; senhas não são preferências.
+
+Android usa `api/NoraApi.kt` como boundary HTTP, PatientController para estado/busy/erros e ApiAddress para validar HTTPS. A interface recebe estado/callbacks sem SQL. Endpoint validado é preferência local; identidade/token só memória. Release permite HTTPS, debug permite HTTP apenas no host emulador10.0.2.2. Ambos desativam redirecionamentos HTTP automáticos.
 
 ## Identidade e temas
 
@@ -25,10 +29,10 @@ No Android, `NoraTheme` combina a opção persistida com `isSystemInDarkTheme()`
 
 ## Limites da fundação
 
-Os aplicativos possuem estados vazios explícitos de agenda, fila, oportunidades e indicadores. Áreas que exigem integração ficam indisponíveis; os indicadores não apresentam totais simulados. A tabela do OBS suporta seleção e barra contextual, mas ações clínicas estão desabilitadas. O Municipal reserva uma área para séries históricas sem fabricar gráficos ou métricas.
+OBS cadastra pacientes e opera fila/ofertas por entrada. Android mostra apenas acompanhamento da própria conta e responde à oferta. Municipal consulta somente totais agregados. Estados vazios e indisponibilidade são explícitos. Consultas, notificações externas e séries/filtros analíticos adicionais continuam fora do escopo aprovado (P-013); não há gráficos fictícios.
 
-Preferências de notificação no Android são somente escolhas locais, sem envio de avisos ou solicitação de permissão de notificações. A saída da conta permanece desabilitada porque ainda não existe conta conectada. Estes limites fazem parte do escopo confirmado, não de um backend simulado.
+Preferências de notificação Android são locais, sem envio externo. Logout funciona para contas conectadas; reabrir exige login. A base definitiva e suas contas aguardam configuração privada PostgreSQL (P-012). Testes usam schemas aleatórios em instância descartável, sem modificar bases de uso.
 
 ## Arquivos locais e build
 
-`Directory.Build.props` centraliza os outputs .NET em `.build/<projeto>/`, excluindo artefatos antigos da compilação. `.gitignore` cobre novos outputs, estado de IDE e segredos. Os arquivos `obj/` e `.vs/` previamente rastreados foram preservados; a retirada do índice está registrada em P-002.
+`Directory.Build.props` centraliza os outputs .NET em `.build/<projeto>/`, excluindo artefatos antigos da compilação. `.gitignore` cobre novos outputs, estado de IDE e segredos. Os 37 arquivos `obj/`, `.vs/` e `*.csproj.user` antes rastreados foram retirados somente do índice Git em 2026-10-08. As cópias locais foram preservadas e seus hashes conferidos; `.gitignore` evita reintrodução (P-002 resolvida).

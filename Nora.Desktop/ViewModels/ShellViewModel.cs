@@ -16,6 +16,7 @@ public sealed class ShellViewModel : ObservableObject
     private bool expanded;
     private OperationalRow? selectedRow;
     public DesktopProfile Profile { get; }
+    public WorkspaceViewModel Workspace { get; }
     public IReadOnlyList<NavigationItem> Navigation { get; }
     public IReadOnlyList<MetricCard> Metrics { get; }
     public ObservableCollection<OperationalRow> Rows { get; } = [];
@@ -29,9 +30,9 @@ public sealed class ShellViewModel : ObservableObject
     public string EmptyDescription => IsMunicipal ? "Os indicadores serão exibidos após a integração com os dados das unidades. Nenhuma métrica está disponível nesta etapa." : "Quando a unidade estiver conectada, os atendimentos aparecerão nesta área. Nenhuma consulta foi carregada nesta etapa.";
     public string Status { get => status; private set { status = value; Notify(); } }
     public string Page { get => page; private set { page = value; Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); } }
-    public bool IsHome => Page == "home";
+    public bool IsHome => Page != "settings";
     public bool IsSettings => Page == "settings";
-    public string PageLabel => IsHome ? "Visão geral" : "Configurações";
+    public string PageLabel => Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
     public bool SidebarExpanded { get => expanded; set { expanded = value; Notify(); Notify(nameof(SidebarWidth)); if (RememberSidebar) { preferences.SidebarExpanded = value; Persist(); } } }
     public double SidebarWidth => SidebarExpanded ? 248 : 80;
     public OperationalRow? SelectedRow { get => selectedRow; set { selectedRow = value; Notify(); Notify(nameof(HasSelection)); } }
@@ -51,18 +52,20 @@ public sealed class ShellViewModel : ObservableObject
     public ICommand AppearanceCommand { get; }
     public ICommand ToggleSidebarCommand { get; }
     public ICommand RestoreCommand { get; }
-    public ShellViewModel(DesktopProfile profile, PreferencesService storage, ThemeService themes)
+    public ShellViewModel(DesktopProfile profile, PreferencesService storage, ThemeService themes, NoraApiClient? api = null)
     {
         Profile = profile;
+        Workspace = new(profile, api);
         this.storage = storage;
         this.themes = themes;
         preferences = storage.Load();
-        status = storage.Error ?? "Base visual pronta · integração de dados pendente";
+        status = storage.Error ?? "Entre na conta para carregar os dados da API.";
         page = preferences.SaveNavigation ? preferences.LastPage : "home";
+        Workspace.Section = page;
         expanded = !preferences.RememberSidebar || preferences.SidebarExpanded;
         Navigation = profile.IsMunicipal
-            ? [new("home", "\uE80F", "Visão geral", true), new("units", "\uE80A", "Unidades de saúde"), new("indicators", "\uE9D9", "Indicadores"), new("reports", "\uE8A5", "Relatórios")]
-            : [new("home", "\uE80F", "Visão geral", true), new("patients", "\uE77B", "Pacientes"), new("appointments", "\uE787", "Consultas"), new("queue", "\uE8EF", "Fila de espera"), new("slots", "\uE945", "Vaga Relâmpago")];
+            ? [new("home", "\uE80F", "Visão geral", true), new("units", "\uE80A", "Unidades de saúde"), new("indicators", "\uE9D9", "Indicadores", true), new("reports", "\uE8A5", "Relatórios")]
+            : [new("home", "\uE80F", "Visão geral", true), new("patients", "\uE77B", "Pacientes", true), new("appointments", "\uE787", "Consultas"), new("queue", "\uE8EF", "Fila de espera", true), new("slots", "\uE945", "Vaga Relâmpago", true)];
         Metrics = profile.IsMunicipal
             ? [new("Unidades", "\uE80A", "Cobertura da rede"), new("Atendimentos", "\uE787", "Produção consolidada"), new("Espera", "\uE823", "Acesso aos serviços"), new("Ocupação", "\uE9D9", "Capacidade assistencial")]
             : [new("Consultas", "\uE787", "Agenda da unidade"), new("Fila de espera", "\uE823", "Jornadas em acompanhamento"), new("Confirmações", "\uE73E", "Atendimentos confirmados"), new("Vagas", "\uE945", "Oportunidades de atendimento")];
@@ -75,7 +78,8 @@ public sealed class ShellViewModel : ObservableObject
     }
     public void Navigate(string destination)
     {
-        if (destination is not ("home" or "settings")) return;
+        if (destination != "settings" && !Navigation.Any(n => n.Id == destination && n.Available)) return;
+        Workspace.Section = destination;
         Page = destination;
         if (SaveNavigation) { preferences.LastPage = Page; Persist(); }
     }

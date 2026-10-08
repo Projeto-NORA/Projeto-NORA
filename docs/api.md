@@ -1,52 +1,62 @@
 # API NORA
 
-## Fundação técnica
+## Aplicação e persistência
 
-`Nora.Api` é uma API ASP.NET Core .NET 10. Usa apenas o framework compartilhado, sem pacotes externos. `NoraApiHost` constrói o host e o pipeline; `ApiProblems` centraliza os erros HTTP. A solução `NORA.slnx` inclui a API e seu harness de verificações.
+Nora.Api usa ASP.NET Core .NET10 e Npgsql10.0.3 com PostgreSQL 18. NoraApiHost constrói pipeline; endpoints delegam a serviços e DAOs. DatabaseHelper abre/fecha conexões, parametriza valores e valida schema. Nenhum cliente acessa PostgreSQL diretamente.
 
-O usuário confirmou PostgreSQL para a persistência futura. Banco, schema, autenticação, autorização, contas e operações clínicas ainda não foram implementados. O serviço atual verifica somente sua própria capacidade de responder HTTP; não afirma que PostgreSQL, notificações ou aplicativos estejam prontos. As interfaces existentes continuam com os estados vazios documentados.
+Migrações incorporadas 001_accounts.sql e 002_workflow.sql criam schema, contas, sessões, entradas, vagas e ofertas com índices/constraints. São aditivas/reaplicáveis, executadas explicitamente por --migrate com transação/lock PostgreSQL. Abrir API não altera schema implicitamente.
 
-## Execução local
+## Configuração privada e contas
 
-Requer .NET SDK 10. A configuração versionada liga o serviço somente ao loopback IPv4, em `http://127.0.0.1:5080`, e limita os hosts aceitos a endereços locais. Não há perfil de lançamento com portas aleatórias nem abertura automática de navegador.
+Configure ConnectionStrings__Nora no ambiente do processo ou ConnectionStrings:Nora em user-secrets. Nora__Schema é opcional (padrão nora). Nunca versionar conexão com senha. Instância de uso: PostgreSQL 18, usuário postgres; conexão/provisionamento definitivo ainda em P-012.
 
-```powershell
-dotnet build Nora.Api/Nora.Api.csproj --configuration Release --nologo -m:1 --disable-build-servers
-dotnet run --project Nora.Api/Nora.Api.csproj --configuration Release --no-build
-Invoke-RestMethod http://127.0.0.1:5080/health/live
-```
-
-O ASP.NET Core permite sobrescrever a URL por `--urls` ou `ASPNETCORE_URLS`; uma porta local alternativa pode ser usada assim:
+Após build Release, scripts/iniciar-local.ps1 -ProvisionAccounts solicita senha PostgreSQL oculta, cria base nora se ausente, aplica migrações e pede provisionamento OBS/Municipal. Nome aprovado: Mateus Todeschini Monteiro. Paciente é cadastrado pela tela OBS com dados recebidos privadamente. Não há seed pessoal. O banco armazena hash PBKDF2 ASP.NET Identity; contas duplicadas são preservadas e retornam conflito.
 
 ```powershell
-dotnet run --project Nora.Api/Nora.Api.csproj --configuration Release --no-build -- --urls http://127.0.0.1:5081
+dotnet build NORA.slnx --configuration Release -m:1 --disable-build-servers
+.\scripts\iniciar-local.ps1 -ProvisionAccounts
+# Nas próximas aberturas:
+.\scripts\iniciar-local.ps1
 ```
 
-Essa configuração se destina à validação local. Publicação externa depende das decisões restantes de autenticação, autorização, HTTPS, hosts e persistência. Não há CORS liberado, credenciais versionadas, migração ou acesso a banco.
+Também é possível usar dotnet <Nora.Api.dll> --migrate e --provision com conexão privada configurada; provisionamento exige terminal interativo. API padrão escuta http://127.0.0.1:5080, sobrescrito por --urls/ASPNETCORE_URLS. Android debug usa http://10.0.2.2:5080 e AllowedHosts correspondente. Acesso externo exige HTTPS e configuração de hosts/deploy; CORS não é aberto.
+
+O bootstrap lê configuração pelo diretório da DLL, independentemente da pasta atual do terminal. Assim, iniciar pelos scripts da raiz continua carregando `appsettings.json` e a porta 5080 documentada. Testes de hosts usam content root próprio e portas aleatórias explicitamente.
+
+## Sessões e autorização
+
+Login recebe scope (obs/municipal/patient), identifier (CPF ou e-mail) e password. CPF formatado é normalizado; e-mail vai para minúsculas. CPF/e-mail são únicos dentro do escopo, permitindo contas separadas.
+
+Token aleatório opaco dura8h, usa header Authorization: Bearer <token>; somente SHA256 fica no banco. Logout revoga sessão. Clientes guardam token/identidade em memória, exigindo novo login ao reabrir. Login limitado a30 tentativas por minuto/IP. OBS aceita atendente/administrador; Municipal só agregados; paciente só própria fila/ofertas.
 
 ## Contratos HTTP
 
-`GET /health/live` retorna HTTP 200, `application/json` e `Cache-Control: no-store`:
+| Método e rota | Acesso | Resultado |
+| --- | --- | --- |
+| GET/HEAD /health/live | Público | 200 status alive, scope process; HEAD sem corpo |
+| GET /health/ready | Público | 200 se conexão/tabela accounts acessíveis;503 indisponível |
+| POST /api/auth/login | Público limitado | 200 token/expiresAt/user;401 credencial inválida |
+| GET /api/auth/me | Sessão | 200 id/fullName/role/scope |
+| POST /api/auth/logout | Sessão | 204 |
+| GET /api/patients | OBS | 200 lista id/fullName/cpf/email |
+| POST /api/patients | OBS | 201; fullName/cpf/email/password validados |
+| GET /api/queue | OBS | 200 ordem enteredAt/id |
+| POST /api/queue | OBS | 201 patientId; rejeita duplicidade ativa |
+| POST /api/queue/{id}/cancel | OBS | 204 waiting/offered; libera próxima oferta |
+| GET /api/slots | OBS | 200 vagas |
+| POST /api/slots | OBS | 201 label de1 a160 caracteres |
+| GET /api/patient/overview | Paciente | 200 user/queue/offers próprios |
+| POST /api/offers/{id}/respond | Paciente | 200 accept booleano explícito;409 repetida/vencida |
+| GET /api/municipal/summary | Municipal | 200 patients/waitingPatients/openSlots/acceptedOffers; sem indivíduos |
 
-```json
-{"status":"alive","scope":"process"}
-```
+Fila: waiting/offered/completed/cancelled. Vaga: open/offered/accepted. Oferta: pending/accepted/declined/expired/cancelled. Aguardando inclui waiting/offered; vagas abertas inclui open/offered; aceites conta accepted. Datas UTC no servidor, horário local nos clientes. Totais não são métricas de atendimento realizado.
 
-`HEAD /health/live` retorna HTTP 200 sem corpo. Outros métodos nessa rota retornam HTTP 405 com `Allow: GET, HEAD`. Endereços sem rota retornam HTTP 404, incluindo `/health/ready`; não existe endpoint de readiness nesta fundação.
+Prazo10min para todos. Transações/advisory lock serializam fila, ofertas, respostas/cancelamento/expiração. Prazo conferido nas operações e worker15s. Aceite vencido/limite não confirma. Recusa/expiração conclui ciclo da entrada e passa ao próximo; nova inclusão cria outro ciclo administrativo.
 
-Erros sem corpo gerados pelo pipeline usam `application/problem+json`, `Cache-Control: no-store` e campos `type`, `title`, `status`, `detail`, `code` e `traceId`. Os códigos são `not-found` para 404, `method-not-allowed` para 405 e `internal-error` para 500. `type` é `urn:nora:problem:<code>`. O `traceId` identifica a solicitação no servidor. O corpo não ecoa endereço, query string, payload, stack trace ou mensagem da exceção.
+## Erros e verificação
 
-O contrato JSON de erro é mantido mesmo quando o cliente pede `text/html`. Exceções são tratadas de forma igual em Development e Production; detalhes técnicos permanecem no log do servidor, não na resposta. O cabeçalho de identificação `Server` está desativado. Respostas que já tenham começado a ser enviadas não podem ser convertidas em outro corpo de erro pelo pipeline.
+Cache-Control no-store, sem header Server. Erros application/problem+json com type/title/status/detail/code/traceId, sem ecoar URL/payload/stack trace. Códigos:400 invalid-input,401 unauthorized,403 forbidden,404 not-found,405 method-not-allowed,409 conflict,429 too-many-requests,500 internal-error,503 database-unavailable. Clientes não exibem corpos arbitrários do servidor.
 
-## Verificação executada em 2026-10-07
+Nora.Api.Checks verifica HTTP real Development/Production. NORA_TEST_CONNECTION deve apontar somente a PostgreSQL descartável: cria schema aleatório, migra duas vezes, testa login/autorização/cadastro/fila/concorrência/expiração/persistência e remove só esse schema. Sem variável, parte PostgreSQL explicitamente SKIP.
 
-```powershell
-dotnet build tests/Nora.Api.Checks/Nora.Api.Checks.csproj --configuration Release --nologo -m:1 --disable-build-servers
-dotnet run --configuration Release --project tests/Nora.Api.Checks/Nora.Api.Checks.csproj --no-build
-```
-
-Build Release passou com zero erros e avisos. O harness inicia Kestrel em porta dinâmica no loopback e faz requisições HTTP reais com `HttpClient`, sem servidor simulado. Passaram 20/20 verificações, em Development e Production: liveness GET/HEAD, ausência de cache e identificação do servidor, 404 sem eco de entrada, POST inexistente, 405/Allow, ausência de CORS, Accept alternativo, exceção 500 sanitizada, ausência de endpoints não implementados e 32 solicitações concorrentes por ambiente com identificadores independentes. A rota que provoca exceção é mapeada somente no processo do harness e não existe no executável da API.
-
-O sandbox da sessão bloqueou conexões de saída ao loopback, embora Kestrel tenha iniciado. A execução autorizada fora do sandbox passou; a falha de socket não foi tratada como defeito da API nem contornada com um teste simulado. Também foi iniciado o executável real em Production com a configuração padrão: requisições por `Invoke-WebRequest` confirmaram HTTP 200 e o JSON esperado em `/health/live`, além de HTTP 404 em `/health/ready`. O processo foi encerrado após a conferência.
-
-As escolhas seguem as referências oficiais de [tratamento de erros ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling?view=aspnetcore-10.0) e [distinção entre liveness e readiness](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/health-checks?view=aspnetcore-10.0).
+Modo --client-fixture cria schema descartável para clientes, prepara contas sintéticas, publica metadata sem credenciais em .build/client-fixture.json e aguarda .build/client-fixture.stop. Ao encerrar remove seu schema. Nunca usar conexão de produção nos harnesses. Resultados atuais em execucao.md e tarefa de retomada.
