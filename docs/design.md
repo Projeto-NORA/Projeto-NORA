@@ -51,3 +51,11 @@ No Android, reservar área de toque de pelo menos 48 dp, aceitar fonte ampliada 
 Contrastes calculados em 2026-10-07 pela luminância relativa sRGB, sobre os pares recomendados: branco sobre Brand claro **7,10:1**; TextPrimary claro sobre Surface **16,37:1**; TextSecondary claro sobre Background **6,10:1**; OnBrand escuro sobre Brand escuro **6,72:1**; TextPrimary escuro sobre Surface **15,28:1**; TextSecondary escuro sobre Background **10,22:1**; Brand escuro sobre Surface escuro **6,16:1**. Branco sobre `#A78BFA` resulta em **2,72:1** e deve ser evitado como texto de botão. Essas contas validam as combinações de cor, sem substituir revisão visual dos controles em execução.
 
 O comportamento deve ser conferido nos três modos de aparência, ao reabrir os aplicativos e com janelas pequenas/conteúdo ampliado. A auditoria final deve diferenciar build bem sucedido, validação automatizada e inspeção real da interface; nenhuma dessas evidências implica as demais.
+
+## Ajustes Windows de 2026-10-11
+
+A tela Pacientes usa somente o título e os filtros acima da listagem. As linhas alternam branco e cinza suave no tema claro, com equivalentes escuros, sem cabeçalho de colunas ou separadores marcados. O nome fica destacado ao lado do indicador de presença no APPNORA; e-mail, CPF mascarado e telefone aparecem abaixo. Filtros por pesquisa/presença e ordenação mantêm o conteúdo organizado, com rolagem vertical.
+
+Inputs Windows têm raio de 5 px, menor que os botões/cards. Tooltips têm borda de 6 px e fundo azul claro na aparência Clara, com equivalente legível na Escura. Substituem explicações permanentes da tela e identificam ações pelo mouse. A conta NORA fica no canto inferior da sidebar e abre somente Configurações e Sair da conta; as três barras alternam a sidebar.
+
+As janelas OBS e Municipal preservam a moldura nativa e solicitam cantos pequenos ao DWM no Windows 11 quando restauradas. Maximizada/tela cheia solicita cantos retos. O raio final é definido pelo compositor Windows, não por recorte do conteúdo WPF. Conferência de preferência DWM e render do conteúdo são evidências distintas de captura da moldura na tela.

@@ -29,6 +29,7 @@ public sealed class ShellViewModel : ObservableObject
     public string EmptyTitle => IsMunicipal ? "A rede ainda não está conectada" : "Sua agenda começa aqui";
     public string EmptyDescription => IsMunicipal ? "Os indicadores serão exibidos após a integração com os dados das unidades. Nenhuma métrica está disponível nesta etapa." : "Quando a unidade estiver conectada, os atendimentos aparecerão nesta área. Nenhuma consulta foi carregada nesta etapa.";
     public string Status { get => status; private set { status = value; Notify(); } }
+    public bool HasPreferenceError => storage.Error != null;
     public string Page { get => page; private set { page = value; Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); } }
     public bool IsHome => Page != "settings";
     public bool IsSettings => Page == "settings";
@@ -103,5 +104,9 @@ public sealed class ShellViewModel : ObservableObject
         if (storage.Error == null) Status = "Preferências padrão restauradas neste aplicativo.";
     }
     private void Changed([System.Runtime.CompilerServices.CallerMemberName] string? name = null) { Notify(name); Persist(); }
-    private void Persist() { Status = storage.Save(preferences) ? "Preferências salvas neste computador." : storage.Error!; }
+    private void Persist()
+    {
+        Status = storage.Save(preferences) ? "Preferências salvas neste computador." : storage.Error!;
+        Notify(nameof(HasPreferenceError));
+    }
 }

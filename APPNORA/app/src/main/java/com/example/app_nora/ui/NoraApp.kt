@@ -1,6 +1,12 @@
 package com.example.app_nora.ui
 
 import androidx.activity.compose.BackHandler
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -26,13 +32,41 @@ import com.example.app_nora.BuildConfig
 import com.example.app_nora.preferences.*
 import com.example.app_nora.api.*
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
 @Composable
-fun NoraApp(store: SettingsStore) {
+fun NoraApp(store: SettingsStore, retainedController: PatientController? = null) {
     val context = LocalContext.current.applicationContext
-    val controller = remember { PatientController(context) }
+    val controller = remember(retainedController) { retainedController ?: PatientController(context) }
     val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val session = controller.state.session
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Log.w("NORA", "Notificações desativadas pelo usuário; a conexão continua indicada pelo gerenciador de tarefas do Android.")
+    }
+    LaunchedEffect(controller, lifecycle, session?.token) {
+        if (session == null) {
+            PatientPresenceService.stop(context)
+            return@LaunchedEffect
+        }
+        var notificationRequested = false
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (!notificationRequested && Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationRequested = true
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            PatientPresenceService.start(context, controller)
+            // The foreground service owns presence after Home/another app; cancellation here
+            // only detaches the Activity and must not mark the patient offline.
+            awaitCancellation()
+        }
+    }
     NoraPatientContent(store.settings, store::update, controller.state,
         onAddressChange = controller::changeAddress,
         onLogin = { identifier, password -> scope.launch { controller.login(identifier, password) } },

@@ -4,7 +4,7 @@
 
 Nora.Api usa ASP.NET Core .NET10 e Npgsql10.0.3 com PostgreSQL 18. NoraApiHost constrói pipeline; endpoints delegam a serviços e DAOs. DatabaseHelper abre/fecha conexões, parametriza valores e valida schema. Nenhum cliente acessa PostgreSQL diretamente.
 
-Migrações incorporadas 001_accounts.sql e 002_workflow.sql criam schema, contas, sessões, entradas, vagas e ofertas com índices/constraints. São aditivas/reaplicáveis, executadas explicitamente por --migrate com transação/lock PostgreSQL. Abrir API não altera schema implicitamente.
+Migrações incorporadas 001_accounts.sql, 002_workflow.sql e 003_patient_contact_presence.sql criam schema, contas, sessões, entradas, vagas e ofertas com índices/constraints. São aditivas/reaplicáveis, executadas explicitamente por --migrate com transação/lock PostgreSQL. Abrir API não altera schema implicitamente.
 
 ## Configuração privada e contas
 
@@ -38,13 +38,15 @@ Token aleatório opaco dura8h, usa header Authorization: Bearer <token>; somente
 | POST /api/auth/login | Público limitado | 200 token/expiresAt/user;401 credencial inválida |
 | GET /api/auth/me | Sessão | 200 id/fullName/role/scope |
 | POST /api/auth/logout | Sessão | 204 |
-| GET /api/patients | OBS | 200 lista id/fullName/cpf/email |
-| POST /api/patients | OBS | 201; fullName/cpf/email/password validados |
+| GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/isOnline, por cadastro mais recente |
+| POST /api/patients | OBS | 201; fullName/cpf/email/password validados; phone opcional |
 | GET /api/queue | OBS | 200 ordem enteredAt/id |
 | POST /api/queue | OBS | 201 patientId; rejeita duplicidade ativa |
 | POST /api/queue/{id}/cancel | OBS | 204 waiting/offered; libera próxima oferta |
 | GET /api/slots | OBS | 200 vagas |
 | POST /api/slots | OBS | 201 label de1 a160 caracteres |
+| POST /api/patient/presence | Paciente | 204; atualiza presença somente da sessão autenticada |
+| POST /api/patient/presence/offline | Paciente | 204; limpa presença somente da sessão autenticada |
 | GET /api/patient/overview | Paciente | 200 user/queue/offers próprios |
 | POST /api/offers/{id}/respond | Paciente | 200 accept booleano explícito;409 repetida/vencida |
 | GET /api/municipal/summary | Municipal | 200 patients/waitingPatients/openSlots/acceptedOffers; sem indivíduos |
@@ -60,3 +62,9 @@ Cache-Control no-store, sem header Server. Erros application/problem+json com ty
 Nora.Api.Checks verifica HTTP real Development/Production. NORA_TEST_CONNECTION deve apontar somente a PostgreSQL descartável: cria schema aleatório, migra duas vezes, testa login/autorização/cadastro/fila/concorrência/expiração/persistência e remove só esse schema. Sem variável, parte PostgreSQL explicitamente SKIP.
 
 Modo --client-fixture cria schema descartável para clientes, prepara contas sintéticas, publica metadata sem credenciais em .build/client-fixture.json e aguarda .build/client-fixture.stop. Ao encerrar remove seu schema. Nunca usar conexão de produção nos harnesses. Resultados atuais em execucao.md e tarefa de retomada.
+
+## Telefone e presença no APPNORA
+
+O telefone do paciente é opcional. Aceita de 8 a 15 dígitos, com prefixo internacional `+` opcional; espaços, parênteses, hífen e ponto são removidos na normalização. A migração aditiva preserva os cadastros anteriores com telefone nulo. O OBS envia o telefone no cadastro e apresenta o contato abaixo do nome, junto do e-mail e do CPF mascarado.
+
+`isOnline` indica presença recente no APPNORA, não habilitação do cadastro nem atividade clínica. A API calcula o estado quando existe ao menos uma sessão do paciente não revogada, não vencida e com presença recebida há menos de 90 segundos. A presença/offline é vinculada ao token da própria sessão: encerrar um dispositivo não apaga a presença dos outros. Perda de rede, suspensão ou encerramento forçado são detectados pelo prazo; não há garantia de detecção instantânea. O painel Municipal continua recebendo somente agregados, sem telefone/presença individual.

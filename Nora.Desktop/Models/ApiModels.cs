@@ -2,9 +2,12 @@ namespace Nora.Desktop.Models;
 
 public sealed record AccountUser(Guid Id, string FullName, string Role, string Scope);
 public sealed record LoginSession(string Token, DateTimeOffset ExpiresAt, AccountUser User);
-public sealed record PatientAccount(Guid Id, string FullName, string Cpf, string Email)
+public sealed record PatientAccount(Guid Id, string FullName, string Cpf, string Email, string? Phone = null, bool IsOnline = false)
 {
     public string MaskedCpf => Cpf.Length >= 2 ? "***.***.***-" + Cpf[^2..] : "***";
+    public string PresenceDisplay => IsOnline ? "Online no APPNORA" : "Offline no APPNORA";
+    public string ContactDisplay => $"{Email}  |  CPF: {MaskedCpf}  |  {PhoneDisplay}";
+    public string PhoneDisplay => string.IsNullOrWhiteSpace(Phone) ? "Telefone não informado" : Phone;
 }
 public sealed record QueueEntry(long Id, Guid PatientId, string PatientName, DateTimeOffset EnteredAt, string Status)
 {

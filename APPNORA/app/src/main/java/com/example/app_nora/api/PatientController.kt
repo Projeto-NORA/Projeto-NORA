@@ -1,12 +1,15 @@
 package com.example.app_nora.api
 
 import android.content.Context
+import android.util.Log
 import androidx.core.content.edit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.app_nora.BuildConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONException
 import java.io.IOException
 
@@ -15,8 +18,46 @@ data class PatientState(val address: String = "", val session: PatientSession? =
 
 class PatientController(context: Context, private val apiFactory: (String) -> PatientApi = ::NoraApi) {
     private val preferences = context.getSharedPreferences("nora_connection", Context.MODE_PRIVATE)
+    private val presenceMutex = Mutex()
+    private var presenceGeneration = 0L
     var state by mutableStateOf(PatientState(address = preferences.all["address"] as? String ?: ""))
         private set
+
+    fun beginPresence(): Long = ++presenceGeneration
+
+    fun closeLocalSession() {
+        presenceGeneration++
+        state = state.copy(session = null, overview = null)
+    }
+
+    suspend fun endPresence(session: PatientSession, address: String, generation: Long) = presenceMutex.withLock {
+        // Serialize the final offline request after an in-flight heartbeat for this account.
+        if (state.session?.token == session.token && generation != presenceGeneration) return@withLock
+        try { apiFactory(address).presence(session.token, false) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: IOException) { Log.w("NORA", "A saída da conexão não foi confirmada; o serviço expirará a presença.") }
+        catch (_: JSONException) { Log.w("NORA", "O serviço não confirmou a saída da conexão.") }
+    }
+
+    suspend fun publishPresence(session: PatientSession, generation: Long, online: Boolean) = presenceMutex.withLock {
+        // A cancelled Activity/old account must never publish presence for its replacement.
+        if (generation != presenceGeneration || state.session?.token != session.token) return@withLock
+        try { apiFactory(state.address).presence(session.token, online) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && generation == presenceGeneration && state.session?.token == session.token)
+                state = state.copy(session = null, overview = null, message = failure.message)
+            else Log.w("NORA", "Presença não atualizada: HTTP ${failure.status}.")
+        }
+        catch (_: IOException) {
+            // A missed heartbeat expires on the server; retry when the next heartbeat is due.
+            Log.w("NORA", "Não foi possível atualizar a presença; a próxima conexão tentará novamente.")
+        }
+        catch (_: JSONException) {
+            if (generation == presenceGeneration && state.session?.token == session.token)
+                state = state.copy(message = "O serviço retornou uma resposta incompatível. Contate a unidade.")
+        }
+    }
 
     fun changeAddress(value: String) {
         if (state.busy || state.session != null) return
@@ -31,23 +72,29 @@ class PatientController(context: Context, private val apiFactory: (String) -> Pa
         // Identity and bearer token remain only in memory; backup contains no account data.
         preferences.edit { putString("address", address) }
         state = state.copy(address = address, session = session)
-        state = state.copy(overview = api.overview(session.token))
+        val overview = api.overview(session.token)
+        if (state.session?.token == session.token) state = state.copy(overview = overview)
     }
 
     suspend fun refresh() = operation {
         val session = state.session ?: return@operation
-        state = state.copy(overview = apiFactory(state.address).overview(session.token))
+        val overview = apiFactory(state.address).overview(session.token)
+        if (state.session?.token == session.token) state = state.copy(overview = overview)
     }
 
     suspend fun respond(id: String, accept: Boolean) = operation {
         val session = state.session ?: return@operation
         val api = apiFactory(state.address)
         api.respond(session.token, id, accept)
+        if (state.session?.token != session.token) return@operation
         val decision = if (accept) "accepted" else "declined"
         state = state.copy(overview = state.overview?.let { overview ->
             overview.copy(offers = overview.offers.map { if (it.id == id) it.copy(status = decision) else it })
         })
-        try { state = state.copy(overview = api.overview(session.token)) }
+        try {
+            val overview = api.overview(session.token)
+            if (state.session?.token == session.token) state = state.copy(overview = overview)
+        }
         catch (failure: ApiFailure) {
             if (failure.status == 401) {
                 state = state.copy(session = null, overview = null,

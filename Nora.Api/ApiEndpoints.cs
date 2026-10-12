@@ -39,6 +39,16 @@ internal static class ApiEndpoints
         obs.MapGet("/slots",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SlotsAsync(ct)));
         obs.MapPost("/slots",async(CreateSlotRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddSlotAsync(request,ct),statusCode:StatusCodes.Status201Created));
         var patient=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient"));
+        patient.MapPost("/patient/presence",async(HttpContext context,AuthService service,CancellationToken ct)=>
+        {
+            await service.SetPresenceAsync(Session(context),true,ct);
+            return Results.NoContent();
+        });
+        patient.MapPost("/patient/presence/offline",async(HttpContext context,AuthService service,CancellationToken ct)=>
+        {
+            await service.SetPresenceAsync(Session(context),false,ct);
+            return Results.NoContent();
+        });
         patient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context).User,ct)));
         patient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context).User.Id,request,ct)));
         app.MapGet("/api/municipal/summary",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SummaryAsync(ct))).AddEndpointFilter(new SessionFilter("municipal"));

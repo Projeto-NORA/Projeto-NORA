@@ -2,7 +2,7 @@
 
 ## Aplicativos e responsabilidades
 
-`APPNORA` é o cliente Android Kotlin/Jetpack Compose. `MainActivity` inicializa `SettingsStore` e apresenta `NoraApp`; `NoraContent` organiza Início e Configurações, com retorno nativo e estados de rolagem independentes. `preferences/UserSettings.kt` define os valores locais, `SettingsStore.kt` encapsula persistência e estado observável, e `ui/NoraTheme.kt` aplica as paletas e a aparência das barras do sistema.
+`APPNORA` é o cliente Android Kotlin/Jetpack Compose. `MainActivity` inicializa `SettingsStore`, mantém `PatientController` em `AndroidViewModel` apenas em memória e apresenta `NoraApp`; `NoraContent` organiza Início e Configurações, com retorno nativo e estados de rolagem independentes. `preferences/UserSettings.kt` define os valores locais, `SettingsStore.kt` encapsula persistência e estado observável, e `ui/NoraTheme.kt` aplica as paletas e a aparência das barras do sistema.
 
 `OBS-NORA` e `Painel-Municipal` são executáveis WPF .NET 10. Cada `App` instancia diretamente `Nora.Desktop.Views.ShellWindow` com seu perfil e a atribui a `Application.MainWindow`. A herança anterior em outra assembly impedia o carregamento do XAML na abertura dos executáveis; foi removida após reprodução nos dois clientes (P-008). As soluções individuais continuam válidas. `NORA.slnx` reúne os dois executáveis, a biblioteca, a API e os harnesses de verificações.
 
@@ -35,4 +35,8 @@ Preferências de notificação Android são locais, sem envio externo. Logout fu
 
 ## Arquivos locais e build
 
-`Directory.Build.props` centraliza os outputs .NET em `.build/<projeto>/`, excluindo artefatos antigos da compilação. `.gitignore` cobre novos outputs, estado de IDE e segredos. Os 37 arquivos `obj/`, `.vs/` e `*.csproj.user` antes rastreados foram retirados somente do índice Git em 2026-10-08. As cópias locais foram preservadas e seus hashes conferidos; `.gitignore` evita reintrodução (P-002 resolvida).
+`Directory.Build.props` centraliza os outputs .NET em `.build/<projeto>/`, excluindo artefatos antigos da compilação. `.gitignore` cobre novos outputs, sessões locais do compilador Kotlin em `.kotlin/`, estado de IDE e segredos. Os 37 arquivos `obj/`, `.vs/` e `*.csproj.user` antes rastreados foram retirados somente do índice Git em 2026-10-08. As cópias locais foram preservadas e seus hashes conferidos; `.gitignore` evita reintrodução (P-002 resolvida).
+
+A migração `003_patient_contact_presence.sql` acrescenta telefone opcional em accounts e presença recente por sessão. A API calcula `isOnline` com o relógio do servidor e o estado de autenticação; o OBS nunca infere presença pela existência do cadastro. `WorkspaceViewModel` controla atualização periódica de 20 segundos com exclusão de operação concorrente e encerra o timer ao sair/fechar. Views/Themes concentram a listagem e controles arredondados, mantendo HTTP em NoraApiClient e SQL nos DAOs.
+
+No Android, `NoraApp` observa lifecycle STARTED e sessão para iniciar `PatientPresenceService` quando a tela está visível; deixar o estado visível não encerra o serviço. O serviço foreground não exportado mantém heartbeat de 30 segundos e notificação fixa, retorna START_NOT_STICKY e encerra no logout ou callback de remoção da tarefa. `PatientController` serializa presença com mutex e geração, preserva somente a sessão corrente e ignora respostas antigas que poderiam repor dados após401. O controller retido pela Activity conserva identidade somente em memória em rotação; token não é enviado em Intents nem salvo. O offline final é uma tentativa com timeout, com prazo de presença da API como garantia em perda de conexão/processo. Esta política de segundo plano foi confirmada pelo usuário em 2026-10-11.

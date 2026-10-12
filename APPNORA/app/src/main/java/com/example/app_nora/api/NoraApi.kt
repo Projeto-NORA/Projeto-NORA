@@ -19,6 +19,7 @@ interface PatientApi {
     suspend fun overview(token: String): PatientOverview
     suspend fun respond(token: String, id: String, accept: Boolean)
     suspend fun logout(token: String)
+    suspend fun presence(token: String, online: Boolean)
 }
 
 class NoraApi(private val address: String) : PatientApi {
@@ -47,6 +48,9 @@ class NoraApi(private val address: String) : PatientApi {
     }
 
     override suspend fun logout(token: String) { request("/api/auth/logout", "POST", token) }
+    override suspend fun presence(token: String, online: Boolean) {
+        request(if (online) "/api/patient/presence" else "/api/patient/presence/offline", "POST", token)
+    }
 
     private fun user(body: JSONObject): PatientUser {
         if (body.getString("scope") != "patient") throw ApiFailure(403, "Esta conta não pertence ao aplicativo do paciente.")

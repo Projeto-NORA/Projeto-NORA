@@ -1,7 +1,10 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media.Animation;
 using Nora.Desktop.Models;
 using Nora.Desktop.Services;
@@ -21,15 +24,17 @@ public partial class ShellWindow : Window
         InitializeComponent();
         DataContext = ViewModel;
         fullScreen = new(this);
+        SourceInitialized += (_, _) => ApplyWindowCorners();
+        StateChanged += (_, _) => ApplyWindowCorners();
         ViewModel.PropertyChanged += OnPreferenceChanged;
         PreviewKeyDown += OnKeyDown;
-        Loaded += (_, _) => fullScreen.Apply(ViewModel.FullScreen);
+        Loaded += (_, _) => { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); };
         Closing += OnClosing;
         Closed += (_, _) => { ViewModel.PropertyChanged -= OnPreferenceChanged; ViewModel.Workspace.Dispose(); themes.Dispose(); };
     }
     private void OnPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ShellViewModel.FullScreen) && IsLoaded) fullScreen.Apply(ViewModel.FullScreen);
+        if (args.PropertyName == nameof(ShellViewModel.FullScreen) && IsLoaded) { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); }
         if (args.PropertyName == nameof(ShellViewModel.Page))
         {
             PageScroll.ScrollToTop();
@@ -39,6 +44,23 @@ public partial class ShellWindow : Window
         if (args.PropertyName == nameof(ShellViewModel.Animations) && !ViewModel.Animations)
             PageContainer.BeginAnimation(OpacityProperty, null);
     }
+    private void OnAccountMenu(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { ContextMenu: { } menu } button) return;
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Top;
+        menu.IsOpen = true;
+    }
+    private void ApplyWindowCorners()
+    {
+        // DWM keeps the native resize/title-bar behavior; Windows 11 owns the corner radius.
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+        var preference = WindowState == WindowState.Normal && !ViewModel.FullScreen ? 3 : 1;
+        var result = DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, 33, ref preference, sizeof(int));
+        if (result < 0) System.Diagnostics.Trace.TraceWarning("NORA: o Windows não aplicou a preferência de cantos da janela (HRESULT {0:X8}).", result);
+    }
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
     private void OnKeyDown(object sender, KeyEventArgs args)
     {
         var modifiers = Keyboard.Modifiers;
