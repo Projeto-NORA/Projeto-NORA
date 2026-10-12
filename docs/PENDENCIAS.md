@@ -2,8 +2,6 @@
 
 ## Abertas
 
-- **P-016** · 2026-10-11 · Ajustes OBS/Pacientes e presença Android concluídos/conferidos: telefone opcional, zebra, filtros, tooltips, conta inferior, cantos nativos OBS/ADM e notificação de segundo plano autorizada. Correções de rolagem/contraste/PendingIntent/geração verificadas; WPF45/45 com PostgreSQL, Android14/14 instrumentados sem skips, locais7/7, HTTP20/20, PostgreSQL18/18, Release zero erros/avisos e abertura2/2 passaram. Falta somente commit/push autorizado na main e verificar hash remoto; limites físicos e provisionamento anteriores preservados nas demais pendências.
-
 - **P-014** · 2026-10-08 · Acesso OBS por chave: entrega anterior publicada e estudo concluído em `estudo-acesso-obs.md`, com referência Oliver Imports somente lida e fontes oficiais. Aguarda confirmação da proposta de chave de uso único por computador/perfil Windows, prazo de 24 horas, acesso online sem login após ativação e revogação central; também falta definir uma clínica por API ou várias clínicas compartilhando a API. Perguntas enviadas, sem resposta até este registro. Não implementar isolamento ou política de autorização presumidos.
 - **P-015** · 2026-10-08 · Painel administrativo do dono da marca substitui Municipal: usuário confirmou totais operacionais e financeiros, sem dados sensíveis de pacientes. Origem/registro dos valores financeiros ainda não definidos; implementar depois da chave OBS, respeitando fila.
 
@@ -16,6 +14,8 @@
 - **P-007** · 2026-10-07 · Conferência desktop manual: teclado/foco físico, escala/DPI ampliados e múltiplos monitores ainda não verificados. Rodada atual 45/45 com E2E/PostgreSQL e abertura2/2 passaram; incluem cadastro/telefone/fila/vaga/logout persistidos, temas/render, filtros, rolagem, navegação e leitura da preferência DWM de cantos/restauração/tela cheia. O controle nativo de desktop não está disponível nesta sessão; resultados automatizados não equivalem a teclado/DPI/monitores físicos nem à inspeção física da moldura nativa.
 
 ## Resolvidas
+
+- **P-016** · aberta em 2026-10-11 · resolvida em 2026-10-11 · Ajustes OBS/Pacientes e presença Android → telefone opcional, zebra, filtros, tooltips, conta inferior, cantos nativos OBS/painel e notificação de segundo plano autorizada implementados. Corrigidos rolagem, contrastes, PendingIntent e geração; WPF45/45 com PostgreSQL, Android14/14 instrumentados sem skips, locais7/7, HTTP20/20, PostgreSQL18/18, Release zero erros/avisos e abertura2/2 passaram. Commit `7dff75b` publicado na main com hash local/remoto `7dff75b6ad68d1c923a0e74d4d6a5d94799ec2ee` conferido. Limites físicos e provisionamento anteriores preservados nas demais pendências.
 
 - **P-001** · aberta em 2026-10-07 · resolvida em 2026-10-08 · Acesso, pacientes, fila e Vaga Relâmpago sem integração → implementados API/PostgreSQL 18, login CPF/e-mail, cadastro OBS, FIFO, ofertas de 10 min e totais isolados. HTTP 20/20, PostgreSQL 15/15, WPF 34/34 E2E e Android 10/10 instrumentados sem skips. Contas definitivas em P-012; consultas/notificações/séries em P-013.
 - **P-002** · aberta em 2026-10-07 · resolvida em 2026-10-08 · Artefatos IDE/build rastreados → 37 arquivos de obj/.vs/csproj.user retirados somente do índice; arquivos locais preservados com SHA256 idênticos e nenhum artefato correspondente permanece rastreado. Exclusões existentes mantidas; build final Release zero erros/avisos.

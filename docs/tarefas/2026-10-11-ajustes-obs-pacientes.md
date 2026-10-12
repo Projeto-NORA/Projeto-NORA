@@ -47,7 +47,7 @@ Entregar a tela de pacientes do OBS e os ajustes compartilhados autorizados, pre
 - [x] Revisar pedido completo por implementação, UX, técnica e testes.
 - [x] Executar build, testes pertinentes, fluxos de API/banco descartável e verificação visual possível.
 - [x] Atualizar documentação e registro único de pendências (estado parcial real; atualizar resultados ao final).
-- [ ] Revisar diff, criar commit, push main e verificar hash remoto.
+- [x] Revisar diff, criar commit, push main e verificar hash remoto.
 
 ## Estado
 
@@ -118,6 +118,13 @@ Entregar a tela de pacientes do OBS e os ajustes compartilhados autorizados, pre
 10. Sem marcador azul do nome; e-mail/CPF/telefone abaixo, cadastros antigos sem telefone preservados; normalização/validação e migração aditiva reaplicável conferidas.
 11. Três barras recolhem/expandem a navegação (`Ctrl+B`); ação e tooltip conferidos. Configurações abertas pelo menu e captura final disponível.
 12. Conta NORA/Operação da Unidade no canto inferior esquerdo; menu contém somente Configurações e Sair da conta, com navegação/logout conferidos.
-13. Revisões de implementação, UX, técnica e validação executadas com quatro responsáveis; causas corrigidas e rodada final sem novos achados. Restam somente commit/push e hash remoto nesta tarefa; P-003/P-007/P-012/P-013/P-014/P-015 são limites ou tarefas anteriores preservadas.
+13. Revisões de implementação, UX, técnica e validação executadas com quatro responsáveis; causas corrigidas e rodada final sem novos achados. Implementação publicada na main e hash remoto confirmado; P-003/P-007/P-012/P-013/P-014/P-015 são limites ou tarefas anteriores preservadas.
 
-- Abertura final após o ajuste do Expander reexecutada: OBS e painel **2/2** com janelas responsivas. Clusters de todas as rodadas desta tarefa encerrados pelo próprio harness. Nenhum banco de produção foi acessado.
+- Abertura final após o ajuste do Expander reexecutada: OBS e painel **2/2** com janelas responsivas. Clusters de todas as rodadas desta tarefa encerrados pelo próprio harness; emulador Pixel_4 iniciado para os testes encerrado sem apagar seus dados. Nenhum banco de produção foi acessado.
+
+### Publicação verificada
+
+- Commit de implementação `7dff75b` criado na main, com 43 arquivos revisados; staging explícito, sem artefatos gerados nem credenciais reais.
+- Novo fetch antes do push confirmou somente um commit local e nenhum avanço remoto; push normal `be00522..7dff75b` concluído.
+- `git rev-parse HEAD` e `git ls-remote origin refs/heads/main` retornaram o mesmo hash `7dff75b6ad68d1c923a0e74d4d6a5d94799ec2ee`.
+- P-016 movida para Resolvidas. Este registro documental sucede a publicação já comprovada; os limites e tarefas anteriores permanecem abertos.
