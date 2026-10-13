@@ -21,9 +21,9 @@ Entregar a main integrada e verificada. Preservar histórico e arquivos válidos
 - [x] Concluir verificações e documentação das listagens.
 - [x] Apresentar opções de acesso conforme esclarecimento do usuário.
 - [x] Revisar e salvar alterações locais em commit.
-- [ ] Buscar remoto e integrar main por merge, preservando ambos os históricos.
+- [x] Buscar remoto e integrar main por merge, preservando ambos os históricos.
 - [x] Validar o conjunto após integração e corrigir problemas objetivos.
-- [ ] Publicar e conferir hash remoto e árvore local.
+- [x] Publicar e conferir hash remoto e árvore local.
 
 ## Estado
 
@@ -40,3 +40,7 @@ NuGet restore sem cache/force-evaluate passou sem avisos; consulta de vulnerabil
 Rodada final integrada58/58 com galeria passou; o caso OBS foi corrigido no harness mantendo a exigência de seleção/ação. WPF55/55 com API/PostgreSQL descartáveis passou, evidência `.build/clients-validation-556a01fb04ca4ee3a3ab8bcd4d8f163f`, cluster/fixture próprios encerrados. API permaneceu idêntica ao commit f3ec187; HTTP20/20 e PostgreSQL23/23 da rodada anterior continuam cobrindo o mesmo código. Prévia integrada gerou68 renders da galeria e os casos de lista/ficha, inspecionados; duas imagens atuais versionadas em `docs/galeria/2026-10-13`, sem alterar os83 PNG históricos.
 
 Android assembleDebug, assembleDebugAndroidTest, testes locais7/7, renders/comparações15/15 sem skips e lint passaram (zero erros/um aviso já conhecido de versão Kotlin). Plugin experimental permanece explícito, sem ocultar avisos. Não houve execução instrumentada em dispositivo nesta integração. Restore NuGet completo e auditoria dos seis projetos sem vulnerabilidades conhecidas nas fontes atuais; P-017 encerrada. Checklist compartilhado do conjunto revisado, sem novo bug de produção; conflitos combinados preservam os dois objetivos. Falta concluir commit de merge e push/hash.
+
+Concluído: merge34b7877 criado e publicado sem push forçado. `git merge-base --is-ancestor` confirmou f3ec187 e8b80b2a em HEAD, preservando seus ancestrais. `git ls-remote origin refs/heads/main` confirmou SHA34b7877da4176ba836a85693827f140c975a8788 idêntico ao local; árvore limpa. Abertura dos executáveis após integração2/2 passou. Todos os itens do pedido conferidos; P-020 resolvida. Este estado final será publicado em commit exclusivamente documental complementar.
+
+Permanecem decisões de implementação de acesso/isolaçao P-014 e finanças P-015, provisionamento privado P-012 e limites físicos P-003/P-007, sem relação com conflitos ou publicação. Não há pendência técnica da integração nem conflito aberto.

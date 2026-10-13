@@ -2,7 +2,6 @@
 
 ## Abertas
 
-- **P-020** · 2026-10-13 · Integração/publicação da main após concluir as listagens: trabalho remoto buscado e conflitos combinados; falta conferir o conjunto e verificar push/hash remoto. Pedido autorizado; tarefa em `tarefas/2026-10-13-integracao-main.md`. Identificador local anterior P-018 renumerado nesta integração para preservar P-018 da galeria.
 
 
 - **P-014** · 2026-10-08 · Acesso OBS: usuário confirmou em 2026-10-13 ativação do computador + login da secretária com manter conectado; painel administrativo pertence ao responsável pela marca/hospital. Opções explicadas e escolha registrada em `tarefas/2026-10-13-opcoes-acesso-obs.md`. Implementação posterior ainda exige definir vínculo/quantidade de instalações, prazo/recuperação/revogação e uma ou várias clínicas por API. Não presumir essas políticas.
@@ -17,6 +16,8 @@
 - **P-007** · 2026-10-07 · Conferência desktop manual: teclado/foco físico, escala/DPI ampliados e múltiplos monitores ainda não verificados. Rodada atual 45/45 com E2E/PostgreSQL e abertura2/2 passaram; incluem cadastro/telefone/fila/vaga/logout persistidos, temas/render, filtros, rolagem, navegação e leitura da preferência DWM de cantos/restauração/tela cheia. O controle nativo de desktop não está disponível nesta sessão; resultados automatizados não equivalem a teclado/DPI/monitores físicos nem à inspeção física da moldura nativa.
 
 ## Resolvidas
+
+- **P-020** · aberta em 2026-10-13 · resolvida em 2026-10-13 · Integração/publicação da main → commit local f3ec187 e remotos3fa7e58/5396387/8b80b2a preservados em merge34b7877. Release0/0, desktop58/58 com galeria e55/55 com PostgreSQL, abertura2/2, Android7/7 locais e15/15 renders/comparações passaram. Push sem força concluído; hash local/remoto34b7877da4176ba836a85693827f140c975a8788 conferido por ls-remote, árvore limpa. Registro documental complementar acompanha a entrega. Antigo P-018 local renumerado para preservar o P-018 remoto.
 
 - **P-017** · aberta em 2026-10-10 · resolvida em 2026-10-13 · Consulta NuGet indisponível no outro computador → `dotnet restore NORA.slnx --force-evaluate --no-cache` passou sem avisos; `dotnet list NORA.slnx package --vulnerable --include-transitive --no-restore` consultou as fontes atuais e não apontou pacotes vulneráveis em nenhum dos seis projetos. Auditoria permaneceu habilitada. Disponibilidade futura de rede não é garantida por esta consulta.
 
