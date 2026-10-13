@@ -16,9 +16,12 @@ Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configu
 
 A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal só recebe totais, sem pacientes nominais. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
 
-Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; fixtures de testes usam somente banco descartável.
+Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; testes de integração usam banco descartável, e capturas visuais usam fixtures isoladas somente nos harnesses/previews.
 
 ## Documentação
+
+- [Galeria atual: 83 capturas dos três aplicativos](docs/galeria/2026-10-10/index.html).
+- [Cobertura visual, imagens principais e resultados](docs/galeria/2026-10-10/README.md).
 
 - [Briefing visual original](docs/briefing-visual.md).
 - [Referência visual e padrões de design](docs/design.md).
@@ -74,3 +77,7 @@ Conferência complementar: corrigida navegação WPF que herdava a rolagem da te
 Login por CPF/e-mail, cadastro OBS, fila por entrada, ofertas de dez minutos e totais isolados estão implementados nos clientes/API/PostgreSQL 18. Passaram HTTP 20/20, persistência/fluxos 15/15, WPF 34/34 incluindo controles nativos com banco real e Android 10/10 instrumentados sem skips. Os dois executáveis abriram responsivos; build Release zero erros/avisos. Android 7/7 locais reexecutados, lint zero erros/um aviso de versão disponível. Corrigidas mensagem de atualização WPF, inicialização da API em pasta diferente e manutenção da decisão Android confirmada após falha de recarga. Harnesses reproduzíveis em docs/execucao.md.
 
 Limpeza retirou 37 artefatos de IDE/build somente do Git, preservando arquivos locais e hashes. P-001/P-002/P-009/P-011 resolvidas; provisionamento definitivo P-012 e definições clínicas P-013 permanecem. As novas solicitações de chave OBS e painel administrativo com totais operacionais/financeiros estão na fila P-014/P-015.
+
+## 2026-10-10 — Galeria e revisão visual
+
+83 imagens atuais: 68 WPF nativas e 15 Compose/Layoutlib. Corrigido contraste do texto efetivo dos botões principais desktop; fotos regeneradas, checks39/39 e Android15/15 renders/comparações e7/7 locais. Galeria com filtros/busca/ampliação, fontes sintéticas identificadas e hashes das cópias. Solução Release zero erros, quatro avisos de consulta NuGet indisponível nesta rede. Sem E2E PostgreSQL ou execução Android em dispositivo nesta rodada; P-003/P-007 mantêm os limites físicos, P-014/P-015 continuam pendentes. Detalhes e reprodução na documentação da galeria.

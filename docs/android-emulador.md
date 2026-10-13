@@ -65,7 +65,13 @@ APK de desenvolvimento: `app/build/outputs/apk/debug/app-debug.apk`. Relatórios
 - SDK Command-line Tools/`avdmanager` não estão instalados neste notebook. Para uma conferência extra estável, criar **outro** AVD em Tools → Device Manager → Create Device, usando imagem disponível x86_64 API31 ou superior, iniciar com Cold Boot e executar o APK. Preservar `Pixel_4`; não usar Wipe Data como tentativa de correção. Alternativa: dispositivo Android físico. Ver P-003.
 - O primeiro processo do emulador foi encerrado por `adb emu kill` para a reinicialização. O segundo já havia encerrado ao conferir o fim da sessão: o processo retornou código 0 e a tentativa posterior de `emu kill` encontrou a porta desconectada. Nenhum dado do AVD foi apagado. O daemon Gradle ocioso desta validação foi encerrado para liberar memória.
 
-## Referências oficiais
+## Ambiente Pichau em10/10/2026
+
+O histórico acima descreve outro computador. Aqui o SDK está em `C:/Users/Pichau/AppData/Local/Android/Sdk`, o AVD é `Medium_Phone_API_37.0` e `-accel-check` informa que a aceleração não está instalada. A tentativa de boot somente leitura não disponibilizou dispositivo; nenhum driver, AVD ou configuração Windows foi alterado. Use o JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot`: o JBR do Android Studio desta máquina é Java25.
+
+As15 capturas atuais foram renderizadas em Compose/Layoutlib, incluindo Sistema claro/escuro, fonte130% e tablet. A [galeria](galeria/2026-10-10/README.md) identifica essa origem e as fixtures de preview. Os15renders/comparações,7unitários, APKs e lint passaram; não houve execução de teste instrumentado nem HTTP/PostgreSQL nesta rodada. P-003 mantém os testes em dispositivo e recriação de sessão. Para reproduzir as capturas sem emulador, veja [execucao.md](execucao.md#galeria-visual-de-10102026).
+
+## Fontes sobre emulação
 
 - [Aceleração do Android Emulator e WHPX/AEHD](https://developer.android.com/studio/run/emulator-acceleration).
 - [Inicialização do emulador pela linha de comando](https://developer.android.com/studio/run/emulator-commandline).

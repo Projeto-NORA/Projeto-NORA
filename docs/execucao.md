@@ -59,7 +59,26 @@ Na retomada de 2026-10-07, o AVD `Pixel_4` API31 iniciou com WHPX já instalado 
 
 Os testes instrumentados confirmam interação, rolagem e persistência em novas instâncias do armazenamento. A conferência extra de reabertura e captura de tela ficou limitada por crashes/ANRs do `System UI` do AVD, inclusive após reinicialização com dois núcleos e GPU software. Não foi registrado crash do processo NORA. Ainda faltam reabertura/render estáveis, tema Sistema, fonte ampliada e layout em telas maiores (P-003). O passo a passo para executar no Android Studio e criar um novo AVD está em `android-emulador.md`; o AVD existente não foi apagado.
 
-## Referências oficiais de compatibilidade
+## Galeria visual de 10/10/2026
+
+As fotos atuais estão em `docs/galeria/2026-10-10/index.html`, um HTML offline com imagens originais e fontes identificadas. São 68 renders WPF e 15 Compose/Layoutlib; não substituem E2E banco/dispositivo. A máquina Pichau desta rodada possui JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot` e SDK em `C:/Users/Pichau/AppData/Local/Android/Sdk`. O JBR atual do Android Studio é Java25, portanto use o JDK21 explícito. PostgreSQL18 e aceleração do emulador não estão disponíveis aqui; a validação histórica no notebook mateu continua válida apenas como histórico.
+
+```powershell
+# Na raiz, depois de compilar os checks desktop:
+dotnet .build/Nora.Desktop.Checks/bin/Release/net10.0-windows/Nora.Desktop.Checks.dll --preview-dir .build/galeria-visual-2026-10-10/desktop --visual-gallery
+# Na pasta APPNORA com JAVA_HOME/ANDROID_HOME configurados:
+.\gradlew.bat :app:updateDebugScreenshotTest :app:validateDebugScreenshotTest --console=plain
+# De volta à raiz, exporta os previews para PNG legíveis e manifesto Android:
+pwsh -NoProfile -File tests/exportar-capturas-android.ps1
+# Com ambos os visual-captures.json e PNG disponíveis:
+pwsh -NoProfile -File tests/gerar-galeria-visual.ps1
+```
+
+O harness desktop usa preferências temporárias e respostas HTTP sintéticas em memória; recusa capturar PasswordBox preenchido. Android `screenshotTest` contém os 15 previews de componentes de produção, com estados sintéticos sem rede. Os PNG de referência ficam localmente em `APPNORA/app/src/screenshotTestDebug/reference/`, ignorados no Git; o relatório fica em `APPNORA/app/build/reports/screenshotTest/`. `update` gera referências e `validate` compara; a comparação da referência recém-gerada confirma render consistente, sem substituir inspeção visual. Os PNG legíveis e os manifestos de origem são intermediários em `.build/galeria-visual-2026-10-10/{desktop,android}`. A galeria preserva as cópias sem edição e seus hashes. O teste instrumentado opt-in `VisualCaptureTest` compila para futuras capturas locais, não foi executado nesta máquina e não faz conexão HTTP.
+
+Resultados: desktop39/39; Android15/15 renders/comparações,7/7 unitários, lint zero erros/um aviso de versão; APK e APK de testes compilados. Build integrado Release zero erros/quatro avisos NU1900 de consulta de vulnerabilidades bloqueada pela rede. A inspeção manual das imagens foi realizada antes da entrega. Configuração pessoal, AVD e bases de uso foram preservados.
+
+## Fontes de compatibilidade
 
 - [AGP 9.4 e requisitos de Gradle/JDK/SDK](https://developer.android.com/build/releases/agp-9-4-0-release-notes).
 - [Kotlin integrado ao AGP](https://developer.android.com/build/migrate-to-built-in-kotlin).

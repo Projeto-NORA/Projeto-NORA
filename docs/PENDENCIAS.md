@@ -2,6 +2,8 @@
 
 ## Abertas
 
+- **P-017** · 2026-10-10 · Consulta de vulnerabilidades NuGet: build integrado Release passou com zero erros, porém quatro avisos NU1900 por indisponibilidade de `api.nuget.org` nesta rede. Reexecutar restore/auditoria quando a origem estiver acessível; não foi desativada a auditoria para esconder avisos.
+
 - **P-014** · 2026-10-08 · Acesso OBS por chave: entrega anterior publicada e estudo concluído em `estudo-acesso-obs.md`, com referência Oliver Imports somente lida e fontes oficiais. Aguarda confirmação da proposta de chave de uso único por computador/perfil Windows, prazo de 24 horas, acesso online sem login após ativação e revogação central; também falta definir uma clínica por API ou várias clínicas compartilhando a API. Perguntas enviadas, sem resposta até este registro. Não implementar isolamento ou política de autorização presumidos.
 - **P-015** · 2026-10-08 · Painel administrativo do dono da marca substitui Municipal: usuário confirmou totais operacionais e financeiros, sem dados sensíveis de pacientes. Origem/registro dos valores financeiros ainda não definidos; implementar depois da chave OBS, respeitando fila.
 
@@ -10,10 +12,12 @@
 - **P-013** · 2026-10-07 · Consultas, notificações externas e análises clínicas: usuário aprovou concluir nesta entrega acesso, cadastro, fila por entrada, Vaga Relâmpago de 10 minutos e totais agregados. Campos/regras de consultas, canais de envio externos e séries/filtros de indicadores adicionais ficam para definição posterior; não usar os dados/regras fictícios do protótipo como especificação.
 
 
-- **P-003** · 2026-10-07 · Conferência visual Android complementar: Pixel_4 iniciou com WHPX sem apagar dados; rodada atual 10/10 instrumentados sem skips, incluindo HTTP real/PostgreSQL, interação Compose e preferências. Ainda faltam reabertura/render estáveis fora do harness, tema Sistema, fonte ampliada, tela larga e comportamento ao recriar Activity durante sessão/operação. Controller em remember pode perder sessão em rotação; falta reprodução específica, sem afirmar correção. Guia em android-emulador.md.
+- **P-003** · 2026-10-07 · Conferência Android em dispositivo: histórico no notebook mateu com Pixel_4/WHPX e10/10 instrumentados sem skips, incluindo HTTP/PostgreSQL. Em10/10 no computador Pichau, o AVD disponível é Medium_Phone_API_37.0 e não inicia por falta de aceleração; nenhum driver/AVD foi alterado. Sistema claro/escuro, fonte130% e tablet foram renderizados e inspecionados em Layoutlib (15/15), mas ainda faltam conferência em dispositivo, reabertura estável e recriação de Activity durante sessão/operação. Controller em remember pode perder sessão em rotação; falta reprodução específica, sem afirmar correção. Guia em android-emulador.md e galeria/2026-10-10/README.md.
 - **P-007** · 2026-10-07 · Conferência desktop manual: teclado/foco físico, escala/DPI ampliados e múltiplos monitores ainda não verificados. Rodada atual 33 checks nativos mais E2E34/34 e abertura2/2 passaram; incluem botões, cadastro/fila/vaga/logout persistidos, temas/render e navegação. O controle nativo de desktop não está disponível nesta sessão; resultados automatizados não equivalem a teclado/DPI/monitores físicos.
 
 ## Resolvidas
+
+- **P-016** · aberta em2026-10-10 · resolvida em2026-10-10 · Contraste do texto efetivo dos botões principais WPF insuficiente (2,30:1 claro/2,48:1 escuro) → template PrimaryButton vincula TextBlock.Foreground ao botão, mantendo seus estados. Duas regressões falharam antes e passaram depois (7,10:1/6,72:1); suite39/39,68 fotos desktop regeneradas e amostras revisadas por UX.
 
 - **P-001** · aberta em 2026-10-07 · resolvida em 2026-10-08 · Acesso, pacientes, fila e Vaga Relâmpago sem integração → implementados API/PostgreSQL 18, login CPF/e-mail, cadastro OBS, FIFO, ofertas de 10 min e totais isolados. HTTP 20/20, PostgreSQL 15/15, WPF 34/34 E2E e Android 10/10 instrumentados sem skips. Contas definitivas em P-012; consultas/notificações/séries em P-013.
 - **P-002** · aberta em 2026-10-07 · resolvida em 2026-10-08 · Artefatos IDE/build rastreados → 37 arquivos de obj/.vs/csproj.user retirados somente do índice; arquivos locais preservados com SHA256 idênticos e nenhum artefato correspondente permanece rastreado. Exclusões existentes mantidas; build final Release zero erros/avisos.

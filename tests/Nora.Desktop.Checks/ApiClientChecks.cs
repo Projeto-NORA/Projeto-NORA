@@ -239,6 +239,7 @@ internal static partial class Program
         public bool FailLogout { get; init; }
         public bool LogoutCalled { get; private set; }
         public bool Registered { get; private set; }
+        public bool UseWorkspaceIdentity { get; init; }
         public Guid? EnqueuedPatient { get; private set; }
         public string? CreatedSlotLabel { get; private set; }
         public bool FailReads { get; set; }
@@ -253,7 +254,8 @@ internal static partial class Program
                 LoginIdentifier = body.RootElement.GetProperty("identifier").GetString();
                 Scope = body.RootElement.GetProperty("scope").GetString()!;
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
-                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, "Paciente Fixture", Scope == "obs" ? "admin" : "manager", Scope)));
+                var accountName = UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture";
+                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, accountName, Scope == "obs" ? "admin" : "manager", Scope)));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
