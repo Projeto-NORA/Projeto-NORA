@@ -12,4 +12,8 @@
   <SolidColorBrush x:Key="ErrorBrush" Color="#B4233E" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="SurfaceAltBrush" Color="#F1EDF7" />
+  <SolidColorBrush x:Key="PatientAlternateBrush" Color="#F2F1F6" />
+  <SolidColorBrush x:Key="TooltipBrush" Color="#E5F1FF" />
+  <SolidColorBrush x:Key="TooltipTextBrush" Color="#34445A" />
+  <SolidColorBrush x:Key="TooltipBorderBrush" Color="#BFD7F3" />
 </ResourceDictionary>

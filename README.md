@@ -20,7 +20,7 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 
 ## Documentação
 
-- [Galeria atual: 83 capturas dos três aplicativos](docs/galeria/2026-10-10/index.html).
+- [Galeria de10/10: 83 capturas dos três aplicativos](docs/galeria/2026-10-10/index.html).
 - [Cobertura visual, imagens principais e resultados](docs/galeria/2026-10-10/README.md).
 
 - [Briefing visual original](docs/briefing-visual.md).
@@ -81,3 +81,9 @@ Limpeza retirou 37 artefatos de IDE/build somente do Git, preservando arquivos l
 ## 2026-10-10 — Galeria e revisão visual
 
 83 imagens atuais: 68 WPF nativas e 15 Compose/Layoutlib. Corrigido contraste do texto efetivo dos botões principais desktop; fotos regeneradas, checks39/39 e Android15/15 renders/comparações e7/7 locais. Galeria com filtros/busca/ampliação, fontes sintéticas identificadas e hashes das cópias. Solução Release zero erros, quatro avisos de consulta NuGet indisponível nesta rede. Sem E2E PostgreSQL ou execução Android em dispositivo nesta rodada; P-003/P-007 mantêm os limites físicos, P-014/P-015 continuam pendentes. Detalhes e reprodução na documentação da galeria.
+
+## 2026-10-11 — Pacientes OBS e acabamento Windows
+
+A listagem passa a usar linhas zebra com nome, contatos e presença recente no APPNORA; o telefone é opcional no cadastro e no PostgreSQL. Filtros ficam acima da lista, inputs têm arredondamento discreto e as dicas aparecem pelo mouse. A conta no canto inferior da navegação abre Configurações e Sair; inclusão na fila fica na própria tela Fila. OBS/Municipal usam cantos nativos pequenos na janela restaurada do Windows 11.
+
+Conferência e estado de publicação em [tarefa dos ajustes](docs/tarefas/2026-10-11-ajustes-obs-pacientes.md). A API de presença usa sessões e prazo de 90 segundos; o Android mantém a conexão em segundo plano com a notificação “NORA · conexão ativa”, autorizada pelo usuário, e encerra ao sair ou fechar nos recentes. Passaram WPF45/45 com PostgreSQL e Android14/14 instrumentados sem skips, incluindo o serviço de presença. As políticas de ativação OBS/novo painel financeiro continuam em P-014/P-015.

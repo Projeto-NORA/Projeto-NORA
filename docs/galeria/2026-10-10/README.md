@@ -2,6 +2,8 @@
 
 [Abrir galeria completa](index.html). O HTML funciona offline: filtros por aplicativo/aparência, busca, ampliação, navegação por setas e PNG original. As **83 imagens** são cópias sem edição das renderizações nativas; origem, dimensões e SHA256 estão em [manifest.json](manifest.json).
 
+Este conjunto preserva o estado de10/10/2026. Os ajustes de pacientes, conta inferior, telefone e presença publicados em11/10 foram preservados na integração de13/10 e podem diferir destas imagens históricas. O harness foi compatibilizado com a inclusão na tela Fila; a galeria de10/10 não foi sobrescrita.
+
 ## Telas principais
 
 - [OBS: pacientes e seleção, claro](desktop/visual-obs-pacientes-selecao-light-topo.png).

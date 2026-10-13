@@ -5,6 +5,7 @@ param(
     [switch] $Android,
     [string] $JavaHome = $(if ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'C:\Program Files\Android\Android Studio\jbr' }),
     [string] $AndroidSdk = $(if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }),
+    [string] $PreviewDirectory = '.build\previews-e2e',
     [ValidateRange(60, 1800)] [int] $TestTimeoutSeconds = 900
 )
 
@@ -28,7 +29,7 @@ if ($Android) {
 $noraDirectory = Join-Path $noraRoot ('.build\clients-validation-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $noraDirectory | Out-Null
 $noraData = Join-Path $noraDirectory 'data'
-$noraPreview = Join-Path $noraRoot '.build\previews-e2e-20261008'
+$noraPreview = if ([IO.Path]::IsPathRooted($PreviewDirectory)) { $PreviewDirectory } else { Join-Path $noraRoot $PreviewDirectory }
 $noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
 $noraPreviousEnvironment = @{}
 foreach ($noraName in $noraEnvironmentNames) { $noraPreviousEnvironment[$noraName] = [Environment]::GetEnvironmentVariable($noraName, 'Process') }

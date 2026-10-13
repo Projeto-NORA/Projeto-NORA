@@ -8,6 +8,7 @@ namespace Nora.Api.Services;
 
 public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPasswordHasher<Account> passwords, TimeProvider time)
 {
+    public static readonly TimeSpan PresenceTimeout = TimeSpan.FromSeconds(90);
     private readonly Account _dummy = new(new(Guid.Empty, "", "", ""), "", "", "");
     private string? _dummyHash;
     public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken ct)
@@ -25,5 +26,6 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
     public Task<SessionInfo?> AuthenticateAsync(string token, CancellationToken ct) => token.Length == 64 && token.All(Uri.IsHexDigit)
         ? sessions.FindAsync(HashToken(token), time.GetUtcNow(), ct) : Task.FromResult<SessionInfo?>(null);
     public Task<int> LogoutAsync(SessionInfo session, CancellationToken ct) => sessions.RevokeAsync(session.TokenHash, time.GetUtcNow(), ct);
+    public Task<int> SetPresenceAsync(SessionInfo session, bool online, CancellationToken ct) => sessions.SetPresenceAsync(session.TokenHash, time.GetUtcNow(), online, ct);
     private static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

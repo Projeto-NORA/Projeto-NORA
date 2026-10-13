@@ -6,6 +6,7 @@
 .artifacts/
 **/build/
 **/.gradle/
+**/.kotlin/
 **/local.properties
 *.csproj.user
 *.log

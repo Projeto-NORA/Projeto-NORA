@@ -57,3 +57,11 @@ O comportamento deve ser conferido nos três modos de aparência, ao reabrir os 
 A [galeria atual](galeria/2026-10-10/README.md) reúne 83 capturas das interfaces reais, com fixtures somente nos testes. A revisão das amostras identificou que o `TextBlock` gerado pelo botão WPF recebia `TextBrush` do estilo implícito, apesar de `PrimaryButton.Foreground` já estar correto. O template do botão principal agora vincula o texto ao `Foreground` do próprio botão; os contrastes efetivos passaram de 2,30/2,48 para 7,10/6,72:1. Duas regressões sobre a árvore renderizada falharam antes e passaram depois.
 
 As amostras finais de desktop e Android apresentam cartões, títulos, ações e seleção legíveis; fonte Android 130% e tablet foram inspecionados em Layoutlib. Não equivale a auditoria completa de acessibilidade, uso em celular, teclado físico ou DPI. A barra contextual de atendimentos permanece scaffold; a fila operacional usa a ação real de cancelamento abaixo da tabela. Temas e configurações, incluindo telas longas e sidebar recolhida, podem ser comparados na galeria.
+
+## Ajustes Windows de 2026-10-11
+
+A tela Pacientes usa somente o título e os filtros acima da listagem. As linhas alternam branco e cinza suave no tema claro, com equivalentes escuros, sem cabeçalho de colunas ou separadores marcados. O nome fica destacado ao lado do indicador de presença no APPNORA; e-mail, CPF mascarado e telefone aparecem abaixo. Filtros por pesquisa/presença e ordenação mantêm o conteúdo organizado, com rolagem vertical.
+
+Inputs Windows têm raio de 5 px, menor que os botões/cards. Tooltips têm borda de 6 px e fundo azul claro na aparência Clara, com equivalente legível na Escura. Substituem explicações permanentes da tela e identificam ações pelo mouse. A conta NORA fica no canto inferior da sidebar e abre somente Configurações e Sair da conta; as três barras alternam a sidebar.
+
+As janelas OBS e Municipal preservam a moldura nativa e solicitam cantos pequenos ao DWM no Windows 11 quando restauradas. Maximizada/tela cheia solicita cantos retos. O raio final é definido pelo compositor Windows, não por recorte do conteúdo WPF. Conferência de preferência DWM e render do conteúdo são evidências distintas de captura da moldura na tela.

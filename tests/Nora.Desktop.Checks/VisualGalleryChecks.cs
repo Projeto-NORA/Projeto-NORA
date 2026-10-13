@@ -108,6 +108,9 @@ internal static partial class Program
                 Require(fixture.Registered && vm.Patients.Count == 2, "Cadastro fixture não publicou paciente.");
                 registration.IsExpanded = false;
                 CaptureVisualThemes(window, args, "paciente-cadastrado", dataSource: VisualHttpSource);
+                // The integrated OBS now keeps inclusion on the queue screen.
+                window.ViewModel.Navigate("queue");
+                content = Layout(window, 1280, 820);
                 InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
                 window.ViewModel.Navigate("queue");
                 content = Layout(window, 1280, 820);

@@ -80,9 +80,8 @@ internal static partial class Program
                 InvokeButton(Descendants<Button>(loginContent).Single(button => button.Content?.ToString() == "Entrar"));
                 PumpUntil(() => !vm.IsBusy);
                 Require(vm.IsAuthenticated && vm.AccountName == "Paciente Fixture", "Nome completo/sessão não refletidos na janela.");
-                InvokeButton(Descendants<Button>((FrameworkElement)window.Content).Single(button => button.Content?.ToString() == "Atualizar"));
-                PumpUntil(() => !vm.IsBusy);
-                Require(!vm.IsBusy && vm.Message.StartsWith("Dados atualizados", StringComparison.Ordinal), "Atualização concluída manteve a mensagem de conexão em andamento.");
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(!vm.IsBusy && !vm.HasMessage, "Atualização automática deixou uma mensagem redundante na tela.");
                 if (profile.IsMunicipal)
                     Require(vm.PatientCount == "1" && vm.WaitingCount == "1" && vm.Patients.Count == 0, "Municipal perdeu totais ou carregou indivíduos.");
                 else
@@ -102,6 +101,7 @@ internal static partial class Program
                 var previewArgument = Array.IndexOf(args, "--preview-dir");
                 var previewRoot = previewArgument >= 0 && previewArgument + 1 < args.Length ? args[previewArgument + 1] : Path.Combine(AppContext.BaseDirectory, "previews");
                 Directory.CreateDirectory(previewRoot);
+                if (!profile.IsMunicipal) window.ViewModel.Navigate("patients");
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
                 {
                     window.ViewModel.SetAppearance(mode);
@@ -110,11 +110,23 @@ internal static partial class Program
                     {
                         var patients = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
                         Require(patients.Items.Count == 1 && patients.ActualHeight > 0, "Pacientes não renderizados.");
-                        Require(patients.Columns.OfType<DataGridTextColumn>().Single(column => column.Header.ToString() == "CPF").Binding is System.Windows.Data.Binding { Path.Path: "MaskedCpf" }, "CPF foi exposto sem máscara na tabela.");
+                        Require(Descendants<TextBlock>(patients).Any(text => text.Text.Contains("***.***.***-00", StringComparison.Ordinal)), "CPF mascarado não aparece nos contatos da listagem.");
+                        Require(!Descendants<TextBlock>(patients).Any(text => text.Text.Contains("00000000000", StringComparison.Ordinal)), "CPF foi exposto sem máscara na listagem.");
                     }
                     SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-authenticated-fixture-{mode.ToString().ToLowerInvariant()}.png"));
+                    if (!profile.IsMunicipal && mode == Appearance.Light)
+                    {
+                        var registration = Descendants<Expander>(content).Single();
+                        registration.IsExpanded = true;
+                        content = Layout(window, 1280, 740);
+                        Descendants<Button>(registration).Single(button => button.Content?.ToString() == "Cadastrar paciente").BringIntoView();
+                        application.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                        SavePreview(content, Path.Combine(previewRoot, "obs-registration-fixture-light.png"));
+                        registration.IsExpanded = false;
+                        ((ScrollViewer)window.FindName("PageScroll")).ScrollToTop();
+                    }
                 }
-                InvokeButton(Descendants<Button>((FrameworkElement)window.Content).Single(button => button.Content?.ToString() == "Sair da conta"));
+                InvokeAccountAction(window, "Sair da conta");
                 PumpUntil(() => !vm.IsBusy);
                 Require(vm.IsSignedOut && vm.Patients.Count == 0 && vm.Queue.Count == 0 && fixture.LogoutCalled, "Logout não revogou ou limpou dados.");
                 window.ViewModel.Navigate("settings");
@@ -122,7 +134,7 @@ internal static partial class Program
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
-        Check("OBS: cadastro, inclusão, cancelamento e vaga por controles nativos", () =>
+        Check("OBS: cadastro/telefone, inclusão na tela Fila, cancelamento e vaga por controles nativos", () =>
         {
             using var fixture = new ApiFixture();
             var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "mutation-ui"), new NoraApiClient(fixture));
@@ -140,12 +152,16 @@ internal static partial class Program
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "Nome completo do paciente").Text = "Paciente Novo Fixture";
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "CPF do paciente").Text = "00000000001";
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "E-mail do paciente").Text = "new@example.invalid";
+                Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "Telefone do paciente").Text = "(48) 99900-0001";
                 var patientPassword = Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha inicial do paciente");
                 patientPassword.Password = "isolated-initial-password";
                 InvokeButton(Descendants<Button>(content).Single(button => button.Content?.ToString() == "Cadastrar paciente"));
                 PumpUntil(() => !vm.IsBusy);
-                Require(fixture.Registered && vm.Patients.Count == 2 && vm.SelectedPatient?.FullName == "Paciente Novo Fixture" && patientPassword.Password == "", "Cadastro não publicou seleção/limpeza da senha.");
-                InvokeButton(Descendants<Button>(content).Single(button => button.Content?.ToString() == "Incluir selecionado na fila"));
+                Require(fixture.Registered && fixture.RegisteredPhone == "(48) 99900-0001" && vm.SelectedPatient?.Phone == fixture.RegisteredPhone && vm.Phone == "" && vm.Patients.Count == 2 && vm.SelectedPatient?.FullName == "Paciente Novo Fixture" && patientPassword.Password == "", "Cadastro não preservou telefone, seleção ou limpeza do formulário/senha.");
+                window.ViewModel.Navigate("queue");
+                content = Layout(window, 980, 640);
+                Descendants<ComboBox>(content).Single(input => AutomationProperties.GetName(input) == "Paciente para incluir na fila").SelectedItem = vm.Patients.Single(patient => patient.Id == ApiFixture.NewPatientId);
+                InvokeButton(FindActionButton(content, "Incluir selecionado na fila"));
                 PumpUntil(() => !vm.IsBusy);
                 Require(fixture.EnqueuedPatient == ApiFixture.NewPatientId && vm.Queue.Count == 2, "Inclusão perdeu identidade do paciente.");
                 var queue = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
@@ -184,6 +200,147 @@ internal static partial class Program
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
+        Check("OBS: atualização automática preserva seleção/rascunho e recupera falha; 401 limpa sessão", () =>
+        {
+            using var fixture = new ApiFixture();
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "automatic-refresh"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false;
+                PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+                vm.SelectedPatient = vm.Patients.Single(); vm.SelectedQueue = vm.Queue.Single();
+                vm.FullName = "Rascunho não enviado"; vm.Cpf = "01234567890";
+                vm.Email = "draft@example.invalid"; vm.Phone = "(48) 99900-0099";
+                var patientId = vm.SelectedPatient.Id; var queueId = vm.SelectedQueue.Id;
+                fixture.PatientOnline = true;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.SelectedPatient?.Id == patientId && vm.SelectedPatient.IsOnline && vm.SelectedQueue?.Id == queueId, "Atualização perdeu seleção ou presença atualizada.");
+                Require(vm.FullName == "Rascunho não enviado" && vm.Cpf == "01234567890" && vm.Email == "draft@example.invalid" && vm.Phone == "(48) 99900-0099", "Atualização apagou cadastro não enviado.");
+                fixture.FailReads = true;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.IsAuthenticated && vm.HasMessage && vm.Patients.Count == 1 && vm.SelectedPatient?.Id == patientId, "Falha de leitura perdeu dados anteriores ou feedback.");
+                fixture.FailReads = false;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(!vm.HasMessage && vm.SelectedPatient?.Id == patientId, "Recuperação manteve erro antigo ou perdeu seleção.");
+                fixture.UnauthorizedReads = true;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.IsSignedOut && vm.Patients.Count == 0 && vm.Queue.Count == 0 && vm.FullName == "" && vm.Phone == "", "401 de atualização deixou dados pessoais ou rascunhos na sessão.");
+                var calls = fixture.PatientReads;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(fixture.PatientReads == calls, "Atualização continuou usando a sessão encerrada.");
+            }
+            finally { window.Close(); }
+        });
+        Check("OBS: pesquisa por contato, filtros de presença e ordenação não confundem online com cadastro", () =>
+        {
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "patient-filters"));
+            try
+            {
+                window.ViewModel.ConfirmClose = false;
+                var vm = window.ViewModel.Workspace;
+                var offline = new PatientAccount(Guid.NewGuid(), "Zélia Fixture", "00000000001", "zelia@example.invalid");
+                var online = new PatientAccount(Guid.NewGuid(), "Ana Fixture", "00000000002", "ana@example.invalid", "48999000002", true);
+                vm.Patients.Add(offline); vm.Patients.Add(online);
+                vm.PatientSearch = "999000002";
+                Require(vm.FilteredPatients.Single().Id == online.Id, "Pesquisa não encontrou telefone.");
+                vm.PatientSearch = ""; vm.PatientPresenceFilter = "Online";
+                Require(vm.FilteredPatients.Single().Id == online.Id, "Online incluiu paciente offline.");
+                vm.PatientPresenceFilter = "Offline";
+                Require(vm.FilteredPatients.Single().Id == offline.Id && offline.PhoneDisplay == "Telefone não informado", "Offline ou compatibilidade sem telefone incorretos.");
+                vm.PatientPresenceFilter = "Todos"; vm.PatientSort = "Nome A–Z";
+                Require(vm.FilteredPatients.First().Id == online.Id, "Ordenação crescente divergente.");
+                vm.PatientSort = "Nome Z–A";
+                Require(vm.FilteredPatients.First().Id == offline.Id, "Ordenação decrescente divergente.");
+                Require(online.PresenceDisplay == "Online no APPNORA" && offline.PresenceDisplay == "Offline no APPNORA" && online.ContactDisplay.Contains(online.Phone!), "Texto de presença/contatos não corresponde ao contrato.");
+            }
+            finally { window.Close(); }
+        });
+        Check("OBS: polling preserva paciente da Fila fora do filtro da tela Pacientes", () =>
+        {
+            using var fixture = new ApiFixture();
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "queue-filter-refresh"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+                window.ViewModel.Navigate("patients");
+                vm.PatientPresenceFilter = "Online";
+                window.ViewModel.Navigate("queue");
+                var content = Layout(window, 980, 640);
+                var input = Descendants<ComboBox>(content).Single(input => AutomationProperties.GetName(input) == "Paciente para incluir na fila");
+                input.SelectedItem = vm.Patients.Single();
+                var selectedId = vm.SelectedPatient?.Id;
+                Require(selectedId != null && !vm.FilteredPatients.Any(), "Reprodução não excluiu o paciente da Fila pelo filtro de presença.");
+                Pump(vm.RefreshAutomaticallyAsync());
+                Layout(window, 980, 640);
+                Require(vm.SelectedPatient?.Id == selectedId && (input.SelectedItem as PatientAccount)?.Id == selectedId, "Polling perdeu paciente da Fila porque o filtro de Pacientes exclui pacientes offline.");
+            }
+            finally { window.Close(); }
+        });
+        Check("OBS: polling recupera leitura inicial sem manter erro do login", () =>
+        {
+            using var fixture = new ApiFixture { FailReads = true };
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "initial-read-recovery"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+                Require(vm.IsAuthenticated && vm.HasMessage && vm.Patients.Count == 0, "Reprodução não autenticou antes da falha inicial de leitura.");
+                fixture.FailReads = false;
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.Patients.Count == 1 && !vm.HasMessage, "Polling recuperou dados, mas deixou erro antigo do login visível.");
+            }
+            finally { window.Close(); }
+        });
+        Check("OBS: cadastro continua editável durante atualização automática sem permitir envio simultâneo", () =>
+        {
+            using var fixture = new ApiFixture();
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "draft-during-refresh"), new NoraApiClient(fixture));
+            Task? refresh = null;
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+                window.ViewModel.Navigate("patients");
+                var content = Layout(window, 980, 640);
+                Descendants<Expander>(content).Single().IsExpanded = true;
+                Layout(window, 980, 640);
+                var name = Input(content, "Nome completo do paciente");
+                name.Text = "Nome digitado antes do polling";
+                Require(name.IsEnabled, "Cadastro estava desabilitado antes da reprodução.");
+                fixture.PauseReads = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                refresh = vm.RefreshAutomaticallyAsync();
+                PumpUntil(() => vm.IsBusy);
+                Layout(window, 980, 640);
+                Require(name.IsEnabled && name.Focusable, "Polling desabilitou cadastro e interrompeu digitação/foco.");
+                name.Text = "Nome digitado durante o polling";
+                Require(vm.FullName == name.Text, "Cadastro não recebeu digitação durante polling.");
+                var submit = FindActionButton(content, "Cadastrar paciente");
+                Require(!submit.IsEnabled, "Cadastro permite envio simultâneo à atualização automática.");
+                fixture.PauseReads.TrySetResult();
+                Pump(refresh);
+                Require(vm.FullName == "Nome digitado durante o polling" && name.IsEnabled, "Atualização perdeu digitação após concluir.");
+            }
+            finally
+            {
+                fixture.PauseReads?.TrySetResult();
+                if (refresh != null) Pump(refresh);
+                window.Close();
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        });
+        RunPatientInterfaceChecks(application, storageRoot, args);
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
         {
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
@@ -215,6 +372,19 @@ internal static partial class Program
         PumpUntil(() => task.IsCompleted);
         task.GetAwaiter().GetResult();
     }
+    private static void InvokeAccountAction(ShellWindow window, string header)
+    {
+        var account = Descendants<Button>((FrameworkElement)window.Content).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
+        InvokeButton(account);
+        var menu = account.ContextMenu ?? throw new InvalidOperationException("Menu da conta ausente.");
+        Require(menu.IsOpen && menu.Items.Count == 2, "Conta não abriu exatamente Configurações e Sair.");
+        var item = menu.Items.Cast<MenuItem>().Single(item => item.Header?.ToString() == header);
+        Require(item.IsEnabled && item.Command?.CanExecute(item.CommandParameter) == true, "Ação do menu indisponível: " + header);
+        var peer = new System.Windows.Automation.Peers.MenuItemAutomationPeer(item);
+        ((System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)).Invoke();
+        window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        menu.IsOpen = false;
+    }
     private static void PumpUntil(Func<bool> complete)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -240,6 +410,12 @@ internal static partial class Program
         public bool LogoutCalled { get; private set; }
         public bool Registered { get; private set; }
         public bool UseWorkspaceIdentity { get; init; }
+
+        public string? RegisteredPhone { get; private set; }
+        public bool PatientOnline { get; set; }
+        public int PatientReads { get; private set; }
+        public TaskCompletionSource? PauseReads { get; set; }
+        public void AddPatient(PatientAccount patient) => patients.Add(patient);
         public Guid? EnqueuedPatient { get; private set; }
         public string? CreatedSlotLabel { get; private set; }
         public bool FailReads { get; set; }
@@ -258,12 +434,15 @@ internal static partial class Program
                 return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, accountName, Scope == "obs" ? "admin" : "manager", Scope)));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
+            if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);
+            if (request.Method == HttpMethod.Get && path == "/api/patients") PatientReads++;
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
             if (request.Method == HttpMethod.Post && path == "/api/patients")
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-                var patient = new PatientAccount(NewPatientId, body.RootElement.GetProperty("fullName").GetString()!, body.RootElement.GetProperty("cpf").GetString()!, body.RootElement.GetProperty("email").GetString()!);
+                RegisteredPhone = body.RootElement.TryGetProperty("phone", out var phone) ? phone.GetString() : null;
+                var patient = new PatientAccount(NewPatientId, body.RootElement.GetProperty("fullName").GetString()!, body.RootElement.GetProperty("cpf").GetString()!, body.RootElement.GetProperty("email").GetString()!, RegisteredPhone);
                 Require(body.RootElement.GetProperty("password").GetString() == "isolated-initial-password", "Cadastro não enviou senha inicial.");
                 patients.Add(patient); Registered = true;
                 return Reply(patient);
@@ -290,7 +469,7 @@ internal static partial class Program
             }
             return path switch
             {
-                "/api/patients" => Reply(patients),
+                "/api/patients" => Reply(patients.Select(patient => patient.Id == PatientId ? patient with { IsOnline = PatientOnline } : patient)),
                 "/api/queue" => Reply(queue),
                 "/api/slots" => Reply(slots),
                 "/api/municipal/summary" => Reply(new MunicipalSummary(1, 1, 1, 0)),

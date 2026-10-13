@@ -78,7 +78,7 @@ internal static class WorkflowChecks
             });
             await Check("Cadastro pelo OBS persiste e paciente não cadastra terceiros", async () =>
             {
-                firstId = await CreatePatient(obs, 1, password);
+                firstId = await CreatePatient(obs, 1, password, "+55 (48) 99999-0028");
                 secondId = await CreatePatient(obs, 2, password);
                 await Login(patient, "patient", Cpf(1), password);
                 await Login(secondPatient, "patient", "patient2@example.test", password);
@@ -88,6 +88,7 @@ internal static class WorkflowChecks
                 Expect(list, 200);
                 using var json = await Json(list);
                 Require(json.RootElement.GetArrayLength() == 2, "Pacientes não persistidos.");
+                Require(json.RootElement[0].GetProperty("id").GetGuid() == secondId, "Listagem não começa pelo cadastro mais recente.");
             });
             await Check("Duplicidade CPF/e-mail é conflito e CPF inválido é rejeitado", async () =>
             {
@@ -95,6 +96,57 @@ internal static class WorkflowChecks
                 Expect(duplicate, 409);
                 using var invalid = await obs.PostAsJsonAsync("/api/patients", new { fullName = "Paciente inválido", cpf = "11111111111", email = "invalid@example.test", password });
                 Expect(invalid, 400);
+            });
+            await Check("Telefone opcional é normalizado, persistido e validado", async () =>
+            {
+                using (var existing = await obs.GetAsync("/api/patients"))
+                using (var list = await Json(existing))
+                {
+                    Require(list.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == secondId).GetProperty("phone").ValueKind == JsonValueKind.Null, "Cadastro sem telefone incompatível.");
+                    Require(list.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == firstId).GetProperty("phone").GetString() == "+5548999990028", "Telefone do paciente não retornado/normalizado.");
+                }
+                foreach (var invalidPhone in new[] { "abc", "123", "+55<script>", "55+123456789", new string('1', 16) })
+                {
+                    using var invalid = await obs.PostAsJsonAsync("/api/patients", new { fullName = "Contato inválido", cpf = Cpf(8), email = "invalid-contact@example.test", password, phone = invalidPhone });
+                    Expect(invalid, 400);
+                }
+                // Use uma conta em outro escopo para não alterar os totais de pacientes do fluxo.
+                await accounts.ProvisionAsync("obs", "attendant", new("Contato de teste", Cpf(8), "contact@example.test", password, "+55 (48) 99999-0028"));
+                await using var connection = await database.OpenAsync();
+                await using var command = database.Command(connection, "SELECT phone FROM nora.accounts WHERE email=$1", "contact@example.test");
+                Require((string?)await command.ExecuteScalarAsync() == "+5548999990028", "Telefone não normalizado/persistido.");
+            });
+            await Check("Presença exige paciente autenticado e expira em 90 segundos", async () =>
+            {
+                using var unauthorized = await anonymous.PostAsync("/api/patient/presence", null);
+                Expect(unauthorized, 401);
+                using var wrongScope = await obs.PostAsync("/api/patient/presence", null);
+                Expect(wrongScope, 403);
+                Require(!await Online(obs, firstId), "Login sozinho marcou paciente online.");
+                using var heartbeat = await patient.PostAsync("/api/patient/presence", null);
+                Expect(heartbeat, 204);
+                Require(await Online(obs, firstId) && !await Online(obs, secondId), "Heartbeat alterou presença de outro paciente.");
+                clock.Advance(TimeSpan.FromSeconds(89));
+                Require(await Online(obs, firstId), "Presença expirou antes do prazo.");
+                clock.Advance(TimeSpan.FromSeconds(1));
+                Require(!await Online(obs, firstId), "Presença não expirou no limite.");
+            });
+            await Check("Presença por sessão preserva outro dispositivo e logout encerra presença", async () =>
+            {
+                using var otherDevice = Client(app);
+                await Login(otherDevice, "patient", Cpf(1), password);
+                using var firstBeat = await patient.PostAsync("/api/patient/presence", null);
+                Expect(firstBeat, 204);
+                using var otherBeat = await otherDevice.PostAsync("/api/patient/presence", null);
+                Expect(otherBeat, 204);
+                using var offline = await patient.PostAsync("/api/patient/presence/offline", null);
+                Expect(offline, 204);
+                Require(await Online(obs, firstId), "Um dispositivo encerrou a presença do outro.");
+                using var logout = await otherDevice.PostAsync("/api/auth/logout", null);
+                Expect(logout, 204);
+                Require(!await Online(obs, firstId), "Sessão revogada manteve paciente online.");
+                using var revokedBeat = await otherDevice.PostAsync("/api/patient/presence", null);
+                Expect(revokedBeat, 401);
             });
             await Check("Atendente opera cadastro e fila", async () =>
             {
@@ -216,6 +268,7 @@ internal static class WorkflowChecks
                 Expect(list, 200);
                 using var json = await Json(list);
                 Require(json.RootElement.GetArrayLength() == 4, "Reabertura perdeu persistência.");
+                Require(json.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == firstId).GetProperty("phone").GetString() == "+5548999990028", "Reabertura perdeu telefone.");
                 await reopened.StopAsync();
             });
         }
@@ -248,6 +301,14 @@ internal static class WorkflowChecks
             try { await action(); Console.WriteLine($"PASS [PostgreSQL] {name}"); }
             catch (Exception error) { failures++; Console.WriteLine($"FAIL [PostgreSQL] {name}: {error.Message}"); }
         }
+
+        async Task<bool> Online(HttpClient obs, Guid id)
+        {
+            using var list = await obs.GetAsync("/api/patients");
+            Expect(list, 200);
+            using var json = await Json(list);
+            return json.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == id).GetProperty("isOnline").GetBoolean();
+        }
     }
 
     private static HttpClient Client(WebApplication app) => new()
@@ -265,9 +326,9 @@ internal static class WorkflowChecks
         return token;
     }
     private static object PatientRequest(int number, string password) => new { fullName = $"Paciente de teste {number}", cpf = Cpf(number), email = $"patient{number}@example.test", password };
-    private static async Task<Guid> CreatePatient(HttpClient obs, int number, string password)
+    private static async Task<Guid> CreatePatient(HttpClient obs, int number, string password, string? phone = null)
     {
-        using var response = await obs.PostAsJsonAsync("/api/patients", PatientRequest(number, password));
+        using var response = await obs.PostAsJsonAsync("/api/patients", new { fullName = $"Paciente de teste {number}", cpf = Cpf(number), email = $"patient{number}@example.test", password, phone });
         Expect(response, 201);
         using var json = await Json(response);
         return json.RootElement.GetProperty("id").GetGuid();

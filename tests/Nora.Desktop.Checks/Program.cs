@@ -77,6 +77,9 @@ internal static partial class Program
                 throw new InvalidOperationException("Identificador permitiu caminho arbitrário.");
             });
             var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            // The harness pumps Dispatcher frames instead of Application.Run; install
+            // the same UI context so real asynchronous HTTP continuations stay on STA.
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(application.Dispatcher));
             using var themes = new ThemeService(application);
             Check("Temas claro e escuro expõem as mesmas chaves", () =>
             {

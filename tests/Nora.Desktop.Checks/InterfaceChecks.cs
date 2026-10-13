@@ -63,7 +63,7 @@ internal static partial class Program
                         foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
                         {
                             window.ViewModel.SetAppearance(mode);
-                            var content = Layout(window, 1280, 820);
+                            var content = Layout(window, 1280, 740);
                             var appearanceButtons = Descendants<Button>(content).Where(button => button.CommandParameter?.ToString() is "Light" or "Dark" or "System").ToArray();
                             Require(appearanceButtons.Length == 3, "Opções de aparência ausentes.");
                             var selected = appearanceButtons.Single(button => button.CommandParameter?.ToString() == mode.ToString());
@@ -76,7 +76,7 @@ internal static partial class Program
                         }
                         window.ViewModel.Navigate("home");
                         window.ViewModel.SetAppearance(profile.IsMunicipal ? Appearance.Dark : Appearance.Light);
-                        SavePreview(Layout(window, 1280, 820), Path.Combine(previewRoot, $"{profile.Id}-home.png"));
+                        SavePreview(Layout(window, 1280, 740), Path.Combine(previewRoot, $"{profile.Id}-home.png"));
                     }
                     finally { window.ViewModel.ConfirmClose = false; window.Close(); }
                 });
@@ -134,15 +134,15 @@ internal static partial class Program
                     window.ViewModel.Animations = false;
                     window.ViewModel.Navigate("settings");
                     PrepareWindow(window);
-                    var content = Layout(window, 1280, 820);
+                    var content = Layout(window, 1280, 740);
                     var dark = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "Dark");
                     InvokeButton(dark);
-                    Layout(window, 1280, 820);
+                    Layout(window, 1280, 740);
                     Require(window.ViewModel.DarkSelected, "Ação do card não atualizou aparência.");
                     Require(new PreferencesService("obs", isolatedStorage).Load().Appearance == Appearance.Dark, "Ação do card não persistiu aparência.");
                     var restore = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Restaurar padrões");
                     InvokeButton(restore);
-                    Layout(window, 1280, 820);
+                    Layout(window, 1280, 740);
                     var restored = new PreferencesService("obs", isolatedStorage).Load();
                     Require(window.ViewModel.SystemSelected && window.ViewModel.IsSettings && restored.Appearance == Appearance.System && restored.LastPage == "home", "Ação de restauração deixou interface ou persistência inconsistente.");
                 }
@@ -164,8 +164,7 @@ internal static partial class Program
                         scrolling.ScrollToEnd();
                         Layout(window, 980, 640);
                         Require(scrolling.VerticalOffset > 0, "Cenário não rolou a Home.");
-                        var open = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Personalizar minha experiência");
-                        InvokeButton(open);
+                        InvokeAccountAction(window, "Configurações");
                         Layout(window, 980, 640);
                         Require(window.ViewModel.IsSettings && scrolling.VerticalOffset == 0, "Configurações herdou a rolagem da Home e escondeu seu início.");
                         scrolling.ScrollToEnd();
@@ -249,6 +248,15 @@ internal static partial class Program
     private static FrameworkElement Layout(ShellWindow window, double width, double height)
     {
         var content = (FrameworkElement)window.Content;
+        content.ClearValue(FrameworkElement.WidthProperty);
+        content.ClearValue(FrameworkElement.HeightProperty);
+        window.UpdateLayout();
+        var horizontalFrame = Math.Max(0, window.ActualWidth - content.ActualWidth);
+        var verticalFrame = Math.Max(0, window.ActualHeight - content.ActualHeight);
+        window.Width = width + horizontalFrame;
+        window.Height = height + verticalFrame;
+        window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        window.UpdateLayout();
         // Render the same backdrop provided by Window when its content is shown.
         if (content is Panel panel) panel.SetResourceReference(Panel.BackgroundProperty, "BackgroundBrush");
         content.Width = width;

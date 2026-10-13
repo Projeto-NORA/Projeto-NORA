@@ -23,7 +23,7 @@ internal static partial class Program
             Console.WriteLine("E2E WPF/PostgreSQL não solicitado: defina NORA_E2E_URL com API descartável.");
             return;
         }
-        Check("E2E nativo OBS → paciente persistido → fila/oferta → Municipal agregado → logout", () =>
+        Check("E2E OBS cadastro/telefone nativo → tela fila/oferta → Municipal agregado → menu logout", () =>
         {
             var identifier = Environment.GetEnvironmentVariable("NORA_E2E_IDENTIFIER") ?? throw new InvalidOperationException("Falta identificador E2E.");
             var password = Environment.GetEnvironmentVariable("NORA_E2E_PASSWORD") ?? throw new InvalidOperationException("Falta senha E2E.");
@@ -56,11 +56,15 @@ internal static partial class Program
                 Input(content, "Nome completo do paciente").Text = patientName;
                 Input(content, "CPF do paciente").Text = patientCpf;
                 Input(content, "E-mail do paciente").Text = patientEmail;
+                Input(content, "Telefone do paciente").Text = "(48) 99900-0029";
                 Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha inicial do paciente").Password = patientPassword;
                 InvokeButton(FindActionButton(content, "Cadastrar paciente")); PumpUntil(() => !vm.IsBusy);
                 var patient = vm.Patients.SingleOrDefault(p => p.Email == patientEmail) ?? throw new InvalidOperationException("Cadastro real não voltou à listagem: " + vm.Message);
-                Require(vm.SelectedPatient?.Id == patient.Id, "Cadastro real não preservou seleção: " + vm.Message);
-                SavePreview(Layout(obs, 1280, 820), Path.Combine(previewRoot, "obs-e2e-patient-persisted.png"));
+                Require(vm.SelectedPatient?.Id == patient.Id && patient.Phone == "48999000029", "Cadastro real não preservou seleção/telefone normalizado: " + vm.Message);
+                SavePreview(Layout(obs, 1280, 740), Path.Combine(previewRoot, "obs-e2e-patient-persisted.png"));
+                obs.ViewModel.Navigate("queue");
+                content = Layout(obs, 980, 640);
+                Descendants<ComboBox>(content).Single(input => AutomationProperties.GetName(input) == "Paciente para incluir na fila").SelectedItem = patient;
                 InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
                 Require(vm.Queue.Any(entry => entry.PatientId == patient!.Id), "Paciente não foi persistido na fila: " + vm.Message);
                 obs.ViewModel.Navigate("slots");
@@ -70,9 +74,9 @@ internal static partial class Program
                 Layout(obs, 980, 640);
                 InvokeButton(FindActionButton(content, "Abrir vaga")); PumpUntil(() => !vm.IsBusy);
                 Require(vm.Slots.Any(slot => slot.Label == slotLabel), "Vaga real não foi persistida: " + vm.Message);
-                SavePreview(Layout(obs, 1280, 820), Path.Combine(previewRoot, "obs-e2e-slot-persisted.png"));
+                SavePreview(Layout(obs, 1280, 740), Path.Combine(previewRoot, "obs-e2e-slot-persisted.png"));
                 obs.ViewModel.Navigate("queue");
-                SavePreview(Layout(obs, 1280, 820), Path.Combine(previewRoot, "obs-e2e-queue-persisted.png"));
+                SavePreview(Layout(obs, 1280, 740), Path.Combine(previewRoot, "obs-e2e-queue-persisted.png"));
                 // A new patient session verifies the persisted account and data through its own HTTP contract.
                 Pump(Task.Run(async () =>
                 {
@@ -96,27 +100,28 @@ internal static partial class Program
                     Require(emailSession.User.Id == patient.Id, "E-mail não autenticou a mesma conta.");
                     await api.LogoutAsync();
                 }));
-                InvokeButton(FindActionButton((FrameworkElement)obs.Content, "Atualizar")); PumpUntil(() => !vm.IsBusy);
+                Pump(vm.RefreshAutomaticallyAsync());
                 Require(vm.Slots.Single(slot => slot.Label == slotLabel).Status == "accepted" && vm.Queue.Single(entry => entry.PatientId == patient!.Id).Status == "completed", "OBS não refletiu aceite persistido pelo paciente.");
                 obs.ViewModel.Navigate("patients");
                 content = Layout(obs, 980, 640);
                 Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados").SelectedItem = vm.Patients.Single(p => p.Id == patient!.Id);
                 Layout(obs, 980, 640);
-                InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
                 obs.ViewModel.Navigate("queue");
                 content = Layout(obs, 980, 640);
+                Descendants<ComboBox>(content).Single(input => AutomationProperties.GetName(input) == "Paciente para incluir na fila").SelectedItem = vm.Patients.Single(item => item.Id == patient.Id);
+                InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
                 Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago").SelectedItem = vm.Queue.Single(entry => entry.PatientId == patient!.Id && entry.Status == "waiting");
                 Layout(obs, 980, 640);
                 InvokeButton(FindActionButton(content, "Cancelar entrada selecionada")); PumpUntil(() => !vm.IsBusy);
                 Require(vm.Queue.Any(entry => entry.PatientId == patient!.Id && entry.Status == "cancelled"), "Cancelamento nativo não foi persistido.");
-                SavePreview(Layout(obs, 1280, 820), Path.Combine(previewRoot, "obs-e2e-queue-completed-cancelled.png"));
+                SavePreview(Layout(obs, 1280, 740), Path.Combine(previewRoot, "obs-e2e-queue-completed-cancelled.png"));
                 LoginFromControls(municipal, address, identifier, password);
                 var manager = municipal.ViewModel.Workspace;
                 Require(manager.IsAuthenticated && long.Parse(manager.PatientCount) > 0 && long.Parse(manager.AcceptedCount) > 0 && manager.Patients.Count == 0 && manager.Queue.Count == 0 && manager.Slots.Count == 0, "Municipal não carregou agregados isolados: " + manager.Message);
-                SavePreview(Layout(municipal, 1280, 820), Path.Combine(previewRoot, "municipal-e2e-aggregates.png"));
+                SavePreview(Layout(municipal, 1280, 740), Path.Combine(previewRoot, "municipal-e2e-aggregates.png"));
                 foreach (var window in new[] { obs, municipal })
                 {
-                    InvokeButton(FindActionButton((FrameworkElement)window.Content, "Sair da conta"));
+                    InvokeAccountAction(window, "Sair da conta");
                     PumpUntil(() => !window.ViewModel.Workspace.IsBusy);
                     Require(window.ViewModel.Workspace.IsSignedOut && window.ViewModel.Workspace.Patients.Count == 0, "Logout real não limpou a janela.");
                 }

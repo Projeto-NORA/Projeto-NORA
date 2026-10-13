@@ -18,4 +18,7 @@ public sealed class SessionDao(DatabaseHelper database)
 
     public Task<int> RevokeAsync(string hash, DateTimeOffset now, CancellationToken ct) => database.UseAsync(connection =>
         database.ExecuteAsync(connection, "UPDATE nora.sessions SET revoked_at=$2 WHERE token_hash=$1 AND revoked_at IS NULL", ct, hash, now), ct);
+
+    public Task<int> SetPresenceAsync(string hash, DateTimeOffset now, bool online, CancellationToken ct) => database.UseAsync(connection =>
+        database.ExecuteAsync(connection, "UPDATE nora.sessions SET presence_seen_at=CASE WHEN $3 THEN $2 ELSE NULL END WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>$2", ct, hash, now, online), ct);
 }

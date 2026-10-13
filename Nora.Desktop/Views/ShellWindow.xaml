@@ -7,27 +7,20 @@
     <Border Width="{Binding SidebarWidth}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="16,24">
         <StackPanel DockPanel.Dock="Top">
-          <Grid Margin="0,0,0,30">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="48" />
-              <ColumnDefinition />
-            </Grid.ColumnDefinitions>
-            <Border Width="42" Height="42" CornerRadius="13" Background="{DynamicResource BrandBrush}">
-              <TextBlock Text="N" FontSize="25" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}">
-              <TextBlock Text="NORA" FontSize="23" FontWeight="Bold" />
-              <TextBlock Text="{Binding WorkspaceName}" FontSize="9" Foreground="{DynamicResource SecondaryBrush}" />
-            </StackPanel>
-          </Grid>
-          <TextBlock Text="ESPAÇO DE TRABALHO" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryBrush}" Margin="10,0,0,14" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}" />
           <ItemsControl ItemsSource="{Binding Navigation}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTip="{Binding Title}" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding Title}">
+                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding Title}">
                   <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                      <Setter Property="ToolTip" Value="{Binding Title}" />
                       <Style.Triggers>
+                        <DataTrigger Binding="{Binding Id}" Value="home"><Setter Property="ToolTip" Value="Abra a visão geral do seu espaço de trabalho." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="patients"><Setter Property="ToolTip" Value="Consulte e cadastre pacientes da unidade." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="queue"><Setter Property="ToolTip" Value="Acompanhe e organize a fila de Vaga Relâmpago." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding Id}" Value="home" />
@@ -76,29 +69,29 @@
           </ItemsControl>
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
-          <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="12" Padding="14" Margin="0,0,0,18" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}">
-            <StackPanel>
-              <TextBlock Text="Seu espaço de cuidado." FontWeight="SemiBold" FontSize="13" />
-              <TextBlock Text="Uma jornada organizada, com acesso seguro." Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" />
-            </StackPanel>
-          </Border>
-          <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" Margin="0,0,0,8" BorderThickness="0" ToolTip="Configurações · Ctrl+," ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
-            <Button.Style>
-              <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding IsSettings}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </Button.Style>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="" FontFamily="Segoe MDL2 Assets" Width="22" />
-              <TextBlock Text="Configurações" Margin="8,0,0,0" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}" />
-            </StackPanel>
-          </Button>
-          <Button Command="{Binding ToggleSidebarCommand}" ToolTip="Alternar barra lateral · Ctrl+B" ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Alternar barra lateral">
+          <Button Command="{Binding ToggleSidebarCommand}" ToolTip="Recolha ou expanda a barra de navegação. Atalho: Ctrl+B." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Alternar barra lateral" Margin="0,0,0,10">
             <TextBlock Text="" FontFamily="Segoe MDL2 Assets" />
+          </Button>
+          <Button x:Name="AccountButton" Click="OnAccountMenu" HorizontalContentAlignment="Left" BorderThickness="0" Padding="6,12" ToolTip="Abra as configurações ou saia da conta." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
+            <Button.ContextMenu>
+              <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextBrush}">
+                <ContextMenu.Template><ControlTemplate TargetType="ContextMenu"><Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="5"><ItemsPresenter /></Border></ControlTemplate></ContextMenu.Template>
+                <ContextMenu.Resources><Style TargetType="MenuItem">
+                  <Setter Property="Foreground" Value="{DynamicResource TextBrush}" /><Setter Property="Padding" Value="14,10" /><Setter Property="MinWidth" Value="180" />
+                  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem"><Border x:Name="Frame" Background="Transparent" Padding="{TemplateBinding Padding}" CornerRadius="4"><ContentPresenter ContentSource="Header" RecognizesAccessKey="True" /></Border><ControlTemplate.Triggers>
+                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.45" /></Trigger>
+                  </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+                </Style></ContextMenu.Resources>
+                <MenuItem Header="Configurações" Command="{Binding NavigateCommand}" CommandParameter="settings" AutomationProperties.Name="Configurações" />
+                <MenuItem Header="Sair da conta" Command="{Binding Workspace.LogoutCommand}" AutomationProperties.Name="Sair da conta" />
+              </ContextMenu>
+            </Button.ContextMenu>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Border Width="34" Height="34" CornerRadius="11" Background="{DynamicResource BrandBrush}"><TextBlock Text="N" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}"><TextBlock Text="NORA" FontWeight="SemiBold" FontSize="14" /><TextBlock Text="{Binding WorkspaceName}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" /></StackPanel>
+            </Grid>
           </Button>
         </StackPanel>
         <Grid />
@@ -106,19 +99,14 @@
     </Border>
     <Grid Grid.Column="1">
       <Grid.RowDefinitions>
-        <RowDefinition Height="72" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
-        <RowDefinition Height="34" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-      <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="32,0">
+      <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="32,0" Height="72">
+        <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding Workspace.ShowPatients}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
         <Grid>
           <TextBlock Text="{Binding PageLabel}" VerticalAlignment="Center" FontWeight="SemiBold" />
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="15" Padding="12,7">
-              <TextBlock Text="{Binding Workspace.ConnectionLabel}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" />
-            </Border>
-            <TextBlock Text="{Binding Profile.Name}" FontWeight="SemiBold" Margin="18,0,0,0" VerticalAlignment="Center" />
-          </StackPanel>
         </Grid>
       </Border>
       <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -127,8 +115,8 @@
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
         </Grid>
       </ScrollViewer>
-      <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="32,7">
-        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+      <Border Grid.Row="2" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
+        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" />
       </Border>
     </Grid>
   </Grid>
