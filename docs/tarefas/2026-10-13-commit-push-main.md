@@ -19,7 +19,7 @@ Publicar a entrega visual já revisada, incluindo capturas, correção de contra
 - [x] Revisar diff, arquivos novos, integridade das imagens e exclusões.
 - [x] Atualizar referências do remoto e verificar se main pode ser publicada sem sobrescrever trabalho.
 - [x] Criar commit na main e conferir conteúdo.
-- [ ] Fazer push para origin/main e confirmar SHA remoto/estado local.
+- [x] Fazer push para origin/main e confirmar SHA remoto/estado local.
 
 ## Estado
 
@@ -30,3 +30,5 @@ Revisão:83 PNG conferidos pelo SHA256 do manifesto; arquivos novos identificado
 Commit local criado: `3fa7e58`, com106 arquivos da entrega visual. Merge da main remota preservou mudanças de produção e testes dos dois lados; conflitos documentais foram combinados cronologicamente e a fixture preserva identidade visual, telefone e controles de presença/polling. O item de contraste passou a P-018; P-016 remoto foi mantido. Galeria de10/10 preservada como registro histórico, com legenda explícita sobre os ajustes posteriores; inclusão no harness adaptada à tela Fila atual.
 
 Validação integrada de13/10: build Release zero erros/dois avisos NU1900 conhecidos;50/50 checks desktop com galeria; Android assembleDebug, assembleDebugAndroidTest,7/7 testes locais, lint e15/15 comparações Layoutlib passaram. A primeira tentativa Gradle não conectou ao daemon sob sandbox; reexecução local autorizada passou. Nenhum teste de dispositivo/PostgreSQL foi reexecutado nesta máquina; evidências históricas remotas e P-003/P-007/P-017 preservadas. `git diff --check` passou e os IDs de pendência são únicos. Push ainda aguarda concluir o commit de integração.
+
+Concluído: commit visual `3fa7e58` e integração `5396387` publicados em `origin/main` sem push forçado. `git ls-remote origin refs/heads/main` confirmou SHA `5396387cc213a83602a278a5e43ebff3f3b29067`, idêntico ao HEAD local, e árvore limpa. `merge-base --is-ancestor` confirmou preservação do commit visual e de `eb1aa16` (que contém os ajustes remotos). Este registro final é versionado em commit documental complementar. Pedido conferido: commit criado na main e push concluído/verificado. Sem pendência de publicação; pendências funcionais anteriores mantidas.
