@@ -1,0 +1,10 @@
+using System.Globalization;
+using System.Windows.Data;
+
+namespace Nora.Desktop.Views;
+
+public sealed class HalfWidthConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is double width ? Math.Max(0, width / 2) : 0d;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+}

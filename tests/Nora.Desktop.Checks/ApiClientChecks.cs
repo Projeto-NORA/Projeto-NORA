@@ -110,8 +110,8 @@ internal static partial class Program
                     {
                         var patients = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
                         Require(patients.Items.Count == 1 && patients.ActualHeight > 0, "Pacientes não renderizados.");
-                        Require(Descendants<TextBlock>(patients).Any(text => text.Text.Contains("***.***.***-00", StringComparison.Ordinal)), "CPF mascarado não aparece nos contatos da listagem.");
-                        Require(!Descendants<TextBlock>(patients).Any(text => text.Text.Contains("00000000000", StringComparison.Ordinal)), "CPF foi exposto sem máscara na listagem.");
+                        Require(Descendants<TextBlock>(patients).Any(text => text.Text.Contains("000.000.000-00", StringComparison.Ordinal)), "CPF completo e formatado não aparece nos contatos da listagem conforme o novo requisito.");
+                        Require(!Descendants<TextBlock>(patients).Any(text => text.Text.Contains("***.***.***-00", StringComparison.Ordinal)), "A linha manteve a máscara antiga após o pedido de CPF completo.");
                     }
                     SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-authenticated-fixture-{mode.ToString().ToLowerInvariant()}.png"));
                     if (!profile.IsMunicipal && mode == Appearance.Light)
@@ -167,10 +167,12 @@ internal static partial class Program
                 var queue = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
                 queue.SelectedItem = vm.Queue.Single(entry => entry.PatientId == ApiFixture.NewPatientId);
                 Layout(window, 980, 640);
-                InvokeButton(Descendants<Button>(content).Single(button => button.Content?.ToString() == "Cancelar entrada selecionada"));
+                InvokeButton(FindActionButton(content, "Cancelar entrada selecionada"));
                 PumpUntil(() => !vm.IsBusy);
                 Require(vm.Queue.Single(entry => entry.PatientId == ApiFixture.NewPatientId).Status == "cancelled", "Cancelamento não atualizou situação da fila.");
-                var openSlot = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Abrir vaga");
+                window.ViewModel.Navigate("slots");
+                content = Layout(window, 980, 640);
+                var openSlot = FindActionButton(content, "Abrir vaga");
                 Require(!openSlot.IsEnabled, "Vaga vazia pode ser criada.");
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "Descrição da vaga").Text = "Vaga nova fixture";
                 Layout(window, 980, 640);
@@ -341,6 +343,7 @@ internal static partial class Program
             }
         });
         RunPatientInterfaceChecks(application, storageRoot, args);
+        RunListingChecks(storageRoot, args);
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
         {
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
@@ -392,7 +395,9 @@ internal static partial class Program
         {
             if (DateTime.UtcNow > deadline) throw new TimeoutException("Operação fixture não concluiu.");
             var frame = new DispatcherFrame();
-            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false));
+            // Modal inspectors may capture ApplicationIdle; finish below that priority
+            // so their asynchronous continuations are not starved by the test pump.
+            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.SystemIdle, new Action(() => frame.Continue = false));
             Dispatcher.PushFrame(frame);
         }
     }
@@ -407,6 +412,8 @@ internal static partial class Program
         public string Scope { get; private set; } = "obs";
         public string? LastBearer { get; private set; }
         public bool FailLogout { get; init; }
+        public string ObsRole { get; set; } = "administrator";
+        public List<bool> ActiveChanges { get; } = [];
         public bool LogoutCalled { get; private set; }
         public bool Registered { get; private set; }
         public string? RegisteredPhone { get; private set; }
@@ -428,13 +435,24 @@ internal static partial class Program
                 LoginIdentifier = body.RootElement.GetProperty("identifier").GetString();
                 Scope = body.RootElement.GetProperty("scope").GetString()!;
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
-                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, "Paciente Fixture", Scope == "obs" ? "admin" : "manager", Scope)));
+                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, "Paciente Fixture", Scope == "obs" ? ObsRole : "manager", Scope)));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
             if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);
             if (request.Method == HttpMethod.Get && path == "/api/patients") PatientReads++;
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
+            if (request.Method == HttpMethod.Patch && path.StartsWith("/api/patients/", StringComparison.Ordinal) && path.EndsWith("/active", StringComparison.Ordinal))
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var id = Guid.Parse(path.Split('/')[3]);
+                var active = body.RootElement.GetProperty("isActive").GetBoolean();
+                var index = patients.FindIndex(patient => patient.Id == id);
+                Require(index >= 0, "Alteração tentou usar identidade de paciente ausente.");
+                patients[index] = patients[index] with { IsActive = active, IsOnline = active && patients[index].IsOnline };
+                ActiveChanges.Add(active);
+                return new(HttpStatusCode.NoContent);
+            }
             if (request.Method == HttpMethod.Post && path == "/api/patients")
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
@@ -466,7 +484,7 @@ internal static partial class Program
             }
             return path switch
             {
-                "/api/patients" => Reply(patients.Select(patient => patient.Id == PatientId ? patient with { IsOnline = PatientOnline } : patient)),
+                "/api/patients" => Reply(patients.Select(patient => patient.Id == PatientId ? patient with { IsOnline = PatientOnline && patient.IsActive } : patient)),
                 "/api/queue" => Reply(queue),
                 "/api/slots" => Reply(slots),
                 "/api/municipal/summary" => Reply(new MunicipalSummary(1, 1, 1, 0)),

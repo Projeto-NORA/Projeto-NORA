@@ -10,6 +10,8 @@ O ZIP contém também prompts internos em `src/imports/`, incluindo `NORA_SUPER_
 
 OBS possui perfis de atendente e administrador da clínica. Ambos podem criar contas de pacientes e operar a fila. O aplicativo Android usa conta individual de cada paciente. Municipal possui um login para a gestão e acesso somente a indicadores agregados, sem acesso a dados individuais dos pacientes neste início.
 
+Em 2026-10-12, o usuário confirmou desativação/reativação por ambos os perfis OBS. Desativar bloqueia novos logins, encerra sessões e cancela entradas/ofertas pendentes com avanço FIFO, preservando cadastro e histórico concluído. Reativar libera novo login sem recuperar sessões/fila antigas. A interface exige confirmação dos efeitos e separa estado do cadastro da presença online no APPNORA.
+
 O usuário autorizou uma conta para cada sistema: OBS e Municipal previamente cadastrados e paciente Android cadastrado pelo OBS. Login aceita **CPF ou e-mail**; nome aprovado: **Mateus Todeschini Monteiro**. CPF, e-mail e senha pessoais não fazem parte desta documentação nem de seeds versionados. Criar outros atendentes pela interface ainda não foi confirmado.
 
 ## Persistência

@@ -29,6 +29,11 @@ internal static class ApiEndpoints
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/patients",async(AccountService service,CancellationToken ct)=>Results.Ok(await service.PatientsAsync(ct)));
         obs.MapPost("/patients",async(CreatePatientRequest request,AccountService service,CancellationToken ct)=>Results.Json(await service.CreatePatientAsync(request,ct),statusCode:StatusCodes.Status201Created));
+        obs.MapPatch("/patients/{id:guid}/active",async(Guid id,SetPatientActiveRequest request,WorkflowService service,CancellationToken ct)=>
+        {
+            await service.SetPatientActiveAsync(id,request,ct);
+            return Results.NoContent();
+        });
         obs.MapGet("/queue",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.QueueAsync(ct)));
         obs.MapPost("/queue",async(AddQueueRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddQueueAsync(request,ct),statusCode:StatusCodes.Status201Created));
         obs.MapPost("/queue/{id:long}/cancel",async(long id,WorkflowService service,CancellationToken ct)=>
@@ -41,16 +46,14 @@ internal static class ApiEndpoints
         var patient=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient"));
         patient.MapPost("/patient/presence",async(HttpContext context,AuthService service,CancellationToken ct)=>
         {
-            await service.SetPresenceAsync(Session(context),true,ct);
-            return Results.NoContent();
+            return await service.SetPresenceAsync(Session(context),true,ct)>0 ? Results.NoContent() : Results.Unauthorized();
         });
         patient.MapPost("/patient/presence/offline",async(HttpContext context,AuthService service,CancellationToken ct)=>
         {
-            await service.SetPresenceAsync(Session(context),false,ct);
-            return Results.NoContent();
+            return await service.SetPresenceAsync(Session(context),false,ct)>0 ? Results.NoContent() : Results.Unauthorized();
         });
-        patient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context).User,ct)));
-        patient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context).User.Id,request,ct)));
+        patient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context),ct)));
+        patient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context),request,ct)));
         app.MapGet("/api/municipal/summary",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SummaryAsync(ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }
     private static SessionInfo Session(HttpContext context)=>(SessionInfo)context.Items[typeof(SessionInfo)]!;

@@ -115,6 +115,28 @@
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
         </Grid>
       </ScrollViewer>
+      <Border Grid.Row="1" Panel.ZIndex="10" AutomationProperties.Name="Ações do item selecionado">
+        <Border.Style><Style TargetType="Border" BasedOn="{StaticResource FloatingActions}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasPatientActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasQueueActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasSlotActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
+        </Style.Triggers></Style></Border.Style>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <TextBlock Text="{Binding Workspace.ActionSelectionLabel}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,14,0" />
+          <Button Grid.Column="1" Content="Detalhes" Click="OnActionDetails" ToolTip="Veja os detalhes do item selecionado. Você também pode usar duplo clique ou Enter." AutomationProperties.Name="Detalhes do item selecionado" Margin="0,0,8,0" />
+          <Button Grid.Column="2" Content="{Binding Workspace.PatientActiveActionLabel}" Click="OnSetPatientActive" IsEnabled="{Binding Workspace.CanSetPatientActive}" Visibility="{Binding Workspace.HasPatientActionSelection, Converter={StaticResource BoolVisibility}}" ToolTip="Altere o acesso do paciente. A confirmação explica os efeitos antes de continuar." AutomationProperties.Name="Alterar status da conta do paciente" Margin="0,0,8,0" />
+          <Button Grid.Column="3" Content="Cancelar entrada selecionada" Command="{Binding Workspace.CancelQueueCommand}" Visibility="{Binding Workspace.HasQueueActionSelection, Converter={StaticResource BoolVisibility}}" ToolTip="Cancele a entrada selecionada na fila de Vaga Relâmpago." Margin="0,0,8,0" />
+          <Button Grid.Column="4" Content="×" Command="{Binding Workspace.ClearSelectionCommand}" FontSize="20" MinWidth="36" Padding="8" ToolTip="Desfaça a seleção e feche a barra de ações." AutomationProperties.Name="Desfazer seleção" />
+        </Grid>
+      </Border>
+      <Border Grid.Row="1" Panel.ZIndex="10" AutomationProperties.Name="Ações do atendimento selecionado">
+        <Border.Style><Style TargetType="Border" BasedOn="{StaticResource FloatingActions}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding HasSelection}" Value="True" /><Condition Binding="{Binding Workspace.IsSignedOut}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <TextBlock Text="{Binding SelectedRow.Description}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,14,0" />
+          <Button Grid.Column="1" Content="Detalhes" Click="OnLegacyDetails" ToolTip="Veja as informações disponíveis deste atendimento." AutomationProperties.Name="Detalhes do atendimento selecionado" Margin="0,0,8,0" />
+          <Button Grid.Column="2" Content="×" Click="OnClearLegacySelection" FontSize="20" MinWidth="36" Padding="8" ToolTip="Desfaça a seleção e feche a barra de ações." AutomationProperties.Name="Desfazer seleção do atendimento" />
+        </Grid>
+      </Border>
       <Border Grid.Row="2" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" />
       </Border>

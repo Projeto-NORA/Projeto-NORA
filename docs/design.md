@@ -54,7 +54,9 @@ O comportamento deve ser conferido nos três modos de aparência, ao reabrir os 
 
 ## Ajustes Windows de 2026-10-11
 
-A tela Pacientes usa somente o título e os filtros acima da listagem. As linhas alternam branco e cinza suave no tema claro, com equivalentes escuros, sem cabeçalho de colunas ou separadores marcados. O nome fica destacado ao lado do indicador de presença no APPNORA; e-mail, CPF mascarado e telefone aparecem abaixo. Filtros por pesquisa/presença e ordenação mantêm o conteúdo organizado, com rolagem vertical.
+A tela Pacientes usa somente o título e os filtros acima da listagem. Os itens alternam branco e cinza suave no tema claro, com equivalentes escuros, sem cabeçalho de colunas. O template compartilhado tem borda de 1 px, raio de 8 px e intervalo de 3 px. Nome longo usa reticências; e-mail ocupa no máximo metade da linha de contatos, seguido do CPF completo e telefone visível. Em largura pequena, o grupo de contatos pode mudar de linha. Presença no APPNORA aparece à direita; filtros por pesquisa/presença/cadastro e ordenação mantêm o conteúdo organizado, com rolagem vertical.
+
+Pacientes, Fila, Vagas e a listagem legada operacional usam o mesmo template de item. Um clique seleciona e mostra ações em uma barra flutuante sobre a área inferior, sem reservar faixa vazia na página. Duplo clique rápido nativo ou Enter abre a ficha do item. A ficha usa raio de 18 px e grupos com raio de 12 px, título longo abreviado com tooltip e valor completo no corpo. Nome, e-mail, CPF e telefone disponível têm botão de copiar e feedback somente na ficha; a linha não permite cópia. Cores da célula, seleção e textos da ficha seguem os tokens do tema. Fila mostra a presença do paciente à direita; Vagas mostra Aberta/Oferta em andamento/Aceita, conforme confirmação do usuário.
 
 Inputs Windows têm raio de 5 px, menor que os botões/cards. Tooltips têm borda de 6 px e fundo azul claro na aparência Clara, com equivalente legível na Escura. Substituem explicações permanentes da tela e identificam ações pelo mouse. A conta NORA fica no canto inferior da sidebar e abre somente Configurações e Sair da conta; as três barras alternam a sidebar.
 

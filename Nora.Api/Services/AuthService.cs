@@ -20,7 +20,7 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
         if (result == PasswordVerificationResult.SuccessRehashNeeded) await accounts.RehashAsync(account.User.Id, passwords.HashPassword(account, request.Password), ct);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var expiresAt = time.GetUtcNow().AddHours(8);
-        await sessions.CreateAsync(account.User.Id, HashToken(token), expiresAt, ct);
+        if (await sessions.CreateAsync(account.User.Id, HashToken(token), expiresAt, ct) == 0) return null;
         return new(token, expiresAt, account.User);
     }
     public Task<SessionInfo?> AuthenticateAsync(string token, CancellationToken ct) => token.Length == 64 && token.All(Uri.IsHexDigit)

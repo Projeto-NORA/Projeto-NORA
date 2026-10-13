@@ -44,6 +44,10 @@ Configurações e Sair da conta ficam no menu da conta NORA, no canto inferior e
 
 Depois de entrar, o workspace consulta a API automaticamente a cada 20 segundos, sem requisições concorrentes com operações do usuário. Mantém os campos do cadastro e a seleção ainda válida; erros de consulta continuam visíveis e uma sessão expirada pede nova entrada. As mensagens rotineiras de conta conectada/dados atualizados e preferências salvas ficam ocultas. Falhas de armazenamento de preferências permanecem visíveis, para não aparentar persistência quando a gravação falhou.
 
+Um clique em Pacientes/Fila/Vagas mostra a barra de ações da seleção; o X limpa a seleção. Pacientes oferece Ver detalhes e Desativar/Reativar paciente aos perfis atendente e administrador. Fila oferece Ver detalhes e Cancelar entrada quando waiting/offered. Vagas oferece Ver detalhes. Duplo clique rápido ou Enter abre os detalhes; X/Escape fecha a ficha. Os quatro dados de identificação/contato são copiáveis por botão na ficha, com feedback; telefone ausente permanece explícito e não tem botão de copiar.
+
+Desativar/reativar pede confirmação dos efeitos no acesso e na fila. O botão de confirmação acompanha a disponibilidade da operação durante a atualização automática, evitando perder a ação quando a consulta estiver ocupada. Mudança de tela/filtro limpa ações que deixaram de corresponder a uma seleção válida; recarga conserva o item ainda existente pelo identificador. Logout/401 fecha fichas com dados do paciente e limpa a seleção.
+
 ## Presença do paciente — Android
 
 Enquanto autenticado, o APPNORA inicia o serviço de presença com a tela visível e publica presença imediatamente e a cada 30 segundos, mantendo o envio em segundo plano ao abrir outro aplicativo ou a tela inicial. A notificação “NORA · conexão ativa” informa a conexão; no Android 13 ou superior o aplicativo solicita permissão para mostrá-la. Se a permissão for negada, o serviço continua indicado pelo gerenciador de tarefas do Android.

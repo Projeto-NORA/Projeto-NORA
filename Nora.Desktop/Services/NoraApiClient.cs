@@ -55,6 +55,7 @@ public sealed class NoraApiClient : IDisposable
     public void ClearSession() => token = null;
     public Task<PatientAccount[]> PatientsAsync() => SendAsync<PatientAccount[]>(HttpMethod.Get, "api/patients");
     public Task<PatientAccount> RegisterPatientAsync(string fullName, string cpf, string email, string password, string? phone = null) => SendAsync<PatientAccount>(HttpMethod.Post, "api/patients", new { fullName, cpf, email, password, phone });
+    public Task<object> SetPatientActiveAsync(Guid patientId, bool isActive) => SendAsync<object>(HttpMethod.Patch, $"api/patients/{patientId}/active", new { isActive });
     public Task<QueueEntry[]> QueueAsync() => SendAsync<QueueEntry[]>(HttpMethod.Get, "api/queue");
     public Task<QueueEntry> EnqueueAsync(Guid patientId) => SendAsync<QueueEntry>(HttpMethod.Post, "api/queue", new { patientId });
     public Task<object> CancelAsync(long queueId) => SendAsync<object>(HttpMethod.Post, $"api/queue/{queueId}/cancel");

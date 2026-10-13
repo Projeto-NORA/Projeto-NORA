@@ -40,11 +40,13 @@
     </Border>
     <Border Style="{StaticResource Card}" Padding="0">
       <StackPanel>
-        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="300" MinHeight="44" Visibility="{Binding IsOperational, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Atendimentos da unidade">
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="300" MinHeight="64" RowHeight="NaN" MinRowHeight="64" HeadersVisibility="None" Visibility="{Binding IsOperational, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Atendimentos da unidade" MouseDoubleClick="OnListDoubleClick" PreviewKeyDown="OnListKeyDown">
           <DataGrid.Columns>
-            <DataGridTextColumn Header="Referência" Binding="{Binding Reference}" Width="*" />
-            <DataGridTextColumn Header="Atendimento" Binding="{Binding Description}" Width="2*" />
-            <DataGridTextColumn Header="Situação" Binding="{Binding Status}" Width="*" />
+            <DataGridTemplateColumn Width="*"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="{Binding Description}" FontSize="14" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}" /><TextBlock Text="{Binding Reference}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" Margin="0,5,0,0" /></StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" Margin="18,0,0,0" />
+            </Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
           </DataGrid.Columns>
         </DataGrid>
         <StackPanel Margin="40,52" HorizontalAlignment="Center" MaxWidth="520" Visibility="{Binding HasNoRows, Converter={StaticResource BoolVisibility}}">
@@ -55,12 +57,6 @@
           <TextBlock Text="{Binding EmptyDescription}" Style="{StaticResource Muted}" FontSize="14" TextAlignment="Center" Margin="0,12,0,24" />
           <Button Content="Personalizar minha experiência" Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalAlignment="Center" />
         </StackPanel>
-        <Border Background="{DynamicResource BrandSoftBrush}" Padding="18" Visibility="{Binding HasSelection, Converter={StaticResource BoolVisibility}}">
-          <DockPanel>
-            <TextBlock Text="1 atendimento selecionado" VerticalAlignment="Center" />
-            <Button Content="Ações do atendimento indisponíveis" IsEnabled="False" HorizontalAlignment="Right" />
-          </DockPanel>
-        </Border>
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,24,0,0" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}">

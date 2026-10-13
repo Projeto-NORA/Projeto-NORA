@@ -143,6 +143,12 @@ internal static partial class Program
                         sort.SelectedValue = "Mais recentes";
                         table.SelectedItem = null;
                         SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, $"obs-patients-zebra-{mode.ToString().ToLowerInvariant()}-{size.Width:0}x{size.Height:0}.png"));
+                        if (mode == Appearance.Light && size.Width == 1280)
+                        {
+                            table.SelectedItem = vm.Patients[0];
+                            SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, "obs-patients-zebra-selected-light.png"));
+                            table.SelectedItem = null;
+                        }
                     }
                 }
                 window.ViewModel.SetAppearance(Appearance.Light);

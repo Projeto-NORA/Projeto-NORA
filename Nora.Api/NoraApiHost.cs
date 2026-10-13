@@ -43,6 +43,7 @@ public static class NoraApiHost
                 ApiInputException or BadHttpRequestException=>400,
                 ApiConflictException=>409,
                 ApiNotFoundException=>404,
+                ApiUnauthorizedException=>401,
                 PostgresException {SqlState:"23505"}=>409,
                 DatabaseUnavailableException or NpgsqlException=>503,
                 _=>500

@@ -9,8 +9,11 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
 {
     public Task<List<QueueEntry>> QueueAsync(CancellationToken ct) => InTransactionAsync(c => ReadQueueAsync(c, null, ct), ct);
     public Task<List<SlotInfo>> SlotsAsync(CancellationToken ct) => InTransactionAsync(c => ReadSlotsAsync(c, ct), ct);
-    public Task<PatientOverview> OverviewAsync(UserInfo user, CancellationToken ct) => InTransactionAsync(async c =>
-        new PatientOverview(user, await ReadQueueAsync(c,user.Id,ct), await ReadOffersAsync(c,user.Id,ct)), ct);
+    public Task<PatientOverview> OverviewAsync(SessionInfo session, CancellationToken ct) => InTransactionAsync(async c =>
+    {
+        await EnsurePatientSessionAsync(c,session,ct);
+        return new PatientOverview(session.User, await ReadQueueAsync(c,session.User.Id,ct), await ReadOffersAsync(c,session.User.Id,ct));
+    }, ct);
     public Task<MunicipalSummary> SummaryAsync(CancellationToken ct) => InTransactionAsync(async c =>
     {
         await using var command = database.Command(c, "SELECT (SELECT count(*) FROM nora.accounts WHERE scope='patient'),(SELECT count(*) FROM nora.queue_entries WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora.slots WHERE status IN ('open','offered')),(SELECT count(*) FROM nora.offers WHERE status='accepted')");
@@ -20,8 +23,12 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
     }, ct);
     public Task<QueueEntry> AddQueueAsync(Guid patientId, CancellationToken ct) => InTransactionAsync(async c =>
     {
-        await using (var check = database.Command(c,"SELECT EXISTS(SELECT 1 FROM nora.accounts WHERE id=$1 AND scope='patient')", patientId))
-            if (!(bool)(await check.ExecuteScalarAsync(ct))!) throw new ApiNotFoundException();
+        await using (var check = database.Command(c,"SELECT is_active FROM nora.accounts WHERE id=$1 AND scope='patient'", patientId))
+        {
+            var active = await check.ExecuteScalarAsync(ct);
+            if (active is null) throw new ApiNotFoundException();
+            if (active is false) throw new ApiConflictException();
+        }
         await using var insert = database.Command(c,"INSERT INTO nora.queue_entries(patient_id,entered_at,status) VALUES($1,$2,'waiting') RETURNING id",patientId,time.GetUtcNow());
         var id = (long)(await insert.ExecuteScalarAsync(ct))!;
         await AdvanceAsync(c,ct);
@@ -43,9 +50,10 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
         await AdvanceAsync(c,ct);
         return (await ReadSlotsAsync(c,ct)).Single(s=>s.Id==id);
     },ct);
-    public Task<OfferInfo> RespondAsync(Guid id,Guid patientId,bool accept,CancellationToken ct) => InTransactionAsync(async c =>
+    public Task<OfferInfo> RespondAsync(Guid id,SessionInfo session,bool accept,CancellationToken ct) => InTransactionAsync(async c =>
     {
-        var offers=await ReadOffersAsync(c,patientId,ct);
+        await EnsurePatientSessionAsync(c,session,ct);
+        var offers=await ReadOffersAsync(c,session.User.Id,ct);
         var offer=offers.SingleOrDefault(o=>o.Id==id) ?? throw new ApiNotFoundException();
         if(offer.Status!="pending") throw new ApiConflictException();
         await database.ExecuteAsync(c,"UPDATE nora.offers SET status=$2 WHERE id=$1",ct,id,accept?"accepted":"declined");
@@ -53,6 +61,20 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
         await database.ExecuteAsync(c,"UPDATE nora.slots SET status=$2 WHERE id=$1",ct,offer.SlotId,accept?"accepted":"open");
         await AdvanceAsync(c,ct);
         return offer with { Status=accept?"accepted":"declined" };
+    },ct);
+    public Task<bool> SetPatientActiveAsync(Guid id,bool active,CancellationToken ct) => InTransactionAsync(async c =>
+    {
+        var count=await database.ExecuteAsync(c,"UPDATE nora.accounts SET is_active=$2 WHERE id=$1 AND scope='patient'",ct,id,active);
+        if(count==0) throw new ApiNotFoundException();
+        if(!active)
+        {
+            await database.ExecuteAsync(c,"UPDATE nora.sessions SET revoked_at=$2,presence_seen_at=NULL WHERE account_id=$1 AND revoked_at IS NULL",ct,id,time.GetUtcNow());
+            await database.ExecuteAsync(c,"UPDATE nora.slots SET status='open' WHERE id IN (SELECT slot_id FROM nora.offers WHERE patient_id=$1 AND status='pending')",ct,id);
+            await database.ExecuteAsync(c,"UPDATE nora.offers SET status='cancelled' WHERE patient_id=$1 AND status='pending'",ct,id);
+            await database.ExecuteAsync(c,"UPDATE nora.queue_entries SET status='cancelled' WHERE patient_id=$1 AND status IN ('waiting','offered')",ct,id);
+            await AdvanceAsync(c,ct);
+        }
+        return true;
     },ct);
     public Task<bool> AdvanceAsync(CancellationToken ct) => InTransactionAsync(_=>Task.FromResult(true),ct);
 
@@ -90,7 +112,7 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
         {
             long queueId;
             Guid patientId;
-            await using(var command=database.Command(c,"SELECT id,patient_id FROM nora.queue_entries WHERE status='waiting' ORDER BY entered_at,id LIMIT 1"))
+            await using(var command=database.Command(c,"SELECT q.id,q.patient_id FROM nora.queue_entries q JOIN nora.accounts a ON a.id=q.patient_id WHERE q.status='waiting' AND a.is_active ORDER BY q.entered_at,q.id LIMIT 1"))
             await using(var reader=await command.ExecuteReaderAsync(ct))
             {
                 if(!await reader.ReadAsync(ct)) break;
@@ -100,6 +122,11 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
             await database.ExecuteAsync(c,"UPDATE nora.queue_entries SET status='offered' WHERE id=$1",ct,queueId);
             await database.ExecuteAsync(c,"UPDATE nora.slots SET status='offered' WHERE id=$1",ct,slotId);
         }
+    }
+    private async Task EnsurePatientSessionAsync(NpgsqlConnection c,SessionInfo session,CancellationToken ct)
+    {
+        await using var check=database.Command(c,"SELECT EXISTS(SELECT 1 FROM nora.sessions s JOIN nora.accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND s.account_id=$2 AND a.scope='patient' AND a.is_active AND s.revoked_at IS NULL AND s.expires_at>$3)",session.TokenHash,session.User.Id,time.GetUtcNow());
+        if(!(bool)(await check.ExecuteScalarAsync(ct))!) throw new ApiUnauthorizedException();
     }
     private async Task<List<QueueEntry>> ReadQueueAsync(NpgsqlConnection c,Guid? patientId,CancellationToken ct)
     {

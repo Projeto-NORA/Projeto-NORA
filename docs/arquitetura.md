@@ -19,6 +19,10 @@ A API usa PostgreSQL 18 via Npgsql10.0.3. Models define contratos; Services vali
 
 `Nora.Desktop/Services/NoraApiClient.cs` encapsula HTTP e guarda token somente em memória. `WorkspaceViewModel` publica dados após recarga completa, controla busy/erros e limpa dados ao sair ou receber401; WorkspaceView contém login, cadastro, pacientes/fila/vagas e Municipal agregado. O endpoint pode vir de NORA_API_URL ou da tela; senhas não são preferências.
 
+`WorkspaceViewModel.Listings.cs` concentra seleção contextual, filtro de cadastro, mutação de acesso e composição de fichas `ItemDetails`/`DetailField`. `ItemDetailsViewModel` controla cópia explícita e feedback através de `IClipboardService`; a implementação Windows usa o clipboard do sistema. Views identificam linha/duplo clique e apresentam ficha modal; Themes mantém o template de item e a barra flutuante. Presença da Fila usa o paciente recebido na mesma recarga, sem consultas por linha. Nenhum dado individual é acrescentado ao Municipal.
+
+A migração 004 adiciona estado de conta. `WorkflowDao` aplica desativação e avanço FIFO em uma transação sob advisory lock; `SessionDao` revalida acesso antes de criar sessão, e operações do paciente revalidam sessão sob o lock da fila. Reativação não recupera sessões nem entradas canceladas. Os contratos acrescentam estado/data ao paciente; telefone e presença anteriores continuam compatíveis.
+
 Android usa `api/NoraApi.kt` como boundary HTTP, PatientController para estado/busy/erros e ApiAddress para validar HTTPS. A interface recebe estado/callbacks sem SQL. Endpoint validado é preferência local; identidade/token só memória. Release permite HTTPS, debug permite HTTP apenas no host emulador10.0.2.2. Ambos desativam redirecionamentos HTTP automáticos.
 
 ## Identidade e temas

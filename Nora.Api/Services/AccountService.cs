@@ -60,3 +60,4 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
 public sealed class ApiInputException : Exception;
 public sealed class ApiConflictException : Exception;
 public sealed class ApiNotFoundException : Exception;
+public sealed class ApiUnauthorizedException : Exception;

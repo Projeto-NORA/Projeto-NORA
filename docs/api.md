@@ -4,7 +4,7 @@
 
 Nora.Api usa ASP.NET Core .NET10 e Npgsql10.0.3 com PostgreSQL 18. NoraApiHost constrói pipeline; endpoints delegam a serviços e DAOs. DatabaseHelper abre/fecha conexões, parametriza valores e valida schema. Nenhum cliente acessa PostgreSQL diretamente.
 
-Migrações incorporadas 001_accounts.sql, 002_workflow.sql e 003_patient_contact_presence.sql criam schema, contas, sessões, entradas, vagas e ofertas com índices/constraints. São aditivas/reaplicáveis, executadas explicitamente por --migrate com transação/lock PostgreSQL. Abrir API não altera schema implicitamente.
+Migrações incorporadas 001_accounts.sql, 002_workflow.sql, 003_patient_contact_presence.sql e 004_patient_account_state.sql criam schema, contas, sessões, entradas, vagas e ofertas com índices/constraints. A quarta acrescenta `accounts.is_active`, inicialmente verdadeiro, preservando cadastros anteriores. São aditivas/reaplicáveis, executadas explicitamente por --migrate com transação/lock PostgreSQL. Abrir API não altera schema implicitamente.
 
 ## Configuração privada e contas
 
@@ -38,8 +38,9 @@ Token aleatório opaco dura8h, usa header Authorization: Bearer <token>; somente
 | POST /api/auth/login | Público limitado | 200 token/expiresAt/user;401 credencial inválida |
 | GET /api/auth/me | Sessão | 200 id/fullName/role/scope |
 | POST /api/auth/logout | Sessão | 204 |
-| GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/isOnline, por cadastro mais recente |
+| GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/isOnline/isActive/createdAt, por cadastro mais recente |
 | POST /api/patients | OBS | 201; fullName/cpf/email/password validados; phone opcional |
+| PATCH /api/patients/{id}/active | OBS atendente/administrador | 204; `isActive` booleano obrigatório; altera acesso e pendências atomicamente |
 | GET /api/queue | OBS | 200 ordem enteredAt/id |
 | POST /api/queue | OBS | 201 patientId; rejeita duplicidade ativa |
 | POST /api/queue/{id}/cancel | OBS | 204 waiting/offered; libera próxima oferta |
@@ -65,6 +66,12 @@ Modo --client-fixture cria schema descartável para clientes, prepara contas sin
 
 ## Telefone e presença no APPNORA
 
-O telefone do paciente é opcional. Aceita de 8 a 15 dígitos, com prefixo internacional `+` opcional; espaços, parênteses, hífen e ponto são removidos na normalização. A migração aditiva preserva os cadastros anteriores com telefone nulo. O OBS envia o telefone no cadastro e apresenta o contato abaixo do nome, junto do e-mail e do CPF mascarado.
+O telefone do paciente é opcional. Aceita de 8 a 15 dígitos, com prefixo internacional `+` opcional; espaços, parênteses, hífen e ponto são removidos na normalização. A migração aditiva preserva os cadastros anteriores com telefone nulo. O OBS envia o telefone no cadastro e apresenta o contato abaixo do nome, junto do e-mail e do CPF completo, conforme confirmação do usuário em 2026-10-12.
 
 `isOnline` indica presença recente no APPNORA, não habilitação do cadastro nem atividade clínica. A API calcula o estado quando existe ao menos uma sessão do paciente não revogada, não vencida e com presença recebida há menos de 90 segundos. A presença/offline é vinculada ao token da própria sessão: encerrar um dispositivo não apaga a presença dos outros. Perda de rede, suspensão ou encerramento forçado são detectados pelo prazo; não há garantia de detecção instantânea. O painel Municipal continua recebendo somente agregados, sem telefone/presença individual.
+
+## Desativação e reativação de paciente
+
+Política confirmada em 2026-10-12: administrador e atendente OBS podem alterar `isActive`. Desativar bloqueia novos logins, revoga sessões e limpa presença. Na mesma transação da fila, cancela entradas waiting/offered e ofertas pending, libera as vagas e avança ao próximo paciente por FIFO. Cadastro, entradas concluídas e ofertas aceitas permanecem no histórico. Reativar permite novo login; sessões revogadas e pendências canceladas não são restauradas.
+
+Login revalida a conta sob lock antes de inserir a sessão. Overview/resposta de oferta revalidam a sessão dentro da transação da fila, protegendo operações que já passaram pela autenticação antes da desativação. Inclusão de paciente desativado retorna409; token revogado ou conta desativada retorna401. `isActive` é separado de `isOnline`; um cadastro ativo pode estar offline. `createdAt` é a data UTC já persistida no cadastro.

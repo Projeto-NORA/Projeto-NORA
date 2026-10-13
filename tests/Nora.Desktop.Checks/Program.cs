@@ -15,10 +15,13 @@ internal static partial class Program
 {
     private static int failures;
     private static int checks;
+    private static string? checkFilter;
 
     [STAThread]
     public static int Main(string[] args)
     {
+        var filterArgument = Array.IndexOf(args, "--check-filter");
+        checkFilter = filterArgument >= 0 && filterArgument + 1 < args.Length ? args[filterArgument + 1] : null;
         var root = Path.Combine(AppContext.BaseDirectory, "check-data", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
@@ -159,11 +162,13 @@ internal static partial class Program
         }
         finally { Directory.Delete(root, true); }
         Console.WriteLine($"{checks - failures}/{checks} verificações passaram.");
+        if (checks == 0) { Console.WriteLine("FAIL Nenhuma verificação corresponde ao filtro informado."); return 1; }
         return failures == 0 ? 0 : 1;
     }
 
     private static void Check(string name, Action action)
     {
+        if (checkFilter != null && !name.Contains(checkFilter, StringComparison.OrdinalIgnoreCase)) return;
         checks++;
         try { action(); Console.WriteLine($"PASS {name}"); }
         catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}: {error.Message}"); }

@@ -73,11 +73,13 @@ internal static partial class Program
                     table.SelectedItem = row;
                     Layout(window, 980, 640);
                     Require(window.ViewModel.HasSelection && table.ActualHeight > table.ColumnHeaderHeight, "Linha não pode ser vista/selecionada.");
-                    var context = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Ações do atendimento indisponíveis");
-                    Require(FindAncestor<Border>(context)?.Visibility == Visibility.Visible, "Barra contextual permanece oculta.");
+                    var item = (DataGridRow)table.ItemContainerGenerator.ContainerFromItem(row);
+                    Require(table.ClipboardCopyMode == DataGridClipboardCopyMode.None && item.Margin.Bottom == 3 && Descendants<Border>(item).Any(border => border.CornerRadius == new CornerRadius(8)), "Listagem inicial não compartilha o padrão arredondado e leitura sem cópia.");
+                    var context = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Ações do atendimento selecionado");
+                    Require(context.Visibility == Visibility.Visible && context.IsVisible, "Barra contextual permanece oculta.");
                     window.ViewModel.SelectedRow = null;
                     Layout(window, 980, 640);
-                    Require(FindAncestor<Border>(context)?.Visibility == Visibility.Collapsed, "Barra permanece sem seleção.");
+                    Require(context.Visibility == Visibility.Collapsed, "Barra permanece sem seleção.");
                 }
                 finally { window.ViewModel.ConfirmClose = false; window.Close(); }
             });

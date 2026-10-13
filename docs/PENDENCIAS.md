@@ -2,7 +2,9 @@
 
 ## Abertas
 
-- **P-014** · 2026-10-08 · Acesso OBS por chave: entrega anterior publicada e estudo concluído em `estudo-acesso-obs.md`, com referência Oliver Imports somente lida e fontes oficiais. Aguarda confirmação da proposta de chave de uso único por computador/perfil Windows, prazo de 24 horas, acesso online sem login após ativação e revogação central; também falta definir uma clínica por API ou várias clínicas compartilhando a API. Perguntas enviadas, sem resposta até este registro. Não implementar isolamento ou política de autorização presumidos.
+- **P-018** · 2026-10-13 · Integração/publicação da main após concluir as listagens: falta buscar e incorporar o trabalho do outro computador, conferir o conjunto e verificar push/hash remoto. Pedido autorizado; tarefa em `tarefas/2026-10-13-integracao-main.md`.
+
+- **P-014** · 2026-10-08 · Acesso OBS por chave: estudo em `estudo-acesso-obs.md`. Em 2026-10-13, usuário esclareceu OBS para secretária da unidade, painel administrativo para responsável pela marca/hospital e pediu comparação de login/chave/abertura automática antes de decidir. Política de ativação, identidade do operador, prazo/revogação e uma ou várias clínicas por API aguardam escolha. Não implementar isolamento ou autorização presumidos.
 - **P-015** · 2026-10-08 · Painel administrativo do dono da marca substitui Municipal: usuário confirmou totais operacionais e financeiros, sem dados sensíveis de pacientes. Origem/registro dos valores financeiros ainda não definidos; implementar depois da chave OBS, respeitando fila.
 
 - **P-012** · 2026-10-07 · Provisionamento na instância PostgreSQL 18 de uso: usuário postgres confirmado, mas não existe conexão privada/pgpass/variável de ambiente disponível nesta sessão. A senha PostgreSQL não foi informada; a senha das contas NORA não será presumida como senha do banco. Implementação e testes podem avançar em PostgreSQL 18 descartável; configurar a conexão privada e provisionar as contas definitivas na instância de uso permanece necessário.
@@ -14,6 +16,8 @@
 - **P-007** · 2026-10-07 · Conferência desktop manual: teclado/foco físico, escala/DPI ampliados e múltiplos monitores ainda não verificados. Rodada atual 45/45 com E2E/PostgreSQL e abertura2/2 passaram; incluem cadastro/telefone/fila/vaga/logout persistidos, temas/render, filtros, rolagem, navegação e leitura da preferência DWM de cantos/restauração/tela cheia. O controle nativo de desktop não está disponível nesta sessão; resultados automatizados não equivalem a teclado/DPI/monitores físicos nem à inspeção física da moldura nativa.
 
 ## Resolvidas
+
+- **P-017** · aberta em 2026-10-12 · resolvida em 2026-10-13 · Listagens, ações, detalhes e desativação → template compartilhado raio8/intervalo3, CPF completo/telefone visível, e-mail limitado, barra por seleção, ficha por duplo clique/Enter e cópia explícita. Desativação revoga acesso e cancela pendências com avanço FIFO; reativação não restaura sessões/fila. Corrigidos contraste da seleção e confirmação durante polling, com regressões vermelhas antes das correções. Release0/0, WPF53/53 com API/PostgreSQL, HTTP20/20, PostgreSQL23/23 e abertura2/2 passaram. Prévias e evidências na tarefa de 2026-10-12. Publicação separada em P-018.
 
 - **P-016** · aberta em 2026-10-11 · resolvida em 2026-10-11 · Ajustes OBS/Pacientes e presença Android → telefone opcional, zebra, filtros, tooltips, conta inferior, cantos nativos OBS/painel e notificação de segundo plano autorizada implementados. Corrigidos rolagem, contrastes, PendingIntent e geração; WPF45/45 com PostgreSQL, Android14/14 instrumentados sem skips, locais7/7, HTTP20/20, PostgreSQL18/18, Release zero erros/avisos e abertura2/2 passaram. Commit `7dff75b` publicado na main com hash local/remoto `7dff75b6ad68d1c923a0e74d4d6a5d94799ec2ee` conferido. Limites físicos e provisionamento anteriores preservados nas demais pendências.
 

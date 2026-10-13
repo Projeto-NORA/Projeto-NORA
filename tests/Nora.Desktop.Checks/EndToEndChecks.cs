@@ -140,7 +140,7 @@ internal static partial class Program
         InvokeButton(FindActionButton(content, "Entrar")); PumpUntil(() => !window.ViewModel.Workspace.IsBusy);
     }
     private static TextBox Input(FrameworkElement content, string name) => Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == name);
-    private static Button FindActionButton(FrameworkElement content, string name) => Descendants<Button>(content).Single(button => button.Content?.ToString() == name);
+    private static Button FindActionButton(FrameworkElement content, string name) => Descendants<Button>(content).Single(button => button.IsVisible && button.Content?.ToString() == name);
     private static string SyntheticCpf()
     {
         var digits = Random.Shared.NextInt64(100000000, 999999999).ToString();

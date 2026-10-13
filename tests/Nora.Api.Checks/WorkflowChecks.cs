@@ -45,7 +45,7 @@ internal static class WorkflowChecks
             using var municipal = Client(app);
             using var patient = Client(app);
             using var secondPatient = Client(app);
-            Guid firstId = Guid.Empty, secondId = Guid.Empty;
+            Guid firstId = Guid.Empty, secondId = Guid.Empty, thirdId = Guid.Empty, fourthId = Guid.Empty;
 
             await Check("PostgreSQL real readiness e migration reaplicável", async () =>
             {
@@ -89,6 +89,8 @@ internal static class WorkflowChecks
                 using var json = await Json(list);
                 Require(json.RootElement.GetArrayLength() == 2, "Pacientes não persistidos.");
                 Require(json.RootElement[0].GetProperty("id").GetGuid() == secondId, "Listagem não começa pelo cadastro mais recente.");
+                Require(json.RootElement.EnumerateArray().All(p => p.GetProperty("createdAt").GetDateTimeOffset().Offset == TimeSpan.Zero), "Cadastro sem data UTC persistida.");
+                Require(json.RootElement.EnumerateArray().All(p => p.GetProperty("isActive").GetBoolean()), "Cadastro anterior não preservado como ativo.");
             });
             await Check("Duplicidade CPF/e-mail é conflito e CPF inválido é rejeitado", async () =>
             {
@@ -216,8 +218,8 @@ internal static class WorkflowChecks
             });
             await Check("Expiração no limite passa ao próximo sem aceitar oferta vencida", async () =>
             {
-                var thirdId = await CreatePatient(obs, 3, password);
-                var fourthId = await CreatePatient(obs, 4, password);
+                thirdId = await CreatePatient(obs, 3, password);
+                fourthId = await CreatePatient(obs, 4, password);
                 // Cancele toda entrada ainda ativa; esta vaga testa um fluxo independente.
                 using (var response = await obs.GetAsync("/api/queue"))
                 using (var json = await Json(response))
@@ -242,6 +244,152 @@ internal static class WorkflowChecks
                 using var lateAccept = await third.PostAsJsonAsync($"/api/offers/{expiredOffer}/respond", new { accept = true });
                 Expect(lateAccept, 409);
                 Require(await ActiveOffer(fourth) != Guid.Empty, "Expiração não passou oferta.");
+            });
+            await Check("Alteração de conta exige OBS e decisão explícita; atendente e administrador permitidos", async () =>
+            {
+                using var unauthorized = await anonymous.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = false });
+                Expect(unauthorized, 401);
+                using var wrongScope = await municipal.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = false });
+                Expect(wrongScope, 403);
+                using var patientScope = await patient.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = false });
+                Expect(patientScope, 403);
+                using var missing = await obs.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { });
+                Expect(missing, 400);
+                using var unknown = await obs.PatchAsJsonAsync($"/api/patients/{Guid.NewGuid()}/active", new { isActive = false });
+                Expect(unknown, 404);
+                using var me = await obs.GetAsync("/api/auth/me");
+                using var operatorJson = await Json(me);
+                using var operatorChange = await obs.PatchAsJsonAsync($"/api/patients/{operatorJson.RootElement.GetProperty("id").GetGuid()}/active", new { isActive = false });
+                Expect(operatorChange, 404);
+                using var attendant = Client(app);
+                await Login(attendant, "obs", "attendant@example.test", password);
+                using var allowed = await attendant.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = true });
+                Expect(allowed, 204);
+            });
+            await Check("Desativação revoga sessões, bloqueia login/fila/presença e reativação preserva cadastro", async () =>
+            {
+                var before = await PatientRow(obs, firstId);
+                var session = await app.Services.GetRequiredService<AuthService>().AuthenticateAsync(patient.DefaultRequestHeaders.Authorization!.Parameter!, default);
+                Require(session is not null, "Sessão de teste ausente.");
+                using var enqueue = await obs.PostAsJsonAsync("/api/queue", new { patientId = firstId });
+                Expect(enqueue, 201);
+                using var disabled = await obs.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = false });
+                Expect(disabled, 204);
+                using var login = await anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(1), password });
+                Expect(login, 401);
+                using var oldSession = await patient.GetAsync("/api/auth/me");
+                Expect(oldSession, 401);
+                using var heartbeat = await patient.PostAsync("/api/patient/presence", null);
+                Expect(heartbeat, 401);
+                using var inactiveQueue = await obs.PostAsJsonAsync("/api/queue", new { patientId = firstId });
+                Expect(inactiveQueue, 409);
+                Require(await app.Services.GetRequiredService<SessionDao>().CreateAsync(firstId, new string('A',64), clock.GetUtcNow().AddHours(8), default) == 0, "Login concorrente persistiu sessão de conta desativada.");
+                try
+                {
+                    await app.Services.GetRequiredService<WorkflowService>().OverviewAsync(session!, default);
+                    throw new InvalidOperationException("Sessão pré-autenticada antiga conservou acesso.");
+                }
+                catch (ApiUnauthorizedException) { }
+                await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
+                var after = await PatientRow(obs, firstId);
+                Require(!after.GetProperty("isActive").GetBoolean() && !after.GetProperty("isOnline").GetBoolean(), "Migração/presença reativou cadastro.");
+                foreach (var field in new[] { "fullName", "cpf", "email", "phone", "createdAt" })
+                    Require(before.GetProperty(field).GetRawText() == after.GetProperty(field).GetRawText(), "Desativação alterou dados do cadastro.");
+                await NoActiveQueue(obs, firstId);
+                using var enabled = await obs.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = true });
+                Expect(enabled, 204);
+                using var stillRevoked = await patient.GetAsync("/api/auth/me");
+                Expect(stillRevoked, 401);
+                await Login(patient, "patient", Cpf(1), password);
+                await NoActiveQueue(obs, firstId);
+                Require((await PatientRow(obs, firstId)).GetProperty("isActive").GetBoolean(), "Reativação não liberou a conta.");
+            });
+            await Check("Desativar oferta pendente libera a mesma vaga ao próximo FIFO e preserva aceites", async () =>
+            {
+                using var fourth = Client(app);
+                using var third = Client(app);
+                await Login(fourth, "patient", Cpf(4), password);
+                await Login(third, "patient", Cpf(3), password);
+                var pendingId = await ActiveOffer(fourth);
+                var oldSession = await app.Services.GetRequiredService<AuthService>().AuthenticateAsync(fourth.DefaultRequestHeaders.Authorization!.Parameter!,default);
+                Require(pendingId != Guid.Empty, "Fixture sem oferta pendente.");
+                using var enqueue = await obs.PostAsJsonAsync("/api/queue", new { patientId = thirdId });
+                Expect(enqueue, 201);
+                using var disabled = await obs.PatchAsJsonAsync($"/api/patients/{fourthId}/active", new { isActive = false });
+                Expect(disabled, 204);
+                using var oldAccess = await fourth.GetAsync("/api/patient/overview");
+                Expect(oldAccess, 401);
+                try
+                {
+                    await app.Services.GetRequiredService<WorkflowService>().RespondAsync(pendingId,oldSession!,new(true),default);
+                    throw new InvalidOperationException("Resposta pré-autenticada confirmou depois da desativação.");
+                }
+                catch(ApiUnauthorizedException) { }
+                var nextId = await ActiveOffer(third);
+                Require(nextId != Guid.Empty, "Desativação não passou oferta ao próximo.");
+                await using var connection = await database.OpenAsync();
+                await using var sameSlot = database.Command(connection, "SELECT old.status='cancelled' AND old.slot_id=next.slot_id FROM nora.offers old JOIN nora.offers next ON next.id=$2 WHERE old.id=$1", pendingId, nextId);
+                Require(await sameSlot.ExecuteScalarAsync() is true, "Oferta cancelada não liberou sua vaga original.");
+                using var historical = await obs.PatchAsJsonAsync($"/api/patients/{secondId}/active", new { isActive = false });
+                Expect(historical, 204);
+                await using var history = database.Command(connection, "SELECT EXISTS(SELECT 1 FROM nora.offers o JOIN nora.queue_entries q ON q.id=o.queue_id JOIN nora.slots s ON s.id=o.slot_id WHERE o.patient_id=$1 AND o.status='accepted' AND q.status='completed' AND s.status='accepted')", secondId);
+                Require(await history.ExecuteScalarAsync() is true, "Desativação apagou/alterou o aceite concluído.");
+                using var enabled = await obs.PatchAsJsonAsync($"/api/patients/{secondId}/active", new { isActive = true });
+                Expect(enabled, 204);
+                using var oldToken = await secondPatient.GetAsync("/api/auth/me");
+                Expect(oldToken, 401);
+                await Login(secondPatient, "patient", Cpf(2), password);
+                using var fourthEnabled = await obs.PatchAsJsonAsync($"/api/patients/{fourthId}/active", new { isActive = true });
+                Expect(fourthEnabled, 204);
+                await NoActiveQueue(obs, fourthId);
+            });
+            await Check("Corrida login/inclusão versus desativação não deixa sessões ou fila ativas", async () =>
+            {
+                var loginTask = anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(1), password });
+                var enqueueTask = obs.PostAsJsonAsync("/api/queue", new { patientId = firstId });
+                var disableTask = obs.PatchAsJsonAsync($"/api/patients/{firstId}/active", new { isActive = false });
+                await Task.WhenAll(loginTask,enqueueTask,disableTask);
+                using var login = await loginTask;
+                using var enqueue = await enqueueTask;
+                using var disable = await disableTask;
+                Expect(disable,204);
+                Require((int)login.StatusCode is 200 or 401, "Login concorrente retornou erro inesperado.");
+                Require((int)enqueue.StatusCode is 201 or 409, "Fila concorrente retornou erro inesperado.");
+                await NoActiveQueue(obs, firstId);
+                await using var connection = await database.OpenAsync();
+                await using var liveSessions = database.Command(connection,"SELECT count(*) FROM nora.sessions WHERE account_id=$1 AND revoked_at IS NULL AND expires_at>$2",firstId,clock.GetUtcNow());
+                Require((long)(await liveSessions.ExecuteScalarAsync())! == 0,"Corrida deixou sessão utilizável após desativação.");
+                using var enable = await obs.PatchAsJsonAsync($"/api/patients/{firstId}/active",new { isActive = true });
+                Expect(enable,204);
+                await Login(patient,"patient",Cpf(1),password);
+            });
+            await Check("Resposta concorrente à desativação preserva uma única transição válida", async () =>
+            {
+                using var fourth = Client(app);
+                await Login(fourth,"patient",Cpf(4),password);
+                using var enqueue = await obs.PostAsJsonAsync("/api/queue",new { patientId=fourthId });
+                Expect(enqueue,201);
+                using var slot = await obs.PostAsJsonAsync("/api/slots",new { label="Corrida desativação versus resposta" });
+                Expect(slot,201);
+                var offerId = await ActiveOffer(fourth);
+                Require(offerId!=Guid.Empty,"Fixture de corrida sem oferta.");
+                var respondTask=fourth.PostAsJsonAsync($"/api/offers/{offerId}/respond",new { accept=true });
+                var disableTask=obs.PatchAsJsonAsync($"/api/patients/{fourthId}/active",new { isActive=false });
+                await Task.WhenAll(respondTask,disableTask);
+                using var response=await respondTask;
+                using var disabled=await disableTask;
+                Expect(disabled,204);
+                Require((int)response.StatusCode is 200 or 401,"Resposta concorrente produziu resultado inválido.");
+                await NoActiveQueue(obs,fourthId);
+                await using var connection=await database.OpenAsync();
+                await using var state=database.Command(connection,"SELECT o.status,q.status,s.status FROM nora.offers o JOIN nora.queue_entries q ON q.id=o.queue_id JOIN nora.slots s ON s.id=o.slot_id WHERE o.id=$1",offerId);
+                await using var reader=await state.ExecuteReaderAsync();
+                Require(await reader.ReadAsync(),"Corrida perdeu histórico.");
+                var accepted=response.StatusCode==HttpStatusCode.OK;
+                Require(reader.GetString(0)==(accepted?"accepted":"cancelled") && reader.GetString(1)==(accepted?"completed":"cancelled"),"Resposta/desativação deixaram oferta e fila incompatíveis.");
+                Require(accepted ? reader.GetString(2)=="accepted" : reader.GetString(2) is "open" or "offered","Resposta/desativação deixaram vaga incompatível.");
+                using var oldAccess=await fourth.GetAsync("/api/auth/me");
+                Expect(oldAccess,401);
             });
             await Check("Logout revoga token e token ausente/malformado é rejeitado", async () =>
             {
@@ -309,6 +457,22 @@ internal static class WorkflowChecks
             using var json = await Json(list);
             return json.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == id).GetProperty("isOnline").GetBoolean();
         }
+
+        async Task<JsonElement> PatientRow(HttpClient obs, Guid id)
+        {
+            using var response = await obs.GetAsync("/api/patients");
+            Expect(response,200);
+            using var json = await Json(response);
+            return json.RootElement.EnumerateArray().Single(p=>p.GetProperty("id").GetGuid()==id).Clone();
+        }
+
+        async Task NoActiveQueue(HttpClient obs, Guid id)
+        {
+            using var response = await obs.GetAsync("/api/queue");
+            Expect(response,200);
+            using var json = await Json(response);
+            Require(!json.RootElement.EnumerateArray().Any(q=>q.GetProperty("patientId").GetGuid()==id && q.GetProperty("status").GetString() is "waiting" or "offered"),"Conta desativada/reativada conservou fila pendente.");
+        }
     }
 
     private static HttpClient Client(WebApplication app) => new()
@@ -331,6 +495,8 @@ internal static class WorkflowChecks
         using var response = await obs.PostAsJsonAsync("/api/patients", new { fullName = $"Paciente de teste {number}", cpf = Cpf(number), email = $"patient{number}@example.test", password, phone });
         Expect(response, 201);
         using var json = await Json(response);
+        Require(json.RootElement.GetProperty("createdAt").GetDateTimeOffset().Offset == TimeSpan.Zero, "Resposta de cadastro sem data UTC real.");
+        Require(json.RootElement.GetProperty("isActive").GetBoolean(), "Cadastro novo não foi criado ativo.");
         return json.RootElement.GetProperty("id").GetGuid();
     }
     private static async Task<Guid> ActiveOffer(HttpClient patient)

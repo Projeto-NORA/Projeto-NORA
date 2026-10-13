@@ -7,7 +7,7 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-public sealed class WorkspaceViewModel : ObservableObject, IDisposable
+public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 {
     private readonly DesktopProfile profile;
     private readonly NoraApiClient api;
@@ -35,13 +35,14 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
         refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         refreshTimer.Tick += OnRefreshTimer;
         endpoint = Environment.GetEnvironmentVariable("NORA_API_URL") ?? "";
+        ClearSelectionCommand = new RelayCommand(_ => ClearActionSelection());
         RefreshCommand = new RelayCommand(async _ => await RunAsync(async () =>
         {
             await RefreshAsync();
             Message = "Dados atualizados pela API.";
         }), _ => CanOperate);
         LogoutCommand = new RelayCommand(async _ => await RunAsync(LogoutAsync), _ => CanOperate);
-        EnqueueCommand = new RelayCommand(async _ => await RunAsync(async () => { await this.api.EnqueueAsync(SelectedPatient!.Id); await RefreshAfterChangeAsync("Paciente entrou na fila por ordem de entrada."); }), _ => CanOperate && IsOperational && SelectedPatient != null);
+        EnqueueCommand = new RelayCommand(async _ => await RunAsync(async () => { await this.api.EnqueueAsync(SelectedPatient!.Id); await RefreshAfterChangeAsync("Paciente entrou na fila por ordem de entrada."); }), _ => CanOperate && IsOperational && SelectedPatient?.IsActive == true);
         CancelQueueCommand = new RelayCommand(async _ => await RunAsync(async () => { await this.api.CancelAsync(SelectedQueue!.Id); await RefreshAfterChangeAsync("Entrada da fila cancelada."); }), _ => CanOperate && IsOperational && SelectedQueue?.Status is "waiting" or "offered");
         CreateSlotCommand = new RelayCommand(async _ => await RunAsync(async () => { await this.api.CreateSlotAsync(SlotLabel.Trim()); SlotLabel = ""; await RefreshAfterChangeAsync("Vaga aberta. A oferta segue a ordem da fila, com 10 minutos para resposta."); }), _ => CanOperate && IsOperational && !string.IsNullOrWhiteSpace(SlotLabel));
     }
@@ -52,7 +53,7 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
     public string SlotLabel { get => slotLabel; set { slotLabel = value; Notify(); CommandManager.InvalidateRequerySuggested(); } }
-    public bool IsBusy { get => busy; private set { busy = value; Notify(); Notify(nameof(CanOperate)); Notify(nameof(CanLogin)); Notify(nameof(CanEditDraft)); CommandManager.InvalidateRequerySuggested(); } }
+    public bool IsBusy { get => busy; private set { busy = value; Notify(); Notify(nameof(CanOperate)); Notify(nameof(CanLogin)); Notify(nameof(CanEditDraft)); Notify(nameof(CanSetPatientActive)); CommandManager.InvalidateRequerySuggested(); } }
     public bool IsAuthenticated => user != null;
     public bool IsSignedOut => !IsAuthenticated;
     public bool CanOperate => IsAuthenticated && !IsBusy;
@@ -67,12 +68,12 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
         && Message != "Conectando à API…"
         && Message != "Dados atualizados pela API."
         && Message != "Conta conectada. Dados atualizados pela API.";
-    public string Section { get => section; set { section = value; Notify(); Notify(nameof(ShowPatients)); Notify(nameof(ShowQueue)); Notify(nameof(ShowSlots)); } }
+    public string Section { get => section; set { section = value; SelectListItem(null); Notify(); Notify(nameof(ShowPatients)); Notify(nameof(ShowQueue)); Notify(nameof(ShowSlots)); } }
     public bool ShowPatients => IsAuthenticated && IsOperational && Section is "home" or "patients";
     public bool ShowQueue => IsAuthenticated && IsOperational && Section is "home" or "queue";
     public bool ShowSlots => IsAuthenticated && IsOperational && Section is "home" or "slots";
     public ObservableCollection<PatientAccount> Patients { get; } = [];
-    public string PatientSearch { get => patientSearch; set { patientSearch = value; Notify(); Notify(nameof(FilteredPatients)); Notify(nameof(HasNoPatientResults)); SelectedPatient = null; } }
+    public string PatientSearch { get => patientSearch; set { patientSearch = value; Notify(); NotifyPatientFilters(); } }
     public string PatientPresenceFilter { get => patientPresenceFilter; set { patientPresenceFilter = value; Notify(); NotifyPatientFilters(); } }
     public string PatientSort { get => patientSort; set { patientSort = value; Notify(); NotifyPatientFilters(); } }
     public IEnumerable<PatientAccount> FilteredPatients
@@ -83,8 +84,10 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
             var matches = Patients.Where(p => (p.FullName.Contains(search, StringComparison.CurrentCultureIgnoreCase)
                 || p.Email.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || p.Cpf.Contains(search, StringComparison.Ordinal)
+                || p.FormattedCpf.Contains(search, StringComparison.Ordinal)
                 || (p.Phone?.Contains(search, StringComparison.Ordinal) ?? false))
-                && (PatientPresenceFilter == "Todos" || p.IsOnline == (PatientPresenceFilter == "Online")));
+                && (PatientPresenceFilter == "Todos" || p.IsOnline == (PatientPresenceFilter == "Online"))
+                && (PatientStatusFilter == "Todos" || p.IsActive == (PatientStatusFilter == "Ativos")));
             return PatientSort switch
             {
                 "Nome A–Z" => matches.OrderBy(p => p.FullName, StringComparer.CurrentCultureIgnoreCase),
@@ -93,7 +96,14 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
             };
         }
     }
-    private void NotifyPatientFilters() { Notify(nameof(FilteredPatients)); Notify(nameof(HasNoPatientResults)); SelectedPatient = null; }
+    private void NotifyPatientFilters()
+    {
+        var patientId = SelectedPatient?.Id;
+        var previousAction = actionSelection;
+        Notify(nameof(FilteredPatients)); Notify(nameof(HasNoPatientResults));
+        SelectedPatient = FilteredPatients.FirstOrDefault(item => item.Id == patientId);
+        if (previousAction is PatientAccount) SelectListItem(CurrentActionItem(previousAction));
+    }
     public ObservableCollection<QueueEntry> Queue { get; } = [];
     public ObservableCollection<LightningSlot> Slots { get; } = [];
     public PatientAccount? SelectedPatient { get => selectedPatient; set { selectedPatient = value; Notify(); CommandManager.InvalidateRequerySuggested(); } }
@@ -153,17 +163,21 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
         {
             // Read all data before publishing to avoid a partly updated screen on errors.
             var patients = await api.PatientsAsync();
-            var queue = await api.QueueAsync();
+            var queue = (await api.QueueAsync()).Select(entry => entry with { Patient = patients.FirstOrDefault(patient => patient.Id == entry.PatientId) }).ToArray();
             var slots = await api.SlotsAsync();
             if (disposed) return;
             var patientId = SelectedPatient?.Id;
             var queueId = SelectedQueue?.Id;
+            var slotId = SelectedSlot?.Id;
+            var previousAction = actionSelection;
             patientsChanged = Replace(Patients, patients);
             var queueChanged = Replace(Queue, queue);
-            Replace(Slots, slots);
+            var slotsChanged = Replace(Slots, slots);
             if (patientsChanged)
                 SelectedPatient = (Section == "queue" ? Patients : FilteredPatients).FirstOrDefault(p => p.Id == patientId);
             if (queueChanged) SelectedQueue = Queue.FirstOrDefault(q => q.Id == queueId);
+            if (slotsChanged) SelectedSlot = Slots.FirstOrDefault(slot => slot.Id == slotId);
+            if (patientsChanged || queueChanged || slotsChanged) SelectListItem(CurrentActionItem(previousAction));
         }
         foreach (var name in new[] { nameof(PatientCount), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(HasNoPatients), nameof(HasNoPatientResults), nameof(HasNoQueue), nameof(HasNoSlots) }) Notify(name);
         if (patientsChanged) Notify(nameof(FilteredPatients));
@@ -219,16 +233,17 @@ public sealed class WorkspaceViewModel : ObservableObject, IDisposable
     {
         refreshTimer.Stop();
         api.ClearSession(); user = null; summary = null;
-        Patients.Clear(); Queue.Clear(); Slots.Clear(); SelectedPatient = null; SelectedQueue = null;
+        Patients.Clear(); Queue.Clear(); Slots.Clear(); SelectedPatient = null; SelectedQueue = null; SelectedSlot = null;
+        SelectListItem(null);
         Identifier = FullName = Cpf = Email = Phone = SlotLabel = "";
         PatientSearch = "";
-        PatientPresenceFilter = "Todos"; PatientSort = "Mais recentes";
+        PatientPresenceFilter = "Todos"; PatientSort = "Mais recentes"; PatientStatusFilter = "Todos";
         foreach (var name in new[] { nameof(PatientCount), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(FullName), nameof(Cpf), nameof(Email), nameof(Phone), nameof(SlotLabel) }) Notify(name);
         NotifySession();
     }
     private void NotifySession()
     {
-        foreach (var name in new[] { nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(AccountName), nameof(ConnectionLabel), nameof(ShowPatients), nameof(ShowQueue), nameof(ShowSlots) }) Notify(name);
+        foreach (var name in new[] { nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanSetPatientActive), nameof(AccountName), nameof(ConnectionLabel), nameof(ShowPatients), nameof(ShowQueue), nameof(ShowSlots) }) Notify(name);
     }
     public void Dispose() { disposed = true; refreshTimer.Tick -= OnRefreshTimer; SignOut(); api.Dispose(); }
 }

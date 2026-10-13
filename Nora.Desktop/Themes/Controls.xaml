@@ -255,10 +255,10 @@
     </Style.Triggers>
   </Style>
   <Style TargetType="DataGrid">
-    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}" />
-    <Setter Property="AlternatingRowBackground" Value="{DynamicResource SurfaceAltBrush}" />
+    <Setter Property="AlternatingRowBackground" Value="{DynamicResource PatientAlternateBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="GridLinesVisibility" Value="None" />
     <Setter Property="HeadersVisibility" Value="Column" />
@@ -266,6 +266,10 @@
     <Setter Property="IsReadOnly" Value="True" />
     <Setter Property="CanUserAddRows" Value="False" />
     <Setter Property="CanUserDeleteRows" Value="False" />
+    <Setter Property="ClipboardCopyMode" Value="None" />
+    <Setter Property="SelectionMode" Value="Single" />
+    <Setter Property="SelectionUnit" Value="FullRow" />
+    <Setter Property="BorderThickness" Value="0" />
     <Setter Property="RowHeight" Value="48" />
     <Setter Property="ColumnHeaderHeight" Value="44" />
   </Style>
@@ -277,21 +281,29 @@
   </Style>
   <Style TargetType="DataGridRow">
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-    <Style.Triggers>
-      <Trigger Property="IsSelected" Value="True">
-        <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      </Trigger>
-    </Style.Triggers>
+    <Setter Property="Margin" Value="0,0,0,3" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridRow">
+      <Grid>
+        <Border x:Name="RowFrame" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" />
+        <DataGridCellsPresenter />
+      </Grid>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="RowFrame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter TargetName="RowFrame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="RowFrame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RowFrame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="DataGridCell">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="12,8" />
-    <Style.Triggers>
-      <Trigger Property="IsSelected" Value="True">
-        <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      </Trigger>
-    </Style.Triggers>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridCell"><Border Padding="{TemplateBinding Padding}" Background="Transparent"><ContentPresenter VerticalAlignment="Center" /></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="FloatingActions" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="14,8" /><Setter Property="Margin" Value="24,0,24,16" /><Setter Property="MaxWidth" Value="860" /><Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.16" /></Setter.Value></Setter>
   </Style>
 </ResourceDictionary>
