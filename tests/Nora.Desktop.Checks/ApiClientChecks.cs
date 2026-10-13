@@ -416,6 +416,8 @@ internal static partial class Program
         public List<bool> ActiveChanges { get; } = [];
         public bool LogoutCalled { get; private set; }
         public bool Registered { get; private set; }
+        public bool UseWorkspaceIdentity { get; init; }
+
         public string? RegisteredPhone { get; private set; }
         public bool PatientOnline { get; set; }
         public int PatientReads { get; private set; }
@@ -435,7 +437,8 @@ internal static partial class Program
                 LoginIdentifier = body.RootElement.GetProperty("identifier").GetString();
                 Scope = body.RootElement.GetProperty("scope").GetString()!;
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
-                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, "Paciente Fixture", Scope == "obs" ? ObsRole : "manager", Scope)));
+                var accountName = UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture";
+                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, accountName, Scope == "obs" ? ObsRole : "manager", Scope)));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
             if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);

@@ -61,7 +61,26 @@ Na retomada de 2026-10-07, o AVD `Pixel_4` API31 iniciou com WHPX já instalado 
 
 Os testes instrumentados confirmam interação, rolagem e persistência em novas instâncias do armazenamento. A conferência extra de reabertura e captura de tela ficou limitada por crashes/ANRs do `System UI` do AVD, inclusive após reinicialização com dois núcleos e GPU software. Não foi registrado crash do processo NORA. Ainda faltam reabertura/render estáveis, tema Sistema, fonte ampliada e layout em telas maiores (P-003). O passo a passo para executar no Android Studio e criar um novo AVD está em `android-emulador.md`; o AVD existente não foi apagado.
 
-## Referências oficiais de compatibilidade
+## Galeria visual de 10/10/2026
+
+As fotos atuais estão em `docs/galeria/2026-10-10/index.html`, um HTML offline com imagens originais e fontes identificadas. São 68 renders WPF e 15 Compose/Layoutlib; não substituem E2E banco/dispositivo. A máquina Pichau desta rodada possui JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot` e SDK em `C:/Users/Pichau/AppData/Local/Android/Sdk`. O JBR atual do Android Studio é Java25, portanto use o JDK21 explícito. PostgreSQL18 e aceleração do emulador não estão disponíveis aqui; a validação histórica no notebook mateu continua válida apenas como histórico.
+
+```powershell
+# Na raiz, depois de compilar os checks desktop:
+dotnet .build/Nora.Desktop.Checks/bin/Release/net10.0-windows/Nora.Desktop.Checks.dll --preview-dir .build/galeria-visual-2026-10-10/desktop --visual-gallery
+# Na pasta APPNORA com JAVA_HOME/ANDROID_HOME configurados:
+.\gradlew.bat :app:updateDebugScreenshotTest :app:validateDebugScreenshotTest --console=plain
+# De volta à raiz, exporta os previews para PNG legíveis e manifesto Android:
+pwsh -NoProfile -File tests/exportar-capturas-android.ps1
+# Com ambos os visual-captures.json e PNG disponíveis:
+pwsh -NoProfile -File tests/gerar-galeria-visual.ps1
+```
+
+O harness desktop usa preferências temporárias e respostas HTTP sintéticas em memória; recusa capturar PasswordBox preenchido. Android `screenshotTest` contém os 15 previews de componentes de produção, com estados sintéticos sem rede. Os PNG de referência ficam localmente em `APPNORA/app/src/screenshotTestDebug/reference/`, ignorados no Git; o relatório fica em `APPNORA/app/build/reports/screenshotTest/`. `update` gera referências e `validate` compara; a comparação da referência recém-gerada confirma render consistente, sem substituir inspeção visual. Os PNG legíveis e os manifestos de origem são intermediários em `.build/galeria-visual-2026-10-10/{desktop,android}`. A galeria preserva as cópias sem edição e seus hashes. O teste instrumentado opt-in `VisualCaptureTest` compila para futuras capturas locais, não foi executado nesta máquina e não faz conexão HTTP.
+
+Resultados: desktop39/39; Android15/15 renders/comparações,7/7 unitários, lint zero erros/um aviso de versão; APK e APK de testes compilados. Build integrado Release zero erros/quatro avisos NU1900 de consulta de vulnerabilidades bloqueada pela rede. A inspeção manual das imagens foi realizada antes da entrega. Configuração pessoal, AVD e bases de uso foram preservados.
+
+## Fontes de compatibilidade
 
 - [AGP 9.4 e requisitos de Gradle/JDK/SDK](https://developer.android.com/build/releases/agp-9-4-0-release-notes).
 - [Kotlin integrado ao AGP](https://developer.android.com/build/migrate-to-built-in-kotlin).
@@ -87,3 +106,11 @@ Release sequencial com `--disable-build-servers` passou com zero erros/avisos. D
 `tests/validar-postgres-descartavel.ps1` passou HTTP20/20 e PostgreSQL23/23; migração004, autorização/decisão explícita, revogação, login/fila/presença bloqueados, preservação do histórico, avanço FIFO e corridas foram exercitados. Evidência `.build/postgres-validation-f45660f6faf04ce4bcaf8e6c253ebb27`. `tests/validar-clientes-descartavel.ps1 -PreviewDirectory .build/previews-2026-10-13-e2e` passou53/53; logs em `.build/clients-validation-b4ce79e39f9b4b7bab651fb422a04d0f`. Clusters próprios encerrados, sem base de uso ou contas pessoais.
 
 Contraste da seleção e confirmação durante polling tiveram regressões focadas0/1 antes das correções. Um timeout posterior veio do pump do harness, que encerrava o frame acima da prioridade das continuações assíncronas de inspeção modal; SystemIdle permitiu essas continuações, sem alterar produção ou enfraquecer as assertions. Foco1/1 e suíte completa ficaram verdes. `--check-filter <trecho>` permite reproduzir o caso e falha se nenhum teste corresponde. Android não foi reexecutado nesta etapa Windows; limites físicos e provisionamento continuam nas pendências anteriores.
+
+## Integração dos dois computadores — 2026-10-13
+
+Preservados commit local f3ec187 e remotos3fa7e58/5396387/8b80b2a. Conflitos dos testes combinaram identidade da galeria, perfis reais e ações flutuantes; pendências locais P-017/P-018 passaram a P-019/P-020 para manter os registros remotos. Caso da galeria OBS falhou57/58 e1/2 focado por atribuir o mesmo item já selecionado ao retornar à Fila; harness passou a refazer seleção e exigir ações antes do cancelamento. Nenhuma mudança de produção foi necessária nessa correção.
+
+Após integração, Release0/0, desktop58/58 com `--visual-gallery` e55/55 com API/PostgreSQL passaram. Evidência E2E `.build/clients-validation-556a01fb04ca4ee3a3ab8bcd4d8f163f`; API não mudou em relação ao código já validado HTTP20/20 e PostgreSQL23/23. Galeria histórica83/83 PNG conferidos por SHA256, sem edição;68 renders atuais adicionais em `.build/previews-2026-10-13-integrated`. [Imagens atuais de pacientes/detalhes](galeria/2026-10-13/README.md) foram copiadas sem edição.
+
+Android foi reexecutado após o merge: assembleDebug/assembleDebugAndroidTest, unitários7/7, screenshot update/validate15/15 sem skips e lint zero erros/um aviso de versão Kotlin. JDK21 do Android Studio, SDK local e GRADLE_USER_HOME dentro de .build; nenhuma atualização global de ferramenta. Não se repetiu connectedDebugAndroidTest nesta integração. `dotnet restore NORA.slnx --force-evaluate --no-cache` e `dotnet list NORA.slnx package --vulnerable --include-transitive --no-restore` passaram: fontes acessíveis, auditoria habilitada e nenhuma vulnerabilidade conhecida informada; P-017 resolvida.

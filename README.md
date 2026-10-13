@@ -16,9 +16,12 @@ Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configu
 
 A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal só recebe totais, sem pacientes nominais. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
 
-Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; fixtures de testes usam somente banco descartável.
+Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; testes de integração usam banco descartável, e capturas visuais usam fixtures isoladas somente nos harnesses/previews.
 
 ## Documentação
+
+- [Galeria de10/10: 83 capturas dos três aplicativos](docs/galeria/2026-10-10/index.html).
+- [Cobertura visual, imagens principais e resultados](docs/galeria/2026-10-10/README.md).
 
 - [Briefing visual original](docs/briefing-visual.md).
 - [Referência visual e padrões de design](docs/design.md).
@@ -75,6 +78,10 @@ Login por CPF/e-mail, cadastro OBS, fila por entrada, ofertas de dez minutos e t
 
 Limpeza retirou 37 artefatos de IDE/build somente do Git, preservando arquivos locais e hashes. P-001/P-002/P-009/P-011 resolvidas; provisionamento definitivo P-012 e definições clínicas P-013 permanecem. As novas solicitações de chave OBS e painel administrativo com totais operacionais/financeiros estão na fila P-014/P-015.
 
+## 2026-10-10 — Galeria e revisão visual
+
+83 imagens atuais: 68 WPF nativas e 15 Compose/Layoutlib. Corrigido contraste do texto efetivo dos botões principais desktop; fotos regeneradas, checks39/39 e Android15/15 renders/comparações e7/7 locais. Galeria com filtros/busca/ampliação, fontes sintéticas identificadas e hashes das cópias. Solução Release zero erros, quatro avisos de consulta NuGet indisponível nesta rede. Sem E2E PostgreSQL ou execução Android em dispositivo nesta rodada; P-003/P-007 mantêm os limites físicos, P-014/P-015 continuam pendentes. Detalhes e reprodução na documentação da galeria.
+
 ## 2026-10-11 — Pacientes OBS e acabamento Windows
 
 A listagem passa a usar linhas zebra com nome, contatos e presença recente no APPNORA; o telefone é opcional no cadastro e no PostgreSQL. Filtros ficam acima da lista, inputs têm arredondamento discreto e as dicas aparecem pelo mouse. A conta no canto inferior da navegação abre Configurações e Sair; inclusão na fila fica na própria tela Fila. OBS/Municipal usam cantos nativos pequenos na janela restaurada do Windows 11.
@@ -82,3 +89,5 @@ A listagem passa a usar linhas zebra com nome, contatos e presença recente no A
 Conferência e estado de publicação em [tarefa dos ajustes](docs/tarefas/2026-10-11-ajustes-obs-pacientes.md). A API de presença usa sessões e prazo de 90 segundos; o Android mantém a conexão em segundo plano com a notificação “NORA · conexão ativa”, autorizada pelo usuário, e encerra ao sair ou fechar nos recentes. Passaram WPF45/45 com PostgreSQL e Android14/14 instrumentados sem skips, incluindo o serviço de presença. As políticas de ativação OBS/novo painel financeiro continuam em P-014/P-015.
 
 As listagens Windows agora compartilham itens com raio de 8 px e intervalo de 3 px, barra flutuante por seleção e ficha por duplo clique rápido/Enter. CPF completo e telefone ficam visíveis; a cópia de nome/contatos fica na ficha. Administrador e atendente podem desativar/reativar pacientes com confirmação: desativar revoga acesso e cancela pendências com avanço FIFO; reativar permite novo login. Contrato/migração em [API](docs/api.md) e evidência desta etapa na [tarefa das listagens](docs/tarefas/2026-10-12-listagens-acoes-detalhes.md).
+
+Integração de13/10 preserva a galeria do outro computador e as listagens: desktop58/58 com galeria,55/55 com PostgreSQL, Android7/7 locais e15/15 renders/comparações passaram. [Prévias atuais de pacientes/detalhes](docs/galeria/2026-10-13/README.md) e [registro da integração](docs/tarefas/2026-10-13-integracao-main.md). Usuário escolheu ativação do computador + login da secretária com manter conectado; implementação futura e detalhes de isolamento permanecem em P-014.

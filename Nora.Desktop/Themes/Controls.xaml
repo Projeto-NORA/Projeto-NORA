@@ -60,6 +60,13 @@
     <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+    <Setter Property="ContentTemplate">
+      <Setter.Value>
+        <DataTemplate>
+          <TextBlock Text="{Binding}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+        </DataTemplate>
+      </Setter.Value>
+    </Setter>
     <Style.Triggers>
       <Trigger Property="IsMouseOver" Value="True">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />

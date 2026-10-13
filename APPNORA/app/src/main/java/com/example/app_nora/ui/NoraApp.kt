@@ -84,8 +84,9 @@ fun NoraContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit
 fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit,
     patient: PatientState = PatientState(), onAddressChange: (String) -> Unit = {},
     onLogin: ((String, String) -> Unit)? = null, onRefresh: () -> Unit = {},
-    onRespond: (String, Boolean) -> Unit = { _, _ -> }, onLogout: () -> Unit = {}) {
-    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    onRespond: (String, Boolean) -> Unit = { _, _ -> }, onLogout: () -> Unit = {},
+    initiallyShowSettings: Boolean = false) {
+    var settingsOpen by rememberSaveable { mutableStateOf(initiallyShowSettings) }
     val homeScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
     LaunchedEffect(settingsOpen) {

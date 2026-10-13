@@ -17,9 +17,11 @@ Apresentar formas concretas de acesso e consequências para o uso. Não alterar 
 - [x] Concluir tarefa anterior das listagens antes desta explicação.
 - [x] Conferir estudo existente e fontes oficiais atuais para a recomendação.
 - [x] Apresentar opções e recomendação ao usuário.
-- [ ] Registrar escolha quando recebida; implementação futura depende dela.
+- [x] Registrar escolha quando recebida; implementação futura depende dela.
 
 ## Estado
+
+Escolha recebida: ativação do computador + login da secretária, com manter conectado. Explicação concluída; implementação futura permanece em P-014 para definir vínculo/quantidade de instalações, prazo da ativação, revogação e isolamento de hospitais. Não houve alteração automática de autenticação nesta integração.
 
 Após concluir as listagens, foram apresentados login, ativação por computador com abertura automática e ativação + login. Recomendação: ativação + conta da secretária com manter conectado, permitindo controlar instalação e operador; painel da marca com conta própria e segundo fator. Pergunta de escolha enviada, ainda sem resposta. Isso conclui a explicação solicitada; implementação de acesso permanece em P-014, independente da integração autorizada.
 

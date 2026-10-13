@@ -52,6 +52,12 @@ Contrastes calculados em 2026-10-07 pela luminância relativa sRGB, sobre os par
 
 O comportamento deve ser conferido nos três modos de aparência, ao reabrir os aplicativos e com janelas pequenas/conteúdo ampliado. A auditoria final deve diferenciar build bem sucedido, validação automatizada e inspeção real da interface; nenhuma dessas evidências implica as demais.
 
+## Revisão visual de 10/10/2026
+
+A [galeria atual](galeria/2026-10-10/README.md) reúne 83 capturas das interfaces reais, com fixtures somente nos testes. A revisão das amostras identificou que o `TextBlock` gerado pelo botão WPF recebia `TextBrush` do estilo implícito, apesar de `PrimaryButton.Foreground` já estar correto. O template do botão principal agora vincula o texto ao `Foreground` do próprio botão; os contrastes efetivos passaram de 2,30/2,48 para 7,10/6,72:1. Duas regressões sobre a árvore renderizada falharam antes e passaram depois.
+
+As amostras finais de desktop e Android apresentam cartões, títulos, ações e seleção legíveis; fonte Android 130% e tablet foram inspecionados em Layoutlib. Não equivale a auditoria completa de acessibilidade, uso em celular, teclado físico ou DPI. A barra contextual de atendimentos permanece scaffold; a fila operacional usa a ação real de cancelamento abaixo da tabela. Temas e configurações, incluindo telas longas e sidebar recolhida, podem ser comparados na galeria.
+
 ## Ajustes Windows de 2026-10-11
 
 A tela Pacientes usa somente o título e os filtros acima da listagem. Os itens alternam branco e cinza suave no tema claro, com equivalentes escuros, sem cabeçalho de colunas. O template compartilhado tem borda de 1 px, raio de 8 px e intervalo de 3 px. Nome longo usa reticências; e-mail ocupa no máximo metade da linha de contatos, seguido do CPF completo e telefone visível. Em largura pequena, o grupo de contatos pode mudar de linha. Presença no APPNORA aparece à direita; filtros por pesquisa/presença/cadastro e ordenação mantêm o conteúdo organizado, com rolagem vertical.

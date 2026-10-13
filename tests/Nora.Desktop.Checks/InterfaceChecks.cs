@@ -26,6 +26,29 @@ internal static partial class Program
         PresentationTraceSources.DataBindingSource.Listeners.Add(errors);
         try
         {
+            foreach (var appearance in new[] { Appearance.Light, Appearance.Dark })
+            Check($"Botão principal {appearance}: texto efetivo renderizado mantém contraste", () =>
+            {
+                var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "primary-text", appearance.ToString()));
+                try
+                {
+                    window.ViewModel.ConfirmClose = false;
+                    window.ViewModel.Animations = false;
+                    window.ViewModel.SetAppearance(appearance);
+                    PrepareWindow(window);
+                    var content = Layout(window, 1280, 820);
+                    var button = FindActionButton(content, "Entrar");
+                    var label = Descendants<TextBlock>(button).Single(text => text.Text == "Entrar");
+                    var frame = (Border)button.Template.FindName("Frame", button);
+                    var foreground = ((SolidColorBrush)label.Foreground).Color;
+                    var background = ((SolidColorBrush)frame.Background).Color;
+                    var contrast = Contrast(foreground, background);
+                    Console.WriteLine($"PrimaryButton {appearance}: texto={foreground}, fundo={background}, contraste={contrast:F2}:1.");
+                    Require(contrast >= 4.5, $"Texto efetivo do botão tem contraste {contrast:F2}:1; esperado >=4,5:1.");
+                    Require(foreground == ((SolidColorBrush)button.Foreground).Color, "Rótulo não respeita Foreground efetivo do botão.");
+                }
+                finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+            });
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
             {
                 Check($"{profile.Name}: render nativo e seleção acessível nos três temas", () =>
@@ -77,6 +100,7 @@ internal static partial class Program
                     Require(table.ClipboardCopyMode == DataGridClipboardCopyMode.None && item.Margin.Bottom == 3 && Descendants<Border>(item).Any(border => border.CornerRadius == new CornerRadius(8)), "Listagem inicial não compartilha o padrão arredondado e leitura sem cópia.");
                     var context = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Ações do atendimento selecionado");
                     Require(context.Visibility == Visibility.Visible && context.IsVisible, "Barra contextual permanece oculta.");
+                    CaptureVisualThemes(window, args, "atendimentos-contexto-base", "fim", 1, "Linha sintética do scaffold visual de atendimentos; sem integração clínica/API");
                     window.ViewModel.SelectedRow = null;
                     Layout(window, 980, 640);
                     Require(context.Visibility == Visibility.Collapsed, "Barra permanece sem seleção.");
@@ -209,6 +233,7 @@ internal static partial class Program
                 }
                 finally { window.Close(); }
             });
+            if (args.Contains("--visual-gallery")) RunVisualGalleryChecks(storageRoot, args);
             Check("Telas nativas não produzem erros de binding", () => Require(errors.Messages.Count == 0, string.Join(Environment.NewLine, errors.Messages)));
         }
         finally { PresentationTraceSources.DataBindingSource.Listeners.Remove(errors); }
@@ -238,10 +263,14 @@ internal static partial class Program
         if (content is Panel panel) panel.SetResourceReference(Panel.BackgroundProperty, "BackgroundBrush");
         content.Width = width;
         content.Height = height;
+        content.InvalidateMeasure();
         content.Measure(new Size(width, height));
         content.Arrange(new Rect(0, 0, width, height));
         content.UpdateLayout();
         window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        content.InvalidateMeasure();
+        content.Measure(new Size(width, height));
+        content.Arrange(new Rect(0, 0, width, height));
         content.UpdateLayout();
         return content;
     }
