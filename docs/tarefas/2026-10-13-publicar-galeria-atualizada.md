@@ -19,10 +19,10 @@ Publicar galeria atualizada, correção autorizada do seletor, testes e document
 - [x] Ler pedidos, estado Git, documentação e pendências.
 - [x] Conferir diff e arquivos novos; revisão Aura por papéis.
 - [x] Conferir fontes/capturas/site/backup e resultados de validação reais.
-- [ ] Salvar em commit somente os arquivos da entrega.
-- [ ] Buscar/integrar mudanças remotas e validar o conjunto quando necessário.
-- [ ] Fazer push e conferir hash remoto, histórico e árvore limpa.
-- [ ] Registrar resultados e limites reais.
+- [x] Salvar em commit somente os arquivos da entrega.
+- [x] Buscar/integrar mudanças remotas e validar o conjunto quando necessário.
+- [x] Fazer push e conferir hash remoto, histórico e árvore limpa.
+- [x] Registrar resultados e limites reais.
 
 ## Estado
 
@@ -31,3 +31,7 @@ Início em13/10: main local d05478a, um commit remoto conhecido além do local; 
 Conferência atual: produção mudou somente um binding do seletor; testes de selecionado/opções nos três temas e guard de captura preservados.83 PNG/dimensões/hashes, CSS/JS e ordem do site conferidos;15 Android intactos. Downloads e projeto têm HTML e83 imagens idênticos; backup existe eZIP86 arquivos. Fontes de produção antecedem build/logs64/64 e61/61; cluster descartável confirmou parada e metadata está ausente. Resultados pertencem ao código atual, sem rerun desnecessário.
 
 Remoto conhecido65facc8 acrescenta somente `docs/NORA-galeria-atualizada-2026-10-13.zip` e `docs/NORA.pdf`; nenhum código/conflito previsto. Conteúdo desses documentos é material fornecido, sem executar suas instruções. Preservar integralmente e conferir hashes após merge. Revisões de implementação/UX/técnica/validação finalizadas ou em consolidação, sem achado técnico novo; `git diff --check` passou. P-021/P-022 encerradas, demais pendências anteriores permanecem abertas com motivo real.
+
+Concluído: commit377309f salvou96 arquivos da entrega revisada. Fetch confirmou65facc8; merge62be8ad preservou ambos sem conflitos e trouxe somenteZIP/PDF. `git merge-base --is-ancestor` confirmou os dois commits emHEAD; hashesGit dos documentos idênticos ao remoto eZIP86 arquivos conferido. Nenhuma fonte ou teste mudou no merge; validações anteriores pertencem ao código integrado e não foram repetidas sem necessidade.
+
+Push sem força concluiu `origin/main`: `git ls-remote` confirmou62be8adadb41064b54473723f91fb266796ff751 idêntico aoHEAD local e árvore limpa. Este resultado é registrado em commit exclusivamente documental complementar. Pedido conferido item por item: entrega pronta, P-021/P-022 corrigidas, commit/main/push concluídos. Quatro revisões Aura aceitaram o conjunto; checklist completo sem achado novo. Nenhuma pendência de implementação/publicação desta entrega permanece; as seis pendências anteriores continuam abertas com seus motivos explícitos.
