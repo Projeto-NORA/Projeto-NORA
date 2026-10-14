@@ -4,6 +4,7 @@
 
 
 
+
 - **P-014** · 2026-10-08 · Acesso OBS: usuário confirmou em 2026-10-13 ativação do computador + login da secretária com manter conectado; painel administrativo pertence ao responsável pela marca/hospital. Opções explicadas e escolha registrada em `tarefas/2026-10-13-opcoes-acesso-obs.md`. Implementação posterior ainda exige definir vínculo/quantidade de instalações, prazo/recuperação/revogação e uma ou várias clínicas por API. Não presumir essas políticas.
 - **P-015** · 2026-10-08 · Painel administrativo do dono da marca substitui Municipal: usuário confirmou totais operacionais e financeiros, sem dados sensíveis de pacientes. Origem/registro dos valores financeiros ainda não definidos; implementar depois da chave OBS, respeitando fila.
 
@@ -16,6 +17,9 @@
 - **P-007** · 2026-10-07 · Conferência desktop manual: teclado/foco físico, escala/DPI ampliados e múltiplos monitores ainda não verificados. Rodada atual 45/45 com E2E/PostgreSQL e abertura2/2 passaram; incluem cadastro/telefone/fila/vaga/logout persistidos, temas/render, filtros, rolagem, navegação e leitura da preferência DWM de cantos/restauração/tela cheia. O controle nativo de desktop não está disponível nesta sessão; resultados automatizados não equivalem a teclado/DPI/monitores físicos nem à inspeção física da moldura nativa.
 
 ## Resolvidas
+
+- **P-021** · aberta em2026-10-13 · resolvida em2026-10-13 · Fotos desatualizadas da galeria →68 Windows recapturadas corretamente,15 Android intactas e site83 itens/layout/filtros/navegação preservados. Harness de captura corrigido após0/2 red para remover corte/alpha0; metadata/dimensões/hashes83/83 conferidos, browser14/14 e inspeção UX/técnica passaram. Downloads/index.html atualizado com imagens, original preservado e ZIP completo entregue. Galeria histórica intacta; registros na tarefa.
+- **P-022** · aberta em2026-10-13 · resolvida em2026-10-13 · Seletor da Fila renderizava record interno em vez do nome → usuário autorizou correção; ContentPresenter do ComboBox repassa ItemTemplateSelector, mantendo DisplayMemberPath. Regressão3/6 antes →6/6 depois nos três temas/selecionado/opções; Release0/0, desktop64/64,61/61 com PostgreSQL e abertura2/2 passaram. Fotos da Fila regeneradas e inspecionadas, sem alteração de DTOs ou do dropdown já correto.
 
 - **P-020** · aberta em 2026-10-13 · resolvida em 2026-10-13 · Integração/publicação da main → commit local f3ec187 e remotos3fa7e58/5396387/8b80b2a preservados em merge34b7877. Release0/0, desktop58/58 com galeria e55/55 com PostgreSQL, abertura2/2, Android7/7 locais e15/15 renders/comparações passaram. Push sem força concluído; hash local/remoto34b7877da4176ba836a85693827f140c975a8788 conferido por ls-remote, árvore limpa. Registro documental complementar acompanha a entrega. Antigo P-018 local renumerado para preservar o P-018 remoto.
 

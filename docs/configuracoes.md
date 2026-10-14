@@ -46,6 +46,8 @@ Depois de entrar, o workspace consulta a API automaticamente a cada 20 segundos,
 
 Um clique em Pacientes/Fila/Vagas mostra a barra de ações da seleção; o X limpa a seleção. Pacientes oferece Ver detalhes e Desativar/Reativar paciente aos perfis atendente e administrador. Fila oferece Ver detalhes e Cancelar entrada quando waiting/offered. Vagas oferece Ver detalhes. Duplo clique rápido ou Enter abre os detalhes; X/Escape fecha a ficha. Os quatro dados de identificação/contato são copiáveis por botão na ficha, com feedback; telefone ausente permanece explícito e não tem botão de copiar.
 
+O seletor de paciente da Fila mostra somente o nome, tanto selecionado quanto nas opções. O template compartilhado de ComboBox respeita ItemTemplateSelector/DisplayMemberPath; a representação técnica do registro não é apresentada como rótulo.
+
 Desativar/reativar pede confirmação dos efeitos no acesso e na fila. O botão de confirmação acompanha a disponibilidade da operação durante a atualização automática, evitando perder a ação quando a consulta estiver ocupada. Mudança de tela/filtro limpa ações que deixaram de corresponder a uma seleção válida; recarga conserva o item ainda existente pelo identificador. Logout/401 fecha fichas com dados do paciente e limpa a seleção.
 
 ## Presença do paciente — Android

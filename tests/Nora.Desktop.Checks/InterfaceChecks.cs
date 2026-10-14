@@ -5,6 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -232,6 +233,44 @@ internal static partial class Program
                     Require(window.WindowState == WindowState.Maximized, "Estado maximizado não restaurado.");
                 }
                 finally { window.Close(); }
+            });
+            foreach (var appearance in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
+            foreach (var dropdown in new[] { false, true })
+            Check($"OBS: seletor de paciente {appearance} {(dropdown ? "opções" : "selecionado")} mostra somente o nome", () =>
+            {
+                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+                var window = new ShellWindow(DesktopProfile.Operational,
+                    Path.Combine(storageRoot, "patient-picker", appearance.ToString(), dropdown.ToString()), new NoraApiClient(fixture));
+                try
+                {
+                    window.ViewModel.ConfirmClose = false;
+                    window.ViewModel.Animations = false;
+                    window.ViewModel.SetAppearance(appearance);
+                    PrepareWindow(window);
+                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
+                    window.ViewModel.Navigate("queue");
+                    var content = Layout(window, 1280, 740);
+                    var picker = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Paciente para incluir na fila");
+                    var patient = window.ViewModel.Workspace.Patients.Single();
+                    picker.SelectedItem = patient;
+                    Layout(window, 1280, 740);
+                    DependencyObject rendered = picker;
+                    if (dropdown)
+                    {
+                        picker.IsDropDownOpen = true;
+                        picker.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                        var popup = (Popup)picker.Template.FindName("PART_Popup", picker);
+                        popup.Child.UpdateLayout();
+                        rendered = popup.Child;
+                    }
+                    var labels = Descendants<TextBlock>(rendered).Where(text => text.IsVisible).Select(text => text.Text).ToArray();
+                    Require(labels.Contains(patient.FullName),
+                        $"Nome do paciente não renderizado: {string.Join(" / ", labels)}");
+                    Require(labels.All(label => !label.Contains("PatientAccount {", StringComparison.Ordinal)),
+                        "O seletor renderiza o registro interno em vez do nome do paciente.");
+                    picker.IsDropDownOpen = false;
+                }
+                finally { window.ViewModel.ConfirmClose = false; window.Close(); }
             });
             if (args.Contains("--visual-gallery")) RunVisualGalleryChecks(storageRoot, args);
             Check("Telas nativas não produzem erros de binding", () => Require(errors.Messages.Count == 0, string.Join(Environment.NewLine, errors.Messages)));

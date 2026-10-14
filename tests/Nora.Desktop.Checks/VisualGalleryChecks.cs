@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using Nora.Desktop.Models;
 using Nora.Desktop.Services;
 using Nora.Desktop.Views;
@@ -92,13 +93,13 @@ internal static partial class Program
                 CaptureVisualThemes(window, args, "home-conectada", dataSource: VisualHttpSource);
                 CaptureVisualThemes(window, args, "home-conectada", "fim", 1, VisualHttpSource);
                 window.ViewModel.Navigate("patients");
-                var content = Layout(window, 1280, 820);
+                var content = Layout(window, 1280, 740);
                 var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
                 table.SelectedItem = vm.Patients.Single();
                 CaptureVisualThemes(window, args, "pacientes-selecao", dataSource: VisualHttpSource);
                 var registration = Descendants<Expander>(content).Single();
                 registration.IsExpanded = true;
-                Layout(window, 1280, 820);
+                Layout(window, 1280, 740);
                 Input(content, "Nome completo do paciente").Text = "Paciente Novo Fixture";
                 Input(content, "CPF do paciente").Text = "00000000001";
                 Input(content, "E-mail do paciente").Text = "new@example.invalid";
@@ -110,25 +111,25 @@ internal static partial class Program
                 CaptureVisualThemes(window, args, "paciente-cadastrado", dataSource: VisualHttpSource);
                 // The integrated OBS now keeps inclusion on the queue screen.
                 window.ViewModel.Navigate("queue");
-                content = Layout(window, 1280, 820);
+                content = Layout(window, 1280, 740);
                 InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
                 window.ViewModel.Navigate("queue");
-                content = Layout(window, 1280, 820);
+                content = Layout(window, 1280, 740);
                 Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago").SelectedItem = vm.Queue.Single(entry => entry.Id == 2);
                 CaptureVisualThemes(window, args, "fila-selecionada-acao", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("slots");
-                content = Layout(window, 1280, 820);
+                content = Layout(window, 1280, 740);
                 Input(content, "Descrição da vaga").Text = "Vaga nova fixture";
                 CaptureVisualThemes(window, args, "vaga-formulario", dataSource: VisualHttpSource);
                 InvokeButton(FindActionButton(content, "Abrir vaga")); PumpUntil(() => !vm.IsBusy);
                 Require(fixture.CreatedSlotLabel != null && vm.Slots.Count == 2, "Fixture visual não criou vaga.");
                 CaptureVisualThemes(window, args, "vagas-abertas", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("queue");
-                content = Layout(window, 1280, 820);
+                content = Layout(window, 1280, 740);
                 var queueTable = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
                 queueTable.SelectedItem = null;
                 queueTable.SelectedItem = vm.Queue.Single(entry => entry.Id == 2);
-                Layout(window, 1280, 820);
+                Layout(window, 1280, 740);
                 Require(vm.HasQueueActionSelection, "Seleção retornada à Fila não apresentou ações para a captura.");
                 InvokeButton(FindActionButton(content, "Cancelar entrada selecionada")); PumpUntil(() => !vm.IsBusy);
                 Require(vm.Queue.Single(entry => entry.Id == 2).Status == "cancelled", "Cancelamento visual não atualizou fila.");
@@ -144,7 +145,7 @@ internal static partial class Program
     }
 
     private static void CaptureVisualPage(ShellWindow window, string[] args, string screen, string position,
-        double scrollRatio, bool connectedFixture, double width = 1280, double height = 820, string? dataSource = null)
+        double scrollRatio, bool connectedFixture, double width = 1280, double height = 740, string? dataSource = null)
     {
         if (!args.Contains("--visual-gallery")) return;
         var content = Layout(window, width, height);
@@ -162,8 +163,9 @@ internal static partial class Program
         var path = Path.Combine(directory, name);
         SavePreview(content, path);
         Require(new FileInfo(path).Length > 1000, "Captura não produziu PNG utilizável.");
+        RequireVisualCaptureBounds(path, window, content);
         visualCaptures.Add(new(name, window.ViewModel.Profile.Name, screen, appearance, position,
-            dataSource ?? (connectedFixture ? VisualHttpSource : "Interface desconectada; sem dados operacionais"), width, height, scrolling.VerticalOffset));
+            dataSource ?? (connectedFixture ? VisualHttpSource : "Interface desconectada; sem dados operacionais"), content.ActualWidth, content.ActualHeight, scrolling.VerticalOffset));
         File.WriteAllText(Path.Combine(directory, "visual-captures.json"), JsonSerializer.Serialize(new
         {
             generatedAtUtc = DateTimeOffset.UtcNow,
@@ -172,6 +174,19 @@ internal static partial class Program
             captures = visualCaptures
         }, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine($"CAPTURE {path}");
+    }
+
+    private static void RequireVisualCaptureBounds(string path, ShellWindow window, FrameworkElement content)
+    {
+        using var image = File.OpenRead(path);
+        var frame = BitmapDecoder.Create(image, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+        Require(frame.PixelWidth == (int)content.ActualWidth && frame.PixelHeight == (int)content.ActualHeight,
+            "Dimensões do PNG divergem do conteúdo nativo e dos metadados da captura.");
+        var pixels = new FormatConvertedBitmap(frame, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        var sample = new byte[4];
+        pixels.CopyPixels(new Int32Rect(frame.PixelWidth / 2, frame.PixelHeight - 2, 1, 1), sample, 4, 0);
+        Require(sample[3] == 255,
+            $"Captura tem faixa transparente no rodapé (alpha={sample[3]}); PNG={frame.PixelWidth}x{frame.PixelHeight}, janela={window.ActualWidth:F0}x{window.ActualHeight:F0}, conteúdo={content.ActualWidth:F0}x{content.ActualHeight:F0}.");
     }
 
     private static void CaptureVisualThemes(ShellWindow window, string[] args, string screen,
