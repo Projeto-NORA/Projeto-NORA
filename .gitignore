@@ -17,3 +17,6 @@
 !.env.example
 *.keystore
 *.jks
+
+# graphify: grafo gerado localmente (o graph.html vai para Documentos/Claude-HTML)
+graphify-out/
