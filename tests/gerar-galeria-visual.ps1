@@ -1,13 +1,18 @@
 param(
     [string]$CaptureRoot = '.build/galeria-visual-2026-10-10',
-    [string]$OutputRoot = 'docs/galeria/2026-10-10'
+    [string]$OutputRoot = ''
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+# Galerias HTML ficam em Documentos/Claude-HTML/Projeto-NORA/galeria (regra "HTMLs gerados" do CLAUDE.md);
+# o clone fica em Documentos/GitHub/Projeto-NORA nos dois PCs.
+$galleryRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot '../../Claude-HTML/Projeto-NORA/galeria'))
+if (-not $OutputRoot) { $OutputRoot = Join-Path $galleryRoot '2026-10-10' }
 $capturePath = [IO.Path]::GetFullPath((Join-Path $projectRoot $CaptureRoot))
-$outputPath = [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputRoot))
-if (-not $outputPath.StartsWith($projectRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'A galeria deve ficar dentro do projeto.'
+$outputPath = if ([IO.Path]::IsPathRooted($OutputRoot)) { [IO.Path]::GetFullPath($OutputRoot) } else { [IO.Path]::GetFullPath((Join-Path $projectRoot $OutputRoot)) }
+$inside = { param($path, $root) $path.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) }
+if (-not ((& $inside $outputPath $projectRoot) -or (& $inside $outputPath $galleryRoot))) {
+    throw 'A galeria deve ficar dentro do projeto ou de Claude-HTML/Projeto-NORA/galeria.'
 }
 $items = @()
 foreach ($platform in @('desktop', 'android')) {

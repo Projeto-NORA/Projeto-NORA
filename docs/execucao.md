@@ -63,7 +63,7 @@ Os testes instrumentados confirmam interação, rolagem e persistência em novas
 
 ## Galeria visual de 10/10/2026
 
-As fotos atuais estão em `docs/galeria/2026-10-10/index.html`, um HTML offline com imagens originais e fontes identificadas. São 68 renders WPF e 15 Compose/Layoutlib; não substituem E2E banco/dispositivo. A máquina Pichau desta rodada possui JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot` e SDK em `C:/Users/Pichau/AppData/Local/Android/Sdk`. O JBR atual do Android Studio é Java25, portanto use o JDK21 explícito. PostgreSQL18 e aceleração do emulador não estão disponíveis aqui; a validação histórica no notebook mateu continua válida apenas como histórico.
+As fotos atuais estão em `Documentos/Claude-HTML/Projeto-NORA/galeria/2026-10-10/index.html`, um HTML offline com imagens originais e fontes identificadas. São 68 renders WPF e 15 Compose/Layoutlib; não substituem E2E banco/dispositivo. A máquina Pichau desta rodada possui JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot` e SDK em `C:/Users/Pichau/AppData/Local/Android/Sdk`. O JBR atual do Android Studio é Java25, portanto use o JDK21 explícito. PostgreSQL18 e aceleração do emulador não estão disponíveis aqui; a validação histórica no notebook mateu continua válida apenas como histórico.
 
 ```powershell
 # Na raiz, depois de compilar os checks desktop:
@@ -117,7 +117,7 @@ Android foi reexecutado após o merge: assembleDebug/assembleDebugAndroidTest, u
 
 ## Atualização das fotos da galeria — 2026-10-13
 
-O site fornecido corresponde ao HTML histórico de83 itens. `tests/atualizar-fotos-galeria.ps1` preserva CSS/JavaScript/ordem/rótulos e troca somente as68 fotos Windows afetadas pelo shell/listagens, atualizando origem/dimensões/hashes e datas; Android15 permanece idêntico. Destino em `docs/galeria/2026-10-13-atualizada`. O script valida todas as fontes antes da cópia, restringe caminhos ao projeto e protege a árvore histórica e a origem.
+O site fornecido corresponde ao HTML histórico de83 itens. `tests/atualizar-fotos-galeria.ps1` preserva CSS/JavaScript/ordem/rótulos e troca somente as68 fotos Windows afetadas pelo shell/listagens, atualizando origem/dimensões/hashes e datas; Android15 permanece idêntico. Destino em `Documentos/Claude-HTML/Projeto-NORA/galeria/2026-10-13-atualizada`. O script valida todas as fontes antes da cópia, restringe caminhos ao projeto e protege a árvore histórica e a origem.
 
 Recaptura pelo harness: `dotnet .build/Nora.Desktop.Checks/bin/Release/net10.0-windows/Nora.Desktop.Checks.dll --preview-dir .build/gallery-updated-2026-10-13/desktop --visual-gallery`. As fotos1280×820 excediam o cliente real nesta resolução e tinham rodapé transparente; guard PNG/alpha reproduziu0/2 antes da correção. A galeria agora usa1280×740, mantém980×640 nos quatro casos mínimos e registra dimensões efetivas. Não há edição de bitmap; apenas render nativo correto. Gerador: `pwsh -NoProfile -File tests/atualizar-fotos-galeria.ps1`, com `-SourceHtml` opcional para o HTML fornecido.
 

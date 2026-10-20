@@ -20,8 +20,8 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 
 ## Documentação
 
-- [Galeria de10/10: 83 capturas dos três aplicativos](docs/galeria/2026-10-10/index.html).
-- [Cobertura visual, imagens principais e resultados](docs/galeria/2026-10-10/README.md).
+- [Galeria de10/10: 83 capturas dos três aplicativos](../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/index.html).
+- [Cobertura visual, imagens principais e resultados](../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md).
 
 - [Briefing visual original](docs/briefing-visual.md).
 - [Referência visual e padrões de design](docs/design.md).
@@ -92,4 +92,4 @@ As listagens Windows agora compartilham itens com raio de 8 px e intervalo de 3 
 
 Integração de13/10 preserva a galeria do outro computador e as listagens: desktop58/58 com galeria,55/55 com PostgreSQL, Android7/7 locais e15/15 renders/comparações passaram. [Prévias atuais de pacientes/detalhes](docs/galeria/2026-10-13/README.md) e [registro da integração](docs/tarefas/2026-10-13-integracao-main.md). Usuário escolheu ativação do computador + login da secretária com manter conectado; implementação futura e detalhes de isolamento permanecem em P-014.
 
-A [galeria com fotos atualizadas](docs/galeria/2026-10-13-atualizada/index.html) mantém os83 itens e o site existente:68 fotos Windows substituídas e15 Android preservadas. Correções de captura e do nome no seletor da Fila conferidas em desktop64/64,61/61 com PostgreSQL e navegador14/14; [registro da atualização](docs/tarefas/2026-10-13-atualizar-fotos-galeria.md).
+A [galeria com fotos atualizadas](../../Claude-HTML/Projeto-NORA/galeria/2026-10-13-atualizada/index.html) mantém os83 itens e o site existente:68 fotos Windows substituídas e15 Android preservadas. Correções de captura e do nome no seletor da Fila conferidas em desktop64/64,61/61 com PostgreSQL e navegador14/14; [registro da atualização](docs/tarefas/2026-10-13-atualizar-fotos-galeria.md).

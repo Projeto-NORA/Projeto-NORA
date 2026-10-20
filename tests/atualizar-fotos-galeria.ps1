@@ -1,24 +1,29 @@
 #Requires -Version 7.0
 param(
-    [string] $SourceHtml = 'docs/galeria/2026-10-10/index.html',
+    [string] $SourceHtml = '',
     [string] $CaptureDirectory = '.build/gallery-updated-2026-10-13/desktop',
-    [string] $OutputDirectory = 'docs/galeria/2026-10-13-atualizada'
+    [string] $OutputDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
 $noraRoot = Split-Path -Parent $PSScriptRoot
+# Galerias HTML ficam em Documentos/Claude-HTML/Projeto-NORA/galeria (regra "HTMLs gerados" do CLAUDE.md).
+$noraGalleryRoot = [IO.Path]::GetFullPath((Join-Path $noraRoot '../../Claude-HTML/Projeto-NORA/galeria'))
+if (-not $SourceHtml) { $SourceHtml = Join-Path $noraGalleryRoot '2026-10-10/index.html' }
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $noraGalleryRoot '2026-10-13-atualizada' }
 if (-not [IO.Path]::IsPathRooted($SourceHtml)) { $SourceHtml = Join-Path $noraRoot $SourceHtml }
-$noraHistorical = Join-Path $noraRoot 'docs/galeria/2026-10-10'
+$noraHistorical = Join-Path $noraGalleryRoot '2026-10-10'
 $noraCaptureRoot = [IO.Path]::GetFullPath((Join-Path $noraRoot $CaptureDirectory))
-$noraOutput = [IO.Path]::GetFullPath((Join-Path $noraRoot $OutputDirectory))
+$noraOutput = if ([IO.Path]::IsPathRooted($OutputDirectory)) { [IO.Path]::GetFullPath($OutputDirectory) } else { [IO.Path]::GetFullPath((Join-Path $noraRoot $OutputDirectory)) }
 $noraComparison = [StringComparison]::OrdinalIgnoreCase
 if (-not $noraCaptureRoot.StartsWith($noraRoot + [IO.Path]::DirectorySeparatorChar, $noraComparison)) {
     throw 'As capturas devem estar dentro do projeto.'
 }
-if (-not $noraOutput.StartsWith($noraRoot + [IO.Path]::DirectorySeparatorChar, $noraComparison) -or
+if (-not ($noraOutput.StartsWith($noraRoot + [IO.Path]::DirectorySeparatorChar, $noraComparison) -or
+          $noraOutput.StartsWith($noraGalleryRoot + [IO.Path]::DirectorySeparatorChar, $noraComparison)) -or
     $noraOutput -eq $noraHistorical -or $noraOutput.StartsWith($noraHistorical + [IO.Path]::DirectorySeparatorChar, $noraComparison) -or
     $noraOutput -eq $noraCaptureRoot -or $noraOutput.StartsWith($noraCaptureRoot + [IO.Path]::DirectorySeparatorChar, $noraComparison) -or
     $noraOutput -eq [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($SourceHtml))) {
-    throw 'Use destino dentro do projeto, diferente da galeria histórica.'
+    throw 'Use destino dentro do projeto ou de Claude-HTML/Projeto-NORA/galeria, diferente da galeria histórica.'
 }
 $noraHtml = [IO.File]::ReadAllText($SourceHtml)
 $noraPattern = '(?<start><script id="data" type="application/json">)(?<json>[\s\S]*?)(?<end></script>)'
