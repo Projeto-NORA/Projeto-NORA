@@ -1,13 +1,22 @@
 <Window x:Class="Nora.Desktop.Views.ShellWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="1320" Height="860" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="{Binding Profile.Name}">
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="Auto" />
+      <ColumnDefinition Width="{Binding SidebarColumnWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MinWidth="208" MaxWidth="380" />
+      <ColumnDefinition Width="6" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
-    <Border Width="{Binding SidebarWidth}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+    <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
       <DockPanel Margin="16,24">
         <StackPanel DockPanel.Dock="Top">
-          <ItemsControl ItemsSource="{Binding Navigation}">
+          <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="18" Padding="14" Margin="0,0,0,22">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Border Width="38" Height="38" CornerRadius="12" Background="#33FFFFFF" BorderBrush="#55FFFFFF" BorderThickness="1"><TextBlock Text="N" Foreground="{DynamicResource BrandTextBrush}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock Text="NORA" Foreground="{DynamicResource BrandTextBrush}" FontWeight="Bold" FontSize="15" /><TextBlock Text="{Binding WorkspaceName}" Foreground="#D9FFFFFF" FontSize="10" FontWeight="SemiBold" /></StackPanel>
+            </Grid>
+          </Border>
+          <TextBlock Text="{Binding NavigationHeading}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryBrush}" Margin="10,0,0,10" />
+          <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl ItemsSource="{Binding Navigation}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding Title}">
@@ -18,8 +27,10 @@
                         <DataTrigger Binding="{Binding Id}" Value="home"><Setter Property="ToolTip" Value="Abra a visão geral do seu espaço de trabalho." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="patients"><Setter Property="ToolTip" Value="Consulte e cadastre pacientes da unidade." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="queue"><Setter Property="ToolTip" Value="Acompanhe e organize a fila de Vaga Relâmpago." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="agenda"><Setter Property="ToolTip" Value="Consulte a agenda da unidade em formato de calendário." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="alerts"><Setter Property="ToolTip" Value="Acompanhe alertas operacionais da unidade." /></DataTrigger>
                         <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
@@ -51,26 +62,47 @@
                         </MultiDataTrigger>
                         <MultiDataTrigger>
                           <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="agenda" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="agenda" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding Id}" Value="indicators" />
                             <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="indicators" />
                           </MultiDataTrigger.Conditions>
                           <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
                         </MultiDataTrigger>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Id}" Value="alerts" />
+                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="alerts" />
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="units" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="units" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="specialties" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="specialties" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="network" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="network" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="capacity" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="capacity" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="reports" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="reports" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="communication" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="communication" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="users" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="users" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
                       </Style.Triggers>
                     </Style>
                   </Button.Style>
                   <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="18" Width="24" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" Visibility="{Binding DataContext.SidebarExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVisibility}}" />
+                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          </ItemsControl></ScrollViewer>
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
-          <Button Command="{Binding ToggleSidebarCommand}" ToolTip="Recolha ou expanda a barra de navegação. Atalho: Ctrl+B." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Alternar barra lateral" Margin="0,0,0,10">
-            <TextBlock Text="" FontFamily="Segoe MDL2 Assets" />
+          <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,8" ToolTip="Abra as configurações do software." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
+            <StackPanel Orientation="Horizontal"><TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="24" VerticalAlignment="Center" /><TextBlock Text="Configurações" Margin="10,0,0,0" /></StackPanel>
           </Button>
           <Button x:Name="AccountButton" Click="OnAccountMenu" HorizontalContentAlignment="Left" BorderThickness="0" Padding="6,12" ToolTip="Abra as configurações ou saia da conta." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
             <Button.ContextMenu>
@@ -89,24 +121,26 @@
             </Button.ContextMenu>
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <Border Width="34" Height="34" CornerRadius="11" Background="{DynamicResource BrandBrush}"><TextBlock Text="N" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="{Binding SidebarExpanded, Converter={StaticResource BoolVisibility}}"><TextBlock Text="NORA" FontWeight="SemiBold" FontSize="14" /><TextBlock Text="{Binding WorkspaceName}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" /></StackPanel>
+              <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource BrandBrush}"><TextBlock Text="{Binding Workspace.AccountInitials}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding Workspace.AccountName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></StackPanel>
             </Grid>
           </Button>
         </StackPanel>
         <Grid />
       </DockPanel>
     </Border>
-    <Grid Grid.Column="1">
+    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral." />
+    <Grid Grid.Column="2" Background="{DynamicResource BackgroundGradientBrush}">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-      <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="32,0" Height="72">
-        <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding Workspace.ShowPatients}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
+      <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="32,0" Height="78">
         <Grid>
-          <TextBlock Text="{Binding PageLabel}" VerticalAlignment="Center" FontWeight="SemiBold" />
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding PageLabel}" FontWeight="SemiBold" FontSize="15" /><TextBlock Text="{Binding SectionSummary}" Style="{StaticResource Muted}" FontSize="11" /></StackPanel>
+          <Border Grid.Column="1" Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12,6" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource SecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Workspace.IsAuthenticated}" Value="True"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="11" Foreground="{DynamicResource TextBrush}" /></StackPanel></Border>
         </Grid>
       </Border>
       <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

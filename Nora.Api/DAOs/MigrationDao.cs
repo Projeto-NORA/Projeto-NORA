@@ -10,7 +10,7 @@ public sealed class MigrationDao(DatabaseHelper database)
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await database.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(62419802)", ct);
         var assembly = typeof(MigrationDao).Assembly;
-        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.EndsWith(".sql", StringComparison.Ordinal)).Order())
+        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.Contains(".Database.Migrations.", StringComparison.Ordinal) && n.EndsWith(".sql", StringComparison.Ordinal)).Order())
         {
             await using var stream = assembly.GetManifestResourceStream(name)!;
             using var reader = new StreamReader(stream);

@@ -1,0 +1,11 @@
+<UserControl x:Class="Nora.Desktop.Views.UnitLightningSlotsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border Style="{StaticResource Card}" Margin="0,0,0,24"><StackPanel IsEnabled="{Binding CanOperate}">
+    <TextBlock Text="Vagas Relâmpago da UBS" FontSize="24" FontWeight="SemiBold" />
+    <TextBlock Text="Para criar uma vaga, selecione uma consulta cancelada na Agenda e confirme o reaproveitamento." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
+    <TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" Margin="0,0,0,10" />
+    <Button Content="Atualizar vagas da UBS" Click="OnLoad" IsEnabled="{Binding HasActiveObsUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+    <DataGrid ItemsSource="{Binding UnitLightningSlots}" IsReadOnly="True" AutoGenerateColumns="False" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Vagas da UBS">
+      <DataGrid.Columns><DataGridTextColumn Header="Horário" Binding="{Binding TimeDisplay}" Width="*" /><DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" /><DataGridTextColumn Header="Profissional" Binding="{Binding Professional}" Width="*" /><DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="*" /></DataGrid.Columns>
+    </DataGrid>
+  </StackPanel></Border>
+</UserControl>

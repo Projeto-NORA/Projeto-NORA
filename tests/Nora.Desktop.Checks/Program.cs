@@ -20,6 +20,7 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Contains("--secretaria-live-dark") || args.Contains("--secretaria-live-light")) return RunLiveMapPreview(args);
         var filterArgument = Array.IndexOf(args, "--check-filter");
         checkFilter = filterArgument >= 0 && filterArgument + 1 < args.Length ? args[filterArgument + 1] : null;
         var root = Path.Combine(AppContext.BaseDirectory, "check-data", Guid.NewGuid().ToString("N"));
@@ -159,6 +160,9 @@ internal static partial class Program
             RunInterfaceChecks(application, root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);
+            if (args.Contains("--secretaria-gallery")) RunSecretaryGallery(root, args);
+            if (args.Contains("--map-online")) RunOnlineMapCheck(root);
+            if (args.Contains("--changed-secretaria")) RunChangedSecretaryScreens(root, args);
         }
         finally { Directory.Delete(root, true); }
         Console.WriteLine($"{checks - failures}/{checks} verificações passaram.");

@@ -1,5 +1,9 @@
 # Execução e validação
 
+## Integração por UBS — 2026-11-09
+
+Com dados sintéticos, a solução Release compilou sem avisos ou erros; passaram 28 verificações PostgreSQL de fluxos, a conferência de bancos separados e o teste focado do OBS para cadastro, estado local e painel. O teste integrado executou OBS, gestão e o controlador Android com API, bancos descartáveis e e-mail simulado, incluindo cadastro, agenda, fila, aceite de Vaga Relâmpago e conferência de vínculos. Interações da interface Android, inclusive resultado parcial do vínculo, foram exercitadas separadamente com dados sintéticos; o fluxo completo de cadastro pela tela até o e-mail real ainda não foi testado. A localização física, o envio real de e-mail e a hospedagem continuam sem verificação. A suíte WPF ampla passou 43/66: muitas falhas procuram os controles e contratos globais anteriores, enquanto outros casos de apresentação e rolagem ainda precisam de análise; não é uma validação completa da nova interface.
+
 ## WPF
 
 Requer Windows com .NET SDK 10. Foi usado SDK 10.0.401. As duas soluções individuais continuam disponíveis; a solução integrada inclui os executáveis, `Nora.Desktop` e o harness sem pacotes de testes externos.
@@ -38,9 +42,19 @@ pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -Android -JavaHome 
 
 O primeiro cria cluster PostgreSQL 18 e valida HTTP, migrações, autorização e fluxo. O segundo cria outro cluster/schema, inicia API com contas sintéticas, testa WPF pelos controles nativos e depois Android conectado com argumento `noraApiUrl`. Os scripts preservam logs em `.build/` e encerram somente instâncias próprias. Não executar concorrentes: metadata de fixture é compartilhada; o harness recusa uma já existente. Sem `-Android`, o segundo valida somente WPF. O JDK21 precisa ser explícito quando `JAVA_HOME` pessoal aponta para outra versão.
 
+Em 2026-11-09, a solução Release compilou sem erros ou avisos. `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` passou 28/28 fluxos PostgreSQL, mais a validação de bancos separados, incluindo autorização e auditoria da correção do e-mail. O teste WPF focado no cadastro e correção passou com API simulada. Em outra execução, o cadastro no OBS e o controlador Android passaram contra API e bancos descartáveis, usando e-mail simulado; o teste de seleção de UBS na interface Android passou separadamente. Isso não substitui o teste da jornada inteira na tela com envio real de e-mail. Evidências em `.build/postgres-validation-59dcfb79a9e24c289aee1f55496e77bd` e `.build/pg-disposable-518ec2452d6549c09b533ce1888c22c4`.
+
+Na integração da agenda, Release passou sem erros ou avisos e o teste PostgreSQL descartável passou 28/28 fluxos e o teste separado de bancos por UBS. As verificações incluem agendamento concorrente, sobreposição, transições, confirmação e autoria do cancelamento, acesso do paciente apenas à própria consulta e recusa sem vínculo. O OBS passou no teste focado do calendário e criou, chamou e cancelou uma consulta pela API com banco descartável. Android compilou e seus testes locais passaram. Evidência PostgreSQL em `.build/postgres-validation-69d06333927847c5ba995da9e1ed3238`.
+
+No emulador Android isolado, o teste integrado também cadastrou o paciente, consultou sua agenda na UBS vinculada, recusou acesso à UBS sem vínculo e cancelou a consulta pela API. Testes instrumentados separados confirmaram que a agenda é limpa ao trocar de UBS ou sair e que a interface pede confirmação antes de cancelar. O código de cadastro foi enviado por serviço de e-mail simulado; a jornada completa por toques com e-mail real ainda não foi validada.
+
+A consulta da agenda pela Secretaria foi validada com API/PostgreSQL descartáveis, incluindo registro do acesso e recusa ao perfil OBS; o teste WPF com transporte simulado verificou carregamento e limpeza ao trocar de unidade. Em teste WPF com a API real de teste, a gestão também recebeu a consulta criada e cancelada no OBS. Evidência PostgreSQL em `.build/postgres-validation-abc3e573483d44319bf9558c3c9f9591`.
+
 Em2026-10-08, baseline .NET Release zero erros/avisos, HTTP 20/20 e PostgreSQL 15/15. E2E WPF 34/34 passou. Bootstrap da DLL iniciada da raiz reproduziu porta 5000 antes da correção de content root; depois carregou appsettings do diretório da DLL, escutou 5080 e respondeu liveness real. Rodada final Android passou10/10 instrumentados sem skips, incluindo integração PostgreSQL, e7/7 testes locais reexecutados. Lint zero erros/um aviso de versão disponível. Limpeza preservou37 arquivos locais por hashes e retirou somente do Git; build final Release passou. Publicação no documento da retomada de2026-10-08.
 
 ## Android
+
+O escopo e o estado atual das telas do aplicativo de pacientes estão em [App do paciente](app-paciente.md).
 
 O projeto mantém AGP 9.4.1, Gradle 9.6, compile/target SDK 37 e min SDK 24. Usa Compose BOM 2026.09.00, plugin Compose Kotlin 2.4.10 e Activity Compose 1.13.0. O Java 21 instalado substituiu o critério Java 25 do template, cujo provisionamento via Foojay retornava HTTP 400. JDK 21 atende ao mínimo 17 documentado para AGP 9.4.
 

@@ -73,16 +73,15 @@ public sealed partial class WorkspaceViewModel
     {
         if (IsMunicipal && item is not OperationalRow) return null;
         if (!IsAuthenticated && item is PatientAccount or QueueEntry or LightningSlot) return null;
+        if (item is UnitPatientRecord patientGuard && (!IsAuthenticated || !HasActiveObsUnit || !ObsRegistry.Contains(patientGuard))) return null;
+        if (item is UnitWaitingEntry entryGuard && (!IsAuthenticated || !HasActiveObsUnit || !UnitWaitingList.Contains(entryGuard))) return null;
+        if (item is UnitLightningSlot slotGuard && (!IsAuthenticated || !HasActiveObsUnit || !UnitLightningSlots.Contains(slotGuard))) return null;
         return item switch
         {
-            PatientAccount patient => new(patient.FullName, "Paciente", [
-                new("Nome completo", patient.FullName, true, "Identificação"),
-                new("E-mail", patient.Email, true, "Contato"),
-                new("CPF", patient.FormattedCpf, true, "Contato"),
-                new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"),
-                new("Cadastro", patient.ActiveDisplay, Group: "Situação"),
-                new("Presença no APPNORA", patient.PresenceDisplay, Group: "Situação"),
-                new("Cadastrado em", patient.CreatedAt?.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm") ?? "Data não informada", Group: "Cadastro")]),
+            UnitPatientRecord unitPatient => BuildUnitPatientDetails(unitPatient),
+            UnitWaitingEntry unitEntry => new(unitEntry.PatientName, "Entrada na fila da UBS", [new("Paciente", unitEntry.PatientName, true), new("CPF", unitEntry.Cpf, true), new("Especialidade", unitEntry.Specialty), new("Entrada", unitEntry.EnteredAtDisplay), new("Situação", unitEntry.StatusDisplay)]),
+            UnitLightningSlot unitSlot => new(unitSlot.Specialty, "Vaga Relâmpago da UBS", [new("Especialidade", unitSlot.Specialty), new("Profissional", unitSlot.Professional), new("Horário", unitSlot.TimeDisplay), new("Situação", unitSlot.StatusDisplay)]),
+            PatientAccount patient => BuildPatientDetails(patient),
             QueueEntry entry => BuildQueueDetails(entry),
             LightningSlot slot => new(slot.Label, "Vaga Relâmpago", [
                 new("Descrição", slot.Label), new("Situação", slot.StatusDisplay),
@@ -91,6 +90,14 @@ public sealed partial class WorkspaceViewModel
                 new("Referência", row.Reference), new("Descrição", row.Description), new("Situação", row.Status)]),
             _ => null
         };
+    }
+
+    private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
+    {
+        var fields = new List<DetailField> { new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Contato"),
+            new("E-mail", patient.Email, true, "Contato"), new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"), new("Situação na UBS", patient.ActiveDisplay, Group: "Situação"), new("Presença no aplicativo", patient.PresenceDisplay, Group: "Situação"), new("Cadastrado em", patient.CreatedAtDisplay, Group: "Cadastro") };
+        if (patient.Address is { } address) fields.AddRange([new("CEP", address.Cep, Group: "Endereço"), new("Endereço", address.Display, Group: "Endereço"), new("Complemento", address.Complement ?? "Não informado", Group: "Endereço")]);
+        return new(patient.FullName, "Paciente da UBS", fields);
     }
 
     private ItemDetails BuildQueueDetails(QueueEntry entry)
@@ -104,5 +111,20 @@ public sealed partial class WorkspaceViewModel
                 new("Presença no APPNORA", patient.PresenceDisplay, Group: "Situação")]);
         fields.AddRange([new("Entrada", entry.EnteredAtDisplay, Group: "Fila"), new("Situação", entry.StatusDisplay, Group: "Fila"), new("Número da entrada", entry.Id.ToString(), Group: "Fila")]);
         return new(entry.PatientName, "Entrada na fila de Vaga Relâmpago", fields);
+    }
+
+    private static ItemDetails BuildPatientDetails(PatientAccount patient)
+    {
+        var fields = new List<DetailField> {
+            new("Nome completo", patient.FullName, true, "Identificação"),
+            new("E-mail", patient.Email, true, "Contato"),
+            new("CPF", patient.FormattedCpf, true, "Contato"),
+            new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"),
+            new("Cadastro", patient.ActiveDisplay, Group: "Situação"),
+            new("Presença no APPNORA", patient.PresenceDisplay, Group: "Situação"),
+            new("Cadastrado em", patient.CreatedAt?.ToLocalTime().ToString("dd/MM/yyyy 'às' HH:mm") ?? "Data não informada", Group: "Cadastro") };
+        if (patient.Address is { } address)
+            fields.AddRange([new("CEP", address.Cep, Group: "Endereço"), new("Endereço", address.Display, Group: "Endereço"), new("Complemento", address.Complement ?? "Não informado", Group: "Endereço")]);
+        return new(patient.FullName, "Paciente", fields);
     }
 }

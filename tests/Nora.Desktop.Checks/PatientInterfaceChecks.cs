@@ -32,7 +32,7 @@ internal static partial class Program
                 {
                     window.ViewModel.SetAppearance(mode);
                     var content = Layout(window, 1280, 740);
-                    var expander = Descendants<Expander>(content).Single(); expander.IsExpanded = true;
+                    var expander = Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente"); expander.IsExpanded = true;
                     content = Layout(window, 1280, 740);
                     var label = Descendants<TextBlock>(expander).Single(text => text.Text == "Nome completo");
                     Require(((SolidColorBrush)label.Foreground).Color == ((SolidColorBrush)application.FindResource("TextBrush")).Color, $"Rótulo do cadastro não usa a cor de texto do tema {mode}.");

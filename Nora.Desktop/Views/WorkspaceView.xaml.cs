@@ -96,4 +96,8 @@ public partial class WorkspaceView : UserControl
         PatientPassword.Clear();
         await vm.RegisterPatientAsync(password);
     }
+    private void OnRegistrationExpanded(object sender, RoutedEventArgs args)
+    {
+        if (DataContext is WorkspaceViewModel vm && vm.ClearSelectionCommand.CanExecute(null)) vm.ClearSelectionCommand.Execute(null);
+    }
 }

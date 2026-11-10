@@ -1,10 +1,11 @@
 using Nora.Api.DAOs;
 using Nora.Api.Database;
 namespace Nora.Api.Services;
-public sealed class OfferExpirationWorker(IServiceProvider services,ILogger<OfferExpirationWorker> log) : BackgroundService
+public sealed class OfferExpirationWorker(IServiceProvider services,ILogger<OfferExpirationWorker> log, IConfiguration config, IHostEnvironment environment) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!environment.IsDevelopment() || !config.GetValue("Nora:LegacyGlobalWorkflow:Enabled", false)) return;
         using var timer=new PeriodicTimer(TimeSpan.FromSeconds(15));
         try
         {

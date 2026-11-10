@@ -8,5 +8,6 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <EmbeddedResource Include="Database/Migrations/*.sql" />
+    <EmbeddedResource Include="Database/UnitMigrations/*.sql" />
   </ItemGroup>
 </Project>

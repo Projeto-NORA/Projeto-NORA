@@ -92,18 +92,29 @@ internal static partial class Program
                 }
                 CaptureVisualThemes(window, args, "home-conectada", dataSource: VisualHttpSource);
                 CaptureVisualThemes(window, args, "home-conectada", "fim", 1, VisualHttpSource);
+                window.ViewModel.Navigate("agenda");
+                CaptureVisualThemes(window, args, "agenda", dataSource: VisualHttpSource);
+                window.ViewModel.Navigate("indicators");
+                CaptureVisualThemes(window, args, "indicadores", dataSource: VisualHttpSource);
+                window.ViewModel.Navigate("alerts");
+                CaptureVisualThemes(window, args, "alertas", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("patients");
                 var content = Layout(window, 1280, 740);
                 var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
                 table.SelectedItem = vm.Patients.Single();
                 CaptureVisualThemes(window, args, "pacientes-selecao", dataSource: VisualHttpSource);
-                var registration = Descendants<Expander>(content).Single();
+                var registration = Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente");
                 registration.IsExpanded = true;
                 Layout(window, 1280, 740);
                 Input(content, "Nome completo do paciente").Text = "Paciente Novo Fixture";
-                Input(content, "CPF do paciente").Text = "00000000001";
+                Input(content, "CPF do paciente").Text = "12345678143";
                 Input(content, "E-mail do paciente").Text = "new@example.invalid";
                 CaptureVisualThemes(window, args, "cadastro-paciente", "fim", 1, VisualHttpSource);
+                var pageScroll = (ScrollViewer)window.FindName("PageScroll");
+                pageScroll.ScrollToEnd();
+                Layout(window, 1280, 740);
+                CaptureVisualThemes(window, args, "cadastro-endereco", "fim", 1, VisualHttpSource);
+                pageScroll.ScrollToTop();
                 Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha inicial do paciente").Password = "isolated-initial-password";
                 InvokeButton(FindActionButton(content, "Cadastrar paciente")); PumpUntil(() => !vm.IsBusy);
                 Require(fixture.Registered && vm.Patients.Count == 2, "Cadastro fixture não publicou paciente.");
@@ -155,7 +166,7 @@ internal static partial class Program
         scrolling.ScrollToVerticalOffset(scrolling.ScrollableHeight * scrollRatio);
         Layout(window, width, height);
         Require(content is Grid shell && Math.Abs(shell.ColumnDefinitions[0].ActualWidth - window.ViewModel.SidebarWidth) < 1,
-            "A captura não refletiu a largura atual da barra lateral.");
+            $"A captura não refletiu a largura atual da barra lateral (renderizada: {(content is Grid current ? current.ColumnDefinitions[0].ActualWidth : 0):F1}; esperada: {window.ViewModel.SidebarWidth:F1}).");
         var appearance = window.ViewModel.Appearance.ToString().ToLowerInvariant();
         var name = $"visual-{window.ViewModel.Profile.Id}-{screen}-{appearance}-{position}.png";
         var directory = VisualGalleryDirectory(args);

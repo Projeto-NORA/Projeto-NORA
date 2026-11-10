@@ -42,10 +42,15 @@ internal static partial class Program
                     var label = Descendants<TextBlock>(button).Single(text => text.Text == "Entrar");
                     var frame = (Border)button.Template.FindName("Frame", button);
                     var foreground = ((SolidColorBrush)label.Foreground).Color;
-                    var background = ((SolidColorBrush)frame.Background).Color;
-                    var contrast = Contrast(foreground, background);
-                    Console.WriteLine($"PrimaryButton {appearance}: texto={foreground}, fundo={background}, contraste={contrast:F2}:1.");
-                    Require(contrast >= 4.5, $"Texto efetivo do botão tem contraste {contrast:F2}:1; esperado >=4,5:1.");
+                    var backgrounds = frame.Background switch
+                    {
+                        SolidColorBrush solid => new[] { solid.Color },
+                        LinearGradientBrush gradient => gradient.GradientStops.Select(stop => stop.Color).ToArray(),
+                        _ => throw new InvalidOperationException("Fundo do botão não possui cor verificável.")
+                    };
+                    var contrasts = backgrounds.Select(background => Contrast(foreground, background)).ToArray();
+                    Console.WriteLine($"PrimaryButton {appearance}: texto={foreground}, contraste mínimo={contrasts.Min():F2}:1.");
+                    Require(contrasts.All(contrast => contrast >= 4.5), $"Texto efetivo do botão tem contraste mínimo {contrasts.Min():F2}:1; esperado >=4,5:1.");
                     Require(foreground == ((SolidColorBrush)button.Foreground).Color, "Rótulo não respeita Foreground efetivo do botão.");
                 }
                 finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -84,25 +89,26 @@ internal static partial class Program
             }
             Check("OBS: tabela permite seleção e apresenta contexto", () =>
             {
-                var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "rows"));
+                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+                var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "rows"), new NoraApiClient(fixture));
                 try
                 {
                     window.ViewModel.ConfirmClose = false;
                     window.ViewModel.Animations = false;
-                    var row = new OperationalRow("TEST", "Linha sintética exclusiva do teste", "Teste");
-                    window.ViewModel.Rows.Add(row);
                     PrepareWindow(window);
+                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
+                    window.ViewModel.Navigate("queue");
                     var content = Layout(window, 980, 640);
-                    var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Atendimentos da unidade");
-                    table.SelectedItem = row;
+                    var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
+                    table.SelectedItem = window.ViewModel.Workspace.Queue.Single();
                     Layout(window, 980, 640);
-                    Require(window.ViewModel.HasSelection && table.ActualHeight > table.ColumnHeaderHeight, "Linha não pode ser vista/selecionada.");
-                    var item = (DataGridRow)table.ItemContainerGenerator.ContainerFromItem(row);
+                    Require(window.ViewModel.Workspace.HasQueueActionSelection && table.ActualHeight > table.ColumnHeaderHeight, "Entrada da fila não pode ser vista/selecionada.");
+                    var item = (DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(0);
                     Require(table.ClipboardCopyMode == DataGridClipboardCopyMode.None && item.Margin.Bottom == 3 && Descendants<Border>(item).Any(border => border.CornerRadius == new CornerRadius(8)), "Listagem inicial não compartilha o padrão arredondado e leitura sem cópia.");
-                    var context = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Ações do atendimento selecionado");
+                    var context = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Ações do item selecionado");
                     Require(context.Visibility == Visibility.Visible && context.IsVisible, "Barra contextual permanece oculta.");
-                    CaptureVisualThemes(window, args, "atendimentos-contexto-base", "fim", 1, "Linha sintética do scaffold visual de atendimentos; sem integração clínica/API");
-                    window.ViewModel.SelectedRow = null;
+                    CaptureVisualThemes(window, args, "fila-contexto", "fim", 1, "Entrada sintética de fila usada somente no harness visual.");
+                    table.SelectedItem = null;
                     Layout(window, 980, 640);
                     Require(context.Visibility == Visibility.Collapsed, "Barra permanece sem seleção.");
                 }
@@ -163,7 +169,7 @@ internal static partial class Program
                         window.ViewModel.Animations = animations;
                         PrepareWindow(window);
                         var content = Layout(window, 980, 640);
-                        var scrolling = Descendants<ScrollViewer>(content).First();
+                        var scrolling = (ScrollViewer)window.FindName("PageScroll");
                         scrolling.ScrollToEnd();
                         Layout(window, 980, 640);
                         Require(scrolling.VerticalOffset > 0, "Cenário não rolou a Home.");

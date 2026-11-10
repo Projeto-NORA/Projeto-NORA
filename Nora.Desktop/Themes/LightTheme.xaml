@@ -1,19 +1,24 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <SolidColorBrush x:Key="InfoBrush" Color="#315EAE" />
-  <SolidColorBrush x:Key="WarningBrush" Color="#805600" />
+  <SolidColorBrush x:Key="InfoBrush" Color="#135EA8" />
+  <SolidColorBrush x:Key="WarningBrush" Color="#8A5A00" />
   <SolidColorBrush x:Key="BrandTextBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="BackgroundBrush" Color="#F7F5FB" />
-  <SolidColorBrush x:Key="SuccessBrush" Color="#17643B" />
-  <SolidColorBrush x:Key="BrandBrush" Color="#6D28D9" />
-  <SolidColorBrush x:Key="BorderBrush" Color="#DFD8EA" />
-  <SolidColorBrush x:Key="TextBrush" Color="#241B35" />
-  <SolidColorBrush x:Key="BrandSoftBrush" Color="#EDE6FA" />
-  <SolidColorBrush x:Key="SecondaryBrush" Color="#625970" />
+  <SolidColorBrush x:Key="BackgroundBrush" Color="#F4F7FB" />
+  <SolidColorBrush x:Key="SuccessBrush" Color="#137A52" />
+  <SolidColorBrush x:Key="BrandBrush" Color="#063B7A" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#D5E0EC" />
+  <SolidColorBrush x:Key="TextBrush" Color="#102A43" />
+  <SolidColorBrush x:Key="BrandSoftBrush" Color="#E6F0FA" />
+  <SolidColorBrush x:Key="SecondaryBrush" Color="#526B84" />
   <SolidColorBrush x:Key="ErrorBrush" Color="#B4233E" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="SurfaceAltBrush" Color="#F1EDF7" />
-  <SolidColorBrush x:Key="PatientAlternateBrush" Color="#F2F1F6" />
+  <SolidColorBrush x:Key="SurfaceAltBrush" Color="#EDF3F9" />
+  <SolidColorBrush x:Key="PatientAlternateBrush" Color="#F6F9FC" />
   <SolidColorBrush x:Key="TooltipBrush" Color="#E5F1FF" />
   <SolidColorBrush x:Key="TooltipTextBrush" Color="#34445A" />
-  <SolidColorBrush x:Key="TooltipBorderBrush" Color="#BFD7F3" />
+  <SolidColorBrush x:Key="TooltipBorderBrush" Color="#B6D1EB" />
+  <LinearGradientBrush x:Key="BackgroundGradientBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F8FBFF" Offset="0" /><GradientStop Color="#EEF5FC" Offset="0.52" /><GradientStop Color="#E6F0FA" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="SidebarGradientBrush" StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#FFFFFF" Offset="0" /><GradientStop Color="#EEF6FF" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="BrandGradientBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#052F65" Offset="0" /><GradientStop Color="#0759A3" Offset="0.56" /><GradientStop Color="#0A70B0" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="BrandGradientHoverBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#064889" Offset="0" /><GradientStop Color="#0B6FAE" Offset="0.58" /><GradientStop Color="#0E78B3" Offset="1" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="CardGradientBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FFFFFF" Offset="0" /><GradientStop Color="#F7FBFF" Offset="1" /></LinearGradientBrush>
 </ResourceDictionary>

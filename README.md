@@ -1,6 +1,6 @@
 # Projeto-NORA
 
-Plataforma NORA para acompanhamento do paciente, operação de unidades de saúde e gestão municipal. Implementa acesso por CPF/e-mail, cadastro de pacientes pelo OBS, fila por entrada, Vaga Relâmpago de10 minutos e totais agregados, além dos temas/configurações dos três aplicativos.
+Plataforma NORA para acompanhamento do paciente, operação de unidades de saúde e gestão municipal. Implementa acesso por CPF/e-mail com validação de formato e dígitos, redefinição de senha por código enviado ao e-mail, cadastro de pacientes pelo OBS com consulta opcional de endereço por CEP, fila por entrada, Vaga Relâmpago de10 minutos e totais agregados, além dos temas/configurações dos três aplicativos.
 
 - **APPNORA:** aplicativo Android em Kotlin e Jetpack Compose.
 - **OBS-NORA:** aplicativo WPF para operação da unidade.
@@ -8,13 +8,13 @@ Plataforma NORA para acompanhamento do paciente, operação de unidades de saúd
 - **Nora.Desktop:** biblioteca compartilhada de interface, temas e preferências dos desktops.
 - **Nora.Api:** ASP.NET Core .NET10 com PostgreSQL18, autenticação/sessões, pacientes, fila/ofertas, agregados e erros HTTP padronizados.
 
-A identidade usa roxo, cartões e navegação inspirados no protótipo fornecido, reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
+A identidade dos desktops usa roxo; o APPNORA do paciente segue a paleta específica branca e azul-marinho. Cartões e navegação inspirados no protótipo foram reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
 
 ## Escopo da primeira etapa
 
 Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configurações. Os desktops compartilham preferências da interface e atalhos; o Android possui preferências locais da interface e de notificações. A interface exibe estados vazios quando não há integração de dados.
 
-A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal só recebe totais, sem pacientes nominais. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
+A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal recebe totais e pode consultar, por solicitação, os cadastros de referência da UBS selecionada. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
 
 Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; testes de integração usam banco descartável, e capturas visuais usam fixtures isoladas somente nos harnesses/previews.
 
@@ -28,6 +28,8 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 - [Arquitetura](docs/arquitetura.md).
 - [Configurações e atalhos](docs/configuracoes.md).
 - [Execução e validação](docs/execucao.md).
+- [Painel operacional da UBS](docs/obs-painel-operacional.md).
+- [Gestão / Secretaria](docs/secretaria.md).
 - [Documento da tarefa e validações](docs/tarefas/2026-10-07-inicio-plataforma-nora.md).
 - [Pendências](docs/PENDENCIAS.md).
 - [Requisitos funcionais confirmados](docs/requisitos-funcionais.md).
@@ -37,6 +39,8 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 - [Conferência do prompt e pendências do usuário](docs/tarefas/2026-10-07-conferencia-prompt-visual.md).
 - [Retomada e publicação atual](docs/tarefas/2026-10-07-retomada-implementacao-publicacao.md).
 - [Retomada e fila de solicitações de 08/10](docs/tarefas/2026-10-08-retomada-e-fila-solicitacoes.md).
+
+A Secretaria exibe contagens agregadas dos estados das ofertas de Vaga Relâmpago e permite exportar o resumo carregado em CSV. Indicadores de agenda, filtros e operações que ainda não possuem dados na API permanecem identificados na interface.
 
 ## Desenvolvimento
 

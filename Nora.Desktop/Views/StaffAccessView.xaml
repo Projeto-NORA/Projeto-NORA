@@ -1,0 +1,15 @@
+<UserControl x:Class="Nora.Desktop.Views.StaffAccessView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+    <StackPanel IsEnabled="{Binding CanOperate}">
+      <TextBlock Text="Vínculos de contas OBS" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock Text="Registre as UBS autorizadas para cada conta. A aplicação dessas permissões aos dados operacionais ainda está em implementação." TextWrapping="Wrap" Style="{StaticResource Muted}" Margin="0,8,0,12" />
+      <Button Content="Atualizar contas e UBS" Click="OnLoad" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <TextBlock Text="Conta OBS" /><ComboBox ItemsSource="{Binding Staff}" SelectedItem="{Binding SelectedStaff}" DisplayMemberPath="FullName" AutomationProperties.Name="Conta OBS" Margin="0,6,0,12" />
+      <Button Content="Consultar vínculos" Click="OnLoadUnits" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <TextBlock Text="UBS autorizadas" /><ListBox ItemsSource="{Binding StaffUnits}" SelectedItem="{Binding SelectedStaffGrant}" DisplayMemberPath="Name" AutomationProperties.Name="UBS autorizadas à conta" MinHeight="80" MaxHeight="180" Margin="0,6,0,12" />
+      <Button Content="Revogar vínculo selecionado" Click="OnRevoke" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <TextBlock Text="UBS para conceder" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedStaffUnit}" DisplayMemberPath="Name" AutomationProperties.Name="UBS para conceder acesso" Margin="0,6,0,12" />
+      <Button Content="Conceder vínculo" Click="OnGrant" HorizontalAlignment="Left" />
+    </StackPanel>
+  </Border>
+</UserControl>

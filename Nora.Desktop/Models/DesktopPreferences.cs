@@ -11,6 +11,7 @@ public sealed class DesktopPreferences
     public bool Animations { get; set; } = true;
     public bool RememberSidebar { get; set; } = true;
     public bool SidebarExpanded { get; set; } = true;
+    public double SidebarWidth { get; set; } = 264;
     public bool FullScreen { get; set; }
     public string LastPage { get; set; } = "home";
 }

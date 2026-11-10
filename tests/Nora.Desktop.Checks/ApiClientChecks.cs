@@ -27,6 +27,16 @@ internal static partial class Program
             }
             Require(NoraApiClient.ValidateEndpoint("http://127.0.0.1:5000").IsLoopback, "Loopback de desenvolvimento rejeitado.");
         });
+        Check("OBS valida CPF antes do login e cadastro e consulta CEP sem dados do paciente", () => Task.Run(async () =>
+        {
+            Require(BrazilianDataValidator.IsValidCpf("529.982.247-25"), "CPF válido foi rejeitado.");
+            Require(!BrazilianDataValidator.IsValidCpf("111.111.111-11"), "CPF repetido foi aceito.");
+            using var fixture = new ApiFixture();
+            using var api = new NoraApiClient(fixture);
+            api.Configure("https://fixture.invalid");
+            var address = await api.LookupCepAsync("01001-000");
+            Require(address.Cep == "01001000" && address.City == "São Paulo" && fixture.CepLookups == 1, "Consulta de CEP não preservou somente o CEP ou o endereço retornado.");
+        }).GetAwaiter().GetResult());
         Check("HTTP desktop envia CPF/e-mail, scope e bearer sem persistir sessão", () => Task.Run(async () =>
         {
             using var fixture = new ApiFixture();
@@ -62,6 +72,102 @@ internal static partial class Program
             catch (NoraApiException error) { Require(error.Message.Contains("fechado"), "Encerramento não retornou erro tratado."); return; }
             throw new InvalidOperationException("Cliente encerrado ainda aceitou operação.");
         }).GetAwaiter().GetResult());
+        Check("OBS confirma UBS e cadastra paciente no registro da unidade", () =>
+        {
+            using var fixture = new ApiFixture();
+            fixture.AddUnit(new HealthUnit(Guid.NewGuid(), "UBS de teste", "Centro", "Rua de teste", -23.5, -46.6));
+            fixture.AddUnit(new HealthUnit(Guid.NewGuid(), "UBS distante", "Norte", "Outra rua", -20.0, -40.0));
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "obs-unit-registry"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false; PrepareWindow(window);
+                var vm = window.ViewModel.Workspace; vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password")); Pump(vm.LoadObsUnitsAsync());
+                vm.SuggestClosestObsUnit(-23.49, -46.61);
+                Require(vm.CandidateObsUnit?.Name == "UBS de teste" && vm.ActiveObsUnit == null, "Localização não sugeriu UBS autorizada ou confirmou sem ação da equipe.");
+                Pump(vm.ConfirmObsUnitAsync());
+                Require(!vm.ObsUnitSelectionOpen, "Seletor da UBS não recolheu após a confirmação.");
+                Require(vm.QueueWaitingCount == "—" && vm.SlotOpenCount == "—", "Dados ainda não consultados apareceram como zero no painel.");
+                Require(vm.TodayCompletedCount == "—" && vm.TodayScheduledCount == "—", "Resumo da agenda não carregada apareceu como zero.");
+                Pump(vm.LoadUnitWaitingListAsync()); Pump(vm.LoadUnitLightningSlotsAsync());
+                Require(vm.QueueWaitingCount == "0" && vm.SlotOpenCount == "0", "Listas vazias consultadas não apareceram como zero no painel.");
+                fixture.AddTodayAppointment("scheduled"); fixture.AddTodayAppointment("called"); fixture.AddTodayAppointment("completed"); fixture.AddTodayAppointment("missed"); fixture.AddTodayAppointment("cancelled");
+                vm.RefreshCommand.Execute(null); PumpUntil(() => !vm.IsBusy);
+                Require(vm.TodayScheduledCount == "2" && vm.TodayCompletedCount == "1" && vm.TodayMissedCount == "1" && vm.TodayCancelledCount == "1", "Painel não refletiu situações das consultas do dia.");
+                vm.ObsRegistryName = "Paciente Sintético"; vm.ObsRegistryCpf = "529.982.247-25"; vm.ObsRegistryEmail = "patient@example.test"; vm.ObsRegistryPhone = "48999990028";
+                vm.ObsRegistryCep = "01001-000"; Pump(vm.LookupObsRegistryCepAsync()); vm.ObsRegistryNumber = "10";
+                Pump(vm.CreateObsRegistryAsync());
+                Require(vm.ObsRegistry.Single().FullName == "Paciente Sintético" && vm.ObsRegistry.Single().Phone == "48999990028" && vm.ObsRegistry.Single().Address?.Cep == "01001000", "Cadastro não voltou com contato e endereço da UBS selecionada.");
+                Require(vm.ObsRegistryName == "" && vm.ActiveObsUnit?.Name == "UBS de teste", "Formulário ou unidade não foram preservados corretamente.");
+                vm.ObsRegistrySearch = "529.982.247-25"; Require(vm.FilteredObsRegistry.Count() == 1, "Pesquisa não encontrou CPF formatado.");
+                vm.ObsRegistrySearch = "(48) 99999-0028"; Require(vm.FilteredObsRegistry.Count() == 1, "Pesquisa não encontrou telefone formatado.");
+                vm.ObsRegistrySearch = "não encontrado"; Require(!vm.FilteredObsRegistry.Any(), "Pesquisa retornou paciente sem correspondência."); vm.ObsRegistrySearch = "";
+                vm.SelectedObsRegistry = vm.ObsRegistry.Single(); vm.CorrectedObsEmail = "corrected@example.test";
+                Pump(vm.UpdateObsRegistryEmailAsync());
+                Require(vm.ObsRegistry.Single().Email == "corrected@example.test" && vm.SelectedObsRegistry == null, "Correção de e-mail não atualizou a lista ou manteve seleção antiga.");
+                vm.SelectedObsRegistry = vm.ObsRegistry.Single(); vm.EditSelectedObsRegistry();
+                Require(vm.IsEditingObsRegistry && vm.ObsRegistryCpf == "529.982.247-25", "Edição não carregou CPF do cadastro selecionado.");
+                vm.ObsRegistryName = "Paciente Atualizado"; vm.ObsRegistryNumber = "20"; Pump(vm.CreateObsRegistryAsync());
+                Require(vm.ObsRegistry.Single().FullName == "Paciente Atualizado" && vm.ObsRegistry.Single().Address?.Number == "20" && !vm.IsEditingObsRegistry, "Edição não persistiu nome e endereço.");
+                vm.WaitingPatient = vm.ObsRegistry.Single(); vm.WaitingSpecialty = "Cardiologia"; Pump(vm.AddUnitWaitingEntryAsync());
+                Require(vm.UnitWaitingList.Single().Specialty == "Cardiologia", "Fila da UBS não recebeu especialidade.");
+                vm.SelectedWaitingEntry = vm.UnitWaitingList.Single(); Pump(vm.CancelUnitWaitingEntryAsync());
+                Require(vm.UnitWaitingList.Single().Status == "cancelled", "Cancelamento da fila da UBS não foi refletido.");
+                var starts = DateTimeOffset.UtcNow.AddDays(1);
+                vm.SelectedAppointment = new AppointmentInfo(Guid.NewGuid(), "52998224725", "Paciente Sintético", "Cardiologia", "Profissional", starts, starts.AddMinutes(30), "cancelled");
+                Pump(vm.CreateUnitLightningSlotAsync()); Require(vm.UnitLightningSlots.Single().AppointmentId == vm.SelectedAppointment.Id, "Vaga não foi criada para a consulta selecionada.");
+                vm.SelectedObsRegistry = vm.ObsRegistry.Single(); Pump(vm.SetObsRegistryActiveAsync());
+                Require(vm.SelectedObsRegistry?.IsActive == false && !vm.ActiveObsRegistry.Any(), "Desativação não foi refletida na UBS.");
+                vm.ObsRegistryStatusFilter = "Ativos"; Require(!vm.FilteredObsRegistry.Any(), "Filtro exibiu paciente desativado.");
+                vm.ObsRegistryStatusFilter = "Desativados"; Require(vm.FilteredObsRegistry.Count() == 1, "Filtro não exibiu paciente desativado.");
+                vm.ObsRegistryPresenceFilter = "Online"; Require(!vm.FilteredObsRegistry.Any(), "Filtro de presença mostrou paciente offline.");
+                vm.ObsRegistryPresenceFilter = "Offline"; Require(vm.FilteredObsRegistry.Count() == 1, "Filtro não mostrou paciente offline.");
+                vm.ObsRegistryPresenceFilter = "Todos";
+                Pump(vm.SetObsRegistryActiveAsync()); vm.ObsRegistryStatusFilter = "Todos";
+                Require(vm.SelectedObsRegistry?.IsActive == true && vm.ActiveObsRegistry.Count() == 1, "Reativação não foi refletida na UBS.");
+                Require(vm.BuildDetails(vm.SelectedObsRegistry!)?.Fields.Any(field => field.Label == "CPF" && field.CanCopy) == true, "Ficha da UBS não oferece CPF para cópia explícita.");
+                window.ViewModel.Navigate("patients"); var content = Layout(window, 980, 640);
+                Require(Descendants<ObsUnitRegistryView>(content).Any(), "Tela de cadastro por UBS não apareceu.");
+                var unitSelector = Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Escolher ou trocar UBS");
+                Require(!unitSelector.IsExpanded, "Escolha da UBS permaneceu aberta após confirmação.");
+                unitSelector.IsExpanded = true; Layout(window, 980, 640);
+                Require(vm.ObsUnitSelectionOpen && Descendants<Button>(unitSelector).Any(button => button.Content?.ToString() == "Confirmar UBS" && button.IsVisible), "Não é possível reabrir a escolha da UBS.");
+                window.ViewModel.Navigate("queue"); content = Layout(window, 980, 640);
+                Require(Descendants<UnitQueueView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Fila por especialidade da UBS" && grid.Items.Count == 1), "Fila por UBS não apareceu na tela.");
+                window.ViewModel.Navigate("slots"); content = Layout(window, 980, 640);
+                Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vagas da UBS" && grid.Items.Count == 1), "Vagas por UBS não apareceram na tela.");
+                vm.LogoutCommand.Execute(null); PumpUntil(() => !vm.IsBusy);
+                Require(vm.ObsRegistry.Count == 0 && vm.ActiveObsUnit == null, "Saída preservou dados da UBS.");
+            }
+            finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+        });
+        Check("Secretaria concede e revoga UBS de conta OBS pela API", () =>
+        {
+            using var fixture = new ApiFixture();
+            var window = new ShellWindow(DesktopProfile.Municipal, Path.Combine(storageRoot, "staff-access"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false; PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+                vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua Teste"; vm.UnitLatitude = "-23.5"; vm.UnitLongitude = "-46.6";
+                Pump(vm.SaveUnitAsync()); Pump(vm.LoadUnitRegistryAsync());
+                Require(vm.UnitRegistry.Single().FullName == "Paciente Sintético", "Consulta de pacientes da UBS não atualizou a lista.");
+                Pump(vm.LoadMunicipalAppointmentsAsync());
+                Require(vm.MunicipalAppointments.Single().PatientName == "Paciente Sintético", "Consulta de agenda da UBS não atualizou a lista.");
+                vm.SelectedUnit = null; Require(vm.UnitRegistry.Count == 0 && !vm.UnitRegistryLoaded, "Troca de UBS preservou dados anteriores.");
+                Require(vm.MunicipalAppointments.Count == 0 && !vm.MunicipalAppointmentsLoaded, "Troca de UBS preservou consultas anteriores.");
+                Pump(vm.LoadStaffAsync());
+                vm.SelectedStaff = vm.Staff.Single(); vm.SelectedStaffUnit = vm.Units.Single();
+                Pump(vm.ChangeStaffUnitAsync(true)); Require(vm.StaffUnits.Count == 1, "Concessão não atualizou a lista.");
+                vm.SelectedStaffGrant = vm.StaffUnits.Single(); Pump(vm.ChangeStaffUnitAsync(false));
+                Require(vm.StaffUnits.Count == 0, "Revogação não atualizou a lista.");
+                window.ViewModel.Navigate("users"); var content = Layout(window, 980, 640);
+                Require(Descendants<StaffAccessView>(content).Any(), "Tela de vínculos não apareceu.");
+            }
+            finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+        });
         foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
         Check($"{profile.Name}: login, dados reais do transporte fixture, temas e logout na janela nativa", () =>
         {
@@ -83,7 +189,12 @@ internal static partial class Program
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(!vm.IsBusy && !vm.HasMessage, "Atualização automática deixou uma mensagem redundante na tela.");
                 if (profile.IsMunicipal)
+                    {
                     Require(vm.PatientCount == "1" && vm.WaitingCount == "1" && vm.Patients.Count == 0, "Municipal perdeu totais ou carregou indivíduos.");
+                    Require(vm.RegisteredSlotsCount == "3" && vm.CreatedOffersCount == "5" && vm.DeclinedOffersCount == "2" && vm.ExpiredOffersCount == "1", "Estados agregados não foram carregados.");
+                    var csv = vm.CreateSummaryCsv();
+                    Require(csv.Contains("Ofertas criadas;5;") && csv.Contains("Ofertas recusadas;2;") && !csv.Contains("Paciente Fixture"), "CSV não preservou os totais agregados ou revelou identidade.");
+                }
                 else
                 {
                     Require(vm.Patients.Count == 1 && vm.Queue.Count == 1 && vm.Slots.Count == 1, "Listagens não foram carregadas.");
@@ -106,6 +217,12 @@ internal static partial class Program
                 {
                     window.ViewModel.SetAppearance(mode);
                     var content = Layout(window, 980, 640);
+                    if (profile.IsMunicipal)
+                    {
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Fila de ofertas · total atual"), "Indicador agregado não foi identificado.");
+                        Require(Descendants<ComboBox>(content).Count(box => !box.IsEnabled) >= 4, "Filtros sem integração não foram desabilitados.");
+                    }
                     if (!profile.IsMunicipal)
                     {
                         var patients = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
@@ -116,7 +233,7 @@ internal static partial class Program
                     SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-authenticated-fixture-{mode.ToString().ToLowerInvariant()}.png"));
                     if (!profile.IsMunicipal && mode == Appearance.Light)
                     {
-                        var registration = Descendants<Expander>(content).Single();
+                        var registration = Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente");
                         registration.IsExpanded = true;
                         content = Layout(window, 1280, 740);
                         Descendants<Button>(registration).Single(button => button.Content?.ToString() == "Cadastrar paciente").BringIntoView();
@@ -126,9 +243,43 @@ internal static partial class Program
                         ((ScrollViewer)window.FindName("PageScroll")).ScrollToTop();
                     }
                 }
+                if (profile.IsMunicipal)
+                {
+                    window.ViewModel.Navigate("slots");
+                    var slotsContent = Layout(window, 980, 640);
+                    Require(Descendants<TextBlock>(slotsContent).Any(text => text.Text == "Ofertas criadas") && Descendants<TextBlock>(slotsContent).Any(text => text.Text == "5"), "Contagens de ofertas não aparecem na tela.");
+                    var period = Descendants<ComboBox>(slotsContent).Single(box => AutomationProperties.GetName(box) == "Período das vagas");
+                    Require(period.IsEnabled, "Filtro de período não habilitado.");
+                    period.SelectedValue = 7;
+                    Layout(window, 980, 640);
+                    Require(vm.LightningPeriodDays == 7 && vm.LightningCreated == "2" && vm.LightningDeclined == "1", "Filtro não selecionou a coorte correta.");
+                    var filteredCsv = vm.CreateSummaryCsv();
+                    Require(filteredCsv.Contains("Últimos 7 dias") && filteredCsv.Contains("Ofertas criadas;2;") && filteredCsv.Contains("Pacientes cadastrados;1;Total atual"), "CSV não refletiu o período e o escopo dos totais.");
+                    window.ViewModel.Navigate("units");
+                    Layout(window, 980, 640); PumpUntil(() => !vm.IsBusy);
+                    Require(vm.UnitsLoaded && vm.Units.Count == 0, "Cadastro não carregou estado vazio.");
+                    vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua de teste, 10"; vm.UnitLatitude = "-23,55"; vm.UnitLongitude = "-46,63";
+                    Pump(vm.SaveUnitAsync());
+                    Require(vm.Units.Count == 1 && vm.SelectedUnit?.Latitude == -23.55, "Cadastro não salvou coordenadas normalizadas.");
+                    vm.EditSelectedUnit(); vm.UnitName = "UBS Teste Atualizada"; Pump(vm.SaveUnitAsync());
+                    vm.UnitSearch = "Centro"; Require(vm.FilteredUnits.Single().Name == "UBS Teste Atualizada", "Pesquisa de unidade falhou.");
+                    vm.UnitSearch = "inexistente"; Require(!vm.FilteredUnits.Any(), "Pesquisa encontrou unidade indevida.");
+                    vm.UnitSearch = ""; vm.SelectedUnit = vm.Units.Single();
+                    var mapAddress = NetworkMapView.MapAddress(vm.SelectedUnit);
+                    Require(mapAddress.Contains("marker=-23.55%2C-46.63") && !mapAddress.Contains("UBS"), "Mapa não recebeu somente as coordenadas da unidade.");
+                    window.ViewModel.Navigate("network");
+                    var mapContent = Layout(window, 980, 640);
+                    Require(Descendants<Button>(mapContent).Any(button => button.Content?.ToString() == "Mostrar no mapa"), "Mapa não oferece localização da UBS.");
+                    window.ViewModel.Navigate("reports");
+                    var reportContent = Layout(window, 980, 640);
+                    Require(Descendants<Button>(reportContent).Single(button => button.Content?.ToString() == "Exportar resumo em CSV").IsEnabled, "Exportação não foi habilitada após o carregamento.");
+                    var legacyCsv = Nora.Desktop.Services.MunicipalCsv.Create(new MunicipalSummary(1, 1, 1, 0), DateTimeOffset.Now);
+                    Require(legacyCsv.Contains("Ofertas criadas;Indisponível;"), "API antiga apresentou dados ausentes como zero.");
+                }
                 InvokeAccountAction(window, "Sair da conta");
                 PumpUntil(() => !vm.IsBusy);
                 Require(vm.IsSignedOut && vm.Patients.Count == 0 && vm.Queue.Count == 0 && fixture.LogoutCalled, "Logout não revogou ou limpou dados.");
+                if (profile.IsMunicipal) Require(!vm.CanExportSummary && vm.RegisteredSlotsCount == "—" && vm.LightningPeriodDays == 0 && vm.Units.Count == 0 && vm.SelectedUnit == null, "Logout manteve dados ou filtro da sessão.");
                 window.ViewModel.Navigate("settings");
                 Require(window.ViewModel.IsSettings, "Configurações ficou inacessível após logout.");
             }
@@ -146,18 +297,20 @@ internal static partial class Program
                 var vm = window.ViewModel.Workspace;
                 vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
                 Pump(vm.LoginAsync("isolated-test-password"));
+                window.ViewModel.Navigate("patients");
                 var content = Layout(window, 980, 640);
-                Descendants<Expander>(content).Single().IsExpanded = true;
+                Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente").IsExpanded = true;
                 Layout(window, 980, 640);
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "Nome completo do paciente").Text = "Paciente Novo Fixture";
-                Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "CPF do paciente").Text = "00000000001";
+                Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "CPF do paciente").Text = "12345678143";
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "E-mail do paciente").Text = "new@example.invalid";
                 Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == "Telefone do paciente").Text = "(48) 99900-0001";
+                vm.Cep = "01001-000"; vm.Street = "Praça da Sé"; vm.AddressNumber = "10"; vm.Neighborhood = "Sé"; vm.City = "São Paulo"; vm.State = "SP";
                 var patientPassword = Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha inicial do paciente");
                 patientPassword.Password = "isolated-initial-password";
                 InvokeButton(Descendants<Button>(content).Single(button => button.Content?.ToString() == "Cadastrar paciente"));
                 PumpUntil(() => !vm.IsBusy);
-                Require(fixture.Registered && fixture.RegisteredPhone == "(48) 99900-0001" && vm.SelectedPatient?.Phone == fixture.RegisteredPhone && vm.Phone == "" && vm.Patients.Count == 2 && vm.SelectedPatient?.FullName == "Paciente Novo Fixture" && patientPassword.Password == "", "Cadastro não preservou telefone, seleção ou limpeza do formulário/senha.");
+                Require(fixture.Registered && fixture.RegisteredPhone == "(48) 99900-0001" && fixture.RegisteredAddress?.Cep == "01001000" && vm.SelectedPatient?.Phone == fixture.RegisteredPhone && vm.Phone == "" && vm.Cep == "" && vm.Patients.Count == 2 && vm.SelectedPatient?.FullName == "Paciente Novo Fixture" && patientPassword.Password == "", "Cadastro não preservou telefone/endereço, seleção ou limpeza do formulário/senha.");
                 window.ViewModel.Navigate("queue");
                 content = Layout(window, 980, 640);
                 Descendants<ComboBox>(content).Single(input => AutomationProperties.GetName(input) == "Paciente para incluir na fila").SelectedItem = vm.Patients.Single(patient => patient.Id == ApiFixture.NewPatientId);
@@ -316,7 +469,7 @@ internal static partial class Program
                 Pump(vm.LoginAsync("isolated-test-password"));
                 window.ViewModel.Navigate("patients");
                 var content = Layout(window, 980, 640);
-                Descendants<Expander>(content).Single().IsExpanded = true;
+                Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente").IsExpanded = true;
                 Layout(window, 980, 640);
                 var name = Input(content, "Nome completo do paciente");
                 name.Text = "Nome digitado antes do polling";
@@ -347,7 +500,7 @@ internal static partial class Program
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
         {
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
-            foreach (var route in profile.IsMunicipal ? new[] { "indicators" } : new[] { "patients", "queue", "slots" })
+            foreach (var route in profile.IsMunicipal ? new[] { "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "patients", "queue", "slots" })
             {
                 var path = Path.Combine(storageRoot, "routes", profile.Id, route);
                 var storage = new PreferencesService(profile.Id, path);
@@ -359,8 +512,8 @@ internal static partial class Program
                     Require(window.ViewModel.Page == route && window.ViewModel.Workspace.Section == route, "Rota/seção divergiram na reabertura.");
                     PrepareWindow(window);
                     var content = Layout(window, 980, 640);
-                    var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home");
-                    var active = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == route);
+                    var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home" && AutomationProperties.GetName(button) == window.ViewModel.Navigation.First(item => item.Id == "home").Title);
+                    var active = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == route && AutomationProperties.GetName(button) == window.ViewModel.Navigation.First(item => item.Id == route).Title);
                     Require(!Equals(home.Background, active.Background), "Home continua marcada quando outra rota foi restaurada.");
                 }
                 finally { window.Close(); }
@@ -408,6 +561,13 @@ internal static partial class Program
         private readonly List<PatientAccount> patients = [new(PatientId, "Paciente Fixture", "00000000000", "fixture@example.invalid")];
         private readonly List<QueueEntry> queue = [new(1, PatientId, "Paciente Fixture", DateTimeOffset.UtcNow, "waiting")];
         private readonly List<LightningSlot> slots = [new(Guid.NewGuid(), "Vaga exclusiva fixture", "open", DateTimeOffset.UtcNow)];
+        private readonly List<HealthUnit> units = [];
+        private readonly List<UnitPatientRecord> obsRegistry = [];
+        private readonly List<UnitWaitingEntry> unitWaiting = [];
+        private readonly List<UnitLightningSlot> unitSlots = [];
+        private readonly List<AppointmentInfo> unitAppointments = [];
+        private readonly HashSet<Guid> staffUnitIds = [];
+        private static readonly Guid StaffId = Guid.Parse("0fc6ec25-fb80-4cdd-881b-000000000003");
         public string? LoginIdentifier { get; private set; }
         public string Scope { get; private set; } = "obs";
         public string? LastBearer { get; private set; }
@@ -419,10 +579,14 @@ internal static partial class Program
         public bool UseWorkspaceIdentity { get; init; }
 
         public string? RegisteredPhone { get; private set; }
+        public AddressInfo? RegisteredAddress { get; private set; }
+        public int CepLookups { get; private set; }
         public bool PatientOnline { get; set; }
         public int PatientReads { get; private set; }
         public TaskCompletionSource? PauseReads { get; set; }
         public void AddPatient(PatientAccount patient) => patients.Add(patient);
+        public void AddUnit(HealthUnit unit) => units.Add(unit);
+        public void AddTodayAppointment(string status) => unitAppointments.Add(new AppointmentInfo(Guid.NewGuid(), "52998224725", "Paciente Fixture", "Clínica", "Profissional", DateTimeOffset.Now, DateTimeOffset.Now.AddMinutes(30), status));
         public Guid? EnqueuedPatient { get; private set; }
         public string? CreatedSlotLabel { get; private set; }
         public bool FailReads { get; set; }
@@ -439,6 +603,11 @@ internal static partial class Program
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
                 var accountName = UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture";
                 return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(PatientId, accountName, Scope == "obs" ? ObsRole : "manager", Scope)));
+            }
+            if (request.Method == HttpMethod.Get && path == "/api/address/cep/01001000")
+            {
+                CepLookups++;
+                return Reply(new AddressInfo("01001000", "Praça da Sé", null, null, "Sé", "São Paulo", "SP", "3550308"));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
             if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);
@@ -460,10 +629,113 @@ internal static partial class Program
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
                 RegisteredPhone = body.RootElement.TryGetProperty("phone", out var phone) ? phone.GetString() : null;
-                var patient = new PatientAccount(NewPatientId, body.RootElement.GetProperty("fullName").GetString()!, body.RootElement.GetProperty("cpf").GetString()!, body.RootElement.GetProperty("email").GetString()!, RegisteredPhone);
+                if (body.RootElement.TryGetProperty("address", out var address) && address.ValueKind != JsonValueKind.Null)
+                    RegisteredAddress = JsonSerializer.Deserialize<AddressInfo>(address.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var patient = new PatientAccount(NewPatientId, body.RootElement.GetProperty("fullName").GetString()!, body.RootElement.GetProperty("cpf").GetString()!, body.RootElement.GetProperty("email").GetString()!, RegisteredPhone, Address: RegisteredAddress);
                 Require(body.RootElement.GetProperty("password").GetString() == "isolated-initial-password", "Cadastro não enviou senha inicial.");
                 patients.Add(patient); Registered = true;
                 return Reply(patient);
+            }
+            if (path == "/api/obs/units" && request.Method == HttpMethod.Get) return Reply(units.ToArray());
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/appointments", StringComparison.Ordinal) && request.Method == HttpMethod.Get) return Reply(unitAppointments.ToArray());
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/waiting-list", StringComparison.Ordinal))
+            {
+                if (request.Method == HttpMethod.Get) return Reply(unitWaiting.ToArray());
+                if (request.Method == HttpMethod.Post)
+                {
+                    using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    var cpf = payload.RootElement.GetProperty("cpf").GetString()!; var name = obsRegistry.Single(p => p.Cpf == cpf).FullName;
+                    var item = new UnitWaitingEntry(unitWaiting.Count + 1, cpf, name, payload.RootElement.GetProperty("specialty").GetString()!, DateTimeOffset.UtcNow, "waiting");
+                    unitWaiting.Add(item); return Reply(item);
+                }
+            }
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.Contains("/waiting-list/", StringComparison.Ordinal) && path.EndsWith("/cancel", StringComparison.Ordinal))
+            {
+                var id = long.Parse(path.Split('/')[6]); var index = unitWaiting.FindIndex(entry => entry.Id == id);
+                Require(index >= 0, "Entrada de fila inexistente."); unitWaiting[index] = unitWaiting[index] with { Status = "cancelled" }; return new(HttpStatusCode.NoContent);
+            }
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/lightning-slots", StringComparison.Ordinal))
+            {
+                if (request.Method == HttpMethod.Get) return Reply(unitSlots.ToArray());
+                if (request.Method == HttpMethod.Post)
+                {
+                    using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    var start = DateTimeOffset.UtcNow.AddDays(1);
+                    var slot = new UnitLightningSlot(Guid.NewGuid(), payload.RootElement.GetProperty("appointmentId").GetGuid(), "Cardiologia", "Profissional", start, start.AddMinutes(30), "open", DateTimeOffset.UtcNow);
+                    unitSlots.Add(slot); return Reply(slot);
+                }
+            }
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/email", StringComparison.Ordinal) && request.Method == HttpMethod.Patch)
+            {
+                var parts = path.Split('/');
+                Require(units.Any(unit => unit.Id == Guid.Parse(parts[4])), "Correção solicitou UBS inexistente.");
+                using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var cpf = payload.RootElement.GetProperty("cpf").GetString(); var index = obsRegistry.FindIndex(patient => patient.Cpf == cpf);
+                Require(index >= 0, "Correção solicitou paciente inexistente.");
+                obsRegistry[index] = obsRegistry[index] with { Email = payload.RootElement.GetProperty("email").GetString()! };
+                return new(HttpStatusCode.NoContent);
+            }
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/registry/active", StringComparison.Ordinal) && request.Method == HttpMethod.Patch)
+            {
+                using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                Require(payload.RootElement.GetProperty("confirmed").GetBoolean(), "Alteração de situação sem confirmação.");
+                var cpf = payload.RootElement.GetProperty("cpf").GetString(); var index = obsRegistry.FindIndex(patient => patient.Cpf == cpf);
+                Require(index >= 0, "Alteração solicitou paciente inexistente.");
+                obsRegistry[index] = obsRegistry[index] with { IsActive = payload.RootElement.GetProperty("isActive").GetBoolean() };
+                return new(HttpStatusCode.NoContent);
+            }
+            if (path.StartsWith("/api/obs/units/", StringComparison.Ordinal) && path.EndsWith("/registry", StringComparison.Ordinal))
+            {
+                var id = Guid.Parse(path.Split('/')[4]); Require(units.Any(unit => unit.Id == id), "OBS escolheu UBS inexistente.");
+                if (request.Method == HttpMethod.Get) return Reply(obsRegistry.ToArray());
+                if (request.Method == HttpMethod.Post)
+                {
+                    using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    var phone = payload.RootElement.GetProperty("phone").ValueKind == JsonValueKind.Null ? null : payload.RootElement.GetProperty("phone").GetString();
+                    var address = payload.RootElement.GetProperty("address").ValueKind == JsonValueKind.Null ? null : JsonSerializer.Deserialize<AddressInfo>(payload.RootElement.GetProperty("address").GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    obsRegistry.Add(new UnitPatientRecord(payload.RootElement.GetProperty("cpf").GetString()!, payload.RootElement.GetProperty("fullName").GetString()!, payload.RootElement.GetProperty("email").GetString()!, phone, address));
+                    return Reply(new { created = true });
+                }
+                if (request.Method == HttpMethod.Put)
+                {
+                    using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    var cpf = payload.RootElement.GetProperty("cpf").GetString()!; var index = obsRegistry.FindIndex(patient => patient.Cpf == cpf);
+                    Require(index >= 0, "Edição solicitou paciente inexistente.");
+                    var phone = payload.RootElement.GetProperty("phone").ValueKind == JsonValueKind.Null ? null : payload.RootElement.GetProperty("phone").GetString();
+                    var address = payload.RootElement.GetProperty("address").ValueKind == JsonValueKind.Null ? null : JsonSerializer.Deserialize<AddressInfo>(payload.RootElement.GetProperty("address").GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    obsRegistry[index] = obsRegistry[index] with { FullName = payload.RootElement.GetProperty("fullName").GetString()!, Email = payload.RootElement.GetProperty("email").GetString()!, Phone = phone, Address = address };
+                    return new(HttpStatusCode.NoContent);
+                }
+            }
+            if (path == "/api/municipal/staff" && request.Method == HttpMethod.Get) return Reply(new[] { new StaffAccount(StaffId, "Equipe Fixture", "attendant") });
+            if (path == $"/api/municipal/staff/{StaffId}/units" && request.Method == HttpMethod.Get) return Reply(units.Where(unit => staffUnitIds.Contains(unit.Id)).ToArray());
+            if (path.StartsWith($"/api/municipal/staff/{StaffId}/units/", StringComparison.Ordinal))
+            {
+                var id = Guid.Parse(path.Split('/').Last());
+                if (request.Method == HttpMethod.Put) staffUnitIds.Add(id);
+                else if (request.Method == HttpMethod.Delete) staffUnitIds.Remove(id);
+                else throw new InvalidOperationException("Método não previsto para vínculo.");
+                return new(HttpStatusCode.NoContent);
+            }
+            if (path.StartsWith("/api/municipal/units/", StringComparison.Ordinal) && path.EndsWith("/registry", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+            {
+                var id = Guid.Parse(path.Split('/')[4]);
+                Require(units.Any(unit => unit.Id == id), "Consulta solicitou uma UBS inexistente.");
+                return Reply(new[] { new UnitPatientRecord("52998224725", "Paciente Sintético", "registered@example.test") });
+            }
+            if (path.StartsWith("/api/municipal/units/", StringComparison.Ordinal) && path.EndsWith("/appointments", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+            {
+                var id = Guid.Parse(path.Split('/')[4]); Require(units.Any(unit => unit.Id == id), "Agenda solicitou UBS inexistente.");
+                var start = DateTimeOffset.UtcNow.AddDays(1);
+                return Reply(new[] { new AppointmentInfo(Guid.NewGuid(), "52998224725", "Paciente Sintético", "Clínica", "Profissional", start, start.AddMinutes(30), "scheduled") });
+            }
+            if (path == "/api/municipal/units" && request.Method == HttpMethod.Get) return Reply(units.ToArray());
+            if ((path == "/api/municipal/units" && request.Method == HttpMethod.Post) || (path.StartsWith("/api/municipal/units/") && request.Method == HttpMethod.Put))
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var id = request.Method == HttpMethod.Post ? Guid.NewGuid() : Guid.Parse(path.Split('/').Last());
+                var unit = new HealthUnit(id, body.RootElement.GetProperty("name").GetString()!, body.RootElement.GetProperty("region").GetString()!, body.RootElement.GetProperty("address").GetString()!, body.RootElement.GetProperty("latitude").GetDouble(), body.RootElement.GetProperty("longitude").GetDouble());
+                units.RemoveAll(existing => existing.Id == id); units.Add(unit); return Reply(unit);
             }
             if (request.Method == HttpMethod.Post && path == "/api/queue")
             {
@@ -490,7 +762,7 @@ internal static partial class Program
                 "/api/patients" => Reply(patients.Select(patient => patient.Id == PatientId ? patient with { IsOnline = PatientOnline && patient.IsActive } : patient)),
                 "/api/queue" => Reply(queue),
                 "/api/slots" => Reply(slots),
-                "/api/municipal/summary" => Reply(new MunicipalSummary(1, 1, 1, 0)),
+                "/api/municipal/summary" => Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)])),
                 "/api/auth/logout" => Logout(),
                 _ => throw new InvalidOperationException("Rota inesperada da fixture: " + path)
             };

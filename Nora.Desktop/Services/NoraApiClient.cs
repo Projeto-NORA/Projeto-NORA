@@ -53,15 +53,38 @@ public sealed class NoraApiClient : IDisposable
         finally { ClearSession(); }
     }
     public void ClearSession() => token = null;
+    public Task<AddressInfo> LookupCepAsync(string cep) => SendAsync<AddressInfo>(HttpMethod.Get, $"api/address/cep/{Uri.EscapeDataString(BrazilianDataValidator.NormalizeCep(cep))}", authenticated: false);
     public Task<PatientAccount[]> PatientsAsync() => SendAsync<PatientAccount[]>(HttpMethod.Get, "api/patients");
-    public Task<PatientAccount> RegisterPatientAsync(string fullName, string cpf, string email, string password, string? phone = null) => SendAsync<PatientAccount>(HttpMethod.Post, "api/patients", new { fullName, cpf, email, password, phone });
+    public Task<PatientAccount> RegisterPatientAsync(string fullName, string cpf, string email, string password, string? phone = null, AddressInfo? address = null) => SendAsync<PatientAccount>(HttpMethod.Post, "api/patients", new { fullName, cpf, email, password, phone, address });
     public Task<object> SetPatientActiveAsync(Guid patientId, bool isActive) => SendAsync<object>(HttpMethod.Patch, $"api/patients/{patientId}/active", new { isActive });
     public Task<QueueEntry[]> QueueAsync() => SendAsync<QueueEntry[]>(HttpMethod.Get, "api/queue");
     public Task<QueueEntry> EnqueueAsync(Guid patientId) => SendAsync<QueueEntry>(HttpMethod.Post, "api/queue", new { patientId });
     public Task<object> CancelAsync(long queueId) => SendAsync<object>(HttpMethod.Post, $"api/queue/{queueId}/cancel");
     public Task<LightningSlot[]> SlotsAsync() => SendAsync<LightningSlot[]>(HttpMethod.Get, "api/slots");
     public Task<LightningSlot> CreateSlotAsync(string label) => SendAsync<LightningSlot>(HttpMethod.Post, "api/slots", new { label });
-    public Task<MunicipalSummary> SummaryAsync() => SendAsync<MunicipalSummary>(HttpMethod.Get, "api/municipal/summary");
+    public Task<HealthUnit[]> HealthUnitsAsync() => SendAsync<HealthUnit[]>(HttpMethod.Get, "api/municipal/units");
+    public Task<HealthUnit> CreateHealthUnitAsync(string name, string region, string address, double latitude, double longitude) => SendAsync<HealthUnit>(HttpMethod.Post, "api/municipal/units", new { name, region, address, latitude, longitude });
+    public Task<HealthUnit> UpdateHealthUnitAsync(Guid id, string name, string region, string address, double latitude, double longitude) => SendAsync<HealthUnit>(HttpMethod.Put, $"api/municipal/units/{id}", new { name, region, address, latitude, longitude });
+    public Task<HealthUnit[]> ObsUnitsAsync() => SendAsync<HealthUnit[]>(HttpMethod.Get, "api/obs/units");
+    public Task<UnitPatientRecord[]> ObsRegistryAsync(Guid unitId) => SendAsync<UnitPatientRecord[]>(HttpMethod.Get, $"api/obs/units/{unitId}/registry");
+    public Task<object> CreateObsRegistryAsync(Guid unitId, string fullName, string cpf, string email, string? phone = null, AddressInfo? address = null) => SendAsync<object>(HttpMethod.Post, $"api/obs/units/{unitId}/registry", new { fullName, cpf, email, phone, address });
+    public Task<object> UpdateObsRegistryAsync(Guid unitId, string fullName, string cpf, string email, string? phone = null, AddressInfo? address = null) => SendAsync<object>(HttpMethod.Put, $"api/obs/units/{unitId}/registry", new { fullName, cpf, email, phone, address });
+    public Task<object> UpdateObsRegistryEmailAsync(Guid unitId, string cpf, string email) => SendAsync<object>(HttpMethod.Patch, $"api/obs/units/{unitId}/registry/email", new { cpf, email });
+    public Task<object> SetObsRegistryActiveAsync(Guid unitId, string cpf, bool isActive) => SendAsync<object>(HttpMethod.Patch, $"api/obs/units/{unitId}/registry/active", new { cpf, isActive, confirmed = true });
+    public Task<AppointmentInfo[]> AppointmentsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to) => SendAsync<AppointmentInfo[]>(HttpMethod.Get, $"api/obs/units/{unitId}/appointments?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
+    public Task<AppointmentInfo> CreateAppointmentAsync(Guid unitId, string cpf, string specialty, string professional, DateTimeOffset startsAt, DateTimeOffset endsAt) => SendAsync<AppointmentInfo>(HttpMethod.Post, $"api/obs/units/{unitId}/appointments", new { cpf, specialty, professional, startsAt, endsAt });
+    public Task<AppointmentInfo> ChangeAppointmentStatusAsync(Guid unitId, Guid id, string status, bool confirmed) => SendAsync<AppointmentInfo>(HttpMethod.Patch, $"api/obs/units/{unitId}/appointments/{id}/status", new { status, confirmed });
+    public Task<UnitWaitingEntry[]> UnitWaitingListAsync(Guid unitId) => SendAsync<UnitWaitingEntry[]>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list");
+    public Task<UnitWaitingEntry> AddUnitWaitingEntryAsync(Guid unitId, string cpf, string specialty) => SendAsync<UnitWaitingEntry>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list", new { cpf, specialty });
+    public Task<object> CancelUnitWaitingEntryAsync(Guid unitId, long id) => SendAsync<object>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/{id}/cancel", new { confirmed = true });
+    public Task<UnitLightningSlot[]> UnitLightningSlotsAsync(Guid unitId) => SendAsync<UnitLightningSlot[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots");
+    public Task<UnitLightningSlot> CreateUnitLightningSlotAsync(Guid unitId, Guid appointmentId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots", new { appointmentId, confirmed = true });
+    public Task<UnitPatientRecord[]> UnitRegistryAsync(Guid unitId) => SendAsync<UnitPatientRecord[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/registry");
+    public Task<AppointmentInfo[]> UnitAppointmentsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to) => SendAsync<AppointmentInfo[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/appointments?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
+    public Task<StaffAccount[]> StaffAsync() => SendAsync<StaffAccount[]>(HttpMethod.Get, "api/municipal/staff");
+    public Task<HealthUnit[]> StaffUnitsAsync(Guid id) => SendAsync<HealthUnit[]>(HttpMethod.Get, $"api/municipal/staff/{id}/units");
+    public Task<object> SetStaffUnitAsync(Guid staffId, Guid unitId, bool grant) => SendAsync<object>(grant ? HttpMethod.Put : HttpMethod.Delete, $"api/municipal/staff/{staffId}/units/{unitId}");
+    public Task<MunicipalSummary> SummaryAsync(Guid? unitId = null) => SendAsync<MunicipalSummary>(HttpMethod.Get, unitId is { } id ? $"api/municipal/summary?unitId={id}" : "api/municipal/summary");
 
     private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body = null, bool authenticated = true)
     {
@@ -83,6 +106,7 @@ public sealed class NoraApiClient : IDisposable
                     HttpStatusCode.Unauthorized => authenticated ? "Sua sessão terminou. Entre novamente." : "CPF/e-mail ou senha não conferem.",
                     HttpStatusCode.Forbidden => "Esta conta não tem acesso a este aplicativo ou operação.",
                     HttpStatusCode.Conflict => "O registro já existe ou sua situação mudou. Atualize a lista.",
+                    HttpStatusCode.NotFound => path.StartsWith("api/address/cep/", StringComparison.Ordinal) ? "CEP não encontrado. Confira os oito dígitos." : "Registro não encontrado. Atualize os dados e tente novamente.",
                     HttpStatusCode.BadRequest => "Confira os dados informados e tente novamente.",
                     HttpStatusCode.TooManyRequests => "Muitas tentativas. Aguarde e tente novamente.",
                     _ => "Não foi possível concluir a operação. Verifique a API e tente novamente."

@@ -1,0 +1,9 @@
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS phone varchar(16);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS cep varchar(8);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS street varchar(160);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS address_number varchar(20);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS complement varchar(160);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS neighborhood varchar(120);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS city varchar(120);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS state varchar(2);
+ALTER TABLE nora_unit.patient_registry ADD COLUMN IF NOT EXISTS ibge varchar(10);

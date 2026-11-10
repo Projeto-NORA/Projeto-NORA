@@ -20,16 +20,16 @@
   </UserControl.Resources>
   <StackPanel>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
-      <StackPanel MaxWidth="520" HorizontalAlignment="Left" Width="520" IsEnabled="{Binding CanLogin}">
+      <StackPanel IsEnabled="{Binding CanLogin}">
         <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,12" />
-        <TextBlock Text="Use CPF ou e-mail. Suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
+        <TextBlock Text="Use CPF válido ou e-mail. A verificação do CPF acontece antes do envio e suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
         <TextBlock Text="Endereço da API" />
         <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API" />
         <TextBlock Text="CPF ou e-mail" />
         <TextBox x:Name="IdentifierInput" Text="{Binding Identifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="CPF ou e-mail" />
         <TextBlock Text="Senha" />
         <PasswordBox x:Name="LoginPassword" AutomationProperties.Name="Senha de acesso" KeyDown="OnLoginKeyDown" />
-        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Entre para acessar os dados da sua unidade." />
+        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Entre para acessar os dados da sua unidade." />
       </StackPanel>
     </Border>
     <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="12" Padding="16" Margin="0,0,0,24" Visibility="{Binding HasMessage, Converter={StaticResource BoolVisibility}}">
@@ -39,9 +39,10 @@
       </StackPanel>
     </Border>
     <StackPanel Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}">
-      <Border Margin="0,0,0,24" Visibility="{Binding ShowPatients, Converter={StaticResource BoolVisibility}}">
+      <views:ObsUnitRegistryView Visibility="{Binding ShowPatients, Converter={StaticResource BoolVisibility}}" />
+      <Border Margin="0,0,0,24" Visibility="Collapsed">
         <StackPanel>
-          <TextBlock Text="Pacientes" FontSize="28" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,0,0,22" />
+          <StackPanel Margin="0,0,0,22"><TextBlock Text="CADASTRO E CONSULTA" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" /><TextBlock Text="Pacientes" FontSize="28" FontWeight="SemiBold" /><TextBlock Text="Encontre rapidamente os dados necessários para o atendimento da sua unidade." Style="{StaticResource Muted}" FontSize="13" Margin="0,5,0,0" /></StackPanel>
           <Grid Margin="0,0,0,12">
             <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <StackPanel Margin="0,0,12,0"><TextBlock Text="Pesquisar paciente" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding PatientSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar pacientes" Margin="0,6,0,0" Background="{DynamicResource SurfaceBrush}" ToolTip="Pesquise pelo nome, CPF, e-mail ou telefone." /></StackPanel>
@@ -78,7 +79,7 @@
           </DataGrid>
           <TextBlock Text="Nenhum paciente cadastrado." Style="{StaticResource Muted}" Margin="0,14" Visibility="{Binding HasNoPatients, Converter={StaticResource BoolVisibility}}" />
           <TextBlock Text="Nenhum paciente encontrado para esta pesquisa." Style="{StaticResource Muted}" Margin="0,14" Visibility="{Binding HasNoPatientResults, Converter={StaticResource BoolVisibility}}" />
-          <Expander Header="Cadastrar paciente" IsExpanded="False" Margin="0,20,0,0" ToolTip="Cadastre um paciente para acessar o APPNORA." AutomationProperties.Name="Abrir cadastro de paciente">
+          <Expander Header="Cadastrar paciente" IsExpanded="False" Expanded="OnRegistrationExpanded" Margin="0,20,0,0" ToolTip="Cadastre um paciente para acessar o APPNORA." AutomationProperties.Name="Abrir cadastro de paciente">
             <StackPanel Margin="0,16,0,0" IsEnabled="{Binding CanEditDraft}">
               <TextBlock Text="Nome completo" />
               <TextBox Text="{Binding FullName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome completo do paciente" />
@@ -89,6 +90,33 @@
               </Grid>
               <TextBlock Text="Telefone (opcional)" />
               <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Telefone do paciente" ToolTip="Informe DDD e número de telefone, se disponível." />
+              <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,16">
+                <StackPanel>
+                  <TextBlock Text="ENDEREÇO (OPCIONAL)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" />
+                  <TextBlock Text="Consulte somente o CEP no ViaCEP. Nome, CPF, e-mail e demais dados não são enviados nessa busca." Style="{StaticResource Muted}" Margin="0,4,0,12" />
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="180" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="CEP" /><TextBox Text="{Binding Cep, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="CEP do paciente" ToolTip="Informe os oito dígitos do CEP." Margin="0,6,0,0" /></StackPanel>
+                    <Button Grid.Column="1" Content="Buscar CEP" Command="{Binding LookupCepCommand}" Margin="12,24,12,0" VerticalAlignment="Top" ToolTip="Preencha o endereço a partir do CEP informado." />
+                    <TextBlock Grid.Column="2" Text="Após a busca, confira e complete o número antes de salvar." Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,20,0,0" TextWrapping="Wrap" />
+                  </Grid>
+                  <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,8,0"><TextBlock Text="Logradouro" /><TextBox Text="{Binding Street, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Logradouro do paciente" Margin="0,6,0,0" /></StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Número" /><TextBox Text="{Binding AddressNumber, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Número do endereço" Margin="0,6,0,0" /></StackPanel>
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,8,0"><TextBlock Text="Bairro" /><TextBox Text="{Binding Neighborhood, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bairro do paciente" Margin="0,6,0,0" /></StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Complemento" /><TextBox Text="{Binding Complement, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Complemento do endereço" Margin="0,6,0,0" /></StackPanel>
+                  </Grid>
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,8,0"><TextBlock Text="Cidade" /><TextBox Text="{Binding City, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Cidade do paciente" Margin="0,6,0,0" /></StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="UF" /><TextBox Text="{Binding State, UpdateSourceTrigger=PropertyChanged}" MaxLength="2" CharacterCasing="Upper" AutomationProperties.Name="UF do paciente" Margin="0,6,0,0" /></StackPanel>
+                  </Grid>
+                </StackPanel>
+              </Border>
               <TextBlock Text="Senha inicial · 8 a 256 caracteres" />
               <PasswordBox x:Name="PatientPassword" AutomationProperties.Name="Senha inicial do paciente" />
               <Button Content="Cadastrar paciente" Click="OnRegisterPatient" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" IsEnabled="{Binding CanOperate}" ToolTip="Salve o cadastro e permita o acesso do paciente ao APPNORA." />
@@ -96,30 +124,39 @@
           </Expander>
         </StackPanel>
       </Border>
-      <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="{Binding ShowQueue, Converter={StaticResource BoolVisibility}}">
+      <views:UnitQueueView Visibility="{Binding ShowQueue, Converter={StaticResource BoolVisibility}}" />
+      <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="Collapsed">
         <StackPanel>
-          <TextBlock Text="Fila de Vaga Relâmpago" FontSize="24" FontWeight="SemiBold" />
-          <TextBlock Text="A ordem é a de entrada. Cada oferta tem 10 minutos para resposta; recusa ou expiração passa ao próximo." Style="{StaticResource Muted}" Margin="0,8,0,16" />
+          <TextBlock Text="GESTÃO DA FILA" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" /><TextBlock Text="Fila da unidade" FontSize="26" FontWeight="SemiBold" Margin="0,5,0,0" />
+          <TextBlock Text="A ordem apresentada é a de entrada. Senha, paciente, especialidade, posição, espera e situação são organizadas aqui. A especialidade será preenchida assim que a agenda clínica for integrada." Style="{StaticResource Muted}" Margin="0,8,0,16" />
           <TextBlock Text="Paciente para incluir na fila" FontSize="12" FontWeight="SemiBold" />
           <DockPanel Margin="0,6,0,20">
             <Button Content="Incluir selecionado na fila" Command="{Binding EnqueueCommand}" DockPanel.Dock="Right" Margin="12,0,0,0" ToolTip="Inclua o paciente na fila. A ordem de atendimento das ofertas é a de entrada." />
             <ComboBox ItemsSource="{Binding Patients}" SelectedItem="{Binding SelectedPatient}" DisplayMemberPath="FullName" AutomationProperties.Name="Paciente para incluir na fila" ToolTip="Escolha o paciente que deseja incluir na fila de Vaga Relâmpago." />
           </DockPanel>
-          <DataGrid ItemsSource="{Binding Queue}" SelectedItem="{Binding SelectedQueue}" MaxHeight="300" MinHeight="64" RowHeight="NaN" MinRowHeight="64" HeadersVisibility="None" SelectionMode="Single" SelectionUnit="FullRow" AutomationProperties.Name="Fila de Vaga Relâmpago" SelectionChanged="OnListSelectionChanged" PreviewMouseLeftButtonDown="OnListPointerSelection" MouseDoubleClick="OnListDoubleClick" PreviewKeyDown="OnListKeyDown">
+          <DataGrid ItemsSource="{Binding Queue}" SelectedItem="{Binding SelectedQueue}" MaxHeight="360" MinHeight="64" RowHeight="NaN" MinRowHeight="64" HeadersVisibility="Column" SelectionMode="Single" SelectionUnit="FullRow" AutomationProperties.Name="Fila de Vaga Relâmpago" SelectionChanged="OnListSelectionChanged" PreviewMouseLeftButtonDown="OnListPointerSelection" MouseDoubleClick="OnListDoubleClick" PreviewKeyDown="OnListKeyDown">
             <DataGrid.Columns>
-              <DataGridTemplateColumn Width="*"><DataGridTemplateColumn.CellTemplate><DataTemplate><Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
-                <StackPanel><TextBlock Text="{Binding PatientName}" FontSize="14" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding PatientName}" /><TextBlock Text="{Binding EnteredAtDisplay, StringFormat='Entrada: {0}'}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" Margin="0,5,0,0" /><TextBlock Text="{Binding StatusDisplay}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" /></StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding PresenceDisplay}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" Margin="18,0,0,0" />
-              </Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+              <DataGridTextColumn Header="Senha" Binding="{Binding TicketDisplay}" Width="88" />
+              <DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="*" />
+              <DataGridTextColumn Header="Especialidade" Binding="{Binding SpecialtyDisplay}" Width="150" />
+              <DataGridTextColumn Header="Posição" Binding="{Binding PositionDisplay}" Width="86" />
+              <DataGridTextColumn Header="Espera" Binding="{Binding WaitTimeDisplay}" Width="88" />
+              <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="150" />
             </DataGrid.Columns>
           </DataGrid>
           <TextBlock Text="Nenhuma entrada na fila." Style="{StaticResource Muted}" Margin="0,14" Visibility="{Binding HasNoQueue, Converter={StaticResource BoolVisibility}}" />
+          <WrapPanel Margin="0,18,0,0">
+            <Button Content="Chamar próximo" IsEnabled="False" ToolTip="A chamada será ativada junto ao fluxo de atendimento e agenda." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" />
+            <Button Content="Atualizar atendimento" IsEnabled="False" ToolTip="A atualização será ativada junto ao registro de atendimentos." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" />
+            <Button Content="Registrar falta" IsEnabled="False" ToolTip="O registro de falta será ligado às consultas reais." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" />
+            <Button Content="Finalizar atendimento" IsEnabled="False" ToolTip="A finalização será ativada junto ao fluxo de atendimento." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" />
+          </WrapPanel>
         </StackPanel>
       </Border>
-      <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="{Binding ShowSlots, Converter={StaticResource BoolVisibility}}">
+      <views:UnitLightningSlotsView Visibility="{Binding ShowSlots, Converter={StaticResource BoolVisibility}}" />
+      <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="Collapsed">
         <StackPanel>
-          <TextBlock Text="Vagas Relâmpago" FontSize="24" FontWeight="SemiBold" />
+          <TextBlock Text="REAPROVEITAMENTO DE VAGAS" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" /><TextBlock Text="Vagas Relâmpago" FontSize="24" FontWeight="SemiBold" Margin="0,5,0,0" />
           <TextBlock Text="Descreva a oportunidade. O servidor oferece a vaga ao próximo paciente da fila." Style="{StaticResource Muted}" Margin="0,8,0,16" />
           <StackPanel IsEnabled="{Binding CanEditDraft}">
             <TextBlock Text="Descrição da vaga" />
