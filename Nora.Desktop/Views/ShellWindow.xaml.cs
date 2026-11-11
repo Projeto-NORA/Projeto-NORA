@@ -63,7 +63,7 @@ public partial class ShellWindow : Window
             MaxHeight = Math.Max(320, Math.Min(SystemParameters.WorkArea.Height - 40, ActualHeight - 40))
         };
         if (item is not OperationalRow)
-            ClosePatientDialogOnSignOut(dialog);
+            ClosePatientDialogOnSignOut(dialog, item is UnitPatientRecord or UnitWaitingEntry or UnitLightningSlot);
         dialog.ShowDialog();
     }
     private void OnActionDetails(object sender, RoutedEventArgs args)
@@ -75,11 +75,13 @@ public partial class ShellWindow : Window
         if (ViewModel.SelectedRow is { } item) OpenItemDetails(item);
     }
     private void OnClearLegacySelection(object sender, RoutedEventArgs args) => ViewModel.SelectedRow = null;
-    private void ClosePatientDialogOnSignOut(Window dialog)
+    private void ClosePatientDialogOnSignOut(Window dialog, bool closeOnUnitChange = false)
     {
+        var initialUnit = ViewModel.Workspace.ActiveObsUnit?.Id;
         PropertyChangedEventHandler closeOnSignOut = (_, changed) =>
         {
-            if (changed.PropertyName == nameof(WorkspaceViewModel.IsAuthenticated) && !ViewModel.Workspace.IsAuthenticated) dialog.Close();
+            if ((changed.PropertyName == nameof(WorkspaceViewModel.IsAuthenticated) && !ViewModel.Workspace.IsAuthenticated) ||
+                (closeOnUnitChange && changed.PropertyName == nameof(WorkspaceViewModel.ActiveObsUnit) && ViewModel.Workspace.ActiveObsUnit?.Id != initialUnit)) dialog.Close();
         };
         ViewModel.Workspace.PropertyChanged += closeOnSignOut;
         dialog.Closed += (_, _) => ViewModel.Workspace.PropertyChanged -= closeOnSignOut;

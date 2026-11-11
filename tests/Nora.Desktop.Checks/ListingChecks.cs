@@ -19,6 +19,85 @@ internal static partial class Program
     {
         var previewArgument = Array.IndexOf(args, "--preview-dir");
         var previewRoot = previewArgument >= 0 && previewArgument + 1 < args.Length ? args[previewArgument + 1] : Path.Combine(AppContext.BaseDirectory, "previews");
+        Check("OBS: cada aba operacional renderiza somente o conteúdo selecionado", () =>
+        {
+            using var fixture = new ApiFixture();
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "exclusive-operational-pages"), new NoraApiClient(fixture));
+            try
+            {
+                window.ViewModel.ConfirmClose = false;
+                window.ViewModel.Animations = false;
+                PrepareWindow(window);
+                var vm = window.ViewModel.Workspace;
+                vm.Endpoint = "https://fixture.invalid";
+                vm.Identifier = "fixture@example.invalid";
+                Pump(vm.LoginAsync("isolated-test-password"));
+
+                foreach (var (route, visibleText, hiddenText) in new[]
+                {
+                    ("home", "Resumo do dia", "Agenda da unidade"),
+                    ("agenda", "Agenda da unidade", "Resumo do dia"),
+                    ("patients", "Cadastro de pacientes da UBS", "Agenda da unidade"),
+                    ("queue", "Fila da UBS", "Pacientes aguardando"),
+                    ("slots", "Vagas Relâmpago da UBS", "Fila da UBS"),
+                    ("indicators", "Indicadores da UBS", "Central de alertas"),
+                    ("alerts", "Central de alertas", "Indicadores da UBS")
+                })
+                {
+                    window.ViewModel.Navigate(route);
+                    var content = Layout(window, 1280, 740);
+                    Require(Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == visibleText), "A aba não mostrou seu conteúdo: " + route);
+                    Require(!Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == hiddenText), "A aba manteve conteúdo de outra tela visível: " + route);
+                }
+            }
+            finally { window.Close(); }
+        });
+        Check("OBS desconectado: cada aba mantém sua própria orientação", () =>
+        {
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "exclusive-operational-pages-signed-out"));
+            try
+            {
+                window.ViewModel.ConfirmClose = false;
+                window.ViewModel.Animations = false;
+                PrepareWindow(window);
+                foreach (var (route, visibleText, repeatedLogin) in new[]
+                {
+                    ("agenda", "Agenda da unidade", false),
+                    ("indicators", "Indicadores da UBS", false),
+                    ("alerts", "Central de alertas", false),
+                    ("queue", "Fila da unidade", false),
+                    ("patients", "Pacientes da unidade", false),
+                    ("slots", "Vagas Relâmpago", false)
+                })
+                {
+                    window.ViewModel.Navigate(route);
+                    var content = Layout(window, 1280, 740);
+                    Require(Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == visibleText), "A tela desconectada não explica a aba: " + route);
+                    Require(repeatedLogin || !Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == "Entre no seu espaço de trabalho"), "A aba desconectada repetiu o acesso: " + route);
+                }
+            }
+            finally { window.Close(); }
+        });
+        Check("Agenda OBS: seleção de data é clicável e atualiza a visão diária", () =>
+        {
+            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "agenda-calendar-selection"));
+            try
+            {
+                window.ViewModel.ConfirmClose = false;
+                window.ViewModel.Animations = false;
+                PrepareWindow(window);
+                window.ViewModel.Navigate("agenda");
+                var content = Layout(window, 1280, 740);
+                var dayButton = Descendants<Button>(content).FirstOrDefault(button => button.DataContext is AgendaCalendarDay day && day.IsCurrentMonth && !day.IsSelected)
+                    ?? throw new InvalidOperationException("Calendário não apresentou um dia clicável.");
+                var expected = (AgendaCalendarDay)dayButton.DataContext;
+                InvokeButton(dayButton);
+                Layout(window, 1280, 740);
+                Require(expected.IsSelected && window.ViewModel.Workspace.IsAgendaDay, "Clique no dia não selecionou a data ou não abriu a visão diária.");
+                Require(window.ViewModel.Workspace.SelectedAgendaDateLabel.Contains(expected.Date.ToString("yyyy"), StringComparison.Ordinal), "Resumo da agenda não acompanhou a data selecionada.");
+            }
+            finally { window.Close(); }
+        });
         Check("Detalhes: cópia explícita preserva valores e trata clipboard indisponível sem revelar dados", () =>
         {
             var fields = new[]

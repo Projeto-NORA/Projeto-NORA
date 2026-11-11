@@ -32,6 +32,26 @@ foreach (var environment in new[] { "Development", "Production" })
             ?? throw new InvalidOperationException("Kestrel não informou os endereços.");
         using var client = new HttpClient { BaseAddress = new Uri(addresses.Addresses.Single()), Timeout = TimeSpan.FromSeconds(10) };
 
+        await Check("Cadastro de UBS valida coordenadas e campos", () =>
+        {
+            var id = Guid.NewGuid();
+            var unit = Nora.Api.Services.HealthUnitService.Validate(id, new(" UBS Exemplo ", " Centro ", " Rua 10 ", -23.5, -46.6));
+            Require(unit.Name == "UBS Exemplo" && unit.Id == id, "Dados não foram normalizados.");
+            foreach (var invalid in new Nora.Api.Models.HealthUnitRequest[] { new("U", "Centro", "Rua", -23, -46), new("UBS", "Centro", "Rua", 86, -46), new("UBS", "Centro", "Rua", double.NaN, -46), new("UBS", "Centro", "Rua", -23, null) })
+            {
+                try { Nora.Api.Services.HealthUnitService.Validate(id, invalid); throw new InvalidOperationException("Registro inválido aceito."); }
+                catch (Nora.Api.Services.ApiInputException) { }
+            }
+            return Task.CompletedTask;
+        });
+        await Check("CPF usa normalização e dígitos verificadores sem consulta externa", () =>
+        {
+            var normalized = Nora.Api.Services.AccountService.NormalizeCpf("529.982.247-25");
+            Require(Nora.Api.Services.AccountService.ValidCpf(normalized), "CPF válido não passou.");
+            Require(!Nora.Api.Services.AccountService.ValidCpf("52998224724") && !Nora.Api.Services.AccountService.ValidCpf("11111111111") && !Nora.Api.Services.AccountService.ValidCpf("5299822472x"), "CPF inválido passou.");
+            Require(Nora.Api.Services.AccountService.NormalizeCpf("529x98224725") == "", "Caractere não permitido foi aceito.");
+            return Task.CompletedTask;
+        });
         await Check("GET liveness tem escopo explícito, sem afirmação de readiness", async () =>
         {
             using var response = await client.GetAsync("/health/live");
@@ -61,6 +81,11 @@ foreach (var environment in new[] { "Development", "Production" })
             using var response = await client.PostAsync("/missing", new StringContent("private-body"));
             await RequireProblem(response, 404, "not-found");
             Require(!(await response.Content.ReadAsStringAsync()).Contains("private-body"), "Erro ecoou payload.");
+        });
+        await Check("Consulta de CEP rejeita formato inválido antes de acessar serviço externo", async () =>
+        {
+            using var response = await client.GetAsync("/api/address/cep/12ABC");
+            await RequireProblem(response, 400, "invalid-input");
         });
         await Check("POST liveness retorna 405 e preserva Allow", async () =>
         {
@@ -101,6 +126,15 @@ foreach (var environment in new[] { "Development", "Production" })
             {
                 Require((int)protectedRoute.StatusCode == 401, "Pacientes não exigem autenticação.");
             }
+            using (var patientUnits = await client.GetAsync("/api/patient/units"))
+            {
+                Require((int)patientUnits.StatusCode == 401, "Unidades do paciente não exigem autenticação.");
+            }
+            foreach (var route in new[] { "/api/obs/units", "/api/municipal/staff" })
+            {
+                using var response = await client.GetAsync(route);
+                Require((int)response.StatusCode == 401, "Vínculos de unidades não exigem autenticação.");
+            }
             using (var wrongMethod = await client.GetAsync("/api/auth/login"))
             {
                 await RequireProblem(wrongMethod, 405, "method-not-allowed");
@@ -135,7 +169,8 @@ foreach (var environment in new[] { "Development", "Production" })
 
 Console.WriteLine($"{checks - failures}/{checks} verificações HTTP passaram.");
 var workflowFailures = await WorkflowChecks.RunAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 ? 0 : 1;
+var unitFailures = await UnitDatabaseChecks.RunAsync();
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

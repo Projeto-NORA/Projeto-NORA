@@ -2,6 +2,8 @@
 
 ## Abertas
 
+- **Integração multi-UBS em andamento · 2026-11-09:** antes de testes oficiais ainda faltam agendamento pelo paciente, dependentes, notificações externas, dados e regras para gráficos/alertas, cadastro estruturado de profissionais e estratégia de migração dos dados globais existentes. Conflitos de agenda entre UBS diferentes ainda não são detectados. SMTP real, localização física, implantação no Render e recuperação de falhas em produção não foram verificados. A suíte WPF histórica teve 43/66 acertos na rodada atual; muitos casos ainda usam controles e contratos globais removidos, e os demais precisam ser avaliados e adaptados para o fluxo por UBS. A rolagem da listagem nova também precisa de revisão. Os itens históricos abaixo registram decisões e resultados da época; quando divergirem, esta seção e a documentação por assunto descrevem a integração atual.
+
 
 
 
@@ -10,7 +12,7 @@
 
 - **P-012** · 2026-10-07 · Provisionamento na instância PostgreSQL 18 de uso: usuário postgres confirmado, mas não existe conexão privada/pgpass/variável de ambiente disponível nesta sessão. A senha PostgreSQL não foi informada; a senha das contas NORA não será presumida como senha do banco. Implementação e testes podem avançar em PostgreSQL 18 descartável; configurar a conexão privada e provisionar as contas definitivas na instância de uso permanece necessário.
 
-- **P-013** · 2026-10-07 · Consultas, notificações externas e análises clínicas: usuário aprovou concluir nesta entrega acesso, cadastro, fila por entrada, Vaga Relâmpago de 10 minutos e totais agregados. Campos/regras de consultas, canais de envio externos e séries/filtros de indicadores adicionais ficam para definição posterior; não usar os dados/regras fictícios do protótipo como especificação.
+- **P-013** · 2026-10-07 · Consultas, notificações externas e análises clínicas: em 2026-10-15, o usuário definiu que o OBS terá abas de agenda, fila operacional, indicadores e alertas da UBS. A interface navegável foi preparada sem dados fictícios. Ainda faltam no contrato/API as entidades de unidade, profissional, especialidade, consultório e consulta; as regras para chamar, registrar falta, finalizar atendimento, reaproveitar cancelamento em Vaga Relâmpago e calcular alertas/indicadores. O isolamento real por unidade deve ser imposto no servidor. Não presumir essas regras ou usar dados do protótipo como especificação.
 
 
 - **P-003** · 2026-10-07 · Conferência visual Android complementar: rodada de 2026-10-11 passou 14/14 instrumentados sem skips e 7/7 locais, incluindo HTTP real/PostgreSQL, interação Compose, preferências e serviço real de presença em segundo plano no Pixel_4 API31, sem apagar dados. Ainda faltam reabertura/render estáveis fora do harness, tema Sistema, fonte ampliada, tela larga, aparelhos físicos/versões Android adicionais e comportamento ao recriar Activity durante sessão/operação. Controller agora retido em AndroidViewModel; toque na notificação conserva Activity/ViewModel, mas não comprova ActivityScenario.recreate real. Em10/10 na máquina Pichau sem aceleração, foram inspecionados15 previews Layoutlib (Sistema claro/escuro, fonte130% e tablet), sem equivaler a execução em dispositivo. Guia em android-emulador.md e Documentos/Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md.

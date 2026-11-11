@@ -1,0 +1,73 @@
+<UserControl x:Class="Nora.Desktop.Views.OperationalOverviewView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel>
+    <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="22" Padding="28" Margin="0,0,0,24">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Ellipse Width="180" Height="180" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-110,-74,0" Fill="#18FFFFFF" IsHitTestVisible="False" />
+        <Ellipse Width="100" Height="100" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,120,-74" Fill="#12FFFFFF" IsHitTestVisible="False" />
+        <StackPanel>
+          <TextBlock Text="PAINEL OPERACIONAL" Foreground="{DynamicResource BrandTextBrush}" Opacity="0.82" FontSize="11" FontWeight="SemiBold" />
+          <TextBlock Text="Sua unidade em um só lugar" Foreground="{DynamicResource BrandTextBrush}" FontSize="30" FontWeight="SemiBold" Margin="0,8,0,8" />
+          <TextBlock Text="Acompanhe o fluxo do dia e priorize o que precisa de atenção." Foreground="{DynamicResource BrandTextBrush}" Opacity="0.88" FontSize="14" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Border Background="#22000000" CornerRadius="10" Padding="12,7" HorizontalAlignment="Right">
+            <TextBlock Text="{Binding UnitLabel}" Foreground="{DynamicResource BrandTextBrush}" FontSize="12" />
+          </Border>
+          <Button Content="Atualizar dados" Command="{Binding RefreshCommand}" Margin="0,14,0,0" HorizontalAlignment="Right" ToolTip="Consulta novamente os dados disponíveis da API." />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TextBlock Text="Resumo do dia" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14" />
+    <UniformGrid Columns="4" Margin="-6,0,-6,24">
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Pacientes aguardando" FontWeight="SemiBold" /><TextBlock Text="{Binding QueueWaitingCount}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Fila atualmente conectada" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Consultas concluídas" FontWeight="SemiBold" /><TextBlock Text="{Binding TodayCompletedCount}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Consultas de hoje concluídas" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Tempo médio de espera" FontWeight="SemiBold" /><TextBlock Text="—" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Calculado com atendimentos" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Consultas agendadas" FontWeight="SemiBold" /><TextBlock Text="{Binding TodayScheduledCount}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Hoje, incluindo chamadas" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Faltas" FontWeight="SemiBold" /><TextBlock Text="{Binding TodayMissedCount}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Consultas de hoje com falta" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Cancelamentos" FontWeight="SemiBold" /><TextBlock Text="{Binding TodayCancelledCount}" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Consultas de hoje canceladas" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}" Margin="6" Padding="18"><StackPanel><TextBlock Text="Consultórios ativos" FontWeight="SemiBold" /><TextBlock Text="—" FontSize="30" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,10,0,4" /><TextBlock Text="Aguardando cadastro da unidade" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></Border>
+    </UniformGrid>
+
+    <Grid Margin="0,0,0,24">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="1.3*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+        <StackPanel>
+          <TextBlock Text="Visão da agenda" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="Consultas agendadas, faltas, cancelamentos e ocupação aparecerão aqui quando a agenda estiver integrada." Style="{StaticResource Muted}" Margin="0,6,0,18" />
+          <Grid Height="154" Margin="0,0,0,8" VerticalAlignment="Bottom">
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+              <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <Border Grid.Column="0" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,72,6,0" />
+              <Border Grid.Column="1" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,46,6,0" />
+              <Border Grid.Column="2" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,88,6,0" />
+              <Border Grid.Column="3" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,60,6,0" />
+              <Border Grid.Column="4" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,94,6,0" />
+              <Border Grid.Column="5" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,76,6,0" />
+              <Border Grid.Column="6" Background="{DynamicResource BrandSoftBrush}" CornerRadius="5,5,0,0" Margin="6,102,6,0" />
+              <TextBlock Text="Aguardando série de atendimentos" Foreground="{DynamicResource SecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Grid.ColumnSpan="7" FontSize="12" />
+            </Grid>
+            <UniformGrid Grid.Row="1" Columns="7"><TextBlock Text="Seg" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Ter" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Qua" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Qui" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Sex" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Sáb" TextAlignment="Center" Style="{StaticResource Muted}" /><TextBlock Text="Dom" TextAlignment="Center" Style="{StaticResource Muted}" /></UniformGrid>
+          </Grid>
+        </StackPanel>
+      </Border>
+      <Border Grid.Column="1" Style="{StaticResource Card}" Margin="12,0,0,0">
+        <StackPanel>
+          <TextBlock Text="Atenção da equipe" FontSize="18" FontWeight="SemiBold" />
+          <TextBlock Text="Os alertas vão reunir fila alta, atrasos e conflitos da agenda." Style="{StaticResource Muted}" Margin="0,6,0,18" />
+          <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="10" Padding="14"><StackPanel><TextBlock Text="Nenhum alerta avaliado ainda" FontWeight="SemiBold" /><TextBlock Text="As regras serão ativadas quando fila e agenda fornecerem os dados necessários." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
+          <Button Content="Ver central de alertas" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="alerts" Margin="0,16,0,0" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock Text="Fluxo da unidade" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="Pacientes cadastrados, fila e vagas relâmpago disponíveis neste momento." Style="{StaticResource Muted}" Margin="0,6,0,0" /></StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><StackPanel Margin="0,0,28,0"><TextBlock Text="{Binding PatientTotalCount}" FontSize="23" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" TextAlignment="Center" /><TextBlock Text="pacientes" Style="{StaticResource Muted}" FontSize="11" /></StackPanel><StackPanel Margin="0,0,28,0"><TextBlock Text="{Binding QueueWaitingCount}" FontSize="23" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" TextAlignment="Center" /><TextBlock Text="na fila" Style="{StaticResource Muted}" FontSize="11" /></StackPanel><StackPanel><TextBlock Text="{Binding SlotOpenCount}" FontSize="23" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" TextAlignment="Center" /><TextBlock Text="vagas ativas" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel>
+      </Grid>
+    </Border>
+  </StackPanel>
+</UserControl>

@@ -1,0 +1,7 @@
+<Window x:Class="Nora.Desktop.Views.ObsLocationDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" Title="Encontrar UBS" Width="430" Height="220" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False">
+  <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <TextBlock x:Name="Status" Text="Buscando sua localização. O Windows pode solicitar permissão." TextWrapping="Wrap" FontSize="15" />
+    <wv2:WebView2 x:Name="Browser" Grid.Row="1" Height="32" VerticalAlignment="Center" />
+    <Button Grid.Row="2" Content="Cancelar" IsCancel="True" HorizontalAlignment="Right" MinWidth="90" />
+  </Grid>
+</Window>

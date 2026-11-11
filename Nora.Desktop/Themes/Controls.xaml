@@ -10,14 +10,14 @@
     <Setter Property="LineHeight" Value="21" />
   </Style>
   <Style x:Key="Card" TargetType="Border">
-    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CardGradientBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="16" />
     <Setter Property="Padding" Value="24" />
     <Setter Property="Effect">
       <Setter.Value>
-        <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.06" />
+        <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.12" Color="#061E3B" />
       </Setter.Value>
     </Setter>
   </Style>
@@ -26,19 +26,24 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="16,11" />
+    <Setter Property="Padding" Value="18,12" />
     <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="MinHeight" Value="42" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="Frame" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+          <Border x:Name="Frame" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform><ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1" /></Border.RenderTransform>
             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+              <Setter TargetName="Frame" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1.018" Duration="0:0:0.12" /><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1.018" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
+              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16" /><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="Frame" Property="Opacity" Value="0.75" />
@@ -57,9 +62,10 @@
     </Setter>
   </Style>
   <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BrandGradientBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+    <Setter Property="MinWidth" Value="132" />
     <Setter Property="ContentTemplate">
       <Setter.Value>
         <DataTemplate>
@@ -69,7 +75,8 @@
     </Setter>
     <Style.Triggers>
       <Trigger Property="IsMouseOver" Value="True">
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource BrandGradientHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" />
       </Trigger>
     </Style.Triggers>
   </Style>

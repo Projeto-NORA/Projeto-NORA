@@ -1,3 +1,4 @@
+using Nora.Api.DAOs;
 using Nora.Api.Database;
 using Nora.Api.Models;
 using Nora.Api.Services;
@@ -19,6 +20,31 @@ internal static class ApiEndpoints
             var response=await auth.LoginAsync(request,ct);
             return response is null ? Results.Unauthorized() : Results.Ok(response);
         }).RequireRateLimiting("login");
+        app.MapPost("/api/auth/password-reset/request", async (PasswordResetStartRequest request,
+            PasswordResetService service, CancellationToken ct) =>
+            Results.Accepted(value: await service.StartAsync(request, ct)))
+            .RequireRateLimiting("password-reset-request");
+        app.MapPost("/api/auth/password-reset/confirm", async (PasswordResetFinishRequest request,
+            PasswordResetService service, CancellationToken ct) =>
+            Results.Ok(await service.FinishAsync(request, ct)))
+            .RequireRateLimiting("password-reset-confirm");
+        app.MapGet("/api/address/cep/{cep}", async (string cep, CepLookupService service, CancellationToken ct) =>
+        {
+            var address = await service.LookupAsync(cep, ct);
+            return address is null ? Results.NotFound() : Results.Ok(address);
+        }).RequireRateLimiting("cep");
+        app.MapGet("/api/registration/units", async (HealthUnitService service, CancellationToken ct) =>
+            Results.Ok(new { units = (await service.ListAsync(ct)).Select(unit => new { unit.Id, unit.Name, unit.Region }) }))
+            .RequireRateLimiting("registration-units");
+        app.MapPost("/api/registration/start", async (RegistrationStartRequest request, PatientRegistrationService service, CancellationToken ct) =>
+            Results.Ok(await service.StartAsync(request, ct))).RequireRateLimiting("registration-start");
+        app.MapPost("/api/registration/send-code", async (RegistrationSendRequest request, PatientRegistrationService service, CancellationToken ct) =>
+        {
+            await service.SendCodeAsync(request, ct);
+            return Results.NoContent();
+        }).RequireRateLimiting("registration-send");
+        app.MapPost("/api/registration/confirm", async (RegistrationConfirmRequest request, PatientRegistrationService service, CancellationToken ct) =>
+            Results.Ok(await service.ConfirmAsync(request, ct))).RequireRateLimiting("registration-confirm");
         var auth=app.MapGroup("/api/auth").AddEndpointFilter(new SessionFilter(null));
         auth.MapGet("/me",(HttpContext context)=>Results.Ok(Session(context).User));
         auth.MapPost("/logout",async(HttpContext context,AuthService service,CancellationToken ct)=>
@@ -27,22 +53,89 @@ internal static class ApiEndpoints
             return Results.NoContent();
         });
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
-        obs.MapGet("/patients",async(AccountService service,CancellationToken ct)=>Results.Ok(await service.PatientsAsync(ct)));
-        obs.MapPost("/patients",async(CreatePatientRequest request,AccountService service,CancellationToken ct)=>Results.Json(await service.CreatePatientAsync(request,ct),statusCode:StatusCodes.Status201Created));
-        obs.MapPatch("/patients/{id:guid}/active",async(Guid id,SetPatientActiveRequest request,WorkflowService service,CancellationToken ct)=>
+        obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context).User.Id, ct)));
+        obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => registry.ListAsync(unitId, ct), ct)));
+        obs.MapPost("/obs/units/{unitId:guid}/registry", async (Guid unitId, UnitPatientRecord request, HttpContext context, UnitAccessService access, UnitPatientRegistryDao registry, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecuteAsync(session, unitId, async () => { await registry.CreateAsync(unitId, session.User.Id, request, ct); return true; }, ct);
+            return Results.Json(new { created = true }, statusCode: StatusCodes.Status201Created);
+        });
+        obs.MapPut("/obs/units/{unitId:guid}/registry", async (Guid unitId, UnitPatientRecord request, HttpContext context, UnitAccessService access, UnitPatientStatusService service, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecuteAsync(session, unitId, async () => { await service.UpdateDetailsAsync(unitId, session.User.Id, request, ct); return true; }, ct);
+            return Results.NoContent();
+        });
+        obs.MapPatch("/obs/units/{unitId:guid}/registry/email", async (Guid unitId, UnitPatientEmailRequest request, HttpContext context, UnitAccessService access, UnitPatientStatusService status, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecuteAsync(session, unitId, async () => { await status.UpdateEmailAsync(unitId, session.User.Id, request.Cpf, request.Email, ct); return true; }, ct);
+            return Results.NoContent();
+        });
+        obs.MapPatch("/obs/units/{unitId:guid}/registry/active", async (Guid unitId, UnitPatientActiveRequest request, HttpContext context, UnitAccessService access, UnitPatientStatusService status, UnitLightningService lightning, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecuteAsync(session, unitId, async () => { await status.SetActiveAsync(unitId, session.User.Id, request, ct); return true; }, ct);
+            await lightning.TryAdvanceAsync(unitId, ct);
+            return Results.NoContent();
+        });
+        obs.MapGet("/obs/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct)));
+        obs.MapPost("/obs/units/{unitId:guid}/appointments", async (Guid unitId, CreateAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            var result = await access.ExecuteAsync(session, unitId, () => appointments.CreateAsync(unitId, session.User.Id, request, ct), ct);
+            return Results.Json(result, statusCode: StatusCodes.Status201Created);
+        });
+        obs.MapPatch("/obs/units/{unitId:guid}/appointments/{id:guid}/status", async (Guid unitId, Guid id, AppointmentStatusRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            return Results.Ok(await access.ExecuteAsync(session, unitId, () => appointments.ChangeStatusAsync(unitId, session.User.Id, id, request, ct), ct));
+        });
+        obs.MapGet("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListAsync(unitId, ct), ct)));
+        obs.MapPost("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, AddUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            var entry = await access.ExecuteAsync(session, unitId, () => waiting.AddAsync(unitId, session.User.Id, request, ct), ct);
+            await lightningService.TryAdvanceAsync(unitId, ct);
+            return Results.Json(entry, statusCode: StatusCodes.Status201Created);
+        });
+        obs.MapPost("/obs/units/{unitId:guid}/waiting-list/{id:long}/cancel", async (Guid unitId, long id, CancelUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecuteAsync(session, unitId, async () => { await waiting.CancelAsync(unitId, session.User.Id, id, request.Confirmed, ct); return true; }, ct);
+            await lightningService.TryAdvanceAsync(unitId, ct);
+            return Results.NoContent();
+        });
+        obs.MapGet("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, ct), ct)));
+        obs.MapPost("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, CreateUnitLightningSlotRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            var slot = await access.ExecuteAsync(session, unitId, () => lightning.CreateAsync(unitId, session.User.Id, request, ct), ct);
+            await lightningService.TryAdvanceAsync(unitId, ct);
+            return Results.Json(slot, statusCode: StatusCodes.Status201Created);
+        });
+        var legacyObs = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs")).AddEndpointFilter(new LegacyWorkflowFilter());
+        legacyObs.MapGet("/patients",async(AccountService service,CancellationToken ct)=>Results.Ok(await service.PatientsAsync(ct)));
+        legacyObs.MapPost("/patients",async(CreatePatientRequest request,AccountService service,CancellationToken ct)=>Results.Json(await service.CreatePatientAsync(request,ct),statusCode:StatusCodes.Status201Created));
+        legacyObs.MapPatch("/patients/{id:guid}/active",async(Guid id,SetPatientActiveRequest request,WorkflowService service,CancellationToken ct)=>
         {
             await service.SetPatientActiveAsync(id,request,ct);
             return Results.NoContent();
         });
-        obs.MapGet("/queue",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.QueueAsync(ct)));
-        obs.MapPost("/queue",async(AddQueueRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddQueueAsync(request,ct),statusCode:StatusCodes.Status201Created));
-        obs.MapPost("/queue/{id:long}/cancel",async(long id,WorkflowService service,CancellationToken ct)=>
+        legacyObs.MapGet("/queue",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.QueueAsync(ct)));
+        legacyObs.MapPost("/queue",async(AddQueueRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddQueueAsync(request,ct),statusCode:StatusCodes.Status201Created));
+        legacyObs.MapPost("/queue/{id:long}/cancel",async(long id,WorkflowService service,CancellationToken ct)=>
         {
             await service.CancelQueueAsync(id,ct);
             return Results.NoContent();
         });
-        obs.MapGet("/slots",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SlotsAsync(ct)));
-        obs.MapPost("/slots",async(CreateSlotRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddSlotAsync(request,ct),statusCode:StatusCodes.Status201Created));
+        legacyObs.MapGet("/slots",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SlotsAsync(ct)));
+        legacyObs.MapPost("/slots",async(CreateSlotRequest request,WorkflowService service,CancellationToken ct)=>Results.Json(await service.AddSlotAsync(request,ct),statusCode:StatusCodes.Status201Created));
         var patient=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient"));
         patient.MapPost("/patient/presence",async(HttpContext context,AuthService service,CancellationToken ct)=>
         {
@@ -52,11 +145,75 @@ internal static class ApiEndpoints
         {
             return await service.SetPresenceAsync(Session(context),false,ct)>0 ? Results.NoContent() : Results.Unauthorized();
         });
-        patient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context),ct)));
-        patient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context),request,ct)));
-        app.MapGet("/api/municipal/summary",async(WorkflowService service,CancellationToken ct)=>Results.Ok(await service.SummaryAsync(ct))).AddEndpointFilter(new SessionFilter("municipal"));
+        patient.MapGet("/patient/units", async (HttpContext context, HealthUnitService service, UnitAccessService access, CancellationToken ct) =>
+        {
+            var session = Session(context); var visible = new List<HealthUnit>();
+            foreach (var unit in await service.ListForPatientAsync(session.User.Id, ct))
+            {
+                try { await access.ExecutePatientAsync(session, unit.Id, _ => Task.FromResult(true), ct); visible.Add(unit); }
+                catch (ApiForbiddenException) { }
+            }
+            return Results.Ok(new { units = visible });
+        });
+        patient.MapPost("/patient/units/link", async (HttpContext context, PatientUnitLinkRequest request, PatientRegistrationService service, CancellationToken ct) =>
+            Results.Ok(await service.LinkUnitsAsync(Session(context), request, ct))).RequireRateLimiting("patient-link-units");
+        patient.MapGet("/patient/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+            Results.Ok(new { appointments = await access.ExecutePatientAsync(Session(context), unitId, cpf => appointments.ListAsync(unitId, from, to, cpf, ct), ct) }));
+        patient.MapPost("/patient/units/{unitId:guid}/appointments/{id:guid}/cancel", async (Guid unitId, Guid id, CancelAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            return Results.Ok(await access.ExecutePatientAsync(session, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf), ct));
+        });
+        patient.MapGet("/patient/units/{unitId:guid}/lightning-offers", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            await access.ExecutePatientAsync(session, unitId, _ => Task.FromResult(true), ct);
+            await lightningService.TryAdvanceAsync(unitId, ct);
+            return Results.Ok(new { offers = await access.ExecutePatientAsync(session, unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) });
+        });
+        patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
+            Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }));
+        patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
+        {
+            var session = Session(context);
+            var result = await access.ExecutePatientAsync(session, unitId, cpf => lightning.RespondAsync(unitId, session.User.Id, cpf, id, request.Accept, ct), ct);
+            if (!result.Accepted) await lightningService.TryAdvanceAsync(unitId, ct);
+            return Results.Ok(result);
+        });
+        var legacyPatient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient")).AddEndpointFilter(new LegacyWorkflowFilter());
+        legacyPatient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context),ct)));
+        legacyPatient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context),request,ct)));
+        var municipal = app.MapGroup("/api/municipal").AddEndpointFilter(new SessionFilter("municipal"));
+        municipal.MapGet("/staff", async (HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListStaffAsync(ct)));
+        municipal.MapGet("/staff/{id:guid}/units", async (Guid id, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(id, ct)));
+        municipal.MapPut("/staff/{id:guid}/units/{unitId:guid}", async (Guid id, Guid unitId, HttpContext context, HealthUnitService service, CancellationToken ct) =>
+        {
+            await service.SetStaffAccessAsync(id, unitId, Session(context).User.Id, true, ct);
+            return Results.NoContent();
+        });
+        municipal.MapDelete("/staff/{id:guid}/units/{unitId:guid}", async (Guid id, Guid unitId, HttpContext context, HealthUnitService service, CancellationToken ct) =>
+        {
+            await service.SetStaffAccessAsync(id, unitId, Session(context).User.Id, false, ct);
+            return Results.NoContent();
+        });
+        municipal.MapGet("/units", async (HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListAsync(ct)));
+        municipal.MapGet("/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => registry.ListAsync(unitId, ct), ct)));
+        municipal.MapGet("/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct, "appointment_read")));
+        municipal.MapPost("/units", async (HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, ct), statusCode: StatusCodes.Status201Created));
+        municipal.MapPut("/units/{id:guid}", async (Guid id, HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.UpdateAsync(id, request, ct)));
+        app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
+            Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }
     private static SessionInfo Session(HttpContext context)=>(SessionInfo)context.Items[typeof(SessionInfo)]!;
+    private static bool LegacyEnabled(IConfiguration config, IHostEnvironment environment) => environment.IsDevelopment() && config.GetValue("Nora:LegacyGlobalWorkflow:Enabled", false);
+    private sealed class LegacyWorkflowFilter : IEndpointFilter
+    {
+        public ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
+            => LegacyEnabled(invocation.HttpContext.RequestServices.GetRequiredService<IConfiguration>(), invocation.HttpContext.RequestServices.GetRequiredService<IHostEnvironment>())
+                ? next(invocation) : ValueTask.FromResult<object?>(Results.StatusCode(StatusCodes.Status403Forbidden));
+    }
     private sealed class SessionFilter(string? scope):IEndpointFilter
     {
         public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation,EndpointFilterDelegate next)

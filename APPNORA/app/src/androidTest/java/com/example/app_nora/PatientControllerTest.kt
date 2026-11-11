@@ -33,12 +33,68 @@ class PatientControllerTest {
             releaseReload?.await()
             return PatientOverview(user, emptyList(), emptyList())
         }
+        override suspend fun units(token: String) = listOf(
+            PatientHealthUnit("unit-id", "UBS Teste", "Centro", "Rua de teste", -23.5, -46.6),
+            PatientHealthUnit("other-id", "UBS Outra", "Norte", "Rua dois", -20.0, -40.0))
+        override suspend fun appointments(token: String, unitId: String) = listOf(PatientAppointment(unitId, "Clínica", "Profissional", "2026-11-10T12:00:00Z", "scheduled"))
         override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
         override suspend fun logout(token: String) = Unit
         override suspend fun presence(token: String, online: Boolean) {
             presenceFailure?.let { throw it }
             published += online
         }
+    }
+
+    @Test fun unitsAreLoadedForSessionAndClearedOnLogout() = runBlocking {
+        val controller = PatientController(isolatedContext()) { PresenceApi() }
+        controller.changeAddress("https://nora.example.test")
+        controller.login("patient@example.test", "test-only-input")
+        controller.loadUnits()
+        assertEquals("UBS Teste", controller.state.units?.first()?.name)
+        assertEquals("other-id", controller.selectNearestUnit(-20.01, -40.01)?.id)
+        assertEquals("other-id", controller.state.selectedUnitId)
+        controller.selectUnit("unit-id")
+        assertEquals("unit-id", controller.state.selectedUnitId)
+        controller.loadAppointments()
+        assertEquals("unit-id", controller.state.appointments?.single()?.id)
+        controller.selectUnit("other-id")
+        assertNull(controller.state.appointments)
+        controller.selectUnit("unit-id")
+        controller.selectUnit("unknown")
+        assertEquals("unit-id", controller.state.selectedUnitId)
+        controller.logout()
+        assertNull(controller.state.units)
+        assertNull(controller.state.selectedUnitId)
+        assertNull(controller.state.appointments)
+    }
+
+    @Test fun registrationUsesSelectedUnitsAndReturnsPartialResult() = runBlocking {
+        val user = PatientUser("patient", "Paciente")
+        var requestedUnits = emptyList<String>()
+        var sentOption = ""
+        val api = object : PatientApi {
+            override suspend fun login(identifier: String, password: String) = PatientSession("token", "2099-01-01T00:00:00Z", user)
+            override suspend fun overview(token: String) = PatientOverview(user, emptyList(), emptyList())
+            override suspend fun startRegistration(name: String, cpf: String, password: String, unitIds: List<String>): RegistrationStart {
+                requestedUnits = unitIds
+                return RegistrationStart("challenge", listOf(RegistrationEmailOption("option", "p***@example.test")))
+            }
+            override suspend fun sendRegistrationCode(challengeId: String, emailOptionId: String) { sentOption = emailOptionId }
+            override suspend fun confirmRegistration(challengeId: String, code: String) = RegistrationResult(code == "123456", listOf("unit-1"), listOf("unit-2"))
+            override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
+            override suspend fun logout(token: String) = Unit
+            override suspend fun presence(token: String, online: Boolean) = Unit
+        }
+        val controller = PatientController(isolatedContext()) { api }
+        controller.changeAddress("https://nora.example.test")
+        val started = controller.startRegistration("Paciente", "52998224725", "synthetic-password", listOf("unit-1", "unit-2"))
+        controller.sendRegistrationCode(requireNotNull(started.challengeId), started.emails.single().id)
+        val result = controller.confirmRegistration("challenge", "123456")
+        assertEquals(listOf("unit-1", "unit-2"), requestedUnits)
+        assertEquals("option", sentOption)
+        assertEquals(listOf("unit-1"), result.linkedUnits)
+        assertEquals(listOf("unit-2"), result.unmatchedUnits)
+        assertNull(controller.state.session)
     }
 
     @Test fun obsoleteLifecycleCannotClearNewPresenceAndLogoutStopsPublishing() = runBlocking {
@@ -120,6 +176,7 @@ class PatientControllerTest {
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         assertNotNull(controller.state.session)
+        controller.refresh()
         assertNotNull(controller.state.overview)
         controller.logout()
         assertNull(controller.state.session)
@@ -161,6 +218,7 @@ class PatientControllerTest {
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         assertNull(controller.state.message)
+        controller.refresh()
         controller.respond(offer.id, accept)
         assertEquals(expectedStatus, requireNotNull(controller.state.overview).offers.single().status)
         assertEquals("test-token", requireNotNull(controller.state.session).token)
@@ -171,6 +229,46 @@ class PatientControllerTest {
         assertFalse(controller.state.message.orEmpty().contains("tente novamente"))
     }
 
+    @Test fun registrationUsesRealSeparateUnitDatabases() = runBlocking {
+        val address = InstrumentationRegistry.getArguments().getString("noraApiUrl").orEmpty()
+        assumeTrue("Pass noraApiUrl for the isolated registration fixture", address.isNotBlank())
+        val api = NoraApi(address)
+        val units = api.registrationUnits().filter { it.name.startsWith("UBS Cadastro E2E ") }.sortedBy { it.name }
+        assertEquals(3, units.size)
+        val started = api.startRegistration("Paciente Sintético", "52998224725", "Disposable-patient-registration!29", units.map { it.id })
+        val challenge = requireNotNull(started.challengeId)
+        assertEquals(2, started.emails.size)
+        val option = started.emails.single { it.maskedEmail.startsWith("f***") }
+        api.sendRegistrationCode(challenge, option.id)
+        val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val connection = java.net.URL("$address/__checks/registration-code").openConnection().apply { connectTimeout = 10000; readTimeout = 10000 }
+            connection.getInputStream().bufferedReader().use { org.json.JSONObject(it.readText()).getString("code") }
+        }
+        val result = api.confirmRegistration(challenge, code)
+        assertTrue(result.codeValid)
+        assertEquals(units.take(2).map { it.id }.toSet(), result.linkedUnits.toSet())
+        assertEquals(listOf(units[2].id), result.unmatchedUnits)
+        val session = api.login("52998224725", "Disposable-patient-registration!29")
+        assertEquals(units.take(2).map { it.id }.toSet(), api.units(session.token).map { it.id }.toSet())
+        val link = api.linkUnits(session.token, listOf(units[0].id, units[2].id))
+        assertEquals(listOf(units[0].id), link.linkedUnits)
+        assertEquals(listOf(units[2].id), link.unmatchedUnits)
+        val appointments = api.appointments(session.token, units[0].id)
+        val clinic = appointments.single { it.specialty == "Clínica de teste" }
+        assertTrue(api.appointments(session.token, units[1].id).isEmpty())
+        try { api.appointments(session.token, units[2].id); fail("UBS sem vínculo não deve retornar consultas") }
+        catch (failure: ApiFailure) { assertEquals(403, failure.status) }
+        api.cancelAppointment(session.token, units[0].id, clinic.id)
+        assertEquals("cancelled", api.appointments(session.token, units[0].id).single { it.id == clinic.id }.status)
+        val available = api.unitOffers(session.token, units[0].id).single { it.status == "pending" }
+        assertEquals("Cardiologia", available.specialty)
+        assertEquals("offered", api.unitQueue(session.token, units[0].id).single { it.specialty == "Cardiologia" }.status)
+        api.respondUnitOffer(session.token, units[0].id, available.id, true)
+        assertEquals("accepted", api.unitOffers(session.token, units[0].id).single { it.id == available.id }.status)
+        assertEquals("scheduled", api.appointments(session.token, units[0].id).single { it.specialty == "Cardiologia" && it.status == "scheduled" }.status)
+        api.logout(session.token)
+    }
+
     @Test fun patientUsesRealDisposablePostgresApi() = runBlocking {
         val address = InstrumentationRegistry.getArguments().getString("noraApiUrl").orEmpty()
         assumeTrue("Pass noraApiUrl for the isolated integration fixture", address.isNotBlank())
@@ -178,6 +276,7 @@ class PatientControllerTest {
         controller.changeAddress(address)
         controller.login("patient1@example.test", "Disposable-test-Account!29")
         assertNull(controller.state.message)
+        controller.refresh()
         val session = requireNotNull(controller.state.session)
         val generation = controller.beginPresence()
         controller.publishPresence(session, generation, true)

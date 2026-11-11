@@ -1,0 +1,338 @@
+[
+  {
+    "File": "secretaria-login-dark-01.png",
+    "Screen": "Login",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "Tela desconectada"
+  },
+  {
+    "File": "secretaria-login-light-01.png",
+    "Screen": "Login",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "Tela desconectada"
+  },
+  {
+    "File": "secretaria-home-dark-01.png",
+    "Screen": "Vis\u00E3o geral",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-home-dark-02.png",
+    "Screen": "Vis\u00E3o geral",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 556.5233333333335,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-home-light-01.png",
+    "Screen": "Vis\u00E3o geral",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-home-light-02.png",
+    "Screen": "Vis\u00E3o geral",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 556.5233333333335,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-units-dark-01.png",
+    "Screen": "Unidades",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-units-light-01.png",
+    "Screen": "Unidades",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-specialties-dark-01.png",
+    "Screen": "Especialidades",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-specialties-light-01.png",
+    "Screen": "Especialidades",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-network-dark-01.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-network-light-01.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-indicators-dark-01.png",
+    "Screen": "Indicadores",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-indicators-dark-02.png",
+    "Screen": "Indicadores",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 100.95000000000005,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-indicators-light-01.png",
+    "Screen": "Indicadores",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-indicators-light-02.png",
+    "Screen": "Indicadores",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 100.95000000000005,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-slots-dark-01.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-slots-dark-02.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 411.2266666666667,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-slots-light-01.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-slots-light-02.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 411.2266666666667,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-capacity-dark-01.png",
+    "Screen": "Capacidade",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-capacity-light-01.png",
+    "Screen": "Capacidade",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-alerts-dark-01.png",
+    "Screen": "Alertas",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-alerts-dark-02.png",
+    "Screen": "Alertas",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 24.423333333333403,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-alerts-light-01.png",
+    "Screen": "Alertas",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-alerts-light-02.png",
+    "Screen": "Alertas",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 24.423333333333403,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-reports-dark-01.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-reports-dark-02.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 13.06333333333339,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-reports-light-01.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-reports-light-02.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 13.06333333333339,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-communication-dark-01.png",
+    "Screen": "Comunica\u00E7\u00E3o",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-communication-light-01.png",
+    "Screen": "Comunica\u00E7\u00E3o",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-users-dark-01.png",
+    "Screen": "Usu\u00E1rios e hist\u00F3rico",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-users-light-01.png",
+    "Screen": "Usu\u00E1rios e hist\u00F3rico",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-dark-01.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-dark-02.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 562,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-dark-03.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Dark",
+    "Part": 3,
+    "ScrollOffset": 1124,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-dark-04.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Dark",
+    "Part": 4,
+    "ScrollOffset": 1517.3033333333333,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-light-01.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-light-02.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 562,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-light-03.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Light",
+    "Part": 3,
+    "ScrollOffset": 1124,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  },
+  {
+    "File": "secretaria-settings-light-04.png",
+    "Screen": "Configura\u00E7\u00F5es",
+    "Theme": "Light",
+    "Part": 4,
+    "ScrollOffset": 1517.3033333333333,
+    "Source": "HTTP simulado; dados sint\u00E9ticos"
+  }
+]

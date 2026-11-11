@@ -16,10 +16,35 @@ public sealed class WorkflowDao(DatabaseHelper database, TimeProvider time)
     }, ct);
     public Task<MunicipalSummary> SummaryAsync(CancellationToken ct) => InTransactionAsync(async c =>
     {
-        await using var command = database.Command(c, "SELECT (SELECT count(*) FROM nora.accounts WHERE scope='patient'),(SELECT count(*) FROM nora.queue_entries WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora.slots WHERE status IN ('open','offered')),(SELECT count(*) FROM nora.offers WHERE status='accepted')");
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        return new MunicipalSummary(reader.GetInt64(0),reader.GetInt64(1),reader.GetInt64(2),reader.GetInt64(3));
+        long[] totals = new long[10];
+        await using (var command = database.Command(c, "SELECT (SELECT count(*) FROM nora.accounts WHERE scope='patient'),(SELECT count(*) FROM nora.queue_entries WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora.slots WHERE status IN ('open','offered')),(SELECT count(*) FROM nora.offers WHERE status='accepted'),(SELECT count(*) FROM nora.slots),(SELECT count(*) FROM nora.offers),(SELECT count(*) FROM nora.offers WHERE status='declined'),(SELECT count(*) FROM nora.offers WHERE status='expired'),(SELECT count(*) FROM nora.offers WHERE status='pending'),(SELECT count(*) FROM nora.offers WHERE status='cancelled')"))
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            await reader.ReadAsync(ct);
+            for (var i = 0; i < totals.Length; i++) totals[i] = reader.GetInt64(i);
+        }
+        // A coorte é definida pela criação da vaga; os estados refletem o momento da consulta.
+        var cohorts = new List<LightningCohort>();
+        var now = time.GetUtcNow();
+        const string query = """
+            SELECT d.days,
+              count(DISTINCT s.id) FILTER (WHERE s.status IN ('open','offered')),
+              count(o.id) FILTER (WHERE o.status='accepted'),
+              count(DISTINCT s.id), count(o.id),
+              count(o.id) FILTER (WHERE o.status='declined'),
+              count(o.id) FILTER (WHERE o.status='expired'),
+              count(o.id) FILTER (WHERE o.status='pending'),
+              count(o.id) FILTER (WHERE o.status='cancelled')
+            FROM (VALUES (7), (30), (90)) AS d(days)
+            LEFT JOIN nora.slots s ON s.created_at >= $1 - d.days * interval '1 day' AND s.created_at <= $1
+            LEFT JOIN nora.offers o ON o.slot_id = s.id
+            GROUP BY d.days ORDER BY d.days
+            """;
+        await using (var command = database.Command(c, query, now))
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct))
+                cohorts.Add(new(reader.GetInt32(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetInt64(5), reader.GetInt64(6), reader.GetInt64(7), reader.GetInt64(8)));
+        return new MunicipalSummary(totals[0], totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[9], cohorts);
     }, ct);
     public Task<QueueEntry> AddQueueAsync(Guid patientId, CancellationToken ct) => InTransactionAsync(async c =>
     {

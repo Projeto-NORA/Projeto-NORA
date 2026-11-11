@@ -13,11 +13,50 @@
         </DataTrigger>
       </Style.Triggers>
     </Style>
+    <Style x:Key="ShortcutKey" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="MinWidth" Value="72" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style x:Key="ShortcutRow" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="11" />
+      <Setter Property="Padding" Value="12" />
+      <Setter Property="Margin" Value="0,0,10,10" />
+    </Style>
   </UserControl.Resources>
   <StackPanel>
-    <TextBlock Text="SUA EXPERIÊNCIA NORA" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandBrush}" Margin="0,0,0,12" />
-    <TextBlock Text="Configurações" FontSize="30" FontWeight="SemiBold" />
-    <TextBlock Text="Deixe o espaço de trabalho do seu jeito. As preferências são salvas neste computador, por aplicativo." Style="{StaticResource Muted}" FontSize="14" Margin="0,10,0,28" />
+    <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="22" Padding="28" Margin="0,0,0,28">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Ellipse Width="132" Height="132" Fill="#16FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-75,-62,0" IsHitTestVisible="False" />
+        <StackPanel>
+          <TextBlock Text="SUA EXPERIÊNCIA NORA" FontSize="11" FontWeight="SemiBold" Foreground="#D9FFFFFF" />
+          <TextBlock Text="Configurações" Foreground="{DynamicResource BrandTextBrush}" FontSize="30" FontWeight="SemiBold" Margin="0,9,0,7" />
+          <TextBlock Text="Personalize aparência, espaço e navegação do seu aplicativo." Foreground="#E6FFFFFF" FontSize="14" />
+        </StackPanel>
+        <Border Grid.Column="1" Width="52" Height="52" CornerRadius="16" Background="#22FFFFFF" BorderBrush="#55FFFFFF" BorderThickness="1" VerticalAlignment="Center"><TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="25" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+      </Grid>
+    </Border>
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
+      <StackPanel>
+        <TextBlock Text="Perfil e unidade" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="Dados que identificam a pessoa conectada e sua unidade de saúde." Style="{StaticResource Muted}" Margin="0,8,0,18" />
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+          <StackPanel Margin="0,0,10,0"><TextBlock Text="Nome da conta" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.AccountName}" /></Border></StackPanel>
+          <StackPanel Grid.Column="1" Margin="10,0,0,0"><TextBlock Text="Unidade vinculada" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.UnitLabel}" /></Border></StackPanel>
+        </Grid>
+        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail, senha e localidade" FontWeight="SemiBold" /><TextBlock Text="A tela está preparada para essas alterações, mas elas precisam ser salvas e validadas pela API. Até essa integração, nenhum dado pessoal é gravado somente neste computador." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
+        <WrapPanel Margin="0,14,0,0"><Button Content="Alterar nome e localidade" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar e-mail" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar senha" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /></WrapPanel>
+      </StackPanel>
+    </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24">
       <StackPanel>
         <TextBlock Text="Conexão" FontSize="20" FontWeight="SemiBold" />
@@ -33,13 +72,13 @@
         <UniformGrid Columns="3" Margin="-6,0">
           <Button Style="{StaticResource AppearanceCard}" Margin="6,0" Command="{Binding AppearanceCommand}" CommandParameter="Light" Tag="{Binding LightSelected}" AutomationProperties.Name="Aparência clara">
             <StackPanel>
-              <Border Background="#F7F5FB" BorderBrush="#DFD8EA" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
+              <Border Background="#F4F7FB" BorderBrush="#D5E0EC" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="22" />
                     <ColumnDefinition />
                   </Grid.ColumnDefinitions>
-                  <Border Background="#EDE6FA" CornerRadius="4" Margin="0,0,6,0" />
+                  <Border Background="#E6F0FA" CornerRadius="4" Margin="0,0,6,0" />
                   <StackPanel Grid.Column="1">
                     <Border Background="White" CornerRadius="4" Height="18" Margin="0,0,0,6" />
                     <Border Background="White" CornerRadius="4" Height="30" />
@@ -53,16 +92,16 @@
           </Button>
           <Button Style="{StaticResource AppearanceCard}" Margin="6,0" Command="{Binding AppearanceCommand}" CommandParameter="Dark" Tag="{Binding DarkSelected}" AutomationProperties.Name="Aparência escura">
             <StackPanel>
-              <Border Background="#15111E" BorderBrush="#4A405D" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
+              <Border Background="#071B33" BorderBrush="#274966" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="22" />
                     <ColumnDefinition />
                   </Grid.ColumnDefinitions>
-                  <Border Background="#38264F" CornerRadius="4" Margin="0,0,6,0" />
+                  <Border Background="#123A5D" CornerRadius="4" Margin="0,0,6,0" />
                   <StackPanel Grid.Column="1">
-                    <Border Background="#201B2B" CornerRadius="4" Height="18" Margin="0,0,0,6" />
-                    <Border Background="#201B2B" CornerRadius="4" Height="30" />
+                    <Border Background="#0C2744" CornerRadius="4" Height="18" Margin="0,0,0,6" />
+                    <Border Background="#0C2744" CornerRadius="4" Height="30" />
                   </StackPanel>
                 </Grid>
               </Border>
@@ -79,9 +118,9 @@
                     <ColumnDefinition />
                     <ColumnDefinition />
                   </Grid.ColumnDefinitions>
-                  <Border Background="#F7F5FB" />
-                  <Border Grid.Column="1" Background="#15111E" />
-                  <TextBlock Grid.ColumnSpan="2" Text="" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="#8B5CF6" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                  <Border Background="#F4F7FB" />
+                  <Border Grid.Column="1" Background="#071B33" />
+                  <TextBlock Grid.ColumnSpan="2" Text="" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="#1479CE" VerticalAlignment="Center" HorizontalAlignment="Center" />
                 </Grid>
               </Border>
               <TextBlock Text="Sistema" FontWeight="SemiBold" FontSize="15" />
@@ -94,12 +133,13 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24">
       <StackPanel>
-        <TextBlock Text="Preferências da interface" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+        <TextBlock Text="Preferências da interface" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="Ajustes aplicados imediatamente a este aplicativo, sem afetar outros computadores." Style="{StaticResource Muted}" Margin="0,7,0,12" />
         <CheckBox IsChecked="{Binding ShowSidebarTips}" Content="Mostrar dicas na barra lateral" />
         <CheckBox IsChecked="{Binding ConfirmClose}" Content="Confirmar antes de fechar o aplicativo" />
         <CheckBox IsChecked="{Binding SaveNavigation}" Content="Retomar a última tela ao abrir" />
         <CheckBox IsChecked="{Binding Animations}" Content="Usar animações suaves ao navegar" />
-        <CheckBox IsChecked="{Binding RememberSidebar}" Content="Lembrar se a barra lateral estava aberta ou recolhida" />
+        <CheckBox IsChecked="{Binding RememberSidebar}" Content="Lembrar a largura escolhida para a barra lateral" />
         <CheckBox IsChecked="{Binding FullScreen}" Content="Usar tela cheia" />
         <TextBlock Text="As preferências de tela e navegação são independentes entre OBS e Municipal." Style="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
       </StackPanel>
@@ -108,23 +148,15 @@
       <StackPanel>
         <TextBlock Text="Atalhos de teclado" FontSize="20" FontWeight="SemiBold" />
         <TextBlock Text="Disponíveis em qualquer tela. A edição dos atalhos ficará para uma próxima etapa." Style="{StaticResource Muted}" Margin="0,8,0,18" />
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition />
-            <ColumnDefinition />
-          </Grid.ColumnDefinitions>
-          <StackPanel>
-            <TextBlock Text="Ctrl + 1    Visão geral" Margin="0,7" />
-            <TextBlock Text="Ctrl + ,    Configurações" Margin="0,7" />
-            <TextBlock Text="Ctrl + B    Alternar barra lateral" Margin="0,7" />
-          </StackPanel>
-          <StackPanel Grid.Column="1">
-            <TextBlock Text="Ctrl + Shift + T    Alternar aparência" Margin="0,7" />
-            <TextBlock Text="F11    Entrar / sair da tela cheia" Margin="0,7" />
-            <TextBlock Text="Esc    Sair da tela cheia" Margin="0,7" />
-            <TextBlock Text="Alt + F4    Fechar aplicativo" Margin="0,7" />
-          </StackPanel>
-        </Grid>
+        <UniformGrid Columns="2" Margin="0,0,-10,-10">
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + 1" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Visão geral" FontWeight="SemiBold" /><TextBlock Text="Abre o Painel da UBS" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + ," FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Configurações" FontWeight="SemiBold" /><TextBlock Text="Abre suas preferências" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + B" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Barra lateral" FontWeight="SemiBold" /><TextBlock Text="Ajusta a navegação" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + Shift + T" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Aparência" FontWeight="SemiBold" /><TextBlock Text="Alterna o tema visual" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="F11" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Tela cheia" FontWeight="SemiBold" /><TextBlock Text="Entra ou sai do modo amplo" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Esc" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Sair da tela cheia" FontWeight="SemiBold" /><TextBlock Text="Volta ao tamanho anterior" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Alt + F4" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Fechar aplicativo" FontWeight="SemiBold" /><TextBlock Text="Respeita sua confirmação" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
+        </UniformGrid>
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}">

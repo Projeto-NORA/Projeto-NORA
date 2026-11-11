@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Net.Mail;
 using Microsoft.AspNetCore.Identity;
 using Nora.Api.DAOs;
 using Nora.Api.Models;
@@ -14,7 +15,13 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
     public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         if (request.Scope is not ("obs" or "municipal" or "patient") || string.IsNullOrWhiteSpace(request.Identifier) || request.Identifier.Length > 254 || request.Password is null || request.Password.Length > 256) throw new ApiInputException();
-        var account = await accounts.FindAsync(request.Scope, AccountService.NormalizeIdentifier(request.Identifier), ct);
+        var identifier = AccountService.NormalizeIdentifier(request.Identifier);
+        if (request.Identifier.Contains('@'))
+        {
+            if (!MailAddress.TryCreate(identifier, out var email) || email.Address != identifier) throw new ApiInputException();
+        }
+        else if (!AccountService.ValidCpf(identifier)) throw new ApiInputException();
+        var account = await accounts.FindAsync(request.Scope, identifier, ct);
         var result = passwords.VerifyHashedPassword(account ?? _dummy, account?.PasswordHash ?? (_dummyHash ??= passwords.HashPassword(_dummy, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)))), request.Password);
         if (account is null || result == PasswordVerificationResult.Failed) return null;
         if (result == PasswordVerificationResult.SuccessRehashNeeded) await accounts.RehashAsync(account.User.Id, passwords.HashPassword(account, request.Password), ct);

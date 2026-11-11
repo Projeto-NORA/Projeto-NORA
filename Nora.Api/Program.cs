@@ -5,9 +5,19 @@ using Nora.Api.Services;
 
 await using var app=NoraApiHost.Create(new WebApplicationOptions
 {
-    Args=args.Where(value => value is not ("--migrate" or "--provision")).ToArray(),
+    Args=args.Where(value => value is not ("--migrate" or "--provision") && !value.StartsWith("--migrate-unit=", StringComparison.Ordinal)).ToArray(),
     ContentRootPath=AppContext.BaseDirectory
 });
+var unitMigrations = args.Where(value => value.StartsWith("--migrate-unit=", StringComparison.Ordinal)).ToArray();
+if (unitMigrations.Length > 0)
+{
+    if (unitMigrations.Length != 1 || args.Contains("--migrate", StringComparer.Ordinal) || args.Contains("--provision", StringComparer.Ordinal) ||
+        !Guid.TryParse(unitMigrations[0]["--migrate-unit=".Length..], out var unitId) || unitId == Guid.Empty)
+        throw new InvalidOperationException("Informe uma única UBS válida para a migração.");
+    await app.Services.GetRequiredService<UnitMigrationDao>().MigrateAsync(unitId);
+    Console.WriteLine("Banco da UBS atualizado.");
+    return;
+}
 if(args.Contains("--migrate",StringComparer.Ordinal))
 {
     await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();

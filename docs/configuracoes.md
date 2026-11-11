@@ -8,7 +8,7 @@ Os três aplicativos oferecem Clara, Escura e Sistema. Sistema é o padrão inic
 
 OBS e Municipal salvam arquivos independentes em `%LOCALAPPDATA%/NORA/obs/preferences.json` e `%LOCALAPPDATA%/NORA/municipal/preferences.json`. O serviço lê/normaliza tema e rota, recupera padrões quando o JSON é inválido e informa o erro na barra inferior. A leitura preserva o arquivo corrompido; uma alteração posterior de preferência substitui o conteúdo pelo estado atual. A gravação usa arquivo temporário e substituição do destino. Se falhar, a interface informa que a mudança vale apenas para a sessão.
 
-As preferências controlam dicas na sidebar, confirmação de fechamento, restauração da navegação, animação ao trocar tela, lembrança da sidebar e tela cheia. Desativar a restauração de navegação faz a próxima abertura iniciar na Home. Desativar a lembrança da sidebar faz a próxima abertura mostrá-la expandida. Restaurar padrões mantém Configurações aberta na sessão atual e salva Home para a próxima abertura.
+As preferências controlam dicas na sidebar, confirmação de fechamento, restauração da navegação, animação ao trocar tela, lembrança da largura da sidebar e tela cheia. Desativar a restauração de navegação faz a próxima abertura iniciar na Home. Desativar a lembrança da sidebar faz a próxima abertura usar a largura padrão. Restaurar padrões mantém Configurações aberta na sessão atual e salva Home para a próxima abertura.
 
 Navegar entre Home e Configurações abre a tela pelo topo, sem herdar a rolagem da anterior. O comportamento vale nos dois desktops com animações ativadas ou desativadas, verificado por invocação dos botões na janela nativa. O diálogo de fechamento também foi medido: seus botões cabem na área cliente no ambiente testado; DPI ampliado continua em P-007.
 
@@ -24,11 +24,13 @@ Tela cheia cobre os limites do monitor e remove a borda da janela. Ao sair, rest
 | Esc | Sair de tela cheia |
 | Alt + F4 | Fechar, respeitando confirmação |
 
-Os atalhos são exibidos e fixos nesta etapa; não há editor de atalhos. Não foram anunciados comandos de pesquisa, atualização ou ações clínicas sem implementação correspondente.
+Os atalhos são exibidos em cartões com a combinação destacada e a ação explicada; permanecem fixos nesta etapa, sem editor de atalhos. Não foram anunciados comandos de pesquisa, atualização ou ações clínicas sem implementação correspondente.
 
 ## Android
 
 `SettingsStore` usa SharedPreferences privadas chamadas `nora_preferences`. Tema e quatro escolhas são persistidos: avisos de consultas, avisos de Vaga Relâmpago, mostrar orientações e espaçamento confortável. Valores com tipos inválidos são substituídos pelos padrões seguros na leitura. Tema é Sistema e as quatro opções são ativadas inicialmente.
+
+Na entrada, Configurações pode ser aberta pelo diálogo do ícone de ajuda; após login, também fica no topo do início e no Perfil. A tela agrupa aparência, notificações, interface e informações do app. As escolhas de notificações são locais e a tela informa que a entrega depende da integração da rede. A opção de sair é exibida quando há uma conta conectada.
 
 Mostrar orientações controla o card de personalização da Home; espaçamento confortável alterna intervalos entre cards. Avisos são preferências locais, entrega externa em P-013. Sobre mostra versão/estado da conta; sair é habilitado para sessão conectada. Restaurar padrões pede confirmação e não encerra a conta.
 
@@ -47,6 +49,12 @@ Depois de entrar, o workspace consulta a API automaticamente a cada 20 segundos,
 Um clique em Pacientes/Fila/Vagas mostra a barra de ações da seleção; o X limpa a seleção. Pacientes oferece Ver detalhes e Desativar/Reativar paciente aos perfis atendente e administrador. Fila oferece Ver detalhes e Cancelar entrada quando waiting/offered. Vagas oferece Ver detalhes. Duplo clique rápido ou Enter abre os detalhes; X/Escape fecha a ficha. Os quatro dados de identificação/contato são copiáveis por botão na ficha, com feedback; telefone ausente permanece explícito e não tem botão de copiar.
 
 O seletor de paciente da Fila mostra somente o nome, tanto selecionado quanto nas opções. O template compartilhado de ComboBox respeita ItemTemplateSelector/DisplayMemberPath; a representação técnica do registro não é apresentada como rótulo.
+
+## Painel OBS da UBS — 2026-10-15
+
+O OBS apresenta Painel da UBS, Fila, Agenda, Pacientes, Vaga Relâmpago, Indicadores e Alertas pela barra lateral. Cada aba mostra somente o seu conteúdo: Painel concentra o resumo, Agenda concentra o calendário, Pacientes concentra a listagem e cadastro, Fila concentra as entradas e Vaga Relâmpago concentra as ofertas. A troca de aba usa uma única área de conteúdo, portanto não mantém a tela anterior por trás ou abaixo da atual. A lateral não possui botão de recolher; sua largura é ajustada arrastando a divisória entre navegação e conteúdo, entre 208 e 380 px, e essa escolha é preservada quando a preferência estiver ativada. Um botão de engrenagem chamado Configurações no rodapé abre a tela correspondente. A conta no rodapé também mostra o nome da sessão e um avatar de iniciais; o menu dela preserva Configurações e Sair. O cabeçalho informa a seção e que os dados pertencem à unidade conectada, sem alegar que o isolamento de unidade já é aplicado pela API.
+
+A seleção de tema preserva Clara, Escura e Sistema, com a nova paleta azul-escuro e branca aplicada aos desktops. Configurações também reúne o cartão Perfil e unidade, com a identidade da sessão e as opções de nome, e-mail, senha e localidade. Essas alterações continuam indisponíveis até a API oferecer uma operação autenticada para salvá-las; os controles explicam a dependência em vez de aparentarem uma mudança local que não seria real. A Agenda, Indicadores e Alertas mantêm estados vazios claros enquanto a API não entrega consultas, métricas e regras de alerta. O calendário não cria consultas de exemplo e os gráficos não mostram séries inventadas.
 
 Desativar/reativar pede confirmação dos efeitos no acesso e na fila. O botão de confirmação acompanha a disponibilidade da operação durante a atualização automática, evitando perder a ação quando a consulta estiver ocupada. Mudança de tela/filtro limpa ações que deixaram de corresponder a uma seleção válida; recarga conserva o item ainda existente pelo identificador. Logout/401 fecha fichas com dados do paciente e limpa a seleção.
 

@@ -1,0 +1,146 @@
+[
+  {
+    "File": "secretaria-units-dark-01.png",
+    "Screen": "Unidades",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-units-dark-02.png",
+    "Screen": "Unidades",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 500.3033333333333,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-units-light-01.png",
+    "Screen": "Unidades",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-units-light-02.png",
+    "Screen": "Unidades",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 500.3033333333333,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-dark-01.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-dark-02.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 523.38,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-dark-03.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Dark",
+    "Part": 3,
+    "ScrollOffset": 623.0266666666668,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-light-01.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-light-02.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 562,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-network-light-03.png",
+    "Screen": "Mapa da rede",
+    "Theme": "Light",
+    "Part": 3,
+    "ScrollOffset": 584.4066666666668,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-slots-dark-01.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-slots-dark-02.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 478.51666666666665,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-slots-light-01.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-slots-light-02.png",
+    "Screen": "Vaga Rel\u00E2mpago",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 478.51666666666665,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-reports-dark-01.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Dark",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-reports-dark-02.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Dark",
+    "Part": 2,
+    "ScrollOffset": 80.35333333333335,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-reports-light-01.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Light",
+    "Part": 1,
+    "ScrollOffset": 0,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  },
+  {
+    "File": "secretaria-reports-light-02.png",
+    "Screen": "Relat\u00F3rios e metas",
+    "Theme": "Light",
+    "Part": 2,
+    "ScrollOffset": 80.35333333333335,
+    "Source": "HTTP simulado; UBS sint\u00E9tica"
+  }
+]
