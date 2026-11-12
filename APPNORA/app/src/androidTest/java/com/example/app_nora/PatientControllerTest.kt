@@ -28,16 +28,16 @@ class PatientControllerTest {
         var reloadStarted: CompletableDeferred<Unit>? = null
         var releaseReload: CompletableDeferred<Unit>? = null
         override suspend fun login(identifier: String, password: String) = PatientSession("presence-token", "2026-10-11T23:00:00Z", user)
-        override suspend fun overview(token: String): PatientOverview {
-            reloadStarted?.complete(Unit)
-            releaseReload?.await()
-            return PatientOverview(user, emptyList(), emptyList())
-        }
         override suspend fun units(token: String) = listOf(
             PatientHealthUnit("unit-id", "UBS Teste", "Centro", "Rua de teste", -23.5, -46.6),
             PatientHealthUnit("other-id", "UBS Outra", "Norte", "Rua dois", -20.0, -40.0))
-        override suspend fun appointments(token: String, unitId: String) = listOf(PatientAppointment(unitId, "Clínica", "Profissional", "2026-11-10T12:00:00Z", "scheduled"))
-        override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
+        override suspend fun appointments(token: String, unitId: String) = listOf(PatientAppointment(unitId, "Clínica", "Profissional", "2026-11-10T12:00:00Z", "2026-11-10T12:30:00Z", "scheduled"))
+        override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> {
+            reloadStarted?.complete(Unit)
+            releaseReload?.await()
+            return emptyList()
+        }
+        override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
         override suspend fun logout(token: String) = Unit
         override suspend fun presence(token: String, online: Boolean) {
             presenceFailure?.let { throw it }
@@ -51,6 +51,7 @@ class PatientControllerTest {
         controller.login("patient@example.test", "test-only-input")
         controller.loadUnits()
         assertEquals("UBS Teste", controller.state.units?.first()?.name)
+        assertNull("Duas UBS vinculadas: a escolha é explícita", controller.state.selectedUnitId)
         assertEquals("other-id", controller.selectNearestUnit(-20.01, -40.01)?.id)
         assertEquals("other-id", controller.state.selectedUnitId)
         controller.selectUnit("unit-id")
@@ -74,14 +75,12 @@ class PatientControllerTest {
         var sentOption = ""
         val api = object : PatientApi {
             override suspend fun login(identifier: String, password: String) = PatientSession("token", "2099-01-01T00:00:00Z", user)
-            override suspend fun overview(token: String) = PatientOverview(user, emptyList(), emptyList())
             override suspend fun startRegistration(name: String, cpf: String, password: String, unitIds: List<String>): RegistrationStart {
                 requestedUnits = unitIds
                 return RegistrationStart("challenge", listOf(RegistrationEmailOption("option", "p***@example.test")))
             }
             override suspend fun sendRegistrationCode(challengeId: String, emailOptionId: String) { sentOption = emailOptionId }
             override suspend fun confirmRegistration(challengeId: String, code: String) = RegistrationResult(code == "123456", listOf("unit-1"), listOf("unit-2"))
-            override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
             override suspend fun logout(token: String) = Unit
             override suspend fun presence(token: String, online: Boolean) = Unit
         }
@@ -131,16 +130,18 @@ class PatientControllerTest {
         api.presenceFailure = null
         controller.publishPresence(session, generation, true)
         assertEquals(listOf(true), api.published)
+        controller.loadUnits()
+        controller.selectUnit("unit-id")
         api.reloadStarted = CompletableDeferred()
         api.releaseReload = CompletableDeferred()
-        val reload = launch { controller.refresh() }
+        val reload = launch { controller.refreshUnit() }
         requireNotNull(api.reloadStarted).await()
         api.presenceFailure = ApiFailure(401, "Sessão terminou")
         controller.publishPresence(session, generation, true)
         requireNotNull(api.releaseReload).complete(Unit)
         reload.join()
         assertNull(controller.state.session)
-        assertNull(controller.state.overview)
+        assertTrue(controller.state.unitData.isEmpty())
         assertEquals("Sessão terminou", controller.state.message)
         assertFalse(controller.state.busy)
     }
@@ -159,7 +160,7 @@ class PatientControllerTest {
         controller.endPresence(session, controller.state.address, generation)
         assertEquals(listOf(true, false), api.published)
         assertNull(controller.state.session)
-        assertNull(controller.state.overview)
+        assertNull(controller.state.units)
     }
 
     @Test fun logoutClearsPatientDataWhenServerIsUnreachable() = runBlocking {
@@ -167,8 +168,7 @@ class PatientControllerTest {
         val api = object : PatientApi {
             override suspend fun login(identifier: String, password: String) =
                 PatientSession("test-token", "2026-10-07T20:00:00Z", user)
-            override suspend fun overview(token: String) = PatientOverview(user, emptyList(), emptyList())
-            override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
+            override suspend fun units(token: String) = listOf(PatientHealthUnit("unit-id", "UBS Teste", "Centro", "Rua", -23.5, -46.6))
             override suspend fun logout(token: String) { throw IOException("Test offline") }
             override suspend fun presence(token: String, online: Boolean) = Unit
         }
@@ -176,131 +176,82 @@ class PatientControllerTest {
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         assertNotNull(controller.state.session)
-        controller.refresh()
-        assertNotNull(controller.state.overview)
+        assertEquals("unit-id", controller.state.selectedUnitId)
         controller.logout()
         assertNull(controller.state.session)
-        assertNull(controller.state.overview)
+        assertNull(controller.state.units)
         assertFalse(controller.state.busy)
         assertTrue(controller.state.message.orEmpty().contains("saída no serviço"))
     }
 
-    @Test fun acceptedOfferRemainsConfirmedWhenReloadFails() = runBlocking {
-        confirmedDecisionSurvivesReloadFailure(true, "accepted")
-    }
-
-    @Test fun declinedOfferRemainsConfirmedWhenReloadFails() = runBlocking {
-        confirmedDecisionSurvivesReloadFailure(false, "declined")
-    }
-
-    private suspend fun confirmedDecisionSurvivesReloadFailure(accept: Boolean, expectedStatus: String) {
-        val user = PatientUser("test-user", "Paciente de teste")
-        val offer = PatientOffer("00000000-0000-0000-0000-000000000001", "Oferta de teste",
-            "2026-10-08T20:10:00Z", "pending")
-        var confirmed = false
-        var responses = 0
-        val api = object : PatientApi {
-            override suspend fun login(identifier: String, password: String) =
-                PatientSession("test-token", "2026-10-08T21:00:00Z", user)
-            override suspend fun overview(token: String): PatientOverview {
-                if (confirmed) throw IOException("Reload unavailable after confirmed decision")
-                return PatientOverview(user, emptyList(), listOf(offer))
-            }
-            override suspend fun respond(token: String, id: String, accept: Boolean) {
-                assertEquals(offer.id, id)
-                responses++
-                confirmed = true
-            }
-            override suspend fun logout(token: String) = Unit
-            override suspend fun presence(token: String, online: Boolean) = Unit
-        }
-        val controller = PatientController(isolatedContext()) { api }
-        controller.changeAddress("https://nora.example.test")
-        controller.login("patient@example.test", "test-only-input")
-        assertNull(controller.state.message)
-        controller.refresh()
-        controller.respond(offer.id, accept)
-        assertEquals(expectedStatus, requireNotNull(controller.state.overview).offers.single().status)
-        assertEquals("test-token", requireNotNull(controller.state.session).token)
-        assertEquals(1, responses)
-        assertFalse(controller.state.busy)
-        assertTrue(controller.state.message.orEmpty().contains("confirmada"))
-        assertTrue(controller.state.message.orEmpty().contains("Atualizar"))
-        assertFalse(controller.state.message.orEmpty().contains("tente novamente"))
-    }
-
-    @Test fun registrationUsesRealSeparateUnitDatabases() = runBlocking {
+    /**
+     * Fixture externa: API + bancos PostgreSQL descartáveis iniciados com NORA_TEST_REGISTRATION=1
+     * (três "UBS Cadastro E2E", código do cadastro em /__checks/registration-code). Passe `noraApiUrl`.
+     * Todo o fluxo do paciente usa somente rotas por UBS, pelo controlador real.
+     */
+    @Test fun patientUsesRealDisposablePostgresApi() = runBlocking {
         val address = InstrumentationRegistry.getArguments().getString("noraApiUrl").orEmpty()
-        assumeTrue("Pass noraApiUrl for the isolated registration fixture", address.isNotBlank())
-        val api = NoraApi(address)
-        val units = api.registrationUnits().filter { it.name.startsWith("UBS Cadastro E2E ") }.sortedBy { it.name }
+        assumeTrue("Pass noraApiUrl for the isolated integration fixture", address.isNotBlank())
+        val password = "Disposable-patient-registration!29"
+        val controller = PatientController(isolatedContext())
+        controller.changeAddress(address)
+        val units = controller.registrationUnits().filter { it.name.startsWith("UBS Cadastro E2E ") }.sortedBy { it.name }
         assertEquals(3, units.size)
-        val started = api.startRegistration("Paciente Sintético", "52998224725", "Disposable-patient-registration!29", units.map { it.id })
+        val started = controller.startRegistration("Paciente Sintético", "52998224725", password, units.map { it.id })
         val challenge = requireNotNull(started.challengeId)
         assertEquals(2, started.emails.size)
-        val option = started.emails.single { it.maskedEmail.startsWith("f***") }
-        api.sendRegistrationCode(challenge, option.id)
+        controller.sendRegistrationCode(challenge, started.emails.single { it.maskedEmail.startsWith("f***") }.id)
         val code = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val connection = java.net.URL("$address/__checks/registration-code").openConnection().apply { connectTimeout = 10000; readTimeout = 10000 }
             connection.getInputStream().bufferedReader().use { org.json.JSONObject(it.readText()).getString("code") }
         }
-        val result = api.confirmRegistration(challenge, code)
+        val result = controller.confirmRegistration(challenge, code)
         assertTrue(result.codeValid)
         assertEquals(units.take(2).map { it.id }.toSet(), result.linkedUnits.toSet())
         assertEquals(listOf(units[2].id), result.unmatchedUnits)
-        val session = api.login("52998224725", "Disposable-patient-registration!29")
-        assertEquals(units.take(2).map { it.id }.toSet(), api.units(session.token).map { it.id }.toSet())
-        val link = api.linkUnits(session.token, listOf(units[0].id, units[2].id))
+
+        controller.login("52998224725", password)
+        assertNull(controller.state.message)
+        val session = requireNotNull(controller.state.session)
+        assertEquals(units.take(2).map { it.id }.toSet(), controller.state.units.orEmpty().map { it.id }.toSet())
+        assertNull("Duas UBS vinculadas: a escolha é explícita", controller.state.selectedUnitId)
+        val link = controller.linkUnits(listOf(units[0].id, units[2].id))
         assertEquals(listOf(units[0].id), link.linkedUnits)
         assertEquals(listOf(units[2].id), link.unmatchedUnits)
-        val appointments = api.appointments(session.token, units[0].id)
-        val clinic = appointments.single { it.specialty == "Clínica de teste" }
-        assertTrue(api.appointments(session.token, units[1].id).isEmpty())
-        try { api.appointments(session.token, units[2].id); fail("UBS sem vínculo não deve retornar consultas") }
-        catch (failure: ApiFailure) { assertEquals(403, failure.status) }
-        api.cancelAppointment(session.token, units[0].id, clinic.id)
-        assertEquals("cancelled", api.appointments(session.token, units[0].id).single { it.id == clinic.id }.status)
-        val available = api.unitOffers(session.token, units[0].id).single { it.status == "pending" }
-        assertEquals("Cardiologia", available.specialty)
-        assertEquals("offered", api.unitQueue(session.token, units[0].id).single { it.specialty == "Cardiologia" }.status)
-        api.respondUnitOffer(session.token, units[0].id, available.id, true)
-        assertEquals("accepted", api.unitOffers(session.token, units[0].id).single { it.id == available.id }.status)
-        assertEquals("scheduled", api.appointments(session.token, units[0].id).single { it.specialty == "Cardiologia" && it.status == "scheduled" }.status)
-        api.logout(session.token)
-    }
 
-    @Test fun patientUsesRealDisposablePostgresApi() = runBlocking {
-        val address = InstrumentationRegistry.getArguments().getString("noraApiUrl").orEmpty()
-        assumeTrue("Pass noraApiUrl for the isolated integration fixture", address.isNotBlank())
-        val controller = PatientController(isolatedContext())
-        controller.changeAddress(address)
-        controller.login("patient1@example.test", "Disposable-test-Account!29")
-        assertNull(controller.state.message)
-        controller.refresh()
-        val session = requireNotNull(controller.state.session)
+        controller.selectUnit(units[0].id)
+        controller.loadAppointments()
+        val clinic = requireNotNull(controller.state.appointments).single { it.specialty == "Clínica de teste" }
+        assertTrue(clinic.endsAtMillisOrNull() != null)
+        try { NoraApi(address).appointments(session.token, units[2].id); fail("UBS sem vínculo não deve retornar consultas") }
+        catch (failure: ApiFailure) { assertEquals(403, failure.status); assertEquals(UNIT_FORBIDDEN_MESSAGE, failure.message) }
+        controller.cancelAppointment(clinic.id)
+        assertEquals("Consulta cancelada.", controller.state.message)
+        controller.loadAppointments()
+        assertEquals("cancelled", requireNotNull(controller.state.appointments).single { it.id == clinic.id }.status)
+
+        // O ciclo de consulta automática lê as ofertas de todas as UBS vinculadas sem ação do usuário.
         val generation = controller.beginPresence()
         controller.publishPresence(session, generation, true)
-        assertNotNull(controller.state.session)
+        controller.pollOffers(session, generation)
+        assertFalse(controller.state.busy)
+        val available = requireNotNull(controller.state.unitData[units[0].id]?.offers).single { it.status == "pending" }
+        assertEquals("Cardiologia", available.specialty)
+        assertTrue(openOffersAcrossUnits(controller.state.units, controller.state.unitData, System.currentTimeMillis()).any { it.offer.id == available.id })
         controller.publishPresence(session, generation, false)
-        val offer = requireNotNull(controller.state.overview).offers.single { it.status == "pending" }
-        controller.respond(offer.id, true)
-        assertNull(controller.state.message)
-        assertEquals("accepted", requireNotNull(controller.state.overview).offers.single { it.id == offer.id }.status)
-        controller.refresh()
-        assertNull(controller.state.message)
+
+        controller.refreshUnit()
+        assertEquals("offered", requireNotNull(controller.state.unitQueue).single { it.specialty == "Cardiologia" }.status)
+        controller.respondUnitOffer(available.id, true)
+        assertEquals("Oferta aceita. Sua consulta foi agendada.", controller.state.message)
+        assertEquals("accepted", requireNotNull(controller.state.unitOffers).single { it.id == available.id }.status)
+        assertTrue(requireNotNull(controller.state.appointments).any { it.specialty == "Cardiologia" && it.status == "scheduled" })
         controller.logout()
         assertNull(controller.state.session)
-        assertNull(controller.state.overview)
-        assertNull(controller.state.message)
-        try {
-            NoraApi(address).overview(session.token)
-            fail("Revoked session must not retain access")
-        } catch (failure: ApiFailure) { assertEquals(401, failure.status) }
-        controller.login("123.456.781-43", "Disposable-test-Account!29")
-        assertNull(controller.state.message)
-        assertEquals(session.user.id, requireNotNull(controller.state.session).user.id)
-        controller.logout()
-        assertNull(controller.state.session)
-        assertNull(controller.state.message)
+        assertNull(controller.state.units)
+        try { NoraApi(address).units(session.token); fail("Revoked session must not retain access") }
+        catch (failure: ApiFailure) { assertEquals(401, failure.status) }
     }
+
+    private fun PatientAppointment.endsAtMillisOrNull(): Long? = parseInstantMillis(endsAt)
 }

@@ -32,6 +32,10 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        // Os testes locais do controlador exercitam caminhos que chamam android.util.Log (que vira no-op).
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -42,6 +46,8 @@ dependencies {
     implementation(libs.androidx.compose.icons)
     debugImplementation(libs.androidx.compose.test.manifest)
     testImplementation(libs.junit)
+    // Implementação real de org.json: o android.jar dos testes locais só tem stubs, e o NoraApi lê JSON.
+    testImplementation(libs.org.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.test)
     androidTestImplementation(libs.androidx.junit)

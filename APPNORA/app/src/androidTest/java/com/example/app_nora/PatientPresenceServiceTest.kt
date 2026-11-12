@@ -30,9 +30,7 @@ class PatientPresenceServiceTest {
         val user = PatientUser("presence-fixture", "Paciente sintético")
         val api = object : PatientApi {
             override suspend fun login(identifier: String, password: String) = PatientSession("fixture-token", "2026-10-11T23:00:00Z", user)
-            override suspend fun overview(token: String) = PatientOverview(user, emptyList(), emptyList())
             override suspend fun logout(token: String) = Unit
-            override suspend fun respond(token: String, id: String, accept: Boolean) = Unit
             override suspend fun presence(token: String, online: Boolean) {
                 if (online) onlineCount.incrementAndGet() else offline.incrementAndGet()
             }
@@ -71,6 +69,50 @@ class PatientPresenceServiceTest {
                 scenario.onActivity { it.finishAndRemoveTask() }
                 await { offline.get() > 0 && controller.state.session == null }
                 await { notifications.activeNotifications.none { it.notification.extras.getString("android.title") == "NORA · conexão ativa" } }
+            } finally { PatientPresenceService.stop(context) }
+        }
+    }
+
+    @Test fun pendingOfferRaisesALocalNotificationThatLeavesWhenItIsNoLongerPending() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        if (Build.VERSION.SDK_INT >= 33)
+            instrumentation.uiAutomation.executeShellCommand("pm grant ${context.packageName} android.permission.POST_NOTIFICATIONS").close()
+        val isolated = object : ContextWrapper(context) {
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+                super.getSharedPreferences("${name}_lightning_checks", mode)
+        }
+        val user = PatientUser("lightning-fixture", "Paciente sintético")
+        val unit = PatientHealthUnit("11111111-2222-3333-4444-555555555555", "UBS Sintética", "Centro", "Rua", -23.5, -46.6)
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ROOT).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+        fun iso(offsetMillis: Long) = format.format(System.currentTimeMillis() + offsetMillis)
+        val status = java.util.concurrent.atomic.AtomicReference("pending")
+        val api = object : PatientApi {
+            override suspend fun login(identifier: String, password: String) = PatientSession("lightning-token", "2026-10-11T23:00:00Z", user)
+            override suspend fun units(token: String) = listOf(unit)
+            override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
+            override suspend fun appointments(token: String, unitId: String) = emptyList<PatientAppointment>()
+            override suspend fun unitOffers(token: String, unitId: String) = listOf(
+                UnitOffer("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "Cardiologia", "Profissional", iso(3_600_000), iso(5_400_000), iso(600_000), status.get()))
+            override suspend fun logout(token: String) = Unit
+            override suspend fun presence(token: String, online: Boolean) = Unit
+        }
+        val controller = PatientController(isolated) { api }
+        val title = "Vaga Relâmpago · Cardiologia"
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            try {
+                instrumentation.waitForIdleSync()
+                scenario.onActivity { activity ->
+                    controller.changeAddress("https://nora.example.test")
+                    runBlocking { controller.login("fixture@example.test", "fixture-only-password") }
+                    PatientPresenceService.start(activity, controller)
+                }
+                val notifications = requireNotNull(context.getSystemService(NotificationManager::class.java))
+                await { notifications.activeNotifications.any { it.notification.extras.getString("android.title") == title } }
+                val posted = notifications.activeNotifications.single { it.notification.extras.getString("android.title") == title }
+                assertTrue(posted.notification.extras.getString("android.text").orEmpty().contains("UBS Sintética"))
+                status.set("accepted")
+                await(40_000) { notifications.activeNotifications.none { it.notification.extras.getString("android.title") == title } }
             } finally { PatientPresenceService.stop(context) }
         }
     }

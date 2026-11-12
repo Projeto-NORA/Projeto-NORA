@@ -23,6 +23,12 @@ class SettingsStore(context: Context) {
         settings = value
     }
 
+    companion object {
+        /** Lida a cada ciclo pelo serviço de conexão, que não compartilha a instância da tela. */
+        fun flashNotificationsEnabled(context: Context): Boolean =
+            context.getSharedPreferences("nora_preferences", Context.MODE_PRIVATE).all["flash_notifications"] as? Boolean ?: true
+    }
+
     // A restored/older preference with a different type must not prevent app startup.
     private fun read(): UserSettings {
         val stored = preferences.all

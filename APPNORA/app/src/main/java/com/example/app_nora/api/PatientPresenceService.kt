@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.app_nora.MainActivity
 import com.example.app_nora.R
+import com.example.app_nora.preferences.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,11 +24,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** Owns presence while logged in. Bearer tokens never enter intents, files or notifications. */
+/**
+ * Owns presence while logged in and, in the same 30 s cycle, polls Vaga Relâmpago offers of every linked UBS
+ * (there is no push server) and raises the local notification. Bearer tokens never enter intents, files or notifications.
+ */
 class PatientPresenceService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var heartbeat: Job? = null
     private var activeConnection: Connection? = null
+    private val notifier by lazy { LightningNotifier(this) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -40,14 +45,22 @@ class PatientPresenceService : Service() {
         showConnectionNotification()
         if (activeConnection !== connection) {
             heartbeat?.cancel()
+            notifier.clear()
             activeConnection?.let(::sendOffline)
             activeConnection = connection
             heartbeat = scope.launch {
-                while (isActive && connection.controller.state.session?.token == connection.session.token) {
-                    connection.controller.publishPresence(connection.session, connection.generation, true)
-                    if (connection.controller.state.session?.token != connection.session.token) break
+                val controller = connection.controller
+                fun connected() = controller.state.session?.token == connection.session.token
+                while (isActive && connected()) {
+                    controller.publishPresence(connection.session, connection.generation, true)
+                    if (!connected()) break
+                    // Same cycle, no second timer: network failures are silent and retried in the next cycle.
+                    controller.pollOffers(connection.session, connection.generation)
+                    if (!connected()) break
+                    notifier.sync(controller.state, SettingsStore.flashNotificationsEnabled(applicationContext))
                     delay(30_000)
                 }
+                notifier.clear()
                 stopSelf()
             }
         }
@@ -98,6 +111,7 @@ class PatientPresenceService : Service() {
     private fun endConnection() {
         heartbeat?.cancel()
         heartbeat = null
+        notifier.clear()
         val ended = activeConnection
         activeConnection = null
         if (requestedConnection === ended) requestedConnection = null

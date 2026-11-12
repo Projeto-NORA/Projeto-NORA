@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,13 +54,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.ContextCompat
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Locale
+import org.json.JSONException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
 @Composable
-fun NoraApp(store: SettingsStore, retainedController: PatientController? = null) {
+fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
+    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}) {
     val context = LocalContext.current.applicationContext
     val controller = remember(retainedController) { retainedController ?: PatientController(context) }
     val scope = rememberCoroutineScope()
@@ -90,6 +91,7 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null)
         onAddressChange = controller::changeAddress,
         onLogin = { identifier, password -> scope.launch { controller.login(identifier, password) } },
         onRefresh = { scope.launch { controller.refreshUnit() } },
+        openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened,
         onLoadUnits = { scope.launch { controller.loadUnits() } },
         onLoadAppointments = { scope.launch { controller.loadAppointments() } },
         onCancelAppointment = { id -> scope.launch { controller.cancelAppointment(id) } },
@@ -198,7 +200,7 @@ private fun PatientNavigationIcon(destination: PatientDestination) {
 fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit,
     patient: PatientState = PatientState(), onAddressChange: (String) -> Unit = {},
     onLogin: ((String, String) -> Unit)? = null, onRefresh: () -> Unit = {},
-    onRespond: (String, Boolean) -> Unit = { _, _ -> }, onRespondUnit: (String, Boolean) -> Unit = { _, _ -> }, onLogout: () -> Unit = {},
+    onRespondUnit: (String, Boolean) -> Unit = { _, _ -> }, onLogout: () -> Unit = {},
     onRegistrationUnits: suspend () -> List<RegistrationUnit> = { throw ApiFailure(503, "Configure o serviço para consultar as unidades.") },
     onLinkUnits: suspend (List<String>) -> UnitLinkResult = { throw ApiFailure(503, "Vínculo indisponível.") },
     onStartRegistration: suspend (String, String, String, List<String>) -> RegistrationStart = { _, _, _, _ -> throw ApiFailure(503, "Cadastro indisponível.") },
@@ -207,9 +209,28 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     onRequestPasswordReset: suspend (String) -> String = { throw ApiFailure(503, "Configure o serviço para recuperar sua senha.") },
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean = { _, _, _ -> false },
     initiallyShowSettings: Boolean = false, onLoadUnits: () -> Unit = {}, onLoadAppointments: () -> Unit = {}, onCancelAppointment: (String) -> Unit = {}, onSelectUnit: (String) -> Unit = {},
-    onLocateUnit: (Double, Double) -> PatientHealthUnit? = { _, _ -> null }) {
+    onLocateUnit: (Double, Double) -> PatientHealthUnit? = { _, _ -> null },
+    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}) {
     var settingsOpen by rememberSaveable { mutableStateOf(initiallyShowSettings) }
     var destination by rememberSaveable { mutableStateOf(PatientDestination.HOME) }
+    // Sessão que termina (401, logout ou fechamento) volta ao Início: é lá que o formulário de entrada e a mensagem aparecem.
+    var hadSession by rememberSaveable { mutableStateOf(patient.session != null) }
+    LaunchedEffect(patient.session == null) {
+        if (patient.session != null) hadSession = true
+        else if (hadSession) { hadSession = false; destination = PatientDestination.HOME }
+    }
+    // Toque na notificação de Vaga Relâmpago: abre a tela da oferta com a UBS escolhida (espera as UBS carregarem).
+    LaunchedEffect(openFlashUnit, patient.session?.token, patient.units) {
+        val target = openFlashUnit ?: return@LaunchedEffect
+        if (patient.session == null) { onFlashOpened(); return@LaunchedEffect }
+        val units = patient.units ?: return@LaunchedEffect
+        if (units.any { it.id == target }) {
+            onSelectUnit(target)
+            settingsOpen = false
+            destination = PatientDestination.FLASH
+        }
+        onFlashOpened()
+    }
     val pageScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
     LaunchedEffect(settingsOpen) {
@@ -295,11 +316,12 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         PatientDestination.HOME -> HomeScreen(settings.showGuidance,
                             onOpenSettings = { settingsOpen = true }, onNavigate = { destination = it },
                             patient = patient, onAddressChange = onAddressChange, onLogin = onLogin,
-                            onRefresh = onRefresh, onRespond = onRespond,
+                            onRefresh = onRefresh, onLoadUnits = onLoadUnits,
+                            onOpenOffer = { unitId -> onSelectUnit(unitId); destination = PatientDestination.FLASH },
                             onRequestPasswordReset = onRequestPasswordReset,
                             onConfirmPasswordReset = onConfirmPasswordReset)
                         PatientDestination.JOURNEY -> JourneyScreen(patient, onNavigate = { destination = it })
-                        PatientDestination.NOTICES -> NoticesScreen(patient, onNavigate = { destination = it })
+                        PatientDestination.NOTICES -> NoticesScreen(patient, onOpenOffer = { unitId -> onSelectUnit(unitId); destination = PatientDestination.FLASH })
                         PatientDestination.FAMILY -> FamilyScreen()
                         PatientDestination.PROFILE -> ProfileScreen(patient,
                             onOpenSettings = { settingsOpen = true }, onLogout = {
@@ -325,7 +347,8 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean) {
-    var identifier by remember { mutableStateOf("") }
+    var identifier by rememberSaveable { mutableStateOf("") }
+    // Senhas nunca entram em estado salvo: após girar a tela a pessoa digita de novo.
     var password by remember { mutableStateOf("") }
     var connectionSettingsOpen by rememberSaveable { mutableStateOf(false) }
     var showPassword by rememberSaveable { mutableStateOf(false) }
@@ -334,8 +357,9 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     var helpOpen by rememberSaveable { mutableStateOf(false) }
     var localMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var recoveryCodeStep by rememberSaveable { mutableStateOf(false) }
-    var recoveryCpf by remember { mutableStateOf("") }
-    var recoveryChallengeId by remember { mutableStateOf("") }
+    // O desafio da recuperação sobrevive à rotação: refazer o pedido gastaria o limite de envios.
+    var recoveryCpf by rememberSaveable { mutableStateOf("") }
+    var recoveryChallengeId by rememberSaveable { mutableStateOf("") }
     var recoveryCode by remember { mutableStateOf("") }
     var recoveryPassword by remember { mutableStateOf("") }
     var recoveryPasswordConfirmation by remember { mutableStateOf("") }
@@ -366,6 +390,8 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                     recoveryMessage = "Não foi possível conectar à rede. Confira sua conexão e tente novamente."
                 } catch (failure: IllegalArgumentException) {
                     recoveryMessage = failure.message ?: "Confira o CPF e o endereço do serviço."
+                } catch (_: JSONException) {
+                    recoveryMessage = INCOMPATIBLE_RESPONSE_MESSAGE
                 } finally {
                     recoveryBusy = false
                 }
@@ -397,6 +423,10 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                         recoveryMessage = failure.message
                     } catch (_: IOException) {
                         recoveryMessage = "Não foi possível conectar à rede. Tente novamente."
+                    } catch (failure: IllegalArgumentException) {
+                        recoveryMessage = failure.message ?: "Confira o endereço do serviço."
+                    } catch (_: JSONException) {
+                        recoveryMessage = INCOMPATIBLE_RESPONSE_MESSAGE
                     } finally {
                         recoveryBusy = false
                     }
@@ -658,26 +688,34 @@ private fun PasswordEyeButton(visible: Boolean, onClick: () -> Unit) {
     }
 }
 
+private val stringListSaver = listSaver<List<String>, String>(save = { it }, restore = { it })
+private val emailOptionsSaver = listSaver<List<RegistrationEmailOption>, String>(
+    save = { options -> options.flatMap { listOf(it.id, it.maskedEmail) } },
+    restore = { saved -> saved.chunked(2).map { RegistrationEmailOption(it[0], it[1]) } })
+
 @Composable
 private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<RegistrationUnit>,
     onStart: suspend (String, String, String, List<String>) -> RegistrationStart,
     onSend: suspend (String, String) -> Unit, onConfirm: suspend (String, String) -> RegistrationResult) {
-    var name by remember { mutableStateOf("") }
-    var cpf by remember { mutableStateOf("") }
+    // O formulário e o desafio sobrevivem à rotação; a senha não: ela nunca entra em estado salvo.
+    var name by rememberSaveable { mutableStateOf("") }
+    var cpf by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var units by remember { mutableStateOf<List<RegistrationUnit>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var loadingUnits by remember { mutableStateOf(false) }
-    val selectedUnits = remember { mutableStateListOf<String>() }
-    var challenge by remember { mutableStateOf<String?>(null) }
-    var options by remember { mutableStateOf<List<RegistrationEmailOption>>(emptyList()) }
-    var selectedOption by remember { mutableStateOf<String?>(null) }
-    var code by remember { mutableStateOf("") }
-    var codeSent by remember { mutableStateOf(false) }
-    var noMatches by remember { mutableStateOf(false) }
-    var completed by remember { mutableStateOf<RegistrationResult?>(null) }
+    var selectedUnits by rememberSaveable(stateSaver = stringListSaver) { mutableStateOf(emptyList<String>()) }
+    var challenge by rememberSaveable { mutableStateOf<String?>(null) }
+    var options by rememberSaveable(stateSaver = emailOptionsSaver) { mutableStateOf(emptyList<RegistrationEmailOption>()) }
+    var selectedOption by rememberSaveable { mutableStateOf<String?>(null) }
+    var code by rememberSaveable { mutableStateOf("") }
+    var codeSent by rememberSaveable { mutableStateOf(false) }
+    var noMatches by rememberSaveable { mutableStateOf(false) }
+    var completed by rememberSaveable { mutableStateOf(false) }
+    var linkedIds by rememberSaveable(stateSaver = stringListSaver) { mutableStateOf(emptyList<String>()) }
+    var unmatchedIds by rememberSaveable(stateSaver = stringListSaver) { mutableStateOf(emptyList<String>()) }
     val scope = rememberCoroutineScope()
     suspend fun runRegistration(action: suspend () -> Unit) {
         if (busy) return
@@ -721,15 +759,15 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
         units?.forEach { unit ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = unit.id in selectedUnits, enabled = editing, onCheckedChange = { checked ->
-                    if (checked && unit.id !in selectedUnits) selectedUnits.add(unit.id)
-                    if (!checked) selectedUnits.remove(unit.id)
+                    if (checked && unit.id !in selectedUnits) selectedUnits = selectedUnits + unit.id
+                    if (!checked) selectedUnits = selectedUnits - unit.id
                 }, modifier = Modifier.semantics { contentDescription = "Selecionar ${unit.name}" })
                 Column { Text(unit.name); MutedText(unit.region) }
             }
         }
         if (challenge == null) {
             Button(onClick = { scope.launch { runRegistration {
-                val response = onStart(name.trim(), cpf, password, selectedUnits.toList())
+                val response = onStart(name.trim(), cpf, password, selectedUnits)
                 if (response.challengeId == null || response.emails.isEmpty()) noMatches = true
                 else { challenge = response.challengeId; options = response.emails; password = "" }
             } } }, enabled = !busy && name.trim().length >= 2 && isValidCpf(cpf) && password.length >= 8 && selectedUnits.isNotEmpty(),
@@ -751,7 +789,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
                 singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             Button(onClick = { scope.launch { runRegistration {
                 val result = onConfirm(challenge!!, code)
-                if (result.codeValid) completed = result else error = "Código incorreto, expirado ou já utilizado."
+                if (result.codeValid) { linkedIds = result.linkedUnits; unmatchedIds = result.unmatchedUnits; completed = true } else error = "Código incorreto, expirado ou já utilizado."
             } } }, enabled = !busy && code.length == 6, modifier = Modifier.fillMaxWidth()) { Text("Confirmar cadastro") }
         }
         error?.let { MutedText(it) }
@@ -760,45 +798,21 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
     if (noMatches) AlertDialog(onDismissRequest = { noMatches = false }, title = { Text("Cadastro não encontrado") },
         text = { Text("Não encontramos seu CPF nas UBS selecionadas. Confira as unidades ou procure a equipe da UBS.") },
         confirmButton = { TextButton(onClick = { noMatches = false }) { Text("Entendi") } })
-    completed?.let { result ->
+    if (completed) {
         fun names(ids: List<String>) = ids.map { id -> units?.firstOrNull { it.id == id }?.name ?: "UBS" }.joinToString(", ")
-        val linked = names(result.linkedUnits)
-        val missing = names(result.unmatchedUnits)
+        val linked = names(linkedIds)
+        val missing = names(unmatchedIds)
         AlertDialog(onDismissRequest = onBack, title = { Text("Conta criada") },
-            text = { Text("UBS vinculadas: $linked." + if (result.unmatchedUnits.isNotEmpty()) "\n\nNão encontramos seu cadastro em: $missing. Procure a equipe dessas unidades." else "") },
+            text = { Text("UBS vinculadas: $linked." + if (unmatchedIds.isNotEmpty())"\n\nNão encontramos seu cadastro em: $missing. Procure a equipe dessas unidades." else "") },
             confirmButton = { TextButton(onClick = onBack) { Text("Ir para o login") } })
     }
 }
-
-private fun statusTitle(value: String): String = when (value) {
-    "waiting" -> "Aguardando"
-    "offered" -> "Oferta enviada"
-    "called" -> "Chamado pela unidade"
-    "completed" -> "Concluído"
-    "cancelled" -> "Cancelado"
-    "pending" -> "Aguardando resposta"
-    "accepted" -> "Oferta aceita"
-    "declined" -> "Oferta recusada"
-    "expired" -> "Prazo encerrado"
-    else -> value
-}
-
-private fun displayDate(value: String): String = try {
-    val normalized = value.replace(Regex("\\.(\\d+)")) { match ->
-        "." + match.groupValues[1].take(3).padEnd(3, '0')
-    }
-    val pattern = if (normalized.contains('.')) "yyyy-MM-dd'T'HH:mm:ss.SSSXXX" else "yyyy-MM-dd'T'HH:mm:ssXXX"
-    val parser = java.text.SimpleDateFormat(pattern, java.util.Locale.ROOT).apply { isLenient = false }
-    parser.parse(normalized)?.let { date ->
-        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(date)
-    } ?: value
-} catch (_: java.text.ParseException) { value }
 
 @Composable
 private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
     onNavigate: (PatientDestination) -> Unit, patient: PatientState,
     onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?,
-    onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit,
+    onRefresh: () -> Unit, onLoadUnits: () -> Unit, onOpenOffer: (String) -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean) {
     if (patient.session == null && onLogin != null) {
@@ -871,8 +885,12 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         Text("Consultas, acompanhamento e oportunidades em um só lugar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
-    if (patient.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    if (patient.busy || patient.loadingUnits) LinearProgressIndicator(Modifier.fillMaxWidth())
     if (patient.session != null) {
+        // Recalculada quando os dados mudam (o ciclo de 30 s renova as ofertas); nunca inventa consulta.
+        val clock = LocalClockMillis.current
+        val next = remember(patient.units, patient.unitData) { nextAppointment(patient.units, patient.unitData, clock()) }
+        val openOffers = rememberOpenOffers(patient)
         val appointmentShape = RoundedCornerShape(28.dp)
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -894,10 +912,23 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Text("Seu próximo cuidado começa aqui", style = MaterialTheme.typography.titleLarge,
-                    color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Selecione uma UBS vinculada para consultar seus atendimentos.",
-                    style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
+                if (next != null) {
+                    Text("Sua próxima consulta", style = MaterialTheme.typography.titleLarge,
+                        color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(next.appointment.specialty, style = MaterialTheme.typography.titleMedium,
+                        color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(formatRange(next.appointment.startsAt, next.appointment.endsAt),
+                        style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
+                    Text("${next.appointment.professional} · ${next.unit.name}",
+                        style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
+                    Text(statusLabel(next.appointment.status), style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = .94f), fontWeight = FontWeight.SemiBold)
+                } else {
+                    Text("Nenhuma consulta futura", style = MaterialTheme.typography.titleLarge,
+                        color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(noNextAppointmentText(patient),
+                        style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
+                }
                 Button(onClick = { onNavigate(PatientDestination.APPOINTMENTS) }, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) {
                     Text("Ver minhas consultas")
@@ -924,14 +955,14 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         SectionCard("Acompanhamento", "Status informado pela unidade") {
             val queue = patient.unitQueue
             when {
+                patient.units == null -> {
+                    MutedText(if (patient.loadingUnits) "Carregando suas UBS…" else "Não foi possível carregar suas UBS.")
+                    if (!patient.loadingUnits) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Carregar minhas UBS") }
+                }
                 patient.selectedUnitId == null -> MutedText("Escolha uma UBS vinculada para consultar sua situação.")
                 queue == null -> MutedText("Toque em atualizar para consultar sua situação.")
                 queue.isEmpty() -> MutedText("Não há solicitações de atendimento em acompanhamento nesta UBS.")
-                else -> queue.forEach { entry ->
-                    Text(entry.specialty, fontWeight = FontWeight.SemiBold)
-                    Text(statusTitle(entry.status), fontWeight = FontWeight.SemiBold)
-                    MutedText("Registrada em ${displayDate(entry.enteredAt)}")
-                }
+                else -> QueueEntries(queue)
             }
             OutlinedButton(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) { Text("Escolher UBS e consultar") }
             OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.fillMaxWidth()) {
@@ -939,17 +970,12 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
             }
         }
         SectionCard("Vaga Relâmpago", "Oportunidades enviadas pela unidade") {
-            val offers = patient.unitOffers.orEmpty()
+            val open = openOffers.list.value
             when {
-                patient.unitOffers == null -> MutedText("Escolha uma UBS e atualize seu acompanhamento para verificar oportunidades.")
-                offers.none { it.status == "pending" } -> MutedText("Nenhuma oportunidade aguarda sua resposta.")
-            }
-            offers.filter { it.status == "pending" }.forEach { offer ->
-                Text(offer.specialty, fontWeight = FontWeight.SemiBold)
-                MutedText("Responda até ${appointmentDate(offer.expiresAt)}. Ao aceitar, a consulta será agendada.")
-                Button(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ver oportunidade")
-                }
+                open.isNotEmpty() -> open.forEach { OpenOfferSummary(it, openOffers.now, onOpenOffer) }
+                patient.units == null -> MutedText("As oportunidades aparecem aqui assim que suas UBS forem carregadas.")
+                !offersLoadedForAll(patient.units, patient.unitData) -> MutedText("Consultando as oportunidades das suas UBS…")
+                else -> MutedText("Nenhuma oportunidade aguarda sua resposta.")
             }
         }
         if (showGuidance) SectionCard("Sua Jornada", "Consultas, exames e vacinas") {
@@ -1004,34 +1030,32 @@ private fun JourneyScreen(patient: PatientState, onNavigate: (PatientDestination
     }
     patient.unitQueue?.let { queue ->
         if (queue.isNotEmpty()) SectionCard("Solicitações de atendimento", "Status informado pela unidade selecionada") {
-            queue.forEach { entry ->
-                Text(entry.specialty, fontWeight = FontWeight.SemiBold)
-                Text(statusTitle(entry.status), fontWeight = FontWeight.SemiBold)
-                MutedText("Registrada em ${displayDate(entry.enteredAt)}")
-            }
+            QueueEntries(queue)
         }
     }
 }
 
 @Composable
-private fun NoticesScreen(patient: PatientState, onNavigate: (PatientDestination) -> Unit) {
+private fun NoticesScreen(patient: PatientState, onOpenOffer: (String) -> Unit) {
     ScreenTitle("Avisos", "Atualizações importantes sobre seus cuidados.")
-    val pending = patient.unitOffers.orEmpty().filter { it.status == "pending" }
-    if (patient.session == null || patient.unitOffers == null) {
+    val openOffers = rememberOpenOffers(patient)
+    val open = openOffers.list.value
+    val allLoaded = offersLoadedForAll(patient.units, patient.unitData)
+    if (patient.session == null || patient.units == null) {
         SectionCard("Acesse sua conta", "Avisos da sua rede") {
-            MutedText("Entre na sua conta e atualize seu acompanhamento para consultar avisos. Notificações externas ainda não estão conectadas.")
+            MutedText(if (patient.loadingUnits) "Carregando suas UBS…"
+                else "Entre na sua conta para consultar avisos. Lembretes de consulta e outros avisos ainda não estão conectados.")
         }
-    } else if (pending.isEmpty()) {
-        SectionCard("Nenhuma oferta pendente", "Oportunidades da unidade") {
-            MutedText("Não há Vagas Relâmpago aguardando resposta. Outros avisos e notificações externas ainda não estão conectados.")
+    } else if (open.isEmpty()) {
+        SectionCard(if (allLoaded) "Nenhuma oferta pendente" else "Consultando suas UBS", "Oportunidades da unidade") {
+            MutedText(if (allLoaded) "Não há Vagas Relâmpago aguardando resposta em nenhuma das suas UBS. Outros avisos ainda não estão conectados."
+            else "As ofertas das suas UBS são consultadas a cada 30 segundos enquanto a conexão do NORA estiver ativa.")
         }
     } else {
-        pending.forEach { offer ->
-            SectionCard("Vaga Relâmpago disponível", "Oportunidade enviada pela unidade") {
-                Text(offer.specialty, fontWeight = FontWeight.SemiBold)
-                MutedText("Prazo para responder: ${appointmentDate(offer.expiresAt)}")
-                Button(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ver oportunidade")
+        open.forEach { ref ->
+            key(ref.offer.id) {
+                SectionCard("Vaga Relâmpago disponível", "Oportunidade enviada pela unidade") {
+                    OpenOfferSummary(ref, openOffers.now, onOpenOffer)
                 }
             }
         }
@@ -1069,64 +1093,18 @@ private fun ProfileScreen(patient: PatientState, onOpenSettings: () -> Unit, onL
 }
 
 @Composable
-private fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadUnits: () -> Unit, onLoadAppointments: () -> Unit, onCancelAppointment: (String) -> Unit) {
-    var cancelPending by remember(patient.selectedUnitId, patient.session?.token) { mutableStateOf<PatientAppointment?>(null) }
-    ScreenTitle("Consultas", "Veja seus atendimentos futuros e anteriores.")
-    SectionCard("Sua agenda", "Informações da unidade de saúde") {
-        if (patient.session == null) MutedText("Entre na sua conta para consultar sua agenda.")
-        else {
-            MutedText("Selecione uma UBS vinculada. São exibidas consultas de até 180 dias antes e depois de hoje.")
-            patient.units?.forEach { unit ->
-                Row(Modifier.fillMaxWidth().selectable(selected = unit.id == patient.selectedUnitId, enabled = !patient.busy, onClick = { onSelectUnit(unit.id) }, role = Role.RadioButton), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = unit.id == patient.selectedUnitId, onClick = null)
-                    Text(unit.name, Modifier.padding(start = 8.dp))
-                }
-            }
-            if (patient.units?.isEmpty() == true) MutedText("Nenhuma UBS vinculada ao seu cadastro.")
-            OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
-            if (patient.selectedUnitId != null) {
-                OutlinedButton(onClick = onLoadAppointments, enabled = !patient.busy) { Text("Atualizar consultas") }
-                if (patient.appointments?.isEmpty() == true) MutedText("Nenhuma consulta encontrada neste período.")
-                patient.appointments?.forEach { appointment ->
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Text(appointment.specialty, fontWeight = FontWeight.SemiBold)
-                    Text(appointment.professional)
-                    Text(appointmentDate(appointment.startsAt))
-                    Text(when (appointment.status) { "scheduled" -> "Agendada"; "called" -> "Chamada"; "completed" -> "Concluída"; "missed" -> "Falta"; "cancelled" -> "Cancelada"; else -> appointment.status })
-                    if (appointment.status in listOf("scheduled", "called"))
-                        TextButton(onClick = { cancelPending = appointment }, enabled = !patient.busy) { Text("Cancelar consulta") }
-                }
-            }
-            patient.message?.let { MutedText(it) }
-        }
-    }
-    MutedText("Para remarcar, procure a equipe da UBS.")
-    cancelPending?.let { appointment ->
-        AlertDialog(onDismissRequest = { cancelPending = null }, title = { Text("Cancelar consulta?") },
-            text = { Text("Confirma o cancelamento de ${appointment.specialty} em ${appointmentDate(appointment.startsAt)}?") },
-            confirmButton = { TextButton(onClick = { cancelPending = null; onCancelAppointment(appointment.id) }) { Text("Confirmar cancelamento") } },
-            dismissButton = { TextButton(onClick = { cancelPending = null }) { Text("Voltar") } })
-    }
-}
-
-private fun appointmentDate(value: String): String = try {
-    val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-    val normalized = value.replace(Regex("\\.\\d+"), "")
-    val date = parser.parse(normalized)
-    if (date == null) value else SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.forLanguageTag("pt-BR")).format(date)
-} catch (_: Exception) { value }
-
-@Composable
 private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
     onLink: suspend (List<String>) -> UnitLinkResult) {
     ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
-    var linkOpen by remember { mutableStateOf(false) }
+    // A seleção do diálogo de vínculo sobrevive à rotação; o catálogo é consultado de novo se faltar.
+    var linkOpen by rememberSaveable { mutableStateOf(false) }
     var linkBusy by remember { mutableStateOf(false) }
     var catalog by remember { mutableStateOf<List<RegistrationUnit>?>(null) }
-    var chosen by remember { mutableStateOf(setOf<String>()) }
+    var chosenIds by rememberSaveable(stateSaver = stringListSaver) { mutableStateOf(emptyList<String>()) }
+    val chosen = remember(chosenIds) { chosenIds.toSet() }
     var linkError by remember { mutableStateOf<String?>(null) }
     var linkResult by remember { mutableStateOf<UnitLinkResult?>(null) }
     val scope = rememberCoroutineScope()
@@ -1164,12 +1142,14 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
         patient.message?.let { MutedText(it) }
         if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
         if (patient.session != null) OutlinedButton(onClick = {
-            linkOpen = true; chosen = emptySet(); catalog = null
-            scope.launch { linkAction { catalog = onCatalog() } }
+            linkOpen = true; chosenIds = emptyList(); catalog = null
         }, enabled = !patient.busy) { Text("Vincular outra UBS") }
         MutedText("Distâncias, horários e serviços ainda não são fornecidos pela rede.")
     }
     UnitsMap(selected, onLocateUnit)
+    LaunchedEffect(linkOpen) {
+        if (linkOpen && catalog == null) linkAction { catalog = onCatalog() }
+    }
     if (linkOpen) AlertDialog(onDismissRequest = { if (!linkBusy) linkOpen = false },
         title = { Text("Vincular UBS") },
         text = {
@@ -1177,7 +1157,7 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
                 MutedText("Selecione as unidades onde você já foi cadastrado. Seu CPF será conferido em cada uma.")
                 catalog?.forEach { unit ->
                     Row(Modifier.fillMaxWidth().selectable(selected = unit.id in chosen, enabled = !linkBusy,
-                        onClick = { chosen = if (unit.id in chosen) chosen - unit.id else if (chosen.size < 20) chosen + unit.id else chosen },
+                        onClick = { chosenIds = if (unit.id in chosen) chosenIds - unit.id else if (chosenIds.size < 20) chosenIds + unit.id else chosenIds },
                         role = Role.Checkbox), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = unit.id in chosen, onCheckedChange = null)
                         Text("${unit.name} · ${unit.region}", Modifier.padding(start = 8.dp))
@@ -1189,7 +1169,7 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
             }
         },
         confirmButton = { TextButton(enabled = !linkBusy && chosen.isNotEmpty(), onClick = {
-            scope.launch { linkAction { linkResult = onLink(chosen.toList()); linkOpen = false } }
+            scope.launch { linkAction { linkResult = onLink(chosenIds); linkOpen = false } }
         }) { Text("Conferir e vincular") } },
         dismissButton = { TextButton(enabled = !linkBusy, onClick = { linkOpen = false }) { Text("Cancelar") } })
     linkResult?.let { result ->
@@ -1214,50 +1194,7 @@ private fun BookingScreen(onNavigate: (PatientDestination) -> Unit) {
 }
 
 @Composable
-private fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit, onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
-    ScreenTitle("Vaga Relâmpago", "Oportunidades compatíveis enviadas pela unidade.")
-    SectionCard("Escolha uma UBS", "Somente unidades vinculadas ao seu cadastro") {
-        if (patient.session == null) MutedText("Entre na sua conta para consultar oportunidades.")
-        patient.units?.forEach { unit ->
-            Row(Modifier.fillMaxWidth().selectable(selected = unit.id == patient.selectedUnitId, enabled = !patient.busy, onClick = { onSelectUnit(unit.id) }, role = Role.RadioButton), verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = unit.id == patient.selectedUnitId, onClick = null)
-                Text(unit.name, Modifier.padding(start = 8.dp))
-            }
-        }
-        if (patient.units?.isEmpty() == true) MutedText("Nenhuma UBS vinculada ao seu cadastro.")
-        if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
-        patient.message?.let { MutedText(it) }
-    }
-    val offers = patient.unitOffers.orEmpty()
-    if (patient.session == null || patient.unitOffers == null) SectionCard("Suas oportunidades", "Oportunidades compatíveis") {
-        MutedText("Escolha uma UBS e atualize o acompanhamento para consultar as oportunidades.")
-    } else if (offers.isEmpty()) SectionCard("Nenhuma oportunidade no momento", "Você não precisa ficar procurando vagas") {
-        MutedText("Quando uma oportunidade estiver disponível, ela aparecerá aqui após a atualização do acompanhamento.")
-    }
-    offers.forEach { offer ->
-        SectionCard(offer.specialty, "Oportunidade enviada pela unidade") {
-            Text(offer.professional)
-            MutedText("Atendimento em ${appointmentDate(offer.startsAt)}")
-            when (offer.status) {
-                "pending" -> {
-                    MutedText("Responda até ${appointmentDate(offer.expiresAt)}. Ao aceitar, sua consulta será agendada.")
-                    Button(onClick = { onRespond(offer.id, true) }, enabled = !patient.busy,
-                        modifier = Modifier.fillMaxWidth()) { Text("Aceitar oportunidade") }
-                    OutlinedButton(onClick = { onRespond(offer.id, false) }, enabled = !patient.busy,
-                        modifier = Modifier.fillMaxWidth()) { Text("Recusar oportunidade") }
-                }
-                "accepted" -> MutedText("Oferta aceita. Sua consulta foi agendada.")
-                else -> MutedText("${statusTitle(offer.status)} · Prazo: ${appointmentDate(offer.expiresAt)}")
-            }
-        }
-    }
-    OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.fillMaxWidth()) {
-        Text(if (patient.busy) "Atualizando…" else "Atualizar oportunidades")
-    }
-}
-
-@Composable
-private fun ScreenTitle(title: String, subtitle: String) {
+internal fun ScreenTitle(title: String, subtitle: String) {
     val shape = RoundedCornerShape(26.dp)
     Card(Modifier.fillMaxWidth(), shape = shape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -1342,11 +1279,11 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
         }
     }
     SectionCard("Notificações", "Suas preferências de avisos") {
-        MutedText("As escolhas ficam salvas neste aparelho. O envio de lembretes e avisos ainda depende da integração da rede.")
-        PreferenceSwitch("Consultas", "Lembretes e atualizações de agendamento", settings.appointmentNotifications) {
+        MutedText("As escolhas ficam salvas neste aparelho. O aviso de Vaga Relâmpago chega enquanto a conexão ativa do NORA estiver rodando (a notificação fixa \"NORA · conexão ativa\"); para recebê-lo, permita notificações do NORA nas configurações do Android.")
+        PreferenceSwitch("Consultas", "Lembretes de consulta ainda não estão disponíveis: a rede não envia esse aviso, e esta escolha não tem efeito por enquanto.", settings.appointmentNotifications) {
             onChange(settings.copy(appointmentNotifications = it))
         }
-        PreferenceSwitch("Vaga Relâmpago", "Avisos sobre oportunidades de atendimento", settings.flashNotifications) {
+        PreferenceSwitch("Vaga Relâmpago", "Notificação quando a UBS oferece uma consulta liberada. A lista também se atualiza sozinha.", settings.flashNotifications) {
             onChange(settings.copy(flashNotifications = it))
         }
     }
@@ -1399,7 +1336,7 @@ private fun PreferenceSwitch(title: String, description: String, checked: Boolea
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SectionCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     val colors = MaterialTheme.colorScheme
     Card(Modifier.fillMaxWidth(), shape = shape,
@@ -1422,6 +1359,6 @@ private fun SectionCard(title: String, subtitle: String, content: @Composable Co
 }
 
 @Composable
-private fun MutedText(text: String) {
+internal fun MutedText(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

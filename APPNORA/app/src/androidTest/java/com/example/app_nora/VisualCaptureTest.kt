@@ -43,7 +43,7 @@ class VisualCaptureTest {
             CompositionLocalProvider(LocalDensity provides Density(deviceDensity.density, fontScale)) {
                 NoraPatientContent(settings, { settings = it }, controller.state,
                     onAddressChange = controller::changeAddress,
-                    onLogin = { _, _ -> }, onRefresh = { }, onRespond = { _, _ -> }, onLogout = { })
+                    onLogin = { _, _ -> }, onRefresh = { }, onRespondUnit = { _, _ -> }, onLogout = { })
             }
         }
         fun capture(name: String) {
