@@ -26,7 +26,7 @@ try {
     & $noraInit -D $noraData -U nora_checks -A trust --encoding=UTF8 --locale=C
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar cluster descartável.' }
     # Aguarde apenas pg_ctl; esperar a árvore inteira aguardaria também o servidor.
-    $noraControl = Start-Process -FilePath $noraCtl -ArgumentList @('start', '-D', ('"' + $noraData + '"'), '-l', ('"' + $noraLog + '"'), '-o', ('"-p ' + $Port + ' -h 127.0.0.1 -c max_connections=30 -c shared_buffers=16MB"'), '-w', '-t', '30') -WindowStyle Hidden -PassThru
+    $noraControl = Start-Process -FilePath $noraCtl -ArgumentList @('start', '-D', ('"' + $noraData + '"'), '-l', ('"' + $noraLog + '"'), '-o', ('"-p ' + $Port + ' -h 127.0.0.1 -c max_connections=80 -c shared_buffers=16MB"'), '-w', '-t', '30') -WindowStyle Hidden -PassThru
     if (-not $noraControl.WaitForExit(40000)) { throw 'Controle do cluster descartável excedeu o prazo.' }
     if ($noraControl.ExitCode -ne 0) { throw 'Cluster descartável não iniciou. Confira a porta e o log local.' }
     $noraControl.Dispose()
