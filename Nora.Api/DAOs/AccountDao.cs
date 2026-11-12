@@ -18,7 +18,7 @@ public sealed class AccountDao(DatabaseHelper database)
     public Task<Account?> FindAsync(string scope, string identifier, CancellationToken ct) => database.UseAsync(async connection =>
     {
         await using var command = database.Command(connection,
-            "SELECT id,full_name,role,scope,cpf,email,password_hash FROM nora.accounts WHERE scope=$1 AND is_active AND (cpf=$2 OR email=$2)", scope, identifier);
+            "SELECT id,full_name,role,scope,must_change_password,cpf,email,password_hash FROM nora.accounts WHERE scope=$1 AND is_active AND (cpf=$2 OR email=$2)", scope, identifier);
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? ReadAccount(reader) : null;
     }, ct);
@@ -51,8 +51,24 @@ public sealed class AccountDao(DatabaseHelper database)
     public Task<int> RehashAsync(Guid id, string hash, CancellationToken ct) => database.UseAsync(connection =>
         database.ExecuteAsync(connection, "UPDATE nora.accounts SET password_hash=$2 WHERE id=$1", ct, id, hash), ct);
 
+    public Task<string?> FindPasswordHashAsync(Guid id, CancellationToken ct) => database.UseAsync(async connection =>
+    {
+        await using var command = database.Command(connection, "SELECT password_hash FROM nora.accounts WHERE id=$1 AND is_active", id);
+        return await command.ExecuteScalarAsync(ct) as string;
+    }, ct);
+
+    /// <summary>Troca a senha só se o hash lido ainda é o atual (concorrência otimista), limpa a troca obrigatória e revoga as outras sessões.</summary>
+    public Task<bool> ChangePasswordAsync(Guid id, string currentTokenHash, string expectedHash, string newHash, DateTimeOffset now, CancellationToken ct) => database.UseAsync(async connection =>
+    {
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        if (await database.ExecuteAsync(connection, "UPDATE nora.accounts SET password_hash=$3,must_change_password=false WHERE id=$1 AND is_active AND password_hash=$2", ct, id, expectedHash, newHash) != 1) return false;
+        await database.ExecuteAsync(connection, "UPDATE nora.sessions SET revoked_at=$3,presence_seen_at=NULL WHERE account_id=$1 AND revoked_at IS NULL AND token_hash<>$2", ct, id, currentTokenHash, now);
+        await transaction.CommitAsync(ct);
+        return true;
+    }, ct);
+
     private static Account ReadAccount(NpgsqlDataReader reader) => new(
-        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)),
-        reader.GetString(4), reader.GetString(5), reader.GetString(6));
+        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)),
+        reader.GetString(5), reader.GetString(6), reader.GetString(7));
     private static string? ReadOptional(NpgsqlDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
 }

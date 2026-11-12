@@ -30,7 +30,7 @@ $noraDirectory = Join-Path $noraRoot ('.build\clients-validation-' + [guid]::New
 New-Item -ItemType Directory -Path $noraDirectory | Out-Null
 $noraData = Join-Path $noraDirectory 'data'
 $noraPreview = if ([IO.Path]::IsPathRooted($PreviewDirectory)) { $PreviewDirectory } else { Join-Path $noraRoot $PreviewDirectory }
-$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
+$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_TEST_REGISTRATION', 'NORA_TEST_UNIT_A_CONNECTION', 'NORA_TEST_UNIT_B_CONNECTION', 'NORA_TEST_UNIT_C_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
 $noraPreviousEnvironment = @{}
 foreach ($noraName in $noraEnvironmentNames) { $noraPreviousEnvironment[$noraName] = [Environment]::GetEnvironmentVariable($noraName, 'Process') }
 $noraStarted = $false
@@ -51,6 +51,33 @@ function Wait-NoraCheckProcess($Process, [int] $Seconds, [string] $Name) {
     $Process.ExitCode
 }
 
+function Wait-NoraFixtureMetadata($Process) {
+    $noraReadyDeadline = [DateTime]::UtcNow.AddSeconds(90)
+    $noraInfo = $null
+    while ($null -eq $noraInfo) {
+        if ($Process.HasExited) { throw 'Fixture encerrou antes de publicar metadata; confira fixture.stderr.log.' }
+        if ([DateTime]::UtcNow -ge $noraReadyDeadline) { throw 'Fixture não ficou pronta no prazo.' }
+        if (Test-Path -LiteralPath $noraMetadata) {
+            # O arquivo pode ter surgido antes de WriteAllText concluir a escrita.
+            try { $noraInfo = Get-Content -LiteralPath $noraMetadata -Raw | ConvertFrom-Json } catch { }
+        }
+        if ($null -eq $noraInfo) { Start-Sleep -Milliseconds 250 }
+    }
+    $noraUri = [uri]$noraInfo.address
+    if (-not $noraUri.IsLoopback -or $noraUri.Scheme -ne 'http' -or $noraInfo.schema -notmatch '^nora_clients_[a-f0-9]{32}$') { throw 'Metadata não corresponde à fixture local descartável.' }
+    $noraInfo
+}
+# Encerra a fixture pelo arquivo de parada e confere a limpeza; usada ao trocar a fixture do desktop pela do Android.
+function Stop-NoraFixtureProcess($Process) {
+    if (-not $Process.HasExited) {
+        [IO.File]::WriteAllText($noraStop, 'Encerrar fixture criada pelo harness.')
+        if (-not $Process.WaitForExit(40000)) { $Process.Kill($true); $Process.WaitForExit(10000) | Out-Null; throw 'Fixture não confirmou a limpeza no prazo.' }
+    }
+    if ($Process.ExitCode -ne 0) { throw 'Fixture encerrou com erro; confira os logs da limpeza.' }
+    if (Test-Path -LiteralPath $noraStop) { Remove-Item -LiteralPath $noraStop }
+    $Process.Dispose()
+}
+
 try {
     $noraInitialize = Start-NoraCheckProcess $noraInit @('-D', ('"' + $noraData + '"'), '-U', 'nora_checks', '-A', 'trust', '--encoding=UTF8', '--locale=C') 'initdb'
     try {
@@ -58,26 +85,15 @@ try {
     } finally { $noraInitialize.Dispose() }
     # Não use Start-Process -Wait: ele aguardaria também a árvore do servidor.
     $noraStartAttempted = $true
-    $noraControl = Start-NoraCheckProcess $noraCtl @('start', '-D', ('"' + $noraData + '"'), '-l', ('"' + (Join-Path $noraDirectory 'server.log') + '"'), '-o', ('"-p ' + $Port + ' -h 127.0.0.1 -c max_connections=30 -c shared_buffers=16MB"'), '-w', '-t', '30') 'pg-start'
+    $noraControl = Start-NoraCheckProcess $noraCtl @('start', '-D', ('"' + $noraData + '"'), '-l', ('"' + (Join-Path $noraDirectory 'server.log') + '"'), '-o', ('"-p ' + $Port + ' -h 127.0.0.1 -c max_connections=80 -c shared_buffers=16MB"'), '-w', '-t', '30') 'pg-start'
     try {
         if ((Wait-NoraCheckProcess $noraControl 40 'pg_ctl start') -ne 0) { throw 'Cluster descartável não iniciou. Confira a porta e os logs.' }
     } finally { $noraControl.Dispose() }
     $noraStarted = $true
     $env:NORA_TEST_CONNECTION = "Host=127.0.0.1;Port=$Port;Database=postgres;Username=nora_checks"
     $noraFixture = Start-NoraCheckProcess 'dotnet' @(('"' + $noraApiChecks + '"'), '--client-fixture') 'fixture'
-    $noraReadyDeadline = [DateTime]::UtcNow.AddSeconds(90)
-    $noraFixtureInfo = $null
-    while ($null -eq $noraFixtureInfo) {
-        if ($noraFixture.HasExited) { throw 'Fixture encerrou antes de publicar metadata; confira fixture.stderr.log.' }
-        if ([DateTime]::UtcNow -ge $noraReadyDeadline) { throw 'Fixture não ficou pronta no prazo.' }
-        if (Test-Path -LiteralPath $noraMetadata) {
-            # O arquivo pode ter surgido antes de WriteAllText concluir a escrita.
-            try { $noraFixtureInfo = Get-Content -LiteralPath $noraMetadata -Raw | ConvertFrom-Json } catch { }
-        }
-        if ($null -eq $noraFixtureInfo) { Start-Sleep -Milliseconds 250 }
-    }
+    $noraFixtureInfo = Wait-NoraFixtureMetadata $noraFixture
     $noraEndpoint = [uri]$noraFixtureInfo.address
-    if (-not $noraEndpoint.IsLoopback -or $noraEndpoint.Scheme -ne 'http' -or $noraFixtureInfo.schema -notmatch '^nora_clients_[a-f0-9]{32}$') { throw 'Metadata não corresponde à fixture local descartável.' }
     Copy-Item -LiteralPath $noraMetadata -Destination (Join-Path $noraDirectory 'fixture.json')
     $env:NORA_E2E_URL = $noraEndpoint.AbsoluteUri
     $env:NORA_E2E_IDENTIFIER = 'operator@example.test'
@@ -86,6 +102,23 @@ try {
     try { $noraExitCode = Wait-NoraCheckProcess $noraDesktop $TestTimeoutSeconds 'Checks WPF' } finally { $noraDesktop.Dispose() }
     if ($noraExitCode -ne 0) { throw 'Checks WPF/E2E falharam; confira desktop.stdout.log e desktop.stderr.log.' }
     if ($Android) {
+        # O teste real do app usa só rotas por UBS e exige a fixture em modo de cadastro (três "UBS Cadastro E2E" e
+        # /__checks/registration-code), com um banco local descartável por UBS. Ela substitui a fixture legada do desktop.
+        Stop-NoraFixtureProcess $noraFixture
+        $noraFixture = $null
+        $noraCreateDb = Join-Path $PostgreSqlBin 'createdb.exe'
+        if (-not (Test-Path -LiteralPath $noraCreateDb)) { throw 'O utilitário createdb.exe não foi encontrado.' }
+        foreach ($noraLetter in @('A', 'B', 'C')) {
+            $noraUnitDb = 'nora_unit_' + $noraLetter.ToLowerInvariant()
+            & $noraCreateDb -h 127.0.0.1 -p $Port -U nora_checks $noraUnitDb
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao criar banco descartável $noraUnitDb." }
+            [Environment]::SetEnvironmentVariable("NORA_TEST_UNIT_${noraLetter}_CONNECTION", "Host=127.0.0.1;Port=$Port;Database=$noraUnitDb;Username=nora_checks", 'Process')
+        }
+        $env:NORA_TEST_REGISTRATION = '1'
+        $noraFixture = Start-NoraCheckProcess 'dotnet' @(('"' + $noraApiChecks + '"'), '--client-fixture') 'fixture-android'
+        $noraFixtureInfo = Wait-NoraFixtureMetadata $noraFixture
+        $noraEndpoint = [uri]$noraFixtureInfo.address
+        Copy-Item -LiteralPath $noraMetadata -Destination (Join-Path $noraDirectory 'fixture-android.json')
         $env:JAVA_HOME = $JavaHome
         $env:ANDROID_HOME = $AndroidSdk
         $env:ANDROID_SDK_ROOT = $AndroidSdk

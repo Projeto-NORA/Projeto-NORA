@@ -18,9 +18,9 @@ public sealed class SessionDao(DatabaseHelper database)
     public Task<SessionInfo?> FindAsync(string hash, DateTimeOffset now, CancellationToken ct) => database.UseAsync(async connection =>
     {
         await using var command = database.Command(connection,
-            "SELECT a.id,a.full_name,a.role,a.scope FROM nora.sessions s JOIN nora.accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND a.is_active AND s.revoked_at IS NULL AND s.expires_at>$2", hash, now);
+            "SELECT a.id,a.full_name,a.role,a.scope,a.must_change_password FROM nora.sessions s JOIN nora.accounts a ON a.id=s.account_id WHERE s.token_hash=$1 AND a.is_active AND s.revoked_at IS NULL AND s.expires_at>$2", hash, now);
         await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? new SessionInfo(new(reader.GetGuid(0),reader.GetString(1),reader.GetString(2),reader.GetString(3)), hash) : null;
+        return await reader.ReadAsync(ct) ? new SessionInfo(new(reader.GetGuid(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetBoolean(4)), hash) : null;
     }, ct);
 
     public Task<int> RevokeAsync(string hash, DateTimeOffset now, CancellationToken ct) => database.UseAsync(connection =>

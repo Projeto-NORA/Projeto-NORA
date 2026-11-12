@@ -1,9 +1,8 @@
 using Nora.Api.DAOs;
-using Nora.Api.Database;
 
 namespace Nora.Api.Services;
 
-public sealed class UnitLightningWorker(HealthUnitService units, UnitDatabaseRouter databases, UnitLightningDispatcher dispatcher, IConfiguration config, ILogger<UnitLightningWorker> log) : BackgroundService
+public sealed class UnitLightningWorker(HealthUnitService units, UnitLightningDispatcher dispatcher, IConfiguration config, ILogger<UnitLightningWorker> log) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -15,9 +14,8 @@ public sealed class UnitLightningWorker(HealthUnitService units, UnitDatabaseRou
             {
                 try
                 {
-                    foreach (var unit in await units.ListAsync(stoppingToken))
+                    foreach (var unit in await units.ListReadyAsync(stoppingToken))
                     {
-                        if (!databases.IsConfigured(unit.Id)) continue;
                         try { await dispatcher.AdvanceAsync(unit.Id, stoppingToken); }
                         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
                         catch (Exception) { log.LogWarning("Não foi possível atualizar as ofertas de uma unidade."); }

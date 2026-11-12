@@ -93,3 +93,9 @@ public sealed class ApiNotFoundException : Exception;
 public sealed class ApiUnauthorizedException : Exception;
 public sealed class ApiForbiddenException : Exception;
 public sealed class ApiRateLimitException : Exception;
+/// <summary>Erro com status e código próprios no problem+json (ex.: invalid-current-password).</summary>
+public sealed class ApiCodedException(int status, string code) : Exception
+{
+    public int Status { get; } = status;
+    public string Code { get; } = code;
+}

@@ -41,6 +41,20 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         await using var reader = await query.ExecuteReaderAsync(ct); var result = new List<UnitLightningSlot>();
         while (await reader.ReadAsync(ct)) result.Add(Read(reader)); return result;
     }
+    /// <summary>Ofertas de uma vaga em ordem cronológica (o prazo de dez minutos cresce a cada oferta), só com o nome do paciente.</summary>
+    public async Task<List<UnitSlotOffer>> ListOffersAsync(Guid unitId, Guid slotId, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT o.id,p.full_name,o.status,o.expires_at,s.id FROM nora_unit.lightning_slots s LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id LEFT JOIN nora_unit.waiting_list q ON q.id=o.entry_id LEFT JOIN nora_unit.patient_registry p ON p.cpf=q.cpf WHERE s.id=$1 ORDER BY o.expires_at,o.id", connection);
+        query.Parameters.AddWithValue(slotId);
+        await using var reader = await query.ExecuteReaderAsync(ct); var offers = new List<UnitSlotOffer>(); var slotFound = false;
+        while (await reader.ReadAsync(ct))
+        {
+            slotFound = true;
+            if (!reader.IsDBNull(0)) offers.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3)));
+        }
+        return slotFound ? offers : throw new ApiNotFoundException();
+    }
     public async Task<List<UnitLightningOffer>> ListForPatientAsync(Guid unitId, string cpf, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
@@ -83,7 +97,7 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
             appointmentId = Guid.NewGuid();
             await using (var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8)", connection))
             { foreach (var value in new object[] { appointmentId.Value, cpf, specialty, professional, start, end, actorId, now }) insert.Parameters.AddWithValue(value); await insert.ExecuteNonQueryAsync(ct); }
-            await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at) VALUES($1,$2,'scheduled',$3)", connection))
+            await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,'scheduled',$3,'patient')", connection))
             { audit.Parameters.AddWithValue(appointmentId.Value); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); await audit.ExecuteNonQueryAsync(ct); }
         }
         await SetOfferResultAsync(connection, offerId, slotId, entryId, actorId, accept ? "accepted" : "declined", accept ? "accepted" : "open", now, "patient", ct);
