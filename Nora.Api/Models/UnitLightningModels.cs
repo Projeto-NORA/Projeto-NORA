@@ -7,3 +7,4 @@ public sealed record UnitLightningSlot(Guid Id, Guid AppointmentId, string Speci
 public sealed record UnitLightningOffer(Guid Id, Guid SlotId, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, DateTimeOffset ExpiresAt, string Status);
 public sealed record UnitLightningResponse([property: JsonRequired] bool Accept);
 public sealed record UnitLightningResponseResult(bool Accepted, Guid? AppointmentId);
+public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, DateTimeOffset ExpiresAt);

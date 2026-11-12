@@ -23,6 +23,8 @@ internal static class UnitDatabaseChecks
         {
             ["ConnectionStrings:Nora"] = centralConnection,
             ["Nora:Schema"] = schema,
+            // Esta verificação usa só chaves explícitas; a criação automática é coberta em PlatformChecks.
+            ["Nora:UnitDatabases:AutoProvision"] = "false",
             [$"Nora:UnitDatabases:{first:N}"] = firstConnection,
             [$"Nora:UnitDatabases:{second:N}"] = secondConnection,
             [$"Nora:UnitDatabases:{incorrect:N}"] = firstConnection,
@@ -90,6 +92,51 @@ internal static class UnitDatabaseChecks
             catch (DatabaseUnavailableException) { }
             try { await using var missing = await databases.OpenAsync(Guid.NewGuid()); throw new InvalidOperationException("UBS sem conexão foi aceita."); }
             catch (DatabaseUnavailableException) { }
+            // Origem dos eventos de consulta: padrão 'staff' para eventos sem origem (anteriores à migração 010), 'patient' só pelo CPF do paciente.
+            await using (var firstDb = await databases.OpenAsync(first))
+            {
+                await using (var legacy = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at) VALUES($1,$2,'called',now()) RETURNING source", firstDb))
+                { legacy.Parameters.AddWithValue(cancelled.Id); legacy.Parameters.AddWithValue(actor); Require(await legacy.ExecuteScalarAsync() is "staff", "Evento sem origem não ficou 'staff'."); }
+                try
+                {
+                    await using var invalidSource = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,'called',now(),'other')", firstDb);
+                    invalidSource.Parameters.AddWithValue(cancelled.Id); invalidSource.Parameters.AddWithValue(actor); await invalidSource.ExecuteNonQueryAsync();
+                    throw new InvalidOperationException("Origem inválida foi aceita.");
+                }
+                catch (PostgresException error) when (error.SqlState == "23514") { }
+            }
+            var byPatientStart = DateTimeOffset.UtcNow.AddDays(5);
+            var ownAppointment = await appointments.CreateAsync(first, actor, new CreateAppointmentRequest("52998224725", "Clínica", "Profissional do paciente", byPatientStart, byPatientStart.AddMinutes(30)), default);
+            await appointments.ChangeStatusAsync(first, actor, ownAppointment.Id, new AppointmentStatusRequest("cancelled", true), default, "52998224725");
+            await using (var firstDb = await databases.OpenAsync(first))
+            await using (var origins = new NpgsqlCommand("SELECT (SELECT source FROM nora_unit.appointment_events WHERE appointment_id=$1 AND status='cancelled'),(SELECT source FROM nora_unit.appointment_events WHERE appointment_id=$2 AND status='cancelled'),(SELECT source FROM nora_unit.appointment_events WHERE appointment_id=$2 AND status='scheduled')", firstDb))
+            {
+                origins.Parameters.AddWithValue(ownAppointment.Id); origins.Parameters.AddWithValue(cancelled.Id);
+                await using var origin = await origins.ExecuteReaderAsync(); await origin.ReadAsync();
+                Require(origin.GetString(0) == "patient" && origin.GetString(1) == "staff" && origin.GetString(2) == "staff", "Origem do evento de consulta incorreta (paciente x equipe).");
+            }
+            // Roteamento: chave explícita vence; AutoProvision e NamePrefix não são confundidos com identificadores de UBS.
+            var derivedConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Nora"] = centralConnection,
+                [$"Nora:UnitDatabases:{first:N}"] = firstConnection,
+                ["Nora:UnitDatabases:AutoProvision"] = "true",
+                ["Nora:UnitDatabases:NamePrefix"] = "nora_check_"
+            }).Build();
+            await using (var derived = new UnitDatabaseRouter(derivedConfig))
+            {
+                var automatic = Guid.NewGuid();
+                Require(derived.HasExplicitConnection(first) && !derived.HasExplicitConnection(automatic), "Chave explícita não foi reconhecida.");
+                Require(derived.DerivedDatabaseName(automatic) == "nora_check_" + automatic.ToString("N") && derived.IsConfigured(automatic), "Nome derivado do banco da UBS incorreto.");
+                Require(derived.AutoProvision && !derived.HasExplicitConnection(Guid.Empty), "AutoProvision foi confundido com identificador de UBS.");
+                await using var viaExplicit = await derived.OpenAsync(first);
+            }
+            foreach (var invalidPrefix in new[] { "Nora_", "1nora_", "nora-", "nora\";drop", new string('a', 32) })
+            {
+                var invalidConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Nora:UnitDatabases:NamePrefix"] = invalidPrefix }).Build();
+                try { await using var rejected = new UnitDatabaseRouter(invalidConfig); throw new InvalidOperationException("Prefixo inválido foi aceito."); }
+                catch (InvalidOperationException error) when (error.Message.Contains("Prefixo")) { }
+            }
             Console.WriteLine("PASS [PostgreSQL] Bancos separados, cadastros isolados, autoria, migração reaplicável e recusa de conexão incorreta.");
             return 0;
         }

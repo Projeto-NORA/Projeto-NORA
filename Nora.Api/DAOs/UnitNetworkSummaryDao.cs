@@ -7,18 +7,29 @@ namespace Nora.Api.DAOs;
 
 public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRouter databases, TimeProvider time)
 {
+    /// <summary>
+    /// patients = CPFs distintos com ao menos um cadastro ativo; inactivePatients = CPFs só com cadastro desativado;
+    /// waitingPatients = CPFs distintos aguardando (waiting/offered); waitingEntries = entradas ativas.
+    /// Unidades com o banco ainda não criado ficam fora e são contadas em unitsWithoutDatabase.
+    /// </summary>
     public async Task<MunicipalSummary> ReadAsync(Guid? selectedUnitId, CancellationToken ct)
     {
         var all = await units.ListAsync(ct);
         if (selectedUnitId is { } selected && all.All(unit => unit.Id != selected)) throw new ApiNotFoundException();
-        var chosen = selectedUnitId is { } id ? all.Where(unit => unit.Id == id) : all;
-        var cpfs = new HashSet<string>(StringComparer.Ordinal); var totals = new long[9];
+        var chosen = (selectedUnitId is { } id ? all.Where(unit => unit.Id == id) : all).ToList();
+        var ready = chosen.Where(unit => unit.DatabaseState == "ready");
+        var activeCpfs = new HashSet<string>(StringComparer.Ordinal); var allCpfs = new HashSet<string>(StringComparer.Ordinal); var waitingCpfs = new HashSet<string>(StringComparer.Ordinal);
+        var totals = new long[9];
         var cohorts = new long[3, 8]; var now = time.GetUtcNow();
-        foreach (var unit in chosen)
+        foreach (var unit in ready)
         {
             await using var connection = await databases.OpenAsync(unit.Id, ct);
-            await using (var query = new NpgsqlCommand("SELECT cpf FROM nora_unit.patient_registry", connection))
-            await using (var reader = await query.ExecuteReaderAsync(ct)) while (await reader.ReadAsync(ct)) cpfs.Add(reader.GetString(0));
+            await using (var query = new NpgsqlCommand("SELECT cpf, is_active FROM nora_unit.patient_registry", connection))
+            await using (var reader = await query.ExecuteReaderAsync(ct))
+                while (await reader.ReadAsync(ct)) { allCpfs.Add(reader.GetString(0)); if (reader.GetBoolean(1)) activeCpfs.Add(reader.GetString(0)); }
+            await using (var query = new NpgsqlCommand("SELECT DISTINCT cpf FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')", connection))
+            await using (var reader = await query.ExecuteReaderAsync(ct))
+                while (await reader.ReadAsync(ct)) waitingCpfs.Add(reader.GetString(0));
             const string totalSql = "SELECT (SELECT count(*) FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora_unit.lightning_slots WHERE status IN ('open','offered')),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='accepted'),(SELECT count(*) FROM nora_unit.lightning_slots),(SELECT count(*) FROM nora_unit.lightning_offers),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='declined'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='expired'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='pending'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='cancelled')";
             await using (var query = new NpgsqlCommand(totalSql, connection))
             await using (var reader = await query.ExecuteReaderAsync(ct))
@@ -40,6 +51,7 @@ public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRoute
         }
         var windows = new List<LightningCohort>(); var days = new[] { 7, 30, 90 };
         for (var i = 0; i < days.Length; i++) windows.Add(new(days[i], cohorts[i, 0], cohorts[i, 1], cohorts[i, 2], cohorts[i, 3], cohorts[i, 4], cohorts[i, 5], cohorts[i, 6], cohorts[i, 7]));
-        return new(cpfs.Count, totals[0], totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], windows);
+        return new(activeCpfs.Count, waitingCpfs.Count, totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], windows,
+            allCpfs.Count - activeCpfs.Count, totals[0], chosen.Count(unit => unit.DatabaseState != "ready"));
     }
 }

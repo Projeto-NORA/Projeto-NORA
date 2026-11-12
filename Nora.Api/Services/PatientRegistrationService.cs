@@ -9,7 +9,7 @@ using Nora.Api.Models;
 
 namespace Nora.Api.Services;
 
-public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatientRegistryDao registry,
+public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatientRegistryDao registry, HealthUnitDao unitDao,
     IPasswordHasher<Account> passwords, IEmailSender email, IConfiguration configuration, TimeProvider time)
 {
     private static readonly Account HashUser = new(new(Guid.Empty, "", "patient", "patient"), "", "", "");
@@ -26,9 +26,8 @@ public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatie
             throw new ApiInputException();
         var key = SigningKey();
         if (!email.IsConfigured) throw new EmailDeliveryUnavailableException();
-        await using (var connection = await central.OpenAsync(ct))
-        await using (var verify = central.Command(connection, "SELECT count(*) FROM nora.health_units WHERE id=ANY($1)", units))
-            if ((long)(await verify.ExecuteScalarAsync(ct))! != units.Length) throw new ApiInputException();
+        // Unidades inexistentes ou sem banco pronto ("pending") não entram no vínculo pelo aplicativo.
+        if ((await unitDao.ReadyIdsAsync(units, ct)).Count != units.Length) throw new ApiInputException();
         var matches = await FindMatchesAsync(units, cpf, ct);
         if (matches.Count == 0) return new(null, []);
         var now = time.GetUtcNow(); var challengeId = Guid.NewGuid();
@@ -130,8 +129,7 @@ public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatie
         await using (var account = central.Command(connection, "SELECT a.cpf FROM nora.accounts a JOIN nora.sessions s ON s.account_id=a.id WHERE a.id=$1 AND a.is_active AND s.token_hash=$2 AND s.revoked_at IS NULL AND s.expires_at>$3 FOR SHARE OF a,s", session.User.Id, session.TokenHash, time.GetUtcNow()))
             cpf = await account.ExecuteScalarAsync(ct) as string ?? throw new ApiUnauthorizedException();
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
-        await using (var verify = central.Command(connection, "SELECT count(*) FROM nora.health_units WHERE id=ANY($1)", units))
-            if ((long)(await verify.ExecuteScalarAsync(ct))! != units.Length) throw new ApiInputException();
+        if ((await unitDao.ReadyIdsAsync(units, ct)).Count != units.Length) throw new ApiInputException();
         var matches = await FindMatchesAsync(units, cpf, ct);
         foreach (var unitId in matches.Keys)
         {

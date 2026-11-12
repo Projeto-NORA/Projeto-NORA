@@ -267,7 +267,7 @@ internal static class WorkflowChecks
                 }
                 using var publicUnits = await anonymous.GetAsync("/api/patient/units"); Expect(publicUnits, 401);
                 using var obsUnits = await obs.GetAsync("/api/patient/units"); Expect(obsUnits, 403);
-                using var patientUnits = await patient.GetAsync("/api/patient/units"); Expect(patientUnits, string.IsNullOrWhiteSpace(unitDatabaseConnection) ? 503 : 200);
+                using var patientUnits = await patient.GetAsync("/api/patient/units"); Expect(patientUnits, 200); // sem chave explícita o banco é derivado da central e criado ao cadastrar a UBS
                 using var patientUnitsBody = await Json(patientUnits);
                 using var otherPatientUnits = await secondPatient.GetAsync("/api/patient/units"); Expect(otherPatientUnits, 200);
                 using var otherUnitsBody = await Json(otherPatientUnits);

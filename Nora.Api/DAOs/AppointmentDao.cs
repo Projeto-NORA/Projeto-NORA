@@ -30,7 +30,7 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         var id = Guid.NewGuid(); var now = time.GetUtcNow();
         await using (var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8)", connection))
         { foreach (var value in new object[] { id, cpf, specialty, professional, start, end, actorId, now }) insert.Parameters.AddWithValue(value); await insert.ExecuteNonQueryAsync(ct); }
-        await InsertEventAsync(connection, id, actorId, "scheduled", now, ct);
+        await InsertEventAsync(connection, id, actorId, "scheduled", now, "staff", ct);
         var result = await ReadOneAsync(connection, id, ct);
         await transaction.CommitAsync(ct);
         return result;
@@ -62,14 +62,15 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         }
         await using (var update = new NpgsqlCommand("UPDATE nora_unit.appointments SET status=$2 WHERE id=$1", connection))
         { update.Parameters.AddWithValue(id); update.Parameters.AddWithValue(request.Status); await update.ExecuteNonQueryAsync(ct); }
-        await InsertEventAsync(connection, id, actorId, request.Status, time.GetUtcNow(), ct);
+        await InsertEventAsync(connection, id, actorId, request.Status, time.GetUtcNow(), patientCpf is null ? "staff" : "patient", ct);
         var result = await ReadOneAsync(connection, id, ct); await transaction.CommitAsync(ct); return result;
     }
 
-    private static async Task InsertEventAsync(NpgsqlConnection connection, Guid id, Guid actor, string status, DateTimeOffset now, CancellationToken ct)
+    /// <summary>Origem: "staff" (OBS), "patient" (aplicativo) ou "system"; só cancelamentos "patient" pesam no score de comparecimento.</summary>
+    private static async Task InsertEventAsync(NpgsqlConnection connection, Guid id, Guid actor, string status, DateTimeOffset now, string origin, CancellationToken ct)
     {
-        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at) VALUES($1,$2,$3,$4)", connection);
-        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); await insert.ExecuteNonQueryAsync(ct);
+        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,$3,$4,$5)", connection);
+        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); await insert.ExecuteNonQueryAsync(ct);
     }
     private static async Task<AppointmentInfo> ReadOneAsync(NpgsqlConnection connection, Guid id, CancellationToken ct)
     {

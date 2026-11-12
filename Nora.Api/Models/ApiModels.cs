@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Nora.Api.Models;
 
-public sealed record UserInfo(Guid Id, string FullName, string Role, string Scope);
+public sealed record UserInfo(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false);
 public sealed record Account(UserInfo User, string Cpf, string Email, string PasswordHash);
 public sealed record LoginRequest(string Scope, string Identifier, string Password);
 public sealed record LoginResponse(string Token, DateTimeOffset ExpiresAt, UserInfo User);
@@ -16,3 +16,10 @@ public sealed record PasswordResetChallengeResponse(Guid ChallengeId, int Expire
 public sealed record PasswordResetFinishRequest(Guid ChallengeId, string Code, string NewPassword);
 public sealed record PasswordResetFinishResponse(bool CodeValid);
 public sealed record PasswordResetTarget(Guid Id, string FullName, string Email);
+public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
+public sealed record CreateStaffRequest(string? FullName, string? Cpf, string? Email, string? Password, string? Role);
+public sealed record SetStaffActiveRequest([property: JsonRequired] bool IsActive, [property: JsonRequired] bool Confirmed);
+public sealed record ResetStaffPasswordRequest(string? Password, [property: JsonRequired] bool Confirmed);
+public sealed record UnlinkUnitRequest([property: JsonRequired] bool Confirmed);
+public sealed record UnlinkUnitResult(int CancelledAppointments, int CancelledEntries);
+public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName, Guid? UnitId, string? UnitName, string? AccountName);

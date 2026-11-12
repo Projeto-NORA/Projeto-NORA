@@ -59,10 +59,12 @@ internal static class ClientFixture
             if (registrationTest)
             {
                 var units = app.Services.GetRequiredService<HealthUnitService>();
+                var unitRecords = app.Services.GetRequiredService<HealthUnitDao>();
                 var registry = app.Services.GetRequiredService<UnitPatientRegistryDao>();
                 for (var i = 0; i < 3; i++)
                 {
-                    var unit = await units.CreateAsync(new($"UBS Cadastro E2E {i + 1}", "Centro", "Rua sintética", -23.5, -46.6), default);
+                    // Cadastro direto no DAO: o banco desta UBS vem da chave explícita abaixo, sem criar um banco derivado.
+                    var unit = await unitRecords.CreateAsync(HealthUnitService.Validate(Guid.NewGuid(), new($"UBS Cadastro E2E {i + 1}", "Centro", "Rua sintética", -23.5, -46.6)), default);
                     app.Configuration[$"Nora:UnitDatabases:{unit.Id:N}"] = registrationConnections[i];
                     await app.Services.GetRequiredService<UnitMigrationDao>().MigrateAsync(unit.Id);
                     await units.SetStaffAccessAsync(operatorUser.Id, unit.Id, managerUser.Id, true, default);

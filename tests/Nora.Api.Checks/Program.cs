@@ -52,6 +52,39 @@ foreach (var environment in new[] { "Development", "Production" })
             Require(Nora.Api.Services.AccountService.NormalizeCpf("529x98224725") == "", "Caractere não permitido foi aceito.");
             return Task.CompletedTask;
         });
+        await Check("CancellationWeight cobre cada faixa, cada limite inferior inclusivo e antecedência negativa", () =>
+        {
+            (TimeSpan Lead, double Weight)[] cases =
+            [
+                (TimeSpan.FromHours(-5), 1.0), (TimeSpan.FromSeconds(-1), 1.0), (TimeSpan.Zero, 1.0), (TimeSpan.FromMinutes(59), 1.0), (new TimeSpan(0, 59, 59), 1.0),
+                (TimeSpan.FromHours(1), 0.9), (new TimeSpan(1, 59, 59), 0.9),
+                (TimeSpan.FromHours(2), 0.8), (new TimeSpan(5, 59, 59), 0.8),
+                (TimeSpan.FromHours(6), 0.6), (new TimeSpan(11, 59, 59), 0.6),
+                (TimeSpan.FromHours(12), 0.4), (new TimeSpan(23, 59, 59), 0.4),
+                (TimeSpan.FromHours(24), 0.2), (new TimeSpan(47, 59, 59), 0.2),
+                (TimeSpan.FromHours(48), 0.1), (new TimeSpan(71, 59, 59), 0.1),
+                (TimeSpan.FromHours(72), 0.02), (new TimeSpan(95, 59, 59), 0.02),
+                (TimeSpan.FromHours(96), 0.0), (TimeSpan.FromDays(30), 0.0)
+            ];
+            foreach (var (lead, weight) in cases)
+                Require(Nora.Api.Services.AttendanceScore.CancellationWeight(lead) == weight, $"Peso incorreto para antecedência {lead}.");
+            var previous = 2.0;
+            for (var minutes = -120; minutes <= 6000; minutes++)
+            {
+                var current = Nora.Api.Services.AttendanceScore.CancellationWeight(TimeSpan.FromMinutes(minutes));
+                Require(current <= previous, "O peso do cancelamento cresceu com a antecedência.");
+                previous = current;
+            }
+            return Task.CompletedTask;
+        });
+        await Check("Score de comparecimento: denominador zero é nulo; cancelamentos pesam fração de falta", () =>
+        {
+            Require(Nora.Api.Services.AttendanceScore.Compute(0, 0, 0) is null, "Sem consulta encerrada o score deve ser nulo.");
+            Require(Nora.Api.Services.AttendanceScore.Compute(0, 0, 0.5) == 0.0, "Só cancelamentos pesados devem dar score zero, não nulo.");
+            Require(Nora.Api.Services.AttendanceScore.Compute(3, 0, 0) == 1.0 && Nora.Api.Services.AttendanceScore.Compute(3, 1, 0) == 0.75, "Score sem cancelamentos incorreto.");
+            Require(Math.Abs(Nora.Api.Services.AttendanceScore.Compute(2, 0, 4.02)!.Value - 2 / 6.02) < 1e-12, "Score com peso fracionário incorreto.");
+            return Task.CompletedTask;
+        });
         await Check("GET liveness tem escopo explícito, sem afirmação de readiness", async () =>
         {
             using var response = await client.GetAsync("/health/live");
@@ -170,7 +203,8 @@ foreach (var environment in new[] { "Development", "Production" })
 Console.WriteLine($"{checks - failures}/{checks} verificações HTTP passaram.");
 var workflowFailures = await WorkflowChecks.RunAsync(directory.FullName);
 var unitFailures = await UnitDatabaseChecks.RunAsync();
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 ? 0 : 1;
+var platformFailures = await PlatformChecks.RunAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

@@ -30,6 +30,13 @@ public static class NoraApiHost
         builder.Services.AddSingleton<UnitPatientStatusService>();
         builder.Services.AddSingleton<UnitRegistryReadService>();
         builder.Services.AddSingleton<UnitNetworkSummaryDao>();
+        builder.Services.AddSingleton<UnitMetricsDao>();
+        builder.Services.AddSingleton<UnitPatientUnlinkDao>();
+        builder.Services.AddSingleton<HistoryDao>();
+        builder.Services.AddSingleton<StaffAccountDao>();
+        builder.Services.AddSingleton<StaffAccountService>();
+        builder.Services.AddSingleton<MetricsService>();
+        builder.Services.AddSingleton<UnitDatabaseProvisioner>();
         builder.Services.AddSingleton<UnitAccessService>();
         builder.Services.AddSingleton<PatientRegistrationService>();
         builder.Services.AddSingleton<AccountDao>();
@@ -64,6 +71,10 @@ public static class NoraApiHost
             options.AddPolicy("registration-confirm",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("registration-units",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
             options.AddPolicy("patient-link-units",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("password-change",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("staff-account",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("unit-database",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("patient-unlink",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("cep",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
         });
         configureServices?.Invoke(builder.Services);
@@ -79,13 +90,14 @@ public static class NoraApiHost
                 ApiUnauthorizedException=>401,
                 ApiForbiddenException=>403,
                 ApiRateLimitException=>429,
+                ApiCodedException coded=>coded.Status,
                 EmailDeliveryUnavailableException=>503,
                 CepUnavailableException=>503,
                 PostgresException {SqlState:"23505"}=>409,
                 DatabaseUnavailableException or NpgsqlException=>503,
                 _=>500
             };
-            return ApiProblems.WriteAsync(context,status);
+            return ApiProblems.WriteAsync(context,status,(exception as ApiCodedException)?.Code);
         }));
         app.UseStatusCodePages(context=>ApiProblems.WriteAsync(context.HttpContext,context.HttpContext.Response.StatusCode));
         app.Use(async(context,next)=>
