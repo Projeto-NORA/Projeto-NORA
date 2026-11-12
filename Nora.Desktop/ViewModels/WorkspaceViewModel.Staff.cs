@@ -20,14 +20,14 @@ public sealed partial class WorkspaceViewModel
         var units = await api.HealthUnitsAsync();
         if (disposed) return;
         Replace(Staff, staff); Replace(Units, units); UnitsLoaded = true; SelectedStaff = null;
-        Message = "Contas e unidades atualizadas. Selecione uma conta e consulte seus vínculos.";
+        Say(MessageKind.Success, "Contas e unidades atualizadas. Selecione uma conta e consulte seus vínculos.");
     });
     public Task LoadStaffUnitsAsync() => RunAsync(async () =>
     {
         var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
         var units = await api.StaffUnitsAsync(staff.Id);
         if (disposed || SelectedStaff?.Id != staff.Id) return;
-        Replace(StaffUnits, units); SelectedStaffGrant = null; Message = "Vínculos atualizados.";
+        Replace(StaffUnits, units); SelectedStaffGrant = null; Say(MessageKind.Success, "Vínculos atualizados.");
     });
     public Task ChangeStaffUnitAsync(bool grant) => RunAsync(async () =>
     {
@@ -37,7 +37,7 @@ public sealed partial class WorkspaceViewModel
         var units = await api.StaffUnitsAsync(staff.Id);
         if (disposed || SelectedStaff?.Id != staff.Id) return;
         Replace(StaffUnits, units); SelectedStaffGrant = null;
-        Message = grant ? "Vínculo concedido e registrado." : "Vínculo revogado e registrado.";
+        Say(MessageKind.Success, grant ? "Vínculo concedido e registrado." : "Vínculo revogado e registrado.");
     });
     private void ClearStaff()
     {

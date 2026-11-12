@@ -1,16 +1,32 @@
-<UserControl x:Class="Nora.Desktop.Views.UnitQueueView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Border Style="{StaticResource Card}" Margin="0,0,0,24"><StackPanel IsEnabled="{Binding CanOperate}">
-    <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="SemiBold" />
-    <TextBlock Text="Confirme uma UBS em Pacientes. As vagas são oferecidas pela ordem de entrada para a mesma especialidade." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
-    <TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" Margin="0,0,0,10" />
-    <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
-      <TextBlock Text="Paciente cadastrado na UBS" /><ComboBox ItemsSource="{Binding ActiveObsRegistry}" SelectedItem="{Binding WaitingPatient}" DisplayMemberPath="FullName" AutomationProperties.Name="Paciente da fila da UBS" />
-      <TextBlock Text="Especialidade" /><TextBox Text="{Binding WaitingSpecialty, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Especialidade da fila da UBS" />
-      <WrapPanel><Button Content="Incluir na fila da UBS" Click="OnAdd" Margin="0,0,8,8" /><Button Content="Atualizar fila da UBS" Click="OnLoad" Margin="0,0,8,8" /></WrapPanel>
-      <DataGrid ItemsSource="{Binding UnitWaitingList}" SelectedItem="{Binding SelectedWaitingEntry}" IsReadOnly="True" AutoGenerateColumns="False" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS">
-        <DataGrid.Columns><DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="*" /><DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" /><DataGridTextColumn Header="Entrada" Binding="{Binding EnteredAtDisplay}" Width="*" /><DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="*" /></DataGrid.Columns>
-      </DataGrid>
-      <Button Content="Cancelar entrada da UBS" Click="OnCancel" HorizontalAlignment="Left" Margin="0,12,0,0" />
-    </StackPanel>
-  </StackPanel></Border>
+<UserControl x:Class="Nora.Desktop.Views.UnitQueueView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <UserControl.Resources>
+    <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
+  </UserControl.Resources>
+  <StackPanel>
+    <views:ObsUnitNoticeView />
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24"><StackPanel IsEnabled="{Binding CanEditDraft}">
+      <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="SemiBold" />
+      <TextBlock Text="As vagas são oferecidas pela ordem de entrada entre as entradas ativas da mesma especialidade. A posição e o tempo de espera são calculados a cada leitura." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
+      <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
+      <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
+        <TextBlock Text="Paciente cadastrado na UBS" /><ComboBox ItemsSource="{Binding ActiveObsRegistry}" SelectedItem="{Binding WaitingPatient}" DisplayMemberPath="FullName" AutomationProperties.Name="Paciente da fila da UBS" />
+        <TextBlock Text="Especialidade" /><TextBox Text="{Binding WaitingSpecialty, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Especialidade da fila da UBS" />
+        <WrapPanel><Button Content="Incluir na fila da UBS" Click="OnAdd" Margin="0,0,8,8" /><Button Content="Atualizar fila da UBS" Click="OnLoad" Margin="0,0,8,8" /></WrapPanel>
+        <DataGrid x:Name="QueueGrid" ItemsSource="{Binding UnitWaitingList}" SelectedItem="{Binding SelectedWaitingEntry}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada.">
+          <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
+        <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>
+        <DataGrid.Columns>
+            <DataGridTextColumn Header="Posição" Binding="{Binding PositionDisplay}" Width="76" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="1.5*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Espera" Binding="{Binding WaitDisplay}" Width="82" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Entrada" Binding="{Binding EnteredAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="104" ElementStyle="{StaticResource CellText}" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="Nenhuma entrada na fila desta UBS." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding HasNoWaitingEntries, Converter={StaticResource BoolVisibility}}" />
+        <Button Content="Cancelar entrada" Click="OnCancel" IsEnabled="{Binding CanCancelWaitingEntry}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Cancela a entrada selecionada enquanto ela estiver aguardando ou com oferta em andamento." ToolTipService.ShowOnDisabled="True" />
+      </StackPanel>
+    </StackPanel></Border>
+  </StackPanel>
 </UserControl>

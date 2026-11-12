@@ -19,7 +19,7 @@ public partial class AgendaView : UserControl
     }
     private async void OnCreateLightning(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not WorkspaceViewModel vm || vm.SelectedAppointment?.Status != "cancelled") return;
+        if (DataContext is not WorkspaceViewModel { CanCreateLightning: true } vm) return;
         if (MessageBox.Show("Oferecer o horário desta consulta cancelada para a fila da especialidade?", "Gerar Vaga Relâmpago", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             await vm.CreateUnitLightningSlotAsync();
     }

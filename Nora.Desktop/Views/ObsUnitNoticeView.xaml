@@ -1,0 +1,9 @@
+<UserControl x:Class="Nora.Desktop.Views.ObsUnitNoticeView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Aviso das abas que dependem de uma UBS ativa: explica o que falta e leva ao seletor do Painel. -->
+  <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,18" AutomationProperties.Name="UBS necessária" Visibility="{Binding NeedsObsUnitChoice, Converter={StaticResource BoolVisibility}}">
+    <StackPanel>
+      <TextBlock Text="{Binding ObsUnitPrompt}" TextWrapping="Wrap" />
+      <Button Content="Escolher UBS no Painel" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="home" HorizontalAlignment="Left" Margin="0,12,0,0" />
+    </StackPanel>
+  </Border>
+</UserControl>

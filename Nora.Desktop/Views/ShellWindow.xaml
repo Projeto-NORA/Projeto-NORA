@@ -133,6 +133,7 @@
     <Grid Grid.Column="2" Background="{DynamicResource BackgroundGradientBrush}">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
@@ -143,35 +144,47 @@
           <Border Grid.Column="1" Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12,6" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource SecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Workspace.IsAuthenticated}" Value="True"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="11" Foreground="{DynamicResource TextBrush}" /></StackPanel></Border>
         </Grid>
       </Border>
-      <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ProgressBar Grid.Row="0" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Background="{DynamicResource BorderBrush}" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding Workspace.ShowProgress, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Operação em andamento" />
+      <!-- Faixa comum de retorno: vale para todas as abas dos dois perfis e para Configurações. -->
+      <StackPanel Grid.Row="1">
+        <Border AutomationProperties.Name="Retorno da ação" Padding="14,10" CornerRadius="10" BorderThickness="1" Margin="32,16,32,0" Visibility="{Binding Workspace.HasMessage, Converter={StaticResource BoolVisibility}}">
+          <Border.Style><Style TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="success"><Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
+              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="error"><Setter Property="BorderBrush" Value="{DynamicResource ErrorBrush}" /></DataTrigger>
+            </Style.Triggers></Style></Border.Style>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Workspace.MessageIcon}" FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock.Style><Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="success"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
+                  <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="error"><Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" /></DataTrigger>
+                </Style.Triggers></Style></TextBlock.Style>
+            </TextBlock>
+            <TextBlock Grid.Column="1" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Workspace.Message}">
+              <Run Text="{Binding Workspace.MessageKindLabel, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=": " /><Run Text="{Binding Workspace.Message, Mode=OneWay}" />
+            </TextBlock>
+            <Button Grid.Column="2" Content="×" Command="{Binding Workspace.DismissMessageCommand}" FontSize="18" MinWidth="32" MinHeight="32" Padding="6,0" Margin="12,0,0,0" VerticalAlignment="Center" ToolTip="Dispensar mensagem" AutomationProperties.Name="Dispensar mensagem" />
+          </Grid>
+        </Border>
+        <Border Margin="32,10,32,0" Padding="14,8" CornerRadius="10" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" AutomationProperties.Name="Aviso de dados desatualizados" Visibility="{Binding Workspace.IsDataStale, Converter={StaticResource BoolVisibility}}">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Workspace.StaleLabel}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+          </Grid>
+        </Border>
+      </StackPanel>
+      <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid x:Name="PageContainer" Margin="32,32,32,24">
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
         </Grid>
       </ScrollViewer>
-      <Border Grid.Row="1" Panel.ZIndex="10" AutomationProperties.Name="Ações do item selecionado">
-        <Border.Style><Style TargetType="Border" BasedOn="{StaticResource FloatingActions}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasPatientActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
-          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasQueueActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
-          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding Workspace.HasSlotActionSelection}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
-        </Style.Triggers></Style></Border.Style>
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <TextBlock Text="{Binding Workspace.ActionSelectionLabel}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,14,0" />
-          <Button Grid.Column="1" Content="Detalhes" Click="OnActionDetails" ToolTip="Veja os detalhes do item selecionado. Você também pode usar duplo clique ou Enter." AutomationProperties.Name="Detalhes do item selecionado" Margin="0,0,8,0" />
-          <Button Grid.Column="2" Content="{Binding Workspace.PatientActiveActionLabel}" Click="OnSetPatientActive" IsEnabled="{Binding Workspace.CanSetPatientActive}" Visibility="{Binding Workspace.HasPatientActionSelection, Converter={StaticResource BoolVisibility}}" ToolTip="Altere o acesso do paciente. A confirmação explica os efeitos antes de continuar." AutomationProperties.Name="Alterar status da conta do paciente" Margin="0,0,8,0" />
-          <Button Grid.Column="3" Content="Cancelar entrada selecionada" Command="{Binding Workspace.CancelQueueCommand}" Visibility="{Binding Workspace.HasQueueActionSelection, Converter={StaticResource BoolVisibility}}" ToolTip="Cancele a entrada selecionada na fila de Vaga Relâmpago." Margin="0,0,8,0" />
-          <Button Grid.Column="4" Content="×" Command="{Binding Workspace.ClearSelectionCommand}" FontSize="20" MinWidth="36" Padding="8" ToolTip="Desfaça a seleção e feche a barra de ações." AutomationProperties.Name="Desfazer seleção" />
-        </Grid>
-      </Border>
-      <Border Grid.Row="1" Panel.ZIndex="10" AutomationProperties.Name="Ações do atendimento selecionado">
-        <Border.Style><Style TargetType="Border" BasedOn="{StaticResource FloatingActions}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsHome}" Value="True" /><Condition Binding="{Binding HasSelection}" Value="True" /><Condition Binding="{Binding Workspace.IsSignedOut}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></Border.Style>
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <TextBlock Text="{Binding SelectedRow.Description}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,0,14,0" />
-          <Button Grid.Column="1" Content="Detalhes" Click="OnLegacyDetails" ToolTip="Veja as informações disponíveis deste atendimento." AutomationProperties.Name="Detalhes do atendimento selecionado" Margin="0,0,8,0" />
-          <Button Grid.Column="2" Content="×" Click="OnClearLegacySelection" FontSize="20" MinWidth="36" Padding="8" ToolTip="Desfaça a seleção e feche a barra de ações." AutomationProperties.Name="Desfazer seleção do atendimento" />
-        </Grid>
-      </Border>
-      <Border Grid.Row="2" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
+      <Border Grid.Row="3" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" />
       </Border>
     </Grid>

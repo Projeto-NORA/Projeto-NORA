@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using Nora.Desktop.Generics;
@@ -16,21 +15,13 @@ public sealed class ShellViewModel : ObservableObject
     private string status;
     private bool expanded;
     private double sidebarWidth;
-    private OperationalRow? selectedRow;
     public DesktopProfile Profile { get; }
     public WorkspaceViewModel Workspace { get; }
     public IReadOnlyList<NavigationItem> Navigation { get; }
-    public IReadOnlyList<MetricCard> Metrics { get; }
-    public ObservableCollection<OperationalRow> Rows { get; } = [];
     public bool IsMunicipal => Profile.IsMunicipal;
     public bool IsOperational => !IsMunicipal;
     public string WorkspaceName => IsMunicipal ? "GESTÃO / SECRETARIA" : "OPERAÇÃO UBS";
     public string NavigationHeading => IsMunicipal ? "GESTÃO DA REDE" : "OPERAÇÃO DA UNIDADE";
-    public string HomeTitle => IsMunicipal ? "Uma visão da rede, em um só lugar." : "Mais clareza para cuidar de cada jornada.";
-    public string HomeSubtitle => IsMunicipal ? "Indicadores e acompanhamento da rede municipal de saúde." : "Organize consultas, acompanhe a fila e encontre novas oportunidades de atendimento.";
-    public string SectionTitle => IsMunicipal ? "Panorama da rede" : "Agenda de atendimentos";
-    public string EmptyTitle => IsMunicipal ? "A rede ainda não está conectada" : "Sua agenda começa aqui";
-    public string EmptyDescription => IsMunicipal ? "Os indicadores serão exibidos após a integração com os dados das unidades. Nenhuma métrica está disponível nesta etapa." : "Quando a unidade estiver conectada, os atendimentos aparecerão nesta área. Nenhuma consulta foi carregada nesta etapa.";
     public string Status { get => status; private set { status = value; Notify(); } }
     public bool HasPreferenceError => storage.Error != null;
     public string Page { get => page; private set { page = value; Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); Notify(nameof(SectionSummary)); } }
@@ -78,9 +69,6 @@ public sealed class ShellViewModel : ObservableObject
             if (value.IsAbsolute) SidebarWidth = value.Value;
         }
     }
-    public OperationalRow? SelectedRow { get => selectedRow; set { selectedRow = value; Notify(); Notify(nameof(HasSelection)); } }
-    public bool HasSelection => SelectedRow != null;
-    public bool HasNoRows => Rows.Count == 0;
     public Appearance Appearance => preferences.Appearance;
     public bool LightSelected => Appearance == Appearance.Light;
     public bool DarkSelected => Appearance == Appearance.Dark;
@@ -110,15 +98,11 @@ public sealed class ShellViewModel : ObservableObject
         Navigation = profile.IsMunicipal
             ? [new("home", "\uE80F", "Visão geral", true), new("units", "\uE80A", "Unidades", true), new("specialties", "\uE8B7", "Especialidades", true), new("network", "\uE707", "Mapa da rede", true), new("indicators", "\uE9D9", "Indicadores", true), new("slots", "\uE945", "Vaga Relâmpago", true), new("capacity", "\uE787", "Capacidade", true), new("alerts", "\uE7BA", "Alertas", true), new("reports", "\uE8A5", "Relatórios e metas", true), new("communication", "\uE8F2", "Comunicação", true), new("users", "\uE77B", "Usuários e histórico", true)]
             : [new("home", "\uE80F", "Painel da UBS", true), new("queue", "\uE8EF", "Fila", true), new("agenda", "\uE787", "Agenda", true), new("patients", "\uE77B", "Pacientes", true), new("slots", "\uE945", "Vaga Relâmpago", true), new("indicators", "\uE9D9", "Indicadores", true), new("alerts", "\uE7BA", "Alertas", true)];
-        Metrics = profile.IsMunicipal
-            ? [new("Unidades", "\uE80A", "Cobertura da rede"), new("Atendimentos", "\uE787", "Produção consolidada"), new("Espera", "\uE823", "Acesso aos serviços"), new("Ocupação", "\uE9D9", "Capacidade assistencial")]
-            : [new("Consultas", "\uE787", "Agenda da unidade"), new("Fila de espera", "\uE823", "Jornadas em acompanhamento"), new("Confirmações", "\uE73E", "Atendimentos confirmados"), new("Vagas", "\uE945", "Oportunidades de atendimento")];
         NavigateCommand = new RelayCommand(p => Navigate(p?.ToString() ?? "home"));
         AppearanceCommand = new RelayCommand(p => { if (Enum.TryParse<Appearance>(p?.ToString(), out var mode)) SetAppearance(mode); });
         ToggleSidebarCommand = new RelayCommand(_ => SidebarWidth = SidebarWidth < 240 ? 264 : 208);
         RestoreCommand = new RelayCommand(_ => RestoreDefaults());
         themes.Apply(preferences.Appearance);
-        Rows.CollectionChanged += (_, _) => Notify(nameof(HasNoRows));
     }
     public void Navigate(string destination)
     {

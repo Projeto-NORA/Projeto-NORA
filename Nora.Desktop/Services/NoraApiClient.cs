@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -15,6 +16,8 @@ public sealed class NoraApiException(string message, bool unauthorized = false) 
 /// <summary>HTTP boundary. Session tokens remain in memory and never enter preferences.</summary>
 public sealed class NoraApiClient : IDisposable
 {
+    // Valores fixos do campo "code" do problem+json; qualquer outro texto do servidor é ignorado.
+    private static readonly HashSet<string> ErrorCodes = ["invalid-input", "unauthorized", "forbidden", "not-found", "conflict", "too-many-requests", "internal-error", "service-unavailable"];
     private readonly HttpClient http;
     private Uri? endpoint;
     private string? token;
@@ -54,14 +57,6 @@ public sealed class NoraApiClient : IDisposable
     }
     public void ClearSession() => token = null;
     public Task<AddressInfo> LookupCepAsync(string cep) => SendAsync<AddressInfo>(HttpMethod.Get, $"api/address/cep/{Uri.EscapeDataString(BrazilianDataValidator.NormalizeCep(cep))}", authenticated: false);
-    public Task<PatientAccount[]> PatientsAsync() => SendAsync<PatientAccount[]>(HttpMethod.Get, "api/patients");
-    public Task<PatientAccount> RegisterPatientAsync(string fullName, string cpf, string email, string password, string? phone = null, AddressInfo? address = null) => SendAsync<PatientAccount>(HttpMethod.Post, "api/patients", new { fullName, cpf, email, password, phone, address });
-    public Task<object> SetPatientActiveAsync(Guid patientId, bool isActive) => SendAsync<object>(HttpMethod.Patch, $"api/patients/{patientId}/active", new { isActive });
-    public Task<QueueEntry[]> QueueAsync() => SendAsync<QueueEntry[]>(HttpMethod.Get, "api/queue");
-    public Task<QueueEntry> EnqueueAsync(Guid patientId) => SendAsync<QueueEntry>(HttpMethod.Post, "api/queue", new { patientId });
-    public Task<object> CancelAsync(long queueId) => SendAsync<object>(HttpMethod.Post, $"api/queue/{queueId}/cancel");
-    public Task<LightningSlot[]> SlotsAsync() => SendAsync<LightningSlot[]>(HttpMethod.Get, "api/slots");
-    public Task<LightningSlot> CreateSlotAsync(string label) => SendAsync<LightningSlot>(HttpMethod.Post, "api/slots", new { label });
     public Task<HealthUnit[]> HealthUnitsAsync() => SendAsync<HealthUnit[]>(HttpMethod.Get, "api/municipal/units");
     public Task<HealthUnit> CreateHealthUnitAsync(string name, string region, string address, double latitude, double longitude) => SendAsync<HealthUnit>(HttpMethod.Post, "api/municipal/units", new { name, region, address, latitude, longitude });
     public Task<HealthUnit> UpdateHealthUnitAsync(Guid id, string name, string region, string address, double latitude, double longitude) => SendAsync<HealthUnit>(HttpMethod.Put, $"api/municipal/units/{id}", new { name, region, address, latitude, longitude });
@@ -99,26 +94,81 @@ public sealed class NoraApiClient : IDisposable
             using var response = await http.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
-                if (response.StatusCode == HttpStatusCode.Unauthorized) ClearSession();
-                // Never surface arbitrary server bodies, connection strings or stack traces.
-                var message = response.StatusCode switch
-                {
-                    HttpStatusCode.Unauthorized => authenticated ? "Sua sessão terminou. Entre novamente." : "CPF/e-mail ou senha não conferem.",
-                    HttpStatusCode.Forbidden => "Esta conta não tem acesso a este aplicativo ou operação.",
-                    HttpStatusCode.Conflict => "O registro já existe ou sua situação mudou. Atualize a lista.",
-                    HttpStatusCode.NotFound => path.StartsWith("api/address/cep/", StringComparison.Ordinal) ? "CEP não encontrado. Confira os oito dígitos." : "Registro não encontrado. Atualize os dados e tente novamente.",
-                    HttpStatusCode.BadRequest => "Confira os dados informados e tente novamente.",
-                    HttpStatusCode.TooManyRequests => "Muitas tentativas. Aguarde e tente novamente.",
-                    _ => "Não foi possível concluir a operação. Verifique a API e tente novamente."
-                };
-                throw new NoraApiException(message, response.StatusCode == HttpStatusCode.Unauthorized);
+                var unauthorized = response.StatusCode == HttpStatusCode.Unauthorized;
+                if (unauthorized) ClearSession();
+                // Nunca exibe corpo arbitrário do servidor: a mensagem sai do status, do code conhecido e do contexto da operação.
+                var code = await ReadErrorCodeAsync(response);
+                throw new NoraApiException(ErrorMessage(method, path, response.StatusCode, code, authenticated), unauthorized);
             }
             if (response.StatusCode == HttpStatusCode.NoContent && typeof(T) == typeof(object)) return (T)new object();
+            // Só JSON é aceito como sucesso: HTML de proxy ou texto simples com status 200 vira erro tratado.
+            if (!IsJson(response.Content.Headers.ContentType?.MediaType)) throw new NoraApiException("A API retornou dados em um formato inesperado.");
             return await response.Content.ReadFromJsonAsync<T>() ?? throw new NoraApiException("A API retornou uma resposta incompleta.");
         }
         catch (HttpRequestException) { throw new NoraApiException("Não foi possível conectar à API. Confira o endereço e a conexão."); }
+        catch (IOException) { throw new NoraApiException("A conexão com a API foi interrompida. Tente novamente."); }
         catch (TaskCanceledException) { throw new NoraApiException("A API demorou para responder. Tente novamente."); }
-        catch (JsonException) { throw new NoraApiException("A API retornou dados em um formato inesperado."); }
+        // Corpo que não é JSON (por exemplo, HTML de um proxy) lança NotSupportedException em ReadFromJsonAsync.
+        catch (Exception error) when (error is JsonException or NotSupportedException) { throw new NoraApiException("A API retornou dados em um formato inesperado."); }
+    }
+
+    private static bool IsJson(string? mediaType) => mediaType is not null && (mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<string?> ReadErrorCodeAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            var buffer = new byte[4096];
+            var total = 0;
+            int read;
+            while (total < buffer.Length && (read = await stream.ReadAsync(buffer.AsMemory(total))) > 0) total += read;
+            using var document = JsonDocument.Parse(buffer.AsMemory(0, total));
+            if (document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("code", out var code)
+                && code.ValueKind == JsonValueKind.String && code.GetString() is { } value && ErrorCodes.Contains(value)) return value;
+        }
+        catch (Exception error) when (error is JsonException or IOException or HttpRequestException or ObjectDisposedException or InvalidOperationException or NotSupportedException) { }
+        return null;
+    }
+
+    private static string ErrorMessage(HttpMethod method, string path, HttpStatusCode status, string? code, bool authenticated)
+    {
+        var kind = code ?? status switch
+        {
+            HttpStatusCode.BadRequest => "invalid-input",
+            HttpStatusCode.Unauthorized => "unauthorized",
+            HttpStatusCode.Forbidden => "forbidden",
+            HttpStatusCode.NotFound => "not-found",
+            HttpStatusCode.Conflict => "conflict",
+            HttpStatusCode.TooManyRequests => "too-many-requests",
+            HttpStatusCode.ServiceUnavailable => "service-unavailable",
+            _ => "internal-error"
+        };
+        return kind switch
+        {
+            "unauthorized" => authenticated ? "Sua sessão terminou. Entre novamente." : "CPF/e-mail ou senha não conferem.",
+            "forbidden" => path.StartsWith("api/obs/units/", StringComparison.Ordinal)
+                ? "Sua conta não tem acesso a esta UBS. Peça a concessão à Secretaria."
+                : "Esta conta não tem acesso a este aplicativo ou operação.",
+            "conflict" => ConflictMessage(method, path),
+            "not-found" => path.StartsWith("api/address/cep/", StringComparison.Ordinal) ? "CEP não encontrado. Confira os oito dígitos." : "Registro não encontrado. Atualize os dados e tente novamente.",
+            "invalid-input" => "Confira os dados informados e tente novamente.",
+            "too-many-requests" => "Muitas tentativas. Aguarde e tente novamente.",
+            "service-unavailable" => "O serviço ou a base de dados da unidade está indisponível no momento. Tente novamente em instantes.",
+            _ => "Não foi possível concluir a operação. Verifique a API e tente novamente."
+        };
+    }
+
+    private static string ConflictMessage(HttpMethod method, string path)
+    {
+        var create = method == HttpMethod.Post;
+        if (create && path.EndsWith("/registry", StringComparison.Ordinal)) return "Já existe um cadastro com este CPF nesta UBS.";
+        if (create && path.EndsWith("/appointments", StringComparison.Ordinal)) return "Horário em conflito: o paciente ou o profissional já tem consulta ou vaga neste intervalo.";
+        if (path.Contains("/appointments/", StringComparison.Ordinal) && path.EndsWith("/status", StringComparison.Ordinal)) return "A consulta já foi alterada por outra pessoa. Atualize a agenda.";
+        if (create && path.EndsWith("/waiting-list", StringComparison.Ordinal)) return "Este paciente já está na fila desta especialidade.";
+        if (create && path.EndsWith("/lightning-slots", StringComparison.Ordinal)) return "Já existe uma Vaga Relâmpago gerada para esta consulta.";
+        if (path.Contains("/waiting-list/", StringComparison.Ordinal) && path.EndsWith("/cancel", StringComparison.Ordinal)) return "A entrada já foi encerrada. Atualize a fila.";
+        return "O registro já existe ou sua situação mudou. Atualize a lista.";
     }
     public void Dispose() { disposed = true; ClearSession(); http.Dispose(); }
 }

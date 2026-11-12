@@ -87,33 +87,6 @@ internal static partial class Program
                     finally { window.ViewModel.ConfirmClose = false; window.Close(); }
                 });
             }
-            Check("OBS: tabela permite seleção e apresenta contexto", () =>
-            {
-                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
-                var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "rows"), new NoraApiClient(fixture));
-                try
-                {
-                    window.ViewModel.ConfirmClose = false;
-                    window.ViewModel.Animations = false;
-                    PrepareWindow(window);
-                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
-                    window.ViewModel.Navigate("queue");
-                    var content = Layout(window, 980, 640);
-                    var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
-                    table.SelectedItem = window.ViewModel.Workspace.Queue.Single();
-                    Layout(window, 980, 640);
-                    Require(window.ViewModel.Workspace.HasQueueActionSelection && table.ActualHeight > table.ColumnHeaderHeight, "Entrada da fila não pode ser vista/selecionada.");
-                    var item = (DataGridRow)table.ItemContainerGenerator.ContainerFromIndex(0);
-                    Require(table.ClipboardCopyMode == DataGridClipboardCopyMode.None && item.Margin.Bottom == 3 && Descendants<Border>(item).Any(border => border.CornerRadius == new CornerRadius(8)), "Listagem inicial não compartilha o padrão arredondado e leitura sem cópia.");
-                    var context = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Ações do item selecionado");
-                    Require(context.Visibility == Visibility.Visible && context.IsVisible, "Barra contextual permanece oculta.");
-                    CaptureVisualThemes(window, args, "fila-contexto", "fim", 1, "Entrada sintética de fila usada somente no harness visual.");
-                    table.SelectedItem = null;
-                    Layout(window, 980, 640);
-                    Require(context.Visibility == Visibility.Collapsed, "Barra permanece sem seleção.");
-                }
-                finally { window.ViewModel.ConfirmClose = false; window.Close(); }
-            });
             Check("Configurações têm rolagem utilizável no tamanho mínimo", () =>
             {
                 var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "small"));
@@ -168,20 +141,20 @@ internal static partial class Program
                         window.ViewModel.ConfirmClose = false;
                         window.ViewModel.Animations = animations;
                         PrepareWindow(window);
-                        var content = Layout(window, 980, 640);
+                        var content = Layout(window, 980, 420);
                         var scrolling = (ScrollViewer)window.FindName("PageScroll");
                         scrolling.ScrollToEnd();
-                        Layout(window, 980, 640);
+                        Layout(window, 980, 420);
                         Require(scrolling.VerticalOffset > 0, "Cenário não rolou a Home.");
                         InvokeAccountAction(window, "Configurações");
-                        Layout(window, 980, 640);
+                        Layout(window, 980, 420);
                         Require(window.ViewModel.IsSettings && scrolling.VerticalOffset == 0, "Configurações herdou a rolagem da Home e escondeu seu início.");
                         scrolling.ScrollToEnd();
-                        Layout(window, 980, 640);
+                        Layout(window, 980, 420);
                         Require(scrolling.VerticalOffset > 0, "Cenário não rolou Configurações.");
-                        var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home");
+                        var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home" && AutomationProperties.GetName(button) == window.ViewModel.Navigation.First(item => item.Id == "home").Title);
                         InvokeButton(home);
-                        Layout(window, 980, 640);
+                        Layout(window, 980, 420);
                         Require(window.ViewModel.IsHome && scrolling.VerticalOffset == 0, "Home herdou a rolagem de Configurações.");
                     }
                     finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -239,44 +212,6 @@ internal static partial class Program
                     Require(window.WindowState == WindowState.Maximized, "Estado maximizado não restaurado.");
                 }
                 finally { window.Close(); }
-            });
-            foreach (var appearance in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
-            foreach (var dropdown in new[] { false, true })
-            Check($"OBS: seletor de paciente {appearance} {(dropdown ? "opções" : "selecionado")} mostra somente o nome", () =>
-            {
-                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
-                var window = new ShellWindow(DesktopProfile.Operational,
-                    Path.Combine(storageRoot, "patient-picker", appearance.ToString(), dropdown.ToString()), new NoraApiClient(fixture));
-                try
-                {
-                    window.ViewModel.ConfirmClose = false;
-                    window.ViewModel.Animations = false;
-                    window.ViewModel.SetAppearance(appearance);
-                    PrepareWindow(window);
-                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
-                    window.ViewModel.Navigate("queue");
-                    var content = Layout(window, 1280, 740);
-                    var picker = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Paciente para incluir na fila");
-                    var patient = window.ViewModel.Workspace.Patients.Single();
-                    picker.SelectedItem = patient;
-                    Layout(window, 1280, 740);
-                    DependencyObject rendered = picker;
-                    if (dropdown)
-                    {
-                        picker.IsDropDownOpen = true;
-                        picker.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                        var popup = (Popup)picker.Template.FindName("PART_Popup", picker);
-                        popup.Child.UpdateLayout();
-                        rendered = popup.Child;
-                    }
-                    var labels = Descendants<TextBlock>(rendered).Where(text => text.IsVisible).Select(text => text.Text).ToArray();
-                    Require(labels.Contains(patient.FullName),
-                        $"Nome do paciente não renderizado: {string.Join(" / ", labels)}");
-                    Require(labels.All(label => !label.Contains("PatientAccount {", StringComparison.Ordinal)),
-                        "O seletor renderiza o registro interno em vez do nome do paciente.");
-                    picker.IsDropDownOpen = false;
-                }
-                finally { window.ViewModel.ConfirmClose = false; window.Close(); }
             });
             if (args.Contains("--visual-gallery")) RunVisualGalleryChecks(storageRoot, args);
             Check("Telas nativas não produzem erros de binding", () => Require(errors.Messages.Count == 0, string.Join(Environment.NewLine, errors.Messages)));

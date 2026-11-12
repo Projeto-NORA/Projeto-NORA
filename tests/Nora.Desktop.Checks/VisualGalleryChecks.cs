@@ -72,6 +72,10 @@ internal static partial class Program
         Check($"{profile.Name}: galeria de fluxos com HTTP simulado somente no harness visual", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var galleryUnit = fixture.AddUnit("UBS Galeria", "Centro");
+            fixture.AddRegistry(galleryUnit.Id, "Paciente Fixture", "52998224725");
+            var galleryStart = DateTimeOffset.UtcNow.AddDays(1);
+            fixture.AddSlot(galleryUnit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Cardiologia", "Dra. Teste", galleryStart, galleryStart.AddMinutes(30), "open", DateTimeOffset.UtcNow));
             var window = new ShellWindow(profile, Path.Combine(storageRoot, "visual-gallery-http", profile.Id), new NoraApiClient(fixture));
             try
             {
@@ -92,62 +96,40 @@ internal static partial class Program
                 }
                 CaptureVisualThemes(window, args, "home-conectada", dataSource: VisualHttpSource);
                 CaptureVisualThemes(window, args, "home-conectada", "fim", 1, VisualHttpSource);
-                window.ViewModel.Navigate("agenda");
+                window.ViewModel.Navigate("agenda"); Settle(vm);
                 CaptureVisualThemes(window, args, "agenda", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("indicators");
                 CaptureVisualThemes(window, args, "indicadores", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("alerts");
                 CaptureVisualThemes(window, args, "alertas", dataSource: VisualHttpSource);
-                window.ViewModel.Navigate("patients");
+                window.ViewModel.Navigate("patients"); Settle(vm);
                 var content = Layout(window, 1280, 740);
-                var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
-                table.SelectedItem = vm.Patients.Single();
+                Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS").SelectedItem = vm.ObsRegistry.First();
                 CaptureVisualThemes(window, args, "pacientes-selecao", dataSource: VisualHttpSource);
-                var registration = Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente");
+                var registration = Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Cadastrar referência na UBS");
                 registration.IsExpanded = true;
                 Layout(window, 1280, 740);
-                Input(content, "Nome completo do paciente").Text = "Paciente Novo Fixture";
-                Input(content, "CPF do paciente").Text = "12345678143";
-                Input(content, "E-mail do paciente").Text = "new@example.invalid";
-                CaptureVisualThemes(window, args, "cadastro-paciente", "fim", 1, VisualHttpSource);
-                var pageScroll = (ScrollViewer)window.FindName("PageScroll");
-                pageScroll.ScrollToEnd();
-                Layout(window, 1280, 740);
-                CaptureVisualThemes(window, args, "cadastro-endereco", "fim", 1, VisualHttpSource);
-                pageScroll.ScrollToTop();
-                Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha inicial do paciente").Password = "isolated-initial-password";
-                InvokeButton(FindActionButton(content, "Cadastrar paciente")); PumpUntil(() => !vm.IsBusy);
-                Require(fixture.Registered && vm.Patients.Count == 2, "Cadastro fixture não publicou paciente.");
+                Input(content, "Nome no cadastro da UBS").Text = "Paciente Novo Fixture";
+                Input(content, "CPF no cadastro da UBS").Text = "11144477735";
+                Input(content, "E-mail no cadastro da UBS").Text = "new@example.invalid";
+                CaptureVisualThemes(window, args, "cadastro-referencia", "fim", 1, VisualHttpSource);
+                InvokeButton(FindActionButton(content, "Salvar cadastro da UBS")); PumpUntil(() => !vm.IsBusy);
+                Require(vm.ObsRegistry.Count == 2, "Cadastro fixture não publicou o paciente.");
                 registration.IsExpanded = false;
                 CaptureVisualThemes(window, args, "paciente-cadastrado", dataSource: VisualHttpSource);
-                // The integrated OBS now keeps inclusion on the queue screen.
-                window.ViewModel.Navigate("queue");
+                window.ViewModel.Navigate("queue"); Settle(vm);
+                vm.WaitingPatient = vm.ObsRegistry.Single(item => item.Cpf == "11144477735"); vm.WaitingSpecialty = "Cardiologia";
+                Pump(vm.AddUnitWaitingEntryAsync());
                 content = Layout(window, 1280, 740);
-                InvokeButton(FindActionButton(content, "Incluir selecionado na fila")); PumpUntil(() => !vm.IsBusy);
-                window.ViewModel.Navigate("queue");
-                content = Layout(window, 1280, 740);
-                Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago").SelectedItem = vm.Queue.Single(entry => entry.Id == 2);
-                CaptureVisualThemes(window, args, "fila-selecionada-acao", dataSource: VisualHttpSource);
-                window.ViewModel.Navigate("slots");
-                content = Layout(window, 1280, 740);
-                Input(content, "Descrição da vaga").Text = "Vaga nova fixture";
-                CaptureVisualThemes(window, args, "vaga-formulario", dataSource: VisualHttpSource);
-                InvokeButton(FindActionButton(content, "Abrir vaga")); PumpUntil(() => !vm.IsBusy);
-                Require(fixture.CreatedSlotLabel != null && vm.Slots.Count == 2, "Fixture visual não criou vaga.");
-                CaptureVisualThemes(window, args, "vagas-abertas", dataSource: VisualHttpSource);
-                window.ViewModel.Navigate("queue");
-                content = Layout(window, 1280, 740);
-                var queueTable = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila de Vaga Relâmpago");
-                queueTable.SelectedItem = null;
-                queueTable.SelectedItem = vm.Queue.Single(entry => entry.Id == 2);
-                Layout(window, 1280, 740);
-                Require(vm.HasQueueActionSelection, "Seleção retornada à Fila não apresentou ações para a captura.");
-                InvokeButton(FindActionButton(content, "Cancelar entrada selecionada")); PumpUntil(() => !vm.IsBusy);
-                Require(vm.Queue.Single(entry => entry.Id == 2).Status == "cancelled", "Cancelamento visual não atualizou fila.");
+                Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Fila por especialidade da UBS").SelectedItem = vm.UnitWaitingList.First();
+                CaptureVisualThemes(window, args, "fila-selecionada", dataSource: VisualHttpSource);
+                Pump(vm.CancelUnitWaitingEntryAsync());
                 CaptureVisualThemes(window, args, "fila-cancelada", dataSource: VisualHttpSource);
                 window.ViewModel.SidebarExpanded = false;
                 CaptureVisualThemes(window, args, "fila-sidebar-recolhida", dataSource: VisualHttpSource);
                 window.ViewModel.SidebarExpanded = true;
+                window.ViewModel.Navigate("slots"); Settle(vm);
+                CaptureVisualThemes(window, args, "vagas", dataSource: VisualHttpSource);
                 window.ViewModel.Navigate("settings");
                 CaptureVisualThemes(window, args, "configuracoes-conta-conectada", dataSource: VisualHttpSource);
             }

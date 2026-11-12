@@ -1,14 +1,10 @@
-<UserControl x:Class="Nora.Desktop.Views.ObsUnitRegistryView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl x:Class="Nora.Desktop.Views.ObsUnitRegistryView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-    <StackPanel IsEnabled="{Binding CanOperate}">
+    <StackPanel IsEnabled="{Binding CanEditDraft}">
       <TextBlock Text="Cadastro de pacientes da UBS" FontSize="21" FontWeight="SemiBold" />
-      <TextBlock Text="Confirme a UBS, consulte seus cadastros e registre os dados que serão conferidos no aplicativo do paciente." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,14" />
-      <Expander Header="Escolher ou trocar UBS" IsExpanded="{Binding ObsUnitSelectionOpen}" Margin="0,0,0,8"><StackPanel Margin="0,8,0,0">
-        <WrapPanel><Button Content="Buscar UBS autorizadas" Click="OnLoadUnits" Margin="0,0,8,8" /><Button Content="Sugerir UBS pela localização" Click="OnLocate" IsEnabled="{Binding HasAvailableObsUnits}" Margin="0,0,0,8" /></WrapPanel>
-        <TextBlock Text="Escolha a UBS" /><ComboBox ItemsSource="{Binding ObsUnits}" SelectedItem="{Binding CandidateObsUnit}" DisplayMemberPath="Name" AutomationProperties.Name="UBS autorizada no OBS" Margin="0,6,0,12" />
-        <Button Content="Confirmar UBS" Click="OnConfirmUnit" HorizontalAlignment="Left" />
-      </StackPanel></Expander>
-      <TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" Margin="0,12,0,8" />
+      <TextBlock Text="Consulte os cadastros da UBS e registre os dados que serão conferidos no aplicativo do paciente." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,14" />
+      <Expander Header="Escolher ou trocar UBS" IsExpanded="{Binding ObsUnitSelectionOpen}" Margin="0,0,0,8"><views:ObsUnitPickerView Margin="0,8,0,0" /></Expander>
+      <StackPanel Margin="0,12,0,8"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
         <Button Content="Atualizar cadastros da UBS" Click="OnRefresh" HorizontalAlignment="Left" Margin="0,0,0,10" />
         <TextBlock Text="Pesquisar por nome, CPF, e-mail ou telefone" /><TextBox Text="{Binding ObsRegistrySearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar cadastro da UBS" />
@@ -19,14 +15,14 @@
         <WrapPanel Margin="0,10,0,0"><Button Content="Ver ficha da UBS" Click="OnDetails" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /><Button Content="Editar ficha" Click="OnEdit" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /><Button Content="{Binding ObsRegistryActiveAction}" Click="OnSetActive" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /><Button Content="Novo cadastro" Click="OnNew" Margin="0,0,8,8" /></WrapPanel>
         <Expander Header="Corrigir somente o e-mail" Margin="0,8,0,0"><StackPanel>
           <TextBlock Text="Selecione o paciente acima e informe o endereço atualizado." TextWrapping="Wrap" Margin="0,12,0,4" />
-          <TextBox Text="{Binding CorrectedObsEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail corrigido da UBS" />
+          <TextBox Text="{Binding CorrectedObsEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail corrigido da UBS" Margin="0,6,0,4" /><TextBlock Text="{Binding CorrectedObsEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail corrigido" />
           <Button Content="Corrigir e-mail" Click="OnUpdateEmail" HorizontalAlignment="Left" />
         </StackPanel></Expander>
         <Expander Header="{Binding ObsRegistryDraftTitle}" IsExpanded="{Binding ObsRegistryDraftOpen}" Margin="0,14,0,0"><StackPanel Margin="0,12,0,0">
           <TextBlock Text="Nome completo" /><TextBox Text="{Binding ObsRegistryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome no cadastro da UBS" />
           <TextBlock Text="CPF" /><TextBox Text="{Binding ObsRegistryCpf, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditingObsRegistry}" AutomationProperties.Name="CPF no cadastro da UBS" />
-          <TextBlock Text="E-mail cadastrado" /><TextBox Text="{Binding ObsRegistryEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail no cadastro da UBS" />
-          <TextBlock Text="Telefone (opcional)" /><TextBox Text="{Binding ObsRegistryPhone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Telefone no cadastro da UBS" />
+          <TextBlock Text="E-mail cadastrado" /><TextBox Text="{Binding ObsRegistryEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail no cadastro da UBS" Margin="0,6,0,4" /><TextBlock Text="{Binding ObsRegistryEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail do cadastro" />
+          <TextBlock Text="Telefone (opcional)" /><TextBox Text="{Binding ObsRegistryPhone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Telefone no cadastro da UBS" Margin="0,6,0,4" /><TextBlock Text="{Binding ObsRegistryPhoneError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do telefone do cadastro" />
           <TextBlock Text="Endereço (opcional)" FontWeight="SemiBold" Margin="0,4,0,8" />
           <DockPanel><Button Content="Buscar CEP do paciente" Click="OnLookupCep" DockPanel.Dock="Right" Margin="8,6,0,16" /><TextBox Text="{Binding ObsRegistryCep, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="CEP no cadastro da UBS" /></DockPanel>
           <TextBlock Text="Logradouro" /><TextBox Text="{Binding ObsRegistryStreet, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Logradouro no cadastro da UBS" />

@@ -25,7 +25,7 @@ public sealed partial class WorkspaceViewModel
         if (disposed || !IsAuthenticated) return;
         appliedSummaryUnitId = selected; summary = result; summaryReceivedAt = DateTimeOffset.Now;
         if (LightningPeriodDays != 0 && CurrentLightningCohort == null) LightningPeriodDays = 0;
-        Notify(nameof(AppliedSummaryUnitLabel)); NotifySummary(); Message = "Resumo atualizado para " + AppliedSummaryUnitLabel + ".";
+        Notify(nameof(AppliedSummaryUnitLabel)); NotifySummary(); Say(MessageKind.Success, "Resumo atualizado para " + AppliedSummaryUnitLabel + ".");
     });
     public bool UnitsLoaded { get => unitsLoaded; private set { unitsLoaded = value; Notify(); Notify(nameof(UnitsState)); } }
     public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Atualize para carregar as unidades da API." : Units.Count == 0 ? "Nenhuma UBS cadastrada." : !FilteredUnits.Any() ? "Nenhuma unidade encontrada para esta pesquisa." : "";
@@ -46,14 +46,14 @@ public sealed partial class WorkspaceViewModel
         if (!IsMunicipal || !IsAuthenticated || SelectedUnit is not { } unit) throw new NoraApiException("Selecione uma UBS para consultar a agenda.");
         var today = DateTimeOffset.Now; var records = await api.UnitAppointmentsAsync(unit.Id, today.AddDays(-30), today.AddDays(30));
         if (disposed || !IsAuthenticated || SelectedUnit?.Id != unit.Id) return;
-        Replace(MunicipalAppointments, records); MunicipalAppointmentsLoaded = true; Message = "Agenda da UBS atualizada.";
+        Replace(MunicipalAppointments, records); MunicipalAppointmentsLoaded = true; Say(MessageKind.Success, "Agenda da UBS atualizada.");
     });
     public Task LoadUnitRegistryAsync() => RunAsync(async () =>
     {
         if (!IsMunicipal || !IsAuthenticated || SelectedUnit is not { } unit) throw new NoraApiException("Selecione uma UBS para consultar os cadastros.");
         var records = await api.UnitRegistryAsync(unit.Id);
         if (disposed || !IsAuthenticated || SelectedUnit?.Id != unit.Id) return;
-        Replace(UnitRegistry, records); UnitRegistryLoaded = true; Message = "Cadastros da UBS atualizados.";
+        Replace(UnitRegistry, records); UnitRegistryLoaded = true; Say(MessageKind.Success, "Cadastros da UBS atualizados.");
     });
     public bool HasSelectedUnit => SelectedUnit != null;
     public bool CanEditUnit => IsMunicipal && CanOperate && HasSelectedUnit;
@@ -85,7 +85,7 @@ public sealed partial class WorkspaceViewModel
         UnitsLoaded = true;
         SelectedUnit = Units.FirstOrDefault(u => u.Id == selectedId);
         NotifyUnits();
-        Message = "Unidades atualizadas.";
+        Say(MessageKind.Success, "Unidades atualizadas.");
     });
     public Task SaveUnitAsync() => RunAsync(async () =>
     {
@@ -99,7 +99,7 @@ public sealed partial class WorkspaceViewModel
         var previous = Units.FirstOrDefault(u => u.Id == saved.Id);
         if (previous != null) Units.Remove(previous);
         Units.Add(saved); NotifyUnits(); SelectedUnit = saved; NewUnitDraft();
-        Message = "UBS salva. Selecione-a no mapa para conferir a localização.";
+        Say(MessageKind.Success, "UBS salva. Selecione-a no mapa para conferir a localização.");
     });
     private static bool TryCoordinate(string value, double min, double max, out double number)
         => double.TryParse(value.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out number) && double.IsFinite(number) && number >= min && number <= max;

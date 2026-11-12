@@ -7,19 +7,11 @@ namespace Nora.Desktop.Views;
 public partial class ObsUnitRegistryView : UserControl
 {
     public ObsUnitRegistryView() => InitializeComponent();
-    private async void OnLoadUnits(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadObsUnitsAsync(); }
-    private async void OnConfirmUnit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.ConfirmObsUnitAsync(); }
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadObsRegistryAsync(); }
     private async void OnLookupCep(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LookupObsRegistryCepAsync(); }
     private async void OnCreate(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.CreateObsRegistryAsync(); }
     private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.EditSelectedObsRegistry(); }
     private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.NewObsRegistryDraft(); }
-    private void OnLocate(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not WorkspaceViewModel vm || !vm.HasAvailableObsUnits) return;
-        var dialog = new ObsLocationDialog { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true) vm.SuggestClosestObsUnit(dialog.Latitude, dialog.Longitude);
-    }
     private async void OnUpdateEmail(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel vm || vm.SelectedObsRegistry is null) return;

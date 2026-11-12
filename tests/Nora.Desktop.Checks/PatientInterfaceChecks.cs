@@ -7,7 +7,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Nora.Desktop.Models;
-using Nora.Desktop.Services;
 using Nora.Desktop.Views;
 
 namespace Nora.Desktop.Checks;
@@ -16,30 +15,27 @@ internal static partial class Program
 {
     private static void RunPatientInterfaceChecks(Application application, string storageRoot, string[] args)
     {
-        var previewArgument = Array.IndexOf(args, "--preview-dir");
-        var previewRoot = previewArgument >= 0 && previewArgument + 1 < args.Length ? args[previewArgument + 1] : Path.Combine(AppContext.BaseDirectory, "previews");
+        var previewRoot = PreviewRoot(args);
         Check("OBS: rótulos do cadastro seguem o contraste do tema", () =>
         {
             using var fixture = new ApiFixture();
-            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "registration-contrast"), new NoraApiClient(fixture));
+            fixture.AddUnit("UBS Contraste");
+            var window = OpenOperational(fixture, storageRoot, "registration-contrast");
             try
             {
-                window.ViewModel.ConfirmClose = false; PrepareWindow(window);
-                var vm = window.ViewModel.Workspace;
-                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
-                Pump(vm.LoginAsync("isolated-test-password")); window.ViewModel.Navigate("patients");
+                var vm = LoginObs(window); window.ViewModel.Navigate("patients"); Settle(vm);
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
                 {
                     window.ViewModel.SetAppearance(mode);
                     var content = Layout(window, 1280, 740);
-                    var expander = Descendants<Expander>(content).Single(expander => AutomationProperties.GetName(expander) == "Abrir cadastro de paciente"); expander.IsExpanded = true;
+                    var expander = Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Cadastrar referência na UBS"); expander.IsExpanded = true;
                     content = Layout(window, 1280, 740);
                     var label = Descendants<TextBlock>(expander).Single(text => text.Text == "Nome completo");
                     Require(((SolidColorBrush)label.Foreground).Color == ((SolidColorBrush)application.FindResource("TextBrush")).Color, $"Rótulo do cadastro não usa a cor de texto do tema {mode}.");
                     SavePreview(content, Path.Combine(previewRoot, $"obs-registration-contrast-{mode.ToString().ToLowerInvariant()}.png"));
                 }
             }
-            finally { window.Close(); }
+            finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
         Check("OBS: dica longa quebra linha sem ultrapassar a largura disponível", () =>
         {
@@ -80,85 +76,59 @@ internal static partial class Program
             }
             finally { window.Close(); }
         });
-        Check("OBS: pacientes zebra, contatos longos, filtros, menu e dicas em 980×640 e três temas", () =>
+        Check("OBS: cadastros da UBS, filtros, menu e dicas em 980×640 e três temas", () =>
         {
-            using var fixture = new ApiFixture { PatientOnline = true };
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Layout");
             for (var index = 1; index <= 20; index++)
-                fixture.AddPatient(new(Guid.NewGuid(), index == 1 ? "Paciente Fixture " + new string('N', 144) : $"Paciente Fixture {index:00}", "00000000001", index == 1 ? new string('p', 64) + "@" + new string('d', 60) + "." + new string('e', 60) + "." + new string('f', 62) + ".test" : $"patient-with-long-email-{index}@example.invalid", "(48) 99900-0001", index % 2 == 0));
-            var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "patient-layout"), new NoraApiClient(fixture));
+                fixture.AddRegistry(unit.Id, new UnitPatientRecord($"{index:00000000000}", index == 1 ? "Paciente Fixture " + new string('N', 144) : $"Paciente Fixture {index:00}",
+                    index == 1 ? new string('p', 64) + "@" + new string('d', 60) + "." + new string('e', 60) + "." + new string('f', 62) + ".test" : $"patient-with-long-email-{index}@example.invalid", "(48) 99900-0001", null, true, index % 2 == 0, DateTimeOffset.UtcNow.AddMinutes(-index)));
+            var window = OpenOperational(fixture, storageRoot, "patient-layout");
             try
             {
-                window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false;
-                PrepareWindow(window);
-                var vm = window.ViewModel.Workspace;
-                vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
-                Pump(vm.LoginAsync("isolated-test-password"));
-                window.ViewModel.Navigate("patients");
+                var vm = LoginObs(window);
+                window.ViewModel.Navigate("patients"); Settle(vm);
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
                 {
                     window.ViewModel.SetAppearance(mode);
                     foreach (var size in new[] { new Size(980, 640), new Size(1280, 740) })
                     {
                         var content = Layout(window, size.Width, size.Height);
-                        var table = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Pacientes cadastrados");
-                        var pageScrolling = (ScrollViewer)window.FindName("PageScroll");
-                        Require(pageScrolling.ScrollableHeight <= 1, $"Pacientes com cadastro recolhido exige rolagem externa adicional de {pageScrolling.ScrollableHeight:F0}px além da listagem.");
-                        Require(table.Items.Count == 21 && table.Columns.Count == 1 && table.HeadersVisibility == DataGridHeadersVisibility.None, "Listagem não usa uma linha com nome/contatos sem cabeçalho de colunas.");
-                        Require(table.GridLinesVisibility == DataGridGridLinesVisibility.None && table.BorderThickness == new Thickness(0) && !Equals(table.RowBackground, table.AlternatingRowBackground), "Zebra ou separadores da listagem divergentes.");
-                        var scrolling = Descendants<ScrollViewer>(table).Single();
-                        Require(scrolling.ScrollableHeight > 0 && scrolling.ScrollableWidth == 0, "Pacientes excedentes não têm rolagem vertical ou causam rolagem horizontal.");
-                        var rows = Descendants<DataGridRow>(table).Where(row => row.ActualHeight > 0).ToArray();
-                        Require(rows.Length > 1 && rows.All(row => row.ActualHeight >= 64), "Linhas/contatos não foram renderizados legivelmente.");
-                        table.SelectedItem = vm.Patients[1];
+                        var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS");
+                        Require(list.Items.Count == 20 && list.ActualHeight > 0 && list.ActualWidth <= content.ActualWidth, "Listagem da UBS não foi renderizada dentro da janela.");
+                        list.SelectedItem = vm.ObsRegistry[1];
                         Layout(window, size.Width, size.Height);
-                        var selectedId = vm.SelectedPatient?.Id;
-                        Require(selectedId == vm.Patients[1].Id, "Seleção da linha não atualizou o paciente.");
+                        var selectedCpf = vm.SelectedObsRegistry?.Cpf;
+                        Require(selectedCpf == vm.ObsRegistry[1].Cpf, "Seleção da linha não atualizou o cadastro.");
                         Pump(vm.RefreshAutomaticallyAsync());
                         Layout(window, size.Width, size.Height);
-                        Require(vm.SelectedPatient?.Id == selectedId && (table.SelectedItem as PatientAccount)?.Id == selectedId, "Polling perdeu a seleção no controle nativo.");
-                        scrolling.ScrollToEnd();
-                        Layout(window, size.Width, size.Height);
-                        var previousOffset = scrolling.VerticalOffset;
-                        Require(previousOffset > 0, "Reprodução não rolou a listagem antes do polling.");
-                        Pump(vm.RefreshAutomaticallyAsync());
-                        Layout(window, size.Width, size.Height);
-                        Require(Math.Abs(scrolling.VerticalOffset - previousOffset) < 0.1, "Polling retornou a rolagem dos pacientes ao topo sem alteração de dados.");
-                        scrolling.ScrollToTop();
+                        Require(vm.SelectedObsRegistry?.Cpf == selectedCpf && (list.SelectedItem as UnitPatientRecord)?.Cpf == selectedCpf, "Atualização perdeu a seleção no controle nativo.");
+                        list.SelectedItem = null;
                         var prohibited = new[] { "Conta conectada", "NORA OBS", "Seu espaço de cuidado", "Uma jornada organizada, com acesso seguro.", "Preferências salvas neste computador" };
                         Require(!Descendants<TextBlock>(content).Any(text => text.IsVisible && prohibited.Contains(text.Text)), "Texto solicitado para remoção permanece visível.");
-                        Require(!Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() is "Atualizar" or "Sair da conta" or "Incluir selecionado na fila"), "Ação removida permanece na tela de pacientes.");
-                        var search = Input(content, "Pesquisar pacientes");
+                        var search = Input(content, "Pesquisar cadastro da UBS");
                         Require(search.ActualHeight is >= 42 and <= 46, $"Pesquisa tem altura {search.ActualHeight:F0}, incompatível com filtros de 42px.");
                         var inputBorder = Descendants<Border>(search).FirstOrDefault(border => border.CornerRadius.TopLeft > 0);
                         Require(inputBorder is not null && inputBorder.CornerRadius.TopLeft <= 8, "Pesquisa não possui o arredondamento discreto dos inputs.");
-                        var presence = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Filtrar presença do paciente");
+                        var presence = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Filtrar presença na UBS");
                         presence.SelectedValue = "Online";
                         Layout(window, size.Width, size.Height);
-                        Require(table.Items.Cast<PatientAccount>().All(patient => patient.IsOnline), "Filtro nativo online não atualizou a listagem.");
+                        Require(list.Items.Count == 10 && list.Items.Cast<UnitPatientRecord>().All(patient => patient.IsOnline), "Filtro nativo online não atualizou a listagem.");
                         presence.SelectedValue = "Todos";
-                        var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar pacientes");
+                        var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar cadastro da UBS");
                         sort.SelectedValue = "Nome A–Z";
                         Layout(window, size.Width, size.Height);
-                        Require(table.Items.Cast<PatientAccount>().Select(patient => patient.FullName).SequenceEqual(vm.Patients.OrderBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase).Select(patient => patient.FullName)), "Ordenação nativa não atualizou a listagem.");
+                        Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(vm.ObsRegistry.OrderBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase).Select(patient => patient.FullName)), "Ordenação nativa não atualizou a listagem.");
                         sort.SelectedValue = "Mais recentes";
-                        table.SelectedItem = null;
-                        SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, $"obs-patients-zebra-{mode.ToString().ToLowerInvariant()}-{size.Width:0}x{size.Height:0}.png"));
-                        if (mode == Appearance.Light && size.Width == 1280)
-                        {
-                            table.SelectedItem = vm.Patients[0];
-                            SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, "obs-patients-zebra-selected-light.png"));
-                            table.SelectedItem = null;
-                        }
+                        SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, $"obs-patients-{mode.ToString().ToLowerInvariant()}-{size.Width:0}x{size.Height:0}.png"));
                     }
                 }
                 window.ViewModel.SetAppearance(Appearance.Light);
                 var root = Layout(window, 1280, 740);
-                var toggle = Descendants<Button>(root).Single(button => AutomationProperties.GetName(button) == "Alternar barra lateral");
-                Require(toggle.ToolTip?.ToString()?.Contains("Ctrl+B", StringComparison.Ordinal) == true, "Três barras não explicam ação e atalho.");
-                var originalExpanded = window.ViewModel.SidebarExpanded;
-                InvokeButton(toggle);
-                Require(window.ViewModel.SidebarExpanded != originalExpanded, "Três barras não alternam sidebar.");
-                InvokeButton(toggle);
+                var originalWidth = window.ViewModel.SidebarWidth;
+                window.ViewModel.ToggleSidebarCommand.Execute(null);
+                Require(window.ViewModel.SidebarWidth != originalWidth, "Comando da barra lateral não alterna a largura.");
+                window.ViewModel.ToggleSidebarCommand.Execute(null);
                 var account = Descendants<Button>(root).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
                 Require(account.TranslatePoint(new Point(0, 0), root).Y > root.ActualHeight / 2, "Conta não está na parte inferior da navegação.");
                 InvokeButton(account);
@@ -167,12 +137,6 @@ internal static partial class Program
                 menu.UpdateLayout();
                 SavePreview(menu, Path.Combine(previewRoot, "obs-account-menu-light.png"));
                 menu.IsOpen = false;
-                var tooltip = new ToolTip { Content = toggle.ToolTip, PlacementTarget = toggle };
-                tooltip.IsOpen = true;
-                application.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                tooltip.UpdateLayout();
-                SavePreview(tooltip, Path.Combine(previewRoot, "obs-sidebar-tooltip-light.png"));
-                tooltip.IsOpen = false;
                 InvokeAccountAction(window, "Configurações");
                 Require(window.ViewModel.IsSettings, "Menu da conta não abriu configurações.");
                 SavePreview(Layout(window, 1280, 740), Path.Combine(previewRoot, "obs-settings-via-account-light.png"));

@@ -1,5 +1,6 @@
 using System.Windows;
 using Nora.Desktop.Models;
+using Nora.Desktop.Services;
 using Nora.Desktop.Views;
 namespace Painel_Municipal;
 public partial class App : Application
@@ -8,6 +9,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         MainWindow = new ShellWindow(DesktopProfile.Municipal);
+        UnhandledErrorHandler.Install(this, () => (MainWindow as ShellWindow)?.ViewModel.Workspace);
         MainWindow.Show();
     }
 }

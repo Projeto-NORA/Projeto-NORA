@@ -23,5 +23,3 @@ public sealed record DesktopProfile(string Id, string Name, bool IsMunicipal)
 }
 
 public sealed record NavigationItem(string Id, string Icon, string Title, bool Available = false);
-public sealed record MetricCard(string Title, string Icon, string Description);
-public sealed record OperationalRow(string Reference, string Description, string Status);

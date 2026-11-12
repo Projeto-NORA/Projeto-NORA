@@ -12,13 +12,22 @@ public sealed partial class WorkspaceViewModel
     private string obsRegistryName = "", obsRegistryCpf = "", obsRegistryEmail = "", obsRegistryPhone = "";
     private string obsRegistrySearch = "";
     private string? editingObsCpf, obsRegistryIbge;
-    private bool obsRegistryDraftOpen, obsUnitSelectionOpen = true;
+    private bool obsRegistryDraftOpen, obsUnitSelectionOpen = true, obsUnitsLoaded;
     private string obsRegistryStatusFilter = "Todos", obsRegistrySort = "Mais recentes";
     private string obsRegistryPresenceFilter = "Todos";
     private string obsRegistryCep = "", obsRegistryStreet = "", obsRegistryNumber = "", obsRegistryComplement = "", obsRegistryNeighborhood = "", obsRegistryCity = "", obsRegistryState = "";
     public ObservableCollection<HealthUnit> ObsUnits { get; } = [];
     public bool HasAvailableObsUnits => ObsUnits.Count > 0;
+    public bool ObsUnitsLoaded => obsUnitsLoaded;
     public bool ObsUnitSelectionOpen { get => obsUnitSelectionOpen; set { obsUnitSelectionOpen = value; Notify(); } }
+    /// <summary>Orientação do seletor: explica o que falta para ter uma UBS ativa (nenhuma concedida, várias a escolher, lista ainda não lida).</summary>
+    public string ObsUnitPrompt => !IsAuthenticated || !IsOperational || HasActiveObsUnit ? ""
+        : !obsUnitsLoaded ? "As UBS autorizadas ainda não foram carregadas. Use Atualizar lista de UBS."
+        : ObsUnits.Count == 0 ? "Nenhuma UBS autorizada para esta conta. A Secretaria precisa conceder acesso a uma UBS (aba Usuários e histórico da gestão)."
+        : ObsUnits.Count == 1 ? "Confirme a UBS para carregar os dados da operação."
+        : $"Esta conta tem acesso a {ObsUnits.Count} UBS. Escolha a unidade e confirme para carregar os dados da operação.";
+    public bool NeedsObsUnitChoice => IsAuthenticated && IsOperational && !HasActiveObsUnit;
+    public bool CanConfirmObsUnit => CanOperate && CandidateObsUnit is not null;
     public void SuggestClosestObsUnit(double latitude, double longitude)
     {
         if (!IsAuthenticated || !double.IsFinite(latitude) || !double.IsFinite(longitude) || latitude is < -90 or > 90 || longitude is < -180 or > 180 || ObsUnits.Count == 0) return;
@@ -30,7 +39,7 @@ public sealed partial class WorkspaceViewModel
             return Math.Asin(Math.Sqrt(Math.Clamp(a, 0, 1)));
         }
         CandidateObsUnit = ObsUnits.OrderBy(unit => Distance(unit, latitude, longitude)).ThenBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).First();
-        Message = "UBS autorizada mais próxima sugerida. Confira e confirme a escolha.";
+        Say(MessageKind.Info, "UBS autorizada mais próxima sugerida. Confira e confirme a escolha.");
     }
     public ObservableCollection<UnitPatientRecord> ObsRegistry { get; } = [];
     public string ObsRegistrySearch { get => obsRegistrySearch; set { obsRegistrySearch = value; Notify(); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); } }
@@ -60,15 +69,31 @@ public sealed partial class WorkspaceViewModel
     public UnitPatientRecord? SelectedObsRegistry { get => selectedObsRegistry; set { selectedObsRegistry = value; CorrectedObsEmail = value?.Email ?? ""; Notify(); Notify(nameof(ObsRegistryActiveAction)); Notify(nameof(HasSelectedObsRegistry)); } }
     public bool HasSelectedObsRegistry => SelectedObsRegistry is not null;
     public string ObsRegistryActiveAction => SelectedObsRegistry?.IsActive == false ? "Reativar nesta UBS" : "Desativar nesta UBS";
-    public string CorrectedObsEmail { get => correctedObsEmail; set { correctedObsEmail = value; Notify(); } }
-    public HealthUnit? CandidateObsUnit { get => candidateObsUnit; set { candidateObsUnit = value; Notify(); } }
-    public HealthUnit? ActiveObsUnit { get => activeObsUnit; private set { activeObsUnit = value; Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(PatientTotalCount)); Notify(nameof(QueueWaitingCount)); Notify(nameof(SlotOpenCount)); } }
+    public string CorrectedObsEmail { get => correctedObsEmail; set { correctedObsEmail = value; Notify(); Notify(nameof(CorrectedObsEmailError)); } }
+    public HealthUnit? CandidateObsUnit { get => candidateObsUnit; set { candidateObsUnit = value; Notify(); Notify(nameof(CanConfirmObsUnit)); } }
+    public HealthUnit? ActiveObsUnit
+    {
+        get => activeObsUnit;
+        private set
+        {
+            activeObsUnit = value;
+            Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(ActiveObsUnitRegion)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(NeedsObsUnitChoice)); Notify(nameof(ObsUnitPrompt)); Notify(nameof(UnitLabel)); Notify(nameof(AgendaStateText));
+            NotifyUnitCounts();
+        }
+    }
     public string ActiveObsUnitLabel => ActiveObsUnit?.Name ?? "Nenhuma UBS confirmada";
+    public string ActiveObsUnitRegion => ActiveObsUnit is { } unit && !string.IsNullOrWhiteSpace(unit.Region) ? unit.Region : "";
     public bool HasActiveObsUnit => ActiveObsUnit != null;
     public string ObsRegistryName { get => obsRegistryName; set { obsRegistryName = value; Notify(); } }
     public string ObsRegistryCpf { get => obsRegistryCpf; set { obsRegistryCpf = value; Notify(); } }
-    public string ObsRegistryEmail { get => obsRegistryEmail; set { obsRegistryEmail = value; Notify(); } }
-    public string ObsRegistryPhone { get => obsRegistryPhone; set { obsRegistryPhone = value; Notify(); } }
+    public string ObsRegistryEmail { get => obsRegistryEmail; set { obsRegistryEmail = value; Notify(); Notify(nameof(ObsRegistryEmailError)); } }
+    public string ObsRegistryPhone { get => obsRegistryPhone; set { obsRegistryPhone = value; Notify(); Notify(nameof(ObsRegistryPhoneError)); } }
+    /// <summary>Mensagens por campo: aparecem conforme a pessoa digita e voltam a ser conferidas ao salvar.</summary>
+    public string ObsRegistryEmailError => EmailError(ObsRegistryEmail);
+    public string ObsRegistryPhoneError => PhoneError(ObsRegistryPhone);
+    public string CorrectedObsEmailError => EmailError(CorrectedObsEmail);
+    private static string EmailError(string value) => string.IsNullOrWhiteSpace(value) || BrazilianDataValidator.IsValidEmail(value) ? "" : "E-mail inválido. Use o formato nome@dominio.com.";
+    private static string PhoneError(string value) => string.IsNullOrWhiteSpace(value) || BrazilianDataValidator.IsValidPhone(value) ? "" : "Telefone inválido. Informe de 8 a 15 dígitos, com + opcional no início.";
     public string ObsRegistryCep { get => obsRegistryCep; set { if (BrazilianDataValidator.NormalizeCep(obsRegistryCep) != BrazilianDataValidator.NormalizeCep(value)) obsRegistryIbge = null; obsRegistryCep = value; Notify(); } }
     public string ObsRegistryStreet { get => obsRegistryStreet; set { obsRegistryStreet = value; Notify(); } }
     public string ObsRegistryNumber { get => obsRegistryNumber; set { obsRegistryNumber = value; Notify(); } }
@@ -96,91 +121,117 @@ public sealed partial class WorkspaceViewModel
         ObsRegistryCep = result.Cep; ObsRegistryStreet = result.Street; ObsRegistryNeighborhood = result.Neighborhood ?? "";
         ObsRegistryCity = result.City; ObsRegistryState = result.State; ObsRegistryComplement = result.Complement ?? "";
         obsRegistryIbge = result.Ibge;
-        Message = "Endereço preenchido. Confira e complete o número antes de salvar.";
+        Say(MessageKind.Success, "Endereço preenchido. Confira e complete o número antes de salvar.");
     });
+
+    private void SetObsUnits(HealthUnit[] units)
+    {
+        Replace(ObsUnits, units);
+        obsUnitsLoaded = true;
+        if (candidateObsUnit is { } candidate) CandidateObsUnit = ObsUnits.FirstOrDefault(unit => unit.Id == candidate.Id);
+        Notify(nameof(HasAvailableObsUnits)); Notify(nameof(ObsUnitsLoaded)); Notify(nameof(ObsUnitPrompt));
+    }
+
+    /// <summary>Depois do login: carrega as UBS autorizadas. Uma única UBS é confirmada sozinha; várias exigem escolha explícita, sem restaurar escolha anterior.</summary>
+    private async Task InitializeObsUnitsAsync()
+    {
+        var units = await api.ObsUnitsAsync();
+        if (disposed || !IsAuthenticated) return;
+        SetObsUnits(units);
+        // Concessão revogada no meio da sessão: a UBS ativa sai e a pessoa precisa escolher de novo, sem troca automática.
+        var revoked = ActiveObsUnit is { } active && units.All(unit => unit.Id != active.Id);
+        if (revoked) DeactivateObsUnit();
+        if (ActiveObsUnit is null && units.Length == 1)
+        {
+            CandidateObsUnit = units[0];
+            if (!revoked) await ActivateUnitAsync(units[0]);
+        }
+        if (ActiveObsUnit is null) ObsUnitSelectionOpen = true;
+    }
+
     public Task LoadObsUnitsAsync() => RunAsync(async () =>
     {
         if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para consultar suas UBS.");
-        ActiveObsUnit = null; ObsUnitSelectionOpen = true; ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); CandidateObsUnit = null; ObsUnits.Clear(); Notify(nameof(HasAvailableObsUnits)); ClearAppointmentData(); ClearUnitLightningData();
-        var units = await api.ObsUnitsAsync();
+        var hadActive = ActiveObsUnit?.Id;
+        await InitializeObsUnitsAsync();
         if (disposed || !IsAuthenticated) return;
-        Replace(ObsUnits, units); Notify(nameof(HasAvailableObsUnits));
-        Message = "UBS autorizadas atualizadas. Escolha e confirme a unidade.";
+        if (hadActive is not null && ActiveObsUnit is null) Say(MessageKind.Error, "A UBS ativa deixou de estar autorizada para esta conta. Escolha outra UBS.");
+        else Say(MessageKind.Success, ObsUnits.Count == 0 ? "Lista atualizada: esta conta não tem UBS autorizada." : "Lista de UBS atualizada.");
     });
+
+    /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
+    private async Task ActivateUnitAsync(HealthUnit unit)
+    {
+        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda);
+        if (disposed || !IsAuthenticated) return;
+        if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
+        ActiveObsUnit = unit;
+        ObsUnitSelectionOpen = false;
+        ApplyUnitData(snapshot);
+    }
+
     public Task ConfirmObsUnitAsync() => RunAsync(async () =>
     {
         var unit = CandidateObsUnit ?? throw new NoraApiException("Selecione uma UBS autorizada.");
-        ActiveObsUnit = null; ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData();
-        var records = await api.ObsRegistryAsync(unit.Id);
-        if (disposed || !IsAuthenticated) return;
-        ActiveObsUnit = unit; Replace(ObsRegistry, records); Notify(nameof(PatientTotalCount)); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
-        ObsUnitSelectionOpen = false;
-        Message = "UBS confirmada e cadastros atualizados.";
+        await ActivateUnitAsync(unit);
+        if (disposed || ActiveObsUnit?.Id != unit.Id) return;
+        Say(MessageKind.Success, $"UBS {unit.Name} confirmada. Cadastro, fila, vagas e agenda carregados.");
     });
+
     public Task LoadObsRegistryAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de consultar os cadastros.");
-        var records = await api.ObsRegistryAsync(unit.Id);
-        if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-        Replace(ObsRegistry, records); Notify(nameof(PatientTotalCount)); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); Message = "Cadastros da UBS atualizados.";
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de consultar os cadastros.");
+        await LoadUnitScopeAsync(unit, UnitScope.Registry);
+        if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, "Cadastros da UBS atualizados.");
     });
+
+    private string? ValidateRegistryContact(string email, string phone)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return "Informe o e-mail cadastrado do paciente.";
+        if (!BrazilianDataValidator.IsValidEmail(email)) return EmailError(email);
+        return PhoneError(phone) is { Length: > 0 } phoneError ? phoneError : null;
+    }
+
     public Task CreateObsRegistryAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de cadastrar o paciente.");
-        var name = ObsRegistryName.Trim(); var cpf = ObsRegistryCpf.Trim(); var email = ObsRegistryEmail.Trim();
-        if (name.Length < 2 || !BrazilianDataValidator.IsValidCpf(cpf) || string.IsNullOrWhiteSpace(email)) throw new NoraApiException("Informe nome, CPF válido e e-mail cadastrado do paciente.");
-        var address = CreateObsRegistryAddress();
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de cadastrar o paciente.");
+        var name = ObsRegistryName.Trim(); var cpf = BrazilianDataValidator.NormalizeCpf(ObsRegistryCpf); var email = ObsRegistryEmail.Trim();
         var editing = editingObsCpf;
-        if (editing is null) await api.CreateObsRegistryAsync(unit.Id, name, cpf, email, string.IsNullOrWhiteSpace(ObsRegistryPhone) ? null : ObsRegistryPhone.Trim(), address);
-        else await api.UpdateObsRegistryAsync(unit.Id, name, editing, email, string.IsNullOrWhiteSpace(ObsRegistryPhone) ? null : ObsRegistryPhone.Trim(), address);
+        if (name.Length < 2 || (editing is null && !BrazilianDataValidator.IsValidCpf(cpf))) throw new NoraApiException("Informe o nome e um CPF válido do paciente.");
+        if (ValidateRegistryContact(email, ObsRegistryPhone) is { } contactError) throw new NoraApiException(contactError);
+        var address = CreateObsRegistryAddress();
+        var phone = string.IsNullOrWhiteSpace(ObsRegistryPhone) ? null : ObsRegistryPhone.Trim();
+        if (editing is null) await api.CreateObsRegistryAsync(unit.Id, name, cpf, email, phone, address);
+        else await api.UpdateObsRegistryAsync(unit.Id, name, editing, email, phone, address);
         ClearObsRegistryDraft();
-        try
-        {
-            var records = await api.ObsRegistryAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            Replace(ObsRegistry, records); Notify(nameof(PatientTotalCount)); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
-            Message = editing is null ? "Paciente cadastrado na UBS. Ele poderá criar a conta no aplicativo." : "Cadastro atualizado nesta UBS.";
-        }
-        catch (NoraApiException error) when (!error.Unauthorized)
-        {
-            Message = editing is null ? "Paciente cadastrado, mas não foi possível atualizar a lista. Use Atualizar cadastros da UBS." : "Cadastro atualizado, mas não foi possível atualizar a lista.";
-        }
+        await ReloadAfterChangeAsync(unit, UnitScope.Registry,
+            editing is null ? "Paciente cadastrado na UBS. Ele poderá criar a conta no aplicativo." : "Cadastro atualizado nesta UBS.");
     });
+
     public Task UpdateObsRegistryEmailAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de corrigir o e-mail.");
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de corrigir o e-mail.");
         var patient = SelectedObsRegistry ?? throw new NoraApiException("Selecione o cadastro que deseja corrigir.");
         var email = CorrectedObsEmail.Trim();
         if (string.IsNullOrWhiteSpace(email)) throw new NoraApiException("Informe o e-mail correto.");
+        if (!BrazilianDataValidator.IsValidEmail(email)) throw new NoraApiException(EmailError(email));
         await api.UpdateObsRegistryEmailAsync(unit.Id, patient.Cpf, email);
         SelectedObsRegistry = null;
-        try
-        {
-            var records = await api.ObsRegistryAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            Replace(ObsRegistry, records); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); Message = "E-mail atualizado no cadastro da UBS.";
-        }
-        catch (NoraApiException error) when (!error.Unauthorized)
-        {
-            Message = "E-mail atualizado, mas não foi possível atualizar a lista. Use Atualizar cadastros da UBS.";
-        }
+        await ReloadAfterChangeAsync(unit, UnitScope.Registry, "E-mail atualizado no cadastro da UBS.");
     });
+
     public Task SetObsRegistryActiveAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de alterar o cadastro.");
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar o cadastro.");
         var patient = SelectedObsRegistry ?? throw new NoraApiException("Selecione um paciente.");
         var active = !patient.IsActive;
         await api.SetObsRegistryActiveAsync(unit.Id, patient.Cpf, active);
-        try
-        {
-            var records = await api.ObsRegistryAsync(unit.Id); var entries = await api.UnitWaitingListAsync(unit.Id); var slots = await api.UnitLightningSlotsAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            Replace(ObsRegistry, records); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); Replace(UnitWaitingList, entries); Replace(UnitLightningSlots, slots); unitQueueLoaded = unitSlotsLoaded = true;
-            SelectedObsRegistry = ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf); Notify(nameof(QueueWaitingCount)); Notify(nameof(SlotOpenCount));
-            Message = active ? "Paciente reativado nesta UBS. Entradas canceladas não são restauradas." : "Paciente desativado nesta UBS; entradas e ofertas pendentes foram canceladas.";
-        }
-        catch (NoraApiException error) when (!error.Unauthorized) { SelectedObsRegistry = null; Message = "Situação alterada. Atualize os cadastros e a fila para conferir."; }
+        // Desativar cancela fila e ofertas da UBS: o cadastro, a fila e as vagas voltam juntos.
+        await ReloadAfterChangeAsync(unit, UnitScope.Registry | UnitScope.Queue | UnitScope.Slots,
+            active ? "Paciente reativado nesta UBS. Entradas canceladas não são restauradas." : "Paciente desativado nesta UBS; entradas e ofertas pendentes foram canceladas.");
+        if (ActiveObsUnit?.Id == unit.Id) SelectedObsRegistry = ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf);
     });
+
     private AddressInfo? CreateObsRegistryAddress()
     {
         var values = new[] { ObsRegistryCep, ObsRegistryStreet, ObsRegistryNumber, ObsRegistryComplement, ObsRegistryNeighborhood, ObsRegistryCity, ObsRegistryState };
@@ -189,16 +240,32 @@ public sealed partial class WorkspaceViewModel
             throw new NoraApiException("Para salvar endereço, confira CEP, logradouro, cidade e UF.");
         return new(BrazilianDataValidator.NormalizeCep(ObsRegistryCep), ObsRegistryStreet.Trim(), EmptyToNull(ObsRegistryNumber), EmptyToNull(ObsRegistryComplement), EmptyToNull(ObsRegistryNeighborhood), ObsRegistryCity.Trim(), ObsRegistryState.Trim().ToUpperInvariant(), obsRegistryIbge);
     }
+    private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private void ClearObsRegistryDraft()
     {
         editingObsCpf = null; obsRegistryIbge = null; ObsRegistryDraftOpen = false; Notify(nameof(IsEditingObsRegistry)); Notify(nameof(ObsRegistryDraftTitle)); Notify(nameof(ObsRegistrySaveLabel));
         ObsRegistryName = ObsRegistryCpf = ObsRegistryEmail = ObsRegistryPhone = "";
         ObsRegistryCep = ObsRegistryStreet = ObsRegistryNumber = ObsRegistryComplement = ObsRegistryNeighborhood = ObsRegistryCity = ObsRegistryState = "";
     }
+
+    /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda, fila e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
+    private void ResetUnitState()
+    {
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData();
+        Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
+    }
+
+    private void DeactivateObsUnit()
+    {
+        ResetUnitState(); ActiveObsUnit = null; ObsUnitSelectionOpen = true;
+        if (candidateObsUnit is { } candidate && ObsUnits.All(unit => unit.Id != candidate.Id)) CandidateObsUnit = null;
+    }
+
     private void ClearObsUnits()
     {
         ObsUnitSelectionOpen = true;
-        ObsUnits.Clear(); Notify(nameof(HasAvailableObsUnits)); ObsRegistry.Clear(); ObsRegistrySearch = ""; ObsRegistryStatusFilter = "Todos"; ObsRegistryPresenceFilter = "Todos"; ObsRegistrySort = "Mais recentes"; CandidateObsUnit = null; ActiveObsUnit = null; SelectedObsRegistry = null; ClearAppointmentData(); ClearUnitLightningData();
-        ClearObsRegistryDraft();
+        ObsUnits.Clear(); obsUnitsLoaded = false; Notify(nameof(HasAvailableObsUnits)); Notify(nameof(ObsUnitsLoaded));
+        ObsRegistryStatusFilter = "Todos"; ObsRegistryPresenceFilter = "Todos"; ObsRegistrySort = "Mais recentes"; CandidateObsUnit = null;
+        ResetUnitState(); ActiveObsUnit = null;
     }
 }

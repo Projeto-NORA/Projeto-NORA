@@ -62,65 +62,20 @@ public partial class ShellWindow : Window
             Title = details.Title,
             MaxHeight = Math.Max(320, Math.Min(SystemParameters.WorkArea.Height - 40, ActualHeight - 40))
         };
-        if (item is not OperationalRow)
-            ClosePatientDialogOnSignOut(dialog, item is UnitPatientRecord or UnitWaitingEntry or UnitLightningSlot);
+        CloseDetailsOnSessionChange(dialog);
         dialog.ShowDialog();
     }
-    private void OnActionDetails(object sender, RoutedEventArgs args)
-    {
-        if (ViewModel.Workspace.ActionSelection is { } item) OpenItemDetails(item);
-    }
-    private void OnLegacyDetails(object sender, RoutedEventArgs args)
-    {
-        if (ViewModel.SelectedRow is { } item) OpenItemDetails(item);
-    }
-    private void OnClearLegacySelection(object sender, RoutedEventArgs args) => ViewModel.SelectedRow = null;
-    private void ClosePatientDialogOnSignOut(Window dialog, bool closeOnUnitChange = false)
+    /// <summary>A ficha fecha se a sessão termina ou a UBS ativa muda, para nunca mostrar dados de outra unidade.</summary>
+    private void CloseDetailsOnSessionChange(Window dialog)
     {
         var initialUnit = ViewModel.Workspace.ActiveObsUnit?.Id;
         PropertyChangedEventHandler closeOnSignOut = (_, changed) =>
         {
             if ((changed.PropertyName == nameof(WorkspaceViewModel.IsAuthenticated) && !ViewModel.Workspace.IsAuthenticated) ||
-                (closeOnUnitChange && changed.PropertyName == nameof(WorkspaceViewModel.ActiveObsUnit) && ViewModel.Workspace.ActiveObsUnit?.Id != initialUnit)) dialog.Close();
+                (changed.PropertyName == nameof(WorkspaceViewModel.ActiveObsUnit) && ViewModel.Workspace.ActiveObsUnit?.Id != initialUnit)) dialog.Close();
         };
         ViewModel.Workspace.PropertyChanged += closeOnSignOut;
         dialog.Closed += (_, _) => ViewModel.Workspace.PropertyChanged -= closeOnSignOut;
-    }
-    private async void OnSetPatientActive(object sender, RoutedEventArgs args)
-    {
-        var workspace = ViewModel.Workspace;
-        if (!workspace.CanSetPatientActive || workspace.ActionSelectedPatient is not { } patient) return;
-        if (!ConfirmPatientAccess(patient)) return;
-        await workspace.SetPatientActiveAsync(patient);
-    }
-    private bool ConfirmPatientAccess(PatientAccount patient)
-    {
-        var action = patient.IsActive ? "Desativar" : "Reativar";
-        var message = patient.IsActive
-            ? "A desativação bloqueia novos logins, encerra as sessões e cancela entradas e ofertas pendentes. Vagas liberadas seguem para o próximo paciente por ordem de entrada. O cadastro e o histórico são preservados."
-            : "A reativação permite novos logins. Sessões antigas continuam encerradas e o paciente não retorna automaticamente às filas. Uma nova inclusão na fila deve ser feita manualmente.";
-        var dialog = new Window
-        {
-            Owner = this, Title = action + " paciente", Width = 540, SizeToContent = SizeToContent.Height,
-            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
-            FontFamily = FontFamily, FontSize = 14,
-            ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false
-        };
-        dialog.SetResourceReference(ForegroundProperty, "TextBrush");
-        var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = action + " " + patient.FullName + "?", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 16) });
-        panel.Children.Add(new TextBlock { Text = message, Margin = new Thickness(0, 0, 0, 24), TextWrapping = TextWrapping.Wrap });
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(new Button { Content = "Cancelar", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) });
-        var confirm = new Button { Content = action + " paciente", IsDefault = true, Style = (Style)Application.Current.FindResource("PrimaryButton") };
-        confirm.SetBinding(IsEnabledProperty, new Binding(nameof(WorkspaceViewModel.CanOperate)) { Source = ViewModel.Workspace, Mode = BindingMode.OneWay });
-        confirm.Click += (_, _) => dialog.DialogResult = true;
-        actions.Children.Add(confirm); panel.Children.Add(actions);
-        var frame = new Border { Child = panel, CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1), Padding = new Thickness(24), Margin = new Thickness(10) };
-        frame.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush"); frame.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
-        dialog.Content = frame;
-        ClosePatientDialogOnSignOut(dialog);
-        return dialog.ShowDialog() == true;
     }
     private void ApplyWindowCorners()
     {

@@ -132,9 +132,6 @@ public partial class MunicipalView : UserControl
     private void Render()
     {
         ContentPanel.Children.Clear(); if (workspace == null) return;
-        var error = Text("", 13); error.SetBinding(TextBlock.TextProperty, new Binding(nameof(WorkspaceViewModel.Message)));
-        var errorFrame = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Margin = new Thickness(0, 0, 0, 18), Child = error };
-        errorFrame.SetResourceReference(Border.BackgroundProperty, "BrandSoftBrush"); errorFrame.SetBinding(VisibilityProperty, new Binding(nameof(WorkspaceViewModel.HasMessage)) { Converter = (IValueConverter)Application.Current.FindResource("BoolVisibility") }); ContentPanel.Children.Add(errorFrame);
         if (!workspace.IsAuthenticated) Notice("Entre na Visão geral para consultar os dados agregados disponíveis. As demais áreas ainda dependem de integração.");
         switch (workspace.Section)
         {

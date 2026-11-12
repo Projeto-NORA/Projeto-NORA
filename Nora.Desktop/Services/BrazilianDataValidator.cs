@@ -39,4 +39,32 @@ public static class BrazilianDataValidator
     }
 
     public static bool IsCompleteCep(string? value) => NormalizeCep(value).Length == 8;
+
+    public static string FormatCpf(string? cpf)
+    {
+        cpf ??= "";
+        return cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
+    }
+
+    /// <summary>Formato de e-mail como a API confere: endereço simples, com domínio, até 254 caracteres.</summary>
+    public static bool IsValidEmail(string? value)
+    {
+        var email = value?.Trim() ?? "";
+        return email.Length is > 0 and <= 254 && MailAddress.TryCreate(email, out var parsed) && parsed.Address == email && parsed.Host.Contains('.');
+    }
+
+    /// <summary>Telefone: 8 a 15 dígitos, com + opcional no início; espaços, parênteses, hífen e ponto são ignorados.</summary>
+    public static bool IsValidPhone(string? value)
+    {
+        var phone = value?.Trim() ?? "";
+        if (phone.Length == 0) return false;
+        var digits = 0;
+        for (var index = 0; index < phone.Length; index++)
+        {
+            var c = phone[index];
+            if (char.IsAsciiDigit(c)) digits++;
+            else if (!(c == '+' && index == 0) && c is not (' ' or '(' or ')' or '-' or '.')) return false;
+        }
+        return digits is >= 8 and <= 15;
+    }
 }

@@ -4,73 +4,94 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
+/// <summary>Fila por especialidade e Vagas Relâmpago da UBS ativa.</summary>
 public sealed partial class WorkspaceViewModel
 {
     private UnitPatientRecord? waitingPatient;
     private UnitWaitingEntry? selectedWaitingEntry;
+    private UnitLightningSlot? selectedUnitSlot;
     private string waitingSpecialty = "";
     public ObservableCollection<UnitWaitingEntry> UnitWaitingList { get; } = [];
     public ObservableCollection<UnitLightningSlot> UnitLightningSlots { get; } = [];
     private bool unitQueueLoaded, unitSlotsLoaded;
     public UnitPatientRecord? WaitingPatient { get => waitingPatient; set { waitingPatient = value; Notify(); } }
-    public UnitWaitingEntry? SelectedWaitingEntry { get => selectedWaitingEntry; set { selectedWaitingEntry = value; Notify(); } }
+    public UnitWaitingEntry? SelectedWaitingEntry { get => selectedWaitingEntry; set { selectedWaitingEntry = value; Notify(); Notify(nameof(CanCancelWaitingEntry)); } }
+    public UnitLightningSlot? SelectedUnitSlot { get => selectedUnitSlot; set { selectedUnitSlot = value; Notify(); } }
     public string WaitingSpecialty { get => waitingSpecialty; set { waitingSpecialty = value; Notify(); } }
+    /// <summary>Cancelar só vale para entrada ainda ativa (aguardando ou com oferta em andamento).</summary>
+    public bool CanCancelWaitingEntry => CanOperate && SelectedWaitingEntry?.IsActive == true;
+    public bool HasNoWaitingEntries => HasActiveObsUnit && unitQueueLoaded && UnitWaitingList.Count == 0;
+    public bool HasNoUnitSlots => HasActiveObsUnit && unitSlotsLoaded && UnitLightningSlots.Count == 0;
+
+    private void ReselectSlot() { if (selectedUnitSlot is { } slot) SelectedUnitSlot = UnitLightningSlots.FirstOrDefault(item => item.Id == slot.Id); }
 
     public Task LoadUnitWaitingListAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS em Pacientes antes de consultar a fila.");
-        var entries = await api.UnitWaitingListAsync(unit.Id);
-        if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-        SelectedWaitingEntry = null; Replace(UnitWaitingList, entries); unitQueueLoaded = true; Notify(nameof(QueueWaitingCount)); Message = "Fila da UBS atualizada.";
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar a fila.");
+        await LoadUnitScopeAsync(unit, UnitScope.Queue);
+        if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, "Fila da UBS atualizada.");
     });
+
     public Task AddUnitWaitingEntryAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS em Pacientes antes de incluir na fila.");
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de incluir na fila.");
         var patient = WaitingPatient ?? throw new NoraApiException("Selecione o paciente cadastrado na UBS.");
-        if (string.IsNullOrWhiteSpace(WaitingSpecialty)) throw new NoraApiException("Informe a especialidade.");
-        await api.AddUnitWaitingEntryAsync(unit.Id, patient.Cpf, WaitingSpecialty.Trim()); WaitingPatient = null;
-        try
-        {
-            var entries = await api.UnitWaitingListAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            Replace(UnitWaitingList, entries); unitQueueLoaded = true; Notify(nameof(QueueWaitingCount)); Message = "Paciente incluído na fila da UBS.";
-        }
-        catch (NoraApiException error) when (!error.Unauthorized) { Message = "Paciente incluído. Atualize a fila para conferir."; }
+        if (!patient.IsActive) throw new NoraApiException("O paciente precisa ter um cadastro ativo nesta UBS.");
+        var specialty = WaitingSpecialty.Trim();
+        if (specialty.Length == 0) throw new NoraApiException("Informe a especialidade.");
+        if (specialty.Length > 120) throw new NoraApiException("A especialidade pode ter até 120 caracteres.");
+        await api.AddUnitWaitingEntryAsync(unit.Id, patient.Cpf, specialty);
+        WaitingPatient = null;
+        await ReloadAfterChangeAsync(unit, UnitScope.Queue, "Paciente incluído na fila da UBS.");
     });
+
     public Task CancelUnitWaitingEntryAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de cancelar a entrada.");
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de cancelar a entrada.");
         var entry = SelectedWaitingEntry ?? throw new NoraApiException("Selecione uma entrada da fila.");
+        if (!entry.IsActive) throw new NoraApiException("Esta entrada já está encerrada.");
         await api.CancelUnitWaitingEntryAsync(unit.Id, entry.Id);
-        try
-        {
-            var entries = await api.UnitWaitingListAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            SelectedWaitingEntry = null; Replace(UnitWaitingList, entries); unitQueueLoaded = true; Notify(nameof(QueueWaitingCount)); Message = "Entrada cancelada.";
-        }
-        catch (NoraApiException error) when (!error.Unauthorized) { Message = "Entrada cancelada. Atualize a fila para conferir."; }
+        SelectedWaitingEntry = null;
+        await ReloadAfterChangeAsync(unit, UnitScope.Queue, "Entrada cancelada.");
     });
+
     public Task LoadUnitLightningSlotsAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS em Pacientes antes de consultar vagas.");
-        var slots = await api.UnitLightningSlotsAsync(unit.Id);
-        if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-        Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; Notify(nameof(SlotOpenCount)); Message = "Vagas da UBS atualizadas.";
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar vagas.");
+        await LoadUnitScopeAsync(unit, UnitScope.Slots);
+        if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, "Vagas da UBS atualizadas.");
     });
+
     public Task CreateUnitLightningSlotAsync() => RunAsync(async () =>
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Confirme uma UBS antes de criar a vaga.");
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de criar a vaga.");
         var appointment = SelectedAppointment ?? throw new NoraApiException("Selecione uma consulta cancelada.");
         if (appointment.Status != "cancelled") throw new NoraApiException("Somente consultas canceladas podem gerar uma vaga.");
+        if (appointment.StartsAt <= DateTimeOffset.Now) throw new NoraApiException("A consulta cancelada já começou; só horários futuros podem virar Vaga Relâmpago.");
         await api.CreateUnitLightningSlotAsync(unit.Id, appointment.Id);
+        await ReloadAfterChangeAsync(unit, UnitScope.Slots | UnitScope.Queue, "Vaga criada. Consulte a situação para acompanhar a oferta.");
+    });
+
+    /// <summary>Depois de uma alteração confirmada pela API: relê as partes afetadas. Se a releitura falhar, a alteração continua confirmada e os dados ficam marcados como possivelmente desatualizados.</summary>
+    private async Task ReloadAfterChangeAsync(HealthUnit unit, UnitScope scope, string success)
+    {
         try
         {
-            var slots = await api.UnitLightningSlotsAsync(unit.Id);
-            if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
-            Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; Notify(nameof(SlotOpenCount)); Message = "Vaga criada. Consulte a situação para acompanhar a oferta.";
+            await LoadUnitScopeAsync(unit, scope);
+            MarkFresh();
+            Say(MessageKind.Success, success);
         }
-        catch (NoraApiException error) when (!error.Unauthorized) { Message = "Vaga criada. Atualize a lista de vagas para conferir."; }
-    });
+        catch (NoraApiException error) when (!error.Unauthorized)
+        {
+            MarkStale();
+            Say(MessageKind.Success, success + " Não foi possível atualizar a tela; aguarde a atualização automática antes de repetir a operação.");
+        }
+    }
+
     private void ClearUnitLightningData()
-    { UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false; WaitingPatient = null; SelectedWaitingEntry = null; WaitingSpecialty = ""; Notify(nameof(QueueWaitingCount)); Notify(nameof(SlotOpenCount)); }
+    {
+        UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false;
+        WaitingPatient = null; SelectedWaitingEntry = null; SelectedUnitSlot = null; WaitingSpecialty = "";
+        NotifyUnitCounts();
+    }
 }
