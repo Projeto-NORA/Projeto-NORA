@@ -32,6 +32,11 @@ data class UnitQueueEntry(val id: Long, val specialty: String, val enteredAt: St
 data class UnitOffer(val id: String, val specialty: String, val professional: String, val startsAt: String, val endsAt: String, val expiresAt: String, val status: String) {
     val expiresAtMillis: Long? = parseInstantMillis(expiresAt)
 }
+/** Participação do próprio paciente em uma UBS nos últimos [windowMonths] meses; `score` (0 a 1) é nulo sem consulta encerrada. */
+data class UnitAttendance(val completed: Int, val missed: Int, val cancelledByPatient: Int, val cancellationWeight: Double,
+    val score: Double?, val windowMonths: Int)
+/** O que o servidor cancelou ao remover o vínculo com uma UBS. */
+data class UnlinkResult(val cancelledAppointments: Int, val cancelledEntries: Int)
 /** Resultado do servidor para uma resposta: `accepted` só é verdadeiro quando a consulta foi criada. */
 data class OfferResponse(val accepted: Boolean, val appointmentId: String?)
 /** `code` é o campo fixo do problem+json, já filtrado para os valores conhecidos; nunca o texto do servidor. */
@@ -52,6 +57,10 @@ interface PatientApi {
     suspend fun unitQueue(token: String, unitId: String): List<UnitQueueEntry> = throw ApiFailure(501, "Fila indisponível.")
     suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> = throw ApiFailure(501, "Ofertas indisponíveis.")
     suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean): OfferResponse = throw ApiFailure(501, "Oferta indisponível.")
+    suspend fun attendance(token: String, unitId: String): UnitAttendance = throw ApiFailure(501, "Participação indisponível.")
+    suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long): Unit = throw ApiFailure(501, "Cancelamento indisponível.")
+    suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult = throw ApiFailure(501, "Remoção indisponível.")
+    suspend fun changePassword(token: String, currentPassword: String, newPassword: String): Unit = throw ApiFailure(501, "Troca de senha indisponível.")
     suspend fun logout(token: String)
     suspend fun presence(token: String, online: Boolean)
 }
@@ -146,6 +155,25 @@ class NoraApi(private val address: String) : PatientApi {
         require(GUID.matches(unitId) && GUID.matches(id)) { "Oferta inválida." }
         val response = request("/api/patient/units/$unitId/lightning-offers/$id/respond", "POST", token, JSONObject().put("accept", accept), ApiContext.OFFER_RESPOND)
         return OfferResponse(response.getBoolean("accepted"), if (response.isNull("appointmentId")) null else response.getString("appointmentId"))
+    }
+
+    override suspend fun attendance(token: String, unitId: String): UnitAttendance {
+        require(GUID.matches(unitId)) { "UBS inválida." }
+        val body = request("/api/patient/units/$unitId/attendance", token = token, context = ApiContext.UNIT)
+        return UnitAttendance(body.getInt("completed"), body.getInt("missed"), body.getInt("cancelledByPatient"),
+            body.getDouble("cancellationWeight"), if (body.isNull("score")) null else body.getDouble("score"), body.getInt("windowMonths"))
+    }
+    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) {
+        require(GUID.matches(unitId) && entryId > 0) { "Solicitação inválida." }
+        request("/api/patient/units/$unitId/waiting-list/$entryId/cancel", "POST", token, JSONObject().put("confirmed", true), ApiContext.QUEUE_CANCEL)
+    }
+    override suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult {
+        require(GUID.matches(unitId)) { "UBS inválida." }
+        val body = request("/api/patient/units/$unitId/unlink", "POST", token, JSONObject().put("confirmed", true), ApiContext.UNLINK)
+        return UnlinkResult(body.getInt("cancelledAppointments"), body.getInt("cancelledEntries"))
+    }
+    override suspend fun changePassword(token: String, currentPassword: String, newPassword: String) {
+        request("/api/auth/password", "POST", token, JSONObject().put("currentPassword", currentPassword).put("newPassword", newPassword), ApiContext.PASSWORD_CHANGE)
     }
 
     override suspend fun logout(token: String) { request("/api/auth/logout", "POST", token, context = ApiContext.SESSION) }

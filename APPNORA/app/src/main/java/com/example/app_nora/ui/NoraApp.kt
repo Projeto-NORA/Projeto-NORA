@@ -94,6 +94,11 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
         openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened,
         onLoadUnits = { scope.launch { controller.loadUnits() } },
         onLoadAppointments = { scope.launch { controller.loadAppointments() } },
+        onLoadAttendance = { scope.launch { controller.loadAttendance() } },
+        onCancelQueueEntry = { id -> scope.launch { controller.cancelQueueEntry(id) } },
+        onLoadUnitDetails = controller::loadUnitDetails,
+        onUnlinkUnit = { scope.launch { controller.unlinkSelectedUnit() } },
+        onChangePassword = controller::changePassword,
         onCancelAppointment = { id -> scope.launch { controller.cancelAppointment(id) } },
         onSelectUnit = controller::selectUnit,
         onLocateUnit = controller::selectNearestUnit,
@@ -124,6 +129,7 @@ private enum class PatientDestination(val title: String) {
     BOOKING("Agendamento"),
     FLASH("Vaga Relâmpago"),
     REGISTER("Cadastro"),
+    PASSWORD("Alterar senha"),
 }
 
 private val mainDestinations = listOf(
@@ -210,6 +216,9 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean = { _, _, _ -> false },
     initiallyShowSettings: Boolean = false, onLoadUnits: () -> Unit = {}, onLoadAppointments: () -> Unit = {}, onCancelAppointment: (String) -> Unit = {}, onSelectUnit: (String) -> Unit = {},
     onLocateUnit: (Double, Double) -> PatientHealthUnit? = { _, _ -> null },
+    onLoadAttendance: () -> Unit = {}, onCancelQueueEntry: (Long) -> Unit = {},
+    onLoadUnitDetails: suspend (String) -> Boolean = { false }, onUnlinkUnit: () -> Unit = {},
+    onChangePassword: suspend (String, String) -> Unit = { _, _ -> throw ApiFailure(503, "Troca de senha indisponível.") },
     openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}) {
     var settingsOpen by rememberSaveable { mutableStateOf(initiallyShowSettings) }
     var destination by rememberSaveable { mutableStateOf(PatientDestination.HOME) }
@@ -238,7 +247,15 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     }
     LaunchedEffect(destination) { pageScroll.scrollTo(0) }
     LaunchedEffect(destination, patient.session?.token) {
-        if ((destination == PatientDestination.UNITS || (destination in listOf(PatientDestination.APPOINTMENTS, PatientDestination.FLASH) && patient.units == null)) && patient.session != null) onLoadUnits()
+        if ((destination == PatientDestination.UNITS || (destination in listOf(PatientDestination.APPOINTMENTS, PatientDestination.FLASH, PatientDestination.JOURNEY) && patient.units == null)) && patient.session != null) onLoadUnits()
+    }
+    // A participação é lida ao abrir a Jornada (e de novo quando as UBS acabam de chegar); depois, só ao atualizar.
+    LaunchedEffect(destination, patient.session?.token, patient.units != null) {
+        if (destination == PatientDestination.JOURNEY && patient.session != null && patient.units != null) onLoadAttendance()
+    }
+    // O servidor exigiu nova senha (403 password-change-required): leva à troca em vez de deixar o app preso.
+    LaunchedEffect(patient.passwordChangeRequired) {
+        if (patient.passwordChangeRequired) { settingsOpen = false; destination = PatientDestination.PASSWORD }
     }
     LaunchedEffect(destination, patient.session?.token, patient.selectedUnitId) {
         if (destination == PatientDestination.APPOINTMENTS && patient.session != null && patient.selectedUnitId != null) onLoadAppointments()
@@ -298,14 +315,17 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
                         ScreenTitle("Seu app, do seu jeito", "Escolha a aparência e ajuste as preferências deste dispositivo.")
-                        SettingsScreen(settings, onSettingsChange, patient, onAddressChange, onLogout = {
+                        SettingsScreen(settings, onSettingsChange, patient, onAddressChange, onChangePassword = {
+                            settingsOpen = false
+                            destination = PatientDestination.PASSWORD
+                        }, onLogout = {
                             settingsOpen = false
                             destination = PatientDestination.HOME
                             onLogout()
                         })
                     } else {
                         if (destination in listOf(PatientDestination.APPOINTMENTS, PatientDestination.UNITS,
-                                PatientDestination.BOOKING, PatientDestination.FLASH)) {
+                                PatientDestination.BOOKING, PatientDestination.FLASH, PatientDestination.PASSWORD)) {
                             TextButton(onClick = { destination = PatientDestination.HOME }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
@@ -316,22 +336,25 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         PatientDestination.HOME -> HomeScreen(settings.showGuidance,
                             onOpenSettings = { settingsOpen = true }, onNavigate = { destination = it },
                             patient = patient, onAddressChange = onAddressChange, onLogin = onLogin,
-                            onRefresh = onRefresh, onLoadUnits = onLoadUnits,
+                            onRefresh = onRefresh, onLoadUnits = onLoadUnits, onLeaveQueue = onCancelQueueEntry,
                             onOpenOffer = { unitId -> onSelectUnit(unitId); destination = PatientDestination.FLASH },
                             onRequestPasswordReset = onRequestPasswordReset,
                             onConfirmPasswordReset = onConfirmPasswordReset)
-                        PatientDestination.JOURNEY -> JourneyScreen(patient, onNavigate = { destination = it })
+                        PatientDestination.JOURNEY -> JourneyScreen(patient, onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
+                            onRefreshAttendance = onLoadAttendance, onLeaveQueue = onCancelQueueEntry)
                         PatientDestination.NOTICES -> NoticesScreen(patient, onOpenOffer = { unitId -> onSelectUnit(unitId); destination = PatientDestination.FLASH })
                         PatientDestination.FAMILY -> FamilyScreen()
                         PatientDestination.PROFILE -> ProfileScreen(patient,
-                            onOpenSettings = { settingsOpen = true }, onLogout = {
+                            onOpenSettings = { settingsOpen = true }, onChangePassword = { destination = PatientDestination.PASSWORD },
+                            onLogout = {
                                 destination = PatientDestination.HOME
                                 onLogout()
                             })
                         PatientDestination.APPOINTMENTS -> AppointmentsScreen(patient, onSelectUnit, onLoadUnits, onLoadAppointments, onCancelAppointment)
-                        PatientDestination.UNITS -> UnitsScreen(patient, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits)
+                        PatientDestination.UNITS -> UnitsScreen(patient, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onLoadUnitDetails, onUnlinkUnit)
                         PatientDestination.BOOKING -> BookingScreen(onNavigate = { destination = it })
                         PatientDestination.FLASH -> FlashScreen(patient, onLoadUnits, onSelectUnit, onRefresh, onRespondUnit)
+                        PatientDestination.PASSWORD -> ChangePasswordScreen(patient.passwordChangeRequired, onChangePassword)
                         PatientDestination.REGISTER -> RegisterScreen(onBack = { destination = PatientDestination.HOME }, onLoadUnits = onRegistrationUnits, onStart = onStartRegistration, onSend = onSendRegistrationCode, onConfirm = onConfirmRegistration)
                         }
                     }
@@ -666,7 +689,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
 }
 
 @Composable
-private fun PasswordEyeButton(visible: Boolean, onClick: () -> Unit) {
+internal fun PasswordEyeButton(visible: Boolean, onClick: () -> Unit) {
     val iconColor = MaterialTheme.colorScheme.primary
     IconButton(onClick = onClick, modifier = Modifier.semantics {
         contentDescription = if (visible) "Ocultar senha" else "Mostrar senha"
@@ -812,7 +835,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
 private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
     onNavigate: (PatientDestination) -> Unit, patient: PatientState,
     onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?,
-    onRefresh: () -> Unit, onLoadUnits: () -> Unit, onOpenOffer: (String) -> Unit,
+    onRefresh: () -> Unit, onLoadUnits: () -> Unit, onLeaveQueue: (Long) -> Unit, onOpenOffer: (String) -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean) {
     if (patient.session == null && onLogin != null) {
@@ -962,7 +985,7 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 patient.selectedUnitId == null -> MutedText("Escolha uma UBS vinculada para consultar sua situação.")
                 queue == null -> MutedText("Toque em atualizar para consultar sua situação.")
                 queue.isEmpty() -> MutedText("Não há solicitações de atendimento em acompanhamento nesta UBS.")
-                else -> QueueEntries(queue)
+                else -> QueueEntries(queue, patient.busy, onLeaveQueue)
             }
             OutlinedButton(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) { Text("Escolher UBS e consultar") }
             OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.fillMaxWidth()) {
@@ -1001,36 +1024,6 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         MutedText("Entre na sua conta para acompanhar seus dados. Nenhuma consulta ou UBS é exibida sem informação da rede.")
         OutlinedButton(onClick = { onNavigate(PatientDestination.UNITS) }, modifier = Modifier.fillMaxWidth()) {
             Text("Ver informações sobre UBS")
-        }
-    }
-}
-
-@Composable
-private fun JourneyScreen(patient: PatientState, onNavigate: (PatientDestination) -> Unit) {
-    ScreenTitle("Sua Jornada", "Acompanhe seus cuidados e próximos passos.")
-    SectionCard("Consultas, exames e vacinas", "Histórico recebido da rede de saúde") {
-        MutedText("A rede ainda não disponibiliza esses registros no aplicativo.")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Consultas", "Exames", "Vacinas").forEach { label ->
-                Surface(Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f)) {
-                    Text(label, Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.labelMedium, maxLines = 1,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-        }
-        OutlinedButton(onClick = { onNavigate(PatientDestination.APPOINTMENTS) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Ver consultas")
-        }
-    }
-    SectionCard("Índice de Jornada", "Uma visão do seu envolvimento com os cuidados") {
-        Text("Ainda sem dados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        MutedText("O índice só será exibido quando a rede enviar informações suficientes. Ele não altera fila, prioridade clínica nem seu direito ao atendimento.")
-    }
-    patient.unitQueue?.let { queue ->
-        if (queue.isNotEmpty()) SectionCard("Solicitações de atendimento", "Status informado pela unidade selecionada") {
-            QueueEntries(queue)
         }
     }
 }
@@ -1075,13 +1068,16 @@ private fun FamilyScreen() {
 }
 
 @Composable
-private fun ProfileScreen(patient: PatientState, onOpenSettings: () -> Unit, onLogout: () -> Unit) {
+private fun ProfileScreen(patient: PatientState, onOpenSettings: () -> Unit, onChangePassword: () -> Unit, onLogout: () -> Unit) {
     ScreenTitle("Perfil", "Seus dados e preferências do aplicativo.")
     SectionCard("Minha conta", "Identificação conectada") {
         Text(patient.session?.user?.fullName ?: "Nenhuma conta conectada", fontWeight = FontWeight.SemiBold)
         MutedText("CPF e e-mail não são retornados pelo serviço conectado.")
         OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
             Text("Configurações")
+        }
+        if (patient.session != null) OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
+            Text("Alterar senha")
         }
         OutlinedButton(onClick = onLogout, enabled = patient.session != null && !patient.busy,
             modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -1095,7 +1091,7 @@ private fun ProfileScreen(patient: PatientState, onOpenSettings: () -> Unit, onL
 @Composable
 private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
-    onLink: suspend (List<String>) -> UnitLinkResult) {
+    onLink: suspend (List<String>) -> UnitLinkResult, onLoadUnitDetails: suspend (String) -> Boolean, onUnlink: () -> Unit) {
     ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
@@ -1108,6 +1104,10 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
     var linkError by remember { mutableStateOf<String?>(null) }
     var linkResult by remember { mutableStateOf<UnitLinkResult?>(null) }
     val scope = rememberCoroutineScope()
+    // Remoção de vínculo: ação destrutiva, então o diálogo não sobrevive à rotação e nunca abre sozinho.
+    var unlinkOpen by remember(selected?.id) { mutableStateOf(false) }
+    var detailsFailed by remember(selected?.id) { mutableStateOf(false) }
+    val clock = LocalClockMillis.current
     suspend fun linkAction(action: suspend () -> Unit) {
         linkBusy = true; linkError = null
         try { action() }
@@ -1144,9 +1144,22 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
         if (patient.session != null) OutlinedButton(onClick = {
             linkOpen = true; chosenIds = emptyList(); catalog = null
         }, enabled = !patient.busy) { Text("Vincular outra UBS") }
+        if (patient.session != null && selected != null) OutlinedButton(onClick = { unlinkOpen = true; detailsFailed = false }, enabled = !patient.busy,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Remover esta UBS") }
         MutedText("Distâncias, horários e serviços ainda não são fornecidos pela rede.")
     }
     UnitsMap(selected, onLocateUnit)
+    // Confere o que será cancelado: lê fila e consultas da UBS só se ainda não estiverem lidas.
+    LaunchedEffect(unlinkOpen, selected?.id) {
+        val id = selected?.id
+        if (unlinkOpen && id != null) detailsFailed = !onLoadUnitDetails(id)
+    }
+    if (unlinkOpen && selected != null) {
+        val impact = unlinkImpact(patient.unitData[selected.id], clock())
+        UnlinkDialog(selected.name, impact, loading = impact == null && !detailsFailed, busy = patient.busy,
+            onConfirm = { unlinkOpen = false; onUnlink() }, onDismiss = { unlinkOpen = false })
+    }
     LaunchedEffect(linkOpen) {
         if (linkOpen && catalog == null) linkAction { catalog = onCatalog() }
     }
@@ -1256,7 +1269,7 @@ private fun QuickActionCard(title: String, subtitle: String, glyph: String, modi
 
 @Composable
 private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit,
-    patient: PatientState, onAddressChange: (String) -> Unit, onLogout: () -> Unit) {
+    patient: PatientState, onAddressChange: (String) -> Unit, onChangePassword: () -> Unit, onLogout: () -> Unit) {
     SectionCard("Aparência", "Escolha como a NORA aparece para você") {
         Appearance.entries.forEach { appearance ->
             val selected = settings.appearance == appearance
@@ -1304,6 +1317,7 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
         if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}. Para trocar o endereço, saia e configure na tela de entrada.")
         if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
         if (patient.session != null) {
+            OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) { Text("Alterar senha") }
             OutlinedButton(onClick = onLogout, enabled = !patient.busy,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),

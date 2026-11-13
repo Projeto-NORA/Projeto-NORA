@@ -27,6 +27,7 @@ class NoraApiHttpTest {
     private fun api() = NoraApi("http://127.0.0.1:${server.address.port}")
 
     private fun route(path: String, status: Int, body: String) {
+        try { server.removeContext(path) } catch (_: IllegalArgumentException) { /* primeira vez */ }
         server.createContext(path) { exchange: HttpExchange ->
             lastAuthorization = exchange.requestHeaders.getFirst("Authorization")
             lastBody = exchange.requestBody.readBytes().toString(Charsets.UTF_8)
@@ -104,5 +105,63 @@ class NoraApiHttpTest {
         route("/api/auth/login", 200, """{"token":"t","expiresAt":"2099-01-01T00:00:00Z","user":{"id":"i","fullName":"n","scope":"obs"}}""")
         try { api().login("a", "b"); fail("expected failure") }
         catch (failure: ApiFailure) { assertEquals(403, failure.status) }
+    }
+
+    @Test fun attendanceParsesTheScoreAndANullScore() = runBlocking {
+        route("/api/patient/units/$unitId/attendance", 200,
+            """{"completed":4,"missed":1,"cancelledByPatient":2,"cancellationWeight":0.32,"score":0.7547,"windowMonths":12}""")
+        val value = api().attendance("token-x", unitId)
+        assertEquals(4, value.completed); assertEquals(1, value.missed); assertEquals(2, value.cancelledByPatient)
+        assertEquals(0.32, value.cancellationWeight, 1e-9); assertEquals(0.7547, value.score!!, 1e-9); assertEquals(12, value.windowMonths)
+        assertEquals("Bearer token-x", lastAuthorization)
+        route("/api/patient/units/$unitId/attendance", 200,
+            """{"completed":0,"missed":0,"cancelledByPatient":0,"cancellationWeight":0,"score":null,"windowMonths":12}""")
+        assertNull(api().attendance("token-x", unitId).score)
+    }
+
+    @Test fun leavingTheQueueSendsConfirmedAndAcceptsNoContent() = runBlocking {
+        route("/api/patient/units/$unitId/waiting-list/42/cancel", 204, "")
+        api().cancelQueueEntry("token-x", unitId, 42)
+        assertEquals("""{"confirmed":true}""", lastBody)
+        route("/api/patient/units/$unitId/waiting-list/43/cancel", 409, """{"code":"conflict","title":"SEGREDO"}""")
+        try { api().cancelQueueEntry("t", unitId, 43); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals("Esta solicitação já foi encerrada.", failure.message) }
+        route("/api/patient/units/$unitId/waiting-list/44/cancel", 404, """{"code":"not-found"}""")
+        try { api().cancelQueueEntry("t", unitId, 44); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals("Esta solicitação não foi encontrada.", failure.message) }
+    }
+
+    @Test fun unlinkParsesTheCancelledNumbers() = runBlocking {
+        route("/api/patient/units/$unitId/unlink", 200, """{"cancelledAppointments":3,"cancelledEntries":1}""")
+        val result = api().unlinkUnit("token-x", unitId)
+        assertEquals(UnlinkResult(3, 1), result)
+        assertEquals("""{"confirmed":true}""", lastBody)
+    }
+
+    @Test fun invalidIdentifiersNeverBecomePathSegments() = runBlocking {
+        for (call in listOf<suspend () -> Unit>({ api().attendance("t", "../x") }, { api().unlinkUnit("t", "x") }, { api().cancelQueueEntry("t", unitId, 0) })) {
+            try { call(); fail("expected failure") } catch (_: IllegalArgumentException) {}
+        }
+    }
+
+    @Test fun changePasswordSendsBothPasswordsAndMapsTheSpecificCodes() = runBlocking {
+        route("/api/auth/password", 204, "")
+        api().changePassword("token-x", "atual-teste", "nova-teste-1")
+        org.json.JSONObject(lastBody).let {
+            assertEquals("atual-teste", it.getString("currentPassword")); assertEquals("nova-teste-1", it.getString("newPassword")); assertEquals(2, it.length())
+        }
+        assertEquals("Bearer token-x", lastAuthorization)
+        route("/api/auth/password", 400, """{"code":"invalid-current-password","title":"SEGREDO","detail":"SEGREDO"}""")
+        try { api().changePassword("t", "x", "y"); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(400, failure.status); assertEquals("invalid-current-password", failure.code)
+            assertEquals("A senha atual está incorreta.", failure.message)
+        }
+        route("/api/patient/units/$unitId/waiting-list", 403, """{"code":"password-change-required","title":"SEGREDO"}""")
+        try { api().unitQueue("t", unitId); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(PASSWORD_CHANGE_REQUIRED, failure.code)
+            assertEquals(PASSWORD_CHANGE_REQUIRED_MESSAGE, failure.message)
+        }
     }
 }

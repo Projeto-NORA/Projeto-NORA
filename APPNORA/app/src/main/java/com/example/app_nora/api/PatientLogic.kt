@@ -91,9 +91,13 @@ fun groupQueue(entries: List<UnitQueueEntry>): QueueGroups {
 
 // ---- Dados por UBS -------------------------------------------------------------------------------
 
-/** O que já foi lido de uma UBS; `null` em cada campo significa "ainda não consultado". */
+/**
+ * O que já foi lido de uma UBS; `null` em cada campo significa "ainda não consultado".
+ * `attendanceFailed` é verdadeiro quando a última leitura da participação falhou (distingue "sem resposta" de "zero").
+ */
 data class UnitSnapshot(val queue: List<UnitQueueEntry>? = null, val offers: List<UnitOffer>? = null,
-    val appointments: List<PatientAppointment>? = null)
+    val appointments: List<PatientAppointment>? = null, val attendance: UnitAttendance? = null,
+    val attendanceFailed: Boolean = false)
 
 data class UnitOfferRef(val unit: PatientHealthUnit, val offer: UnitOffer)
 
@@ -125,6 +129,77 @@ fun nextAppointment(units: List<PatientHealthUnit>?, data: Map<String, UnitSnaps
     }
     return best
 }
+
+// ---- Participação (score de comparecimento) ---------------------------------------------------------
+
+/** Mesmo cálculo do servidor: concluídas ÷ (concluídas + faltas + pesos dos cancelamentos); nulo quando o divisor é zero. */
+fun attendanceFraction(completed: Int, missed: Int, cancellationWeight: Double): Double? {
+    val denominator = completed + missed + cancellationWeight
+    return if (denominator <= 0.0) null else completed / denominator
+}
+
+/** Percentual inteiro (0 a 100) de uma fração; nunca mostra 100% a quem tem alguma falta ou peso, nem 0% a quem tem conclusão. */
+fun attendancePercent(fraction: Double?): Int? {
+    fraction ?: return null
+    val rounded = Math.round(fraction * 100).toInt()
+    return when {
+        fraction < 1.0 && rounded >= 100 -> 99
+        fraction > 0.0 && rounded <= 0 -> 1
+        else -> rounded
+    }
+}
+
+/**
+ * Score geral do paciente somando todas as UBS que responderam. `percent` é nulo sem consulta encerrada.
+ * `failedUnits` são as que não responderam (o resumo avisa em vez de contá-las como zero) e `pendingUnits`
+ * as ainda não consultadas.
+ */
+data class AttendanceSummary(val completed: Int, val missed: Int, val cancelledByPatient: Int, val cancellationWeight: Double,
+    val percent: Int?, val answeredUnits: Int, val failedUnits: Int, val pendingUnits: Int, val windowMonths: Int)
+
+fun summarizeAttendance(units: List<PatientHealthUnit>?, data: Map<String, UnitSnapshot>): AttendanceSummary {
+    var completed = 0; var missed = 0; var cancelled = 0; var weight = 0.0
+    var answered = 0; var failed = 0; var pending = 0; var months = 12
+    for (unit in units.orEmpty()) {
+        val snapshot = data[unit.id]
+        val value = snapshot?.attendance
+        when {
+            value != null -> {
+                answered++; completed += value.completed; missed += value.missed
+                cancelled += value.cancelledByPatient; weight += value.cancellationWeight; months = value.windowMonths
+            }
+            snapshot?.attendanceFailed == true -> failed++
+            else -> pending++
+        }
+    }
+    return AttendanceSummary(completed, missed, cancelled, weight, attendancePercent(attendanceFraction(completed, missed, weight)),
+        answered, failed, pending, months)
+}
+
+/** "2 consultas", "1 consulta": plural simples para os contadores. */
+fun countLabel(count: Int, singular: String, plural: String): String = if (count == 1) "1 $singular" else "$count $plural"
+
+// ---- Remoção de vínculo ------------------------------------------------------------------------------
+
+/** O que o paciente perde ao remover uma UBS, segundo o que o aplicativo já leu dela. */
+data class UnlinkImpact(val appointments: Int, val queueEntries: Int)
+
+/**
+ * Consultas futuras (agendadas ou chamadas, com início depois de [now]) e solicitações ativas da fila.
+ * Devolve nulo enquanto a agenda ou a fila da UBS não foi lida: não se mostra contagem inventada.
+ */
+fun unlinkImpact(snapshot: UnitSnapshot?, now: Long): UnlinkImpact? {
+    val appointments = snapshot?.appointments ?: return null
+    val queue = snapshot.queue ?: return null
+    return UnlinkImpact(
+        appointments.count { (it.status == "scheduled" || it.status == "called") && (it.startsAtMillis?.let { start -> start > now } ?: false) },
+        queue.count { it.status == "waiting" || it.status == "offered" })
+}
+
+/** Resultado da remoção, com os números devolvidos pelo servidor. */
+fun unlinkResultMessage(unitName: String, result: UnlinkResult): String =
+    "Você removeu $unitName. Foram canceladas ${countLabel(result.cancelledAppointments, "consulta", "consultas")} " +
+        "e ${countLabel(result.cancelledEntries, "solicitação de fila", "solicitações de fila")}."
 
 // ---- Avisos locais de Vaga Relâmpago ---------------------------------------------------------------
 

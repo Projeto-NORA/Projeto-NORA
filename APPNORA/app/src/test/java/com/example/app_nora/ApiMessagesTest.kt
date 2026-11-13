@@ -41,4 +41,17 @@ class ApiMessagesTest {
         // An unknown code falls back to the status.
         assertEquals(failureMessage(409, null, ApiContext.OFFER_RESPOND), failureMessage(409, "bogus", ApiContext.OFFER_RESPOND))
     }
+
+    @Test fun passwordAndQueueMessagesAreSpecific() {
+        assertEquals("A senha atual está incorreta.", failureMessage(400, INVALID_CURRENT_PASSWORD, ApiContext.PASSWORD_CHANGE))
+        assertTrue(failureMessage(400, "invalid-input", ApiContext.PASSWORD_CHANGE).contains("8 a 256"))
+        for (context in ApiContext.entries)
+            assertEquals(PASSWORD_CHANGE_REQUIRED_MESSAGE, failureMessage(403, PASSWORD_CHANGE_REQUIRED, context))
+        assertEquals("Esta solicitação não foi encontrada.", failureMessage(404, null, ApiContext.QUEUE_CANCEL))
+        assertEquals("Esta solicitação já foi encerrada.", failureMessage(409, null, ApiContext.QUEUE_CANCEL))
+        assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.QUEUE_CANCEL))
+        assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.UNLINK))
+        assertEquals(INVALID_CURRENT_PASSWORD, knownProblemCode(INVALID_CURRENT_PASSWORD))
+        assertEquals(PASSWORD_CHANGE_REQUIRED, knownProblemCode(PASSWORD_CHANGE_REQUIRED))
+    }
 }

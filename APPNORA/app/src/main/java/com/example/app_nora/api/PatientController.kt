@@ -20,7 +20,9 @@ import java.io.IOException
 data class PatientState(val address: String = "", val session: PatientSession? = null,
     val units: List<PatientHealthUnit>? = null, val selectedUnitId: String? = null, val busy: Boolean = false,
     val message: String? = null, val loadingUnits: Boolean = false,
-    val unitData: Map<String, UnitSnapshot> = emptyMap()) {
+    val unitData: Map<String, UnitSnapshot> = emptyMap(), val attendanceLoading: Boolean = false,
+    /** O servidor exigiu nova senha (403 `password-change-required`); a tela leva o paciente à troca de senha. */
+    val passwordChangeRequired: Boolean = false) {
     private val selectedSnapshot: UnitSnapshot? get() = selectedUnitId?.let { unitData[it] }
     val appointments: List<PatientAppointment>? get() = selectedSnapshot?.appointments
     val unitQueue: List<UnitQueueEntry>? get() = selectedSnapshot?.queue
@@ -39,9 +41,28 @@ private class PreferencesAddressStore(context: Context) : AddressStore {
     override fun save(address: String) { preferences.edit { putString("address", address) } }
 }
 
+/** Repassa as chamadas autenticadas e avisa quando o servidor responde 403 `password-change-required`, qualquer que seja a rota. */
+private class PasswordGate(private val inner: PatientApi, private val onRequired: () -> Unit) : PatientApi by inner {
+    private suspend inline fun <T> watch(block: () -> T): T =
+        try { block() } catch (failure: ApiFailure) { if (failure.code == PASSWORD_CHANGE_REQUIRED) onRequired(); throw failure }
+    override suspend fun units(token: String) = watch { inner.units(token) }
+    override suspend fun linkUnits(token: String, unitIds: List<String>) = watch { inner.linkUnits(token, unitIds) }
+    override suspend fun appointments(token: String, unitId: String) = watch { inner.appointments(token, unitId) }
+    override suspend fun cancelAppointment(token: String, unitId: String, id: String) = watch { inner.cancelAppointment(token, unitId, id) }
+    override suspend fun unitQueue(token: String, unitId: String) = watch { inner.unitQueue(token, unitId) }
+    override suspend fun unitOffers(token: String, unitId: String) = watch { inner.unitOffers(token, unitId) }
+    override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean) = watch { inner.respondUnitOffer(token, unitId, id, accept) }
+    override suspend fun attendance(token: String, unitId: String) = watch { inner.attendance(token, unitId) }
+    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = watch { inner.cancelQueueEntry(token, unitId, entryId) }
+    override suspend fun unlinkUnit(token: String, unitId: String) = watch { inner.unlinkUnit(token, unitId) }
+    override suspend fun presence(token: String, online: Boolean) = watch { inner.presence(token, online) }
+}
+
 class PatientController(private val store: AddressStore, private val apiFactory: (String) -> PatientApi = ::NoraApi) {
     constructor(context: Context, apiFactory: (String) -> PatientApi = ::NoraApi) : this(PreferencesAddressStore(context), apiFactory)
 
+    /** Chamado depois de remover uma UBS, para o serviço de conexão retirar na hora os avisos de oferta dela. */
+    var onOffersRemoved: (() -> Unit)? = null
     private val presenceMutex = Mutex()
     private var presenceGeneration = 0L
     // Cada ação do paciente sobre uma UBS invalida leituras em segundo plano que começaram antes dela.
@@ -57,7 +78,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     }
 
     private fun signedOut(from: PatientState, message: String?) = from.copy(session = null, units = null, selectedUnitId = null,
-        unitData = emptyMap(), loadingUnits = false, message = message)
+        unitData = emptyMap(), loadingUnits = false, attendanceLoading = false, passwordChangeRequired = false, message = message)
+
+    private fun api(address: String): PatientApi = PasswordGate(apiFactory(address)) {
+        if (state.session != null && !state.passwordChangeRequired) state = state.copy(passwordChangeRequired = true)
+    }
 
     private fun isCurrent(session: PatientSession) = state.session?.token == session.token
     private fun isCurrent(session: PatientSession, generation: Long) = generation == presenceGeneration && isCurrent(session)
@@ -66,7 +91,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     suspend fun endPresence(session: PatientSession, address: String, generation: Long) = presenceMutex.withLock {
         // Serialize the final offline request after an in-flight heartbeat for this account.
         if (isCurrent(session) && generation != presenceGeneration) return@withLock
-        try { apiFactory(address).presence(session.token, false) }
+        try { api(address).presence(session.token, false) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: IOException) { Log.w("NORA", "A saída da conexão não foi confirmada; o serviço expirará a presença.") }
         catch (_: JSONException) { Log.w("NORA", "O serviço não confirmou a saída da conexão.") }
@@ -75,7 +100,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     suspend fun publishPresence(session: PatientSession, generation: Long, online: Boolean) = presenceMutex.withLock {
         // A cancelled Activity/old account must never publish presence for its replacement.
         if (!isCurrent(session, generation)) return@withLock
-        try { apiFactory(state.address).presence(session.token, online) }
+        try { api(state.address).presence(session.token, online) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) {
             if (failure.status == 401 && isCurrent(session, generation)) state = signedOut(state, failure.message)
@@ -99,7 +124,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         operation(ApiContext.LOGIN) {
             require(identifier.isNotBlank() && password.isNotBlank()) { "Informe seu CPF ou e-mail e sua senha." }
             val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-            val api = apiFactory(address)
+            val api = api(address)
             val session = api.login(identifier.trim(), password)
             // Identity and bearer token remain only in memory; backup contains no account data.
             store.save(address)
@@ -116,25 +141,25 @@ class PatientController(private val store: AddressStore, private val apiFactory:
 
     suspend fun startRegistration(name: String, cpf: String, password: String, unitIds: List<String>): RegistrationStart = guarded {
         val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-        val result = apiFactory(address).startRegistration(name, cpf, password, unitIds)
+        val result = api(address).startRegistration(name, cpf, password, unitIds)
         store.save(address)
         result
     }
     suspend fun sendRegistrationCode(challengeId: String, optionId: String) = guarded {
-        apiFactory(ApiAddress.normalize(state.address, BuildConfig.DEBUG)).sendRegistrationCode(challengeId, optionId)
+        api(ApiAddress.normalize(state.address, BuildConfig.DEBUG)).sendRegistrationCode(challengeId, optionId)
     }
     suspend fun confirmRegistration(challengeId: String, code: String) = guarded {
-        apiFactory(ApiAddress.normalize(state.address, BuildConfig.DEBUG)).confirmRegistration(challengeId, code)
+        api(ApiAddress.normalize(state.address, BuildConfig.DEBUG)).confirmRegistration(challengeId, code)
     }
 
     suspend fun registrationUnits(): List<RegistrationUnit> = guarded {
         val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-        apiFactory(address).registrationUnits()
+        api(address).registrationUnits()
     }
 
     suspend fun linkUnits(ids: List<String>): UnitLinkResult = guarded {
         val session = state.session ?: throw ApiFailure(401, "Entre na sua conta para vincular unidades.", "unauthorized")
-        val api = apiFactory(state.address)
+        val api = api(state.address)
         val result = api.linkUnits(session.token, ids)
         val units = api.units(session.token)
         if (isCurrent(session)) applyUnits(units)
@@ -144,12 +169,12 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     suspend fun requestPasswordReset(cpf: String): String = guarded {
         val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
         store.save(address)
-        apiFactory(address).requestPasswordReset(cpf)
+        api(address).requestPasswordReset(cpf)
     }
 
     suspend fun confirmPasswordReset(challengeId: String, code: String, newPassword: String): Boolean = guarded {
         val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-        apiFactory(address).confirmPasswordReset(challengeId, code, newPassword)
+        api(address).confirmPasswordReset(challengeId, code, newPassword)
     }
 
     // ---- UBS vinculadas e dados por UBS ---------------------------------------------------------------
@@ -186,7 +211,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (state.loadingUnits || state.units != null) return
         state = state.copy(loadingUnits = true)
         try {
-            val api = apiFactory(state.address)
+            val api = api(state.address)
             val units = api.units(session.token)
             if (!isCurrent(session)) return
             val preload = applyUnits(units)
@@ -207,7 +232,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (state.loadingUnits) return
         operation(ApiContext.UNIT_LIST) {
             val session = state.session ?: return@operation
-            val api = apiFactory(state.address)
+            val api = api(state.address)
             val units = api.units(session.token)
             if (!isCurrent(session)) return@operation
             val preload = applyUnits(units)
@@ -223,7 +248,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     suspend fun loadAppointments() = operation(ApiContext.UNIT) {
         val session = state.session ?: return@operation
         val unit = state.selectedUnitId ?: return@operation
-        val items = apiFactory(state.address).appointments(session.token, unit)
+        val items = api(state.address).appointments(session.token, unit)
         if (isCurrent(session)) updateUnit(unit) { it.copy(appointments = items) }
     }
 
@@ -231,7 +256,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         val session = state.session ?: return@operation
         val unit = state.selectedUnitId ?: return@operation
         if (state.appointments?.none { it.id == id && it.status in listOf("scheduled", "called") } != false) return@operation
-        val api = apiFactory(state.address)
+        val api = api(state.address)
         try { api.cancelAppointment(session.token, unit, id) }
         catch (failure: ApiFailure) {
             // 404/409: a consulta mudou na unidade; mostrar o estado real em vez do antigo.
@@ -257,7 +282,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     suspend fun refreshUnit() = operation(ApiContext.UNIT) {
         val session = state.session ?: return@operation
         val unit = state.selectedUnitId ?: return@operation
-        val api = apiFactory(state.address)
+        val api = api(state.address)
         val offers = api.unitOffers(session.token, unit)
         val queue = api.unitQueue(session.token, unit)
         if (isCurrent(session)) { touch(unit); updateUnit(unit) { it.copy(queue = queue, offers = offers) } }
@@ -267,7 +292,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         val session = state.session ?: return@operation
         val unit = state.selectedUnitId ?: return@operation
         state.unitOffers?.singleOrNull { it.id == id && it.status == "pending" } ?: return@operation
-        val api = apiFactory(state.address)
+        val api = api(state.address)
         touch(unit)
         val result = try { api.respondUnitOffer(session.token, unit, id, accept) }
         catch (failure: ApiFailure) {
@@ -325,7 +350,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
                 if (!isCurrent(session, generation)) return@withLock false
                 val version = unitVersions[unit.id]
                 try {
-                    val offers = apiFactory(state.address).unitOffers(session.token, unit.id)
+                    val offers = api(state.address).unitOffers(session.token, unit.id)
                     if (isCurrent(session, generation) && unitVersions[unit.id] == version) updateUnit(unit.id) { it.copy(offers = offers) }
                 }
                 catch (cancelled: CancellationException) { throw cancelled }
@@ -340,6 +365,134 @@ class PatientController(private val store: AddressStore, private val apiFactory:
             }
             if (!finished) return
         }
+    }
+
+    // ---- Participação, fila, vínculo e senha ----------------------------------------------------------
+
+    /**
+     * Lê a participação do paciente em cada UBS vinculada (uma requisição por UBS), sem `busy`. Quem chama decide
+     * quando: ao abrir a Jornada e ao pedir atualização. Uma UBS que não responde fica marcada, nunca vira zero.
+     */
+    suspend fun loadAttendance() {
+        val session = state.session ?: return
+        if (state.attendanceLoading) return
+        if (state.units == null) loadUnitsInBackground()
+        val units = state.units ?: return
+        if (!isCurrent(session) || state.attendanceLoading) return
+        state = state.copy(attendanceLoading = true)
+        try {
+            val api = api(state.address)
+            for (unit in units) {
+                if (!isCurrent(session)) return
+                var value: UnitAttendance? = null
+                try { value = api.attendance(session.token, unit.id) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: ApiFailure) {
+                    if (failure.status == 401) { if (isCurrent(session)) state = signedOut(state, failure.message); return }
+                    Log.w("NORA", "Participação não carregada: HTTP ${failure.status}.")
+                }
+                catch (_: IOException) { Log.w("NORA", "Participação não carregada; use Atualizar para tentar novamente.") }
+                catch (_: JSONException) { Log.w("NORA", "O serviço retornou uma participação incompatível.") }
+                catch (_: IllegalArgumentException) { Log.w("NORA", "O serviço retornou uma UBS com identificador inválido.") }
+                if (isCurrent(session)) updateUnit(unit.id) { it.copy(attendance = value, attendanceFailed = value == null) }
+            }
+        }
+        finally { if (isCurrent(session)) state = state.copy(attendanceLoading = false) }
+    }
+
+    /** Sai da fila da UBS selecionada. 404/409: a entrada mudou na unidade; mostra o estado real recarregando. */
+    suspend fun cancelQueueEntry(id: Long) = operation(ApiContext.QUEUE_CANCEL) {
+        val session = state.session ?: return@operation
+        val unit = state.selectedUnitId ?: return@operation
+        val entry = state.unitQueue?.singleOrNull { it.id == id && (it.status == "waiting" || it.status == "offered") } ?: return@operation
+        val api = api(state.address)
+        touch(unit)
+        try { api.cancelQueueEntry(session.token, unit, id) }
+        catch (failure: ApiFailure) {
+            if (failure.status == 404 || failure.status == 409) reloadAfterResponse(api, session, unit, false)
+            throw failure
+        }
+        if (!isCurrent(session)) return@operation
+        val reloaded = reloadAfterResponse(api, session, unit, false)
+        if (!isCurrent(session)) return@operation
+        if (!reloaded) updateUnit(unit) { snapshot ->
+            snapshot.copy(queue = snapshot.queue?.map { if (it.id == id) it.copy(status = "cancelled") else it })
+        }
+        val outcome = "Você saiu da fila de ${entry.specialty}."
+        state = state.copy(message = if (reloaded) outcome else "$outcome Não foi possível atualizar a tela; use Atualizar.")
+    }
+
+    /**
+     * Lê, sem `busy`, a fila e as consultas da UBS que ainda não foram lidas, para o aviso da remoção mostrar o que
+     * será cancelado. `false` quando alguma leitura falhou (por exemplo, cadastro desativado na unidade).
+     */
+    suspend fun loadUnitDetails(unitId: String): Boolean {
+        val session = state.session ?: return false
+        if (state.units?.any { it.id == unitId } != true) return false
+        val api = api(state.address)
+        try {
+            if (state.unitData[unitId]?.queue == null) {
+                val queue = api.unitQueue(session.token, unitId)
+                if (!isCurrent(session)) return false
+                updateUnit(unitId) { it.copy(queue = queue) }
+            }
+            if (state.unitData[unitId]?.appointments == null) {
+                val appointments = api.appointments(session.token, unitId)
+                if (!isCurrent(session)) return false
+                updateUnit(unitId) { it.copy(appointments = appointments) }
+            }
+            return true
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) { if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message) }
+        catch (_: IOException) { Log.w("NORA", "Dados da UBS não carregados para a remoção.") }
+        catch (_: JSONException) { Log.w("NORA", "Dados incompatíveis da UBS.") }
+        catch (_: IllegalArgumentException) { Log.w("NORA", "UBS com identificador inválido.") }
+        return false
+    }
+
+    /** Remove o vínculo com a UBS selecionada; o servidor cancela consultas futuras e solicitações. */
+    suspend fun unlinkSelectedUnit() = operation(ApiContext.UNLINK) {
+        val session = state.session ?: return@operation
+        val unit = state.units?.find { it.id == state.selectedUnitId } ?: return@operation
+        val api = api(state.address)
+        val result = api.unlinkUnit(session.token, unit.id)
+        if (!isCurrent(session)) return@operation
+        unitVersions.remove(unit.id)
+        val remaining = try { api.units(session.token) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && isCurrent(session)) { state = signedOut(state, failure.message); return@operation }
+            null
+        }
+        catch (_: IOException) { null }
+        catch (_: JSONException) { null }
+        catch (_: IllegalArgumentException) { null }
+        if (!isCurrent(session)) return@operation
+        // Se a lista não pôde ser relida, a UBS removida sai do estado local mesmo assim.
+        val preload = applyUnits((remaining ?: state.units.orEmpty()).filter { it.id != unit.id })
+        state = state.copy(message = unlinkResultMessage(unit.name, result))
+        onOffersRemoved?.invoke()
+        if (preload != null) try { loadUnitData(api, session, preload) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) { if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message) }
+        catch (_: IOException) { Log.w("NORA", "Dados da UBS restante não carregados.") }
+        catch (_: JSONException) { Log.w("NORA", "Dados incompatíveis da UBS restante.") }
+        catch (_: IllegalArgumentException) { Log.w("NORA", "UBS restante com identificador inválido.") }
+    }
+
+    /**
+     * Troca a senha com a sessão aberta (a atual continua; o servidor desconecta os outros aparelhos). As senhas
+     * ficam só nos argumentos desta chamada: nunca no estado, no disco nem no log.
+     */
+    suspend fun changePassword(currentPassword: String, newPassword: String) = guarded {
+        val session = state.session ?: throw ApiFailure(401, "Entre na sua conta para trocar a senha.", "unauthorized")
+        try { api(state.address).changePassword(session.token, currentPassword, newPassword) }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
+            throw failure
+        }
+        if (isCurrent(session)) state = state.copy(passwordChangeRequired = false)
     }
 
     fun selectNearestUnit(latitude: Double, longitude: Double): PatientHealthUnit? {
@@ -360,7 +513,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
 
     suspend fun logout() = operation {
         val session = state.session ?: return@operation
-        try { apiFactory(state.address).logout(session.token) }
+        try { api(state.address).logout(session.token) }
         catch (failure: ApiFailure) { if (failure.status != 401) warnUnconfirmedLogout() }
         catch (_: IOException) { warnUnconfirmedLogout() }
         catch (_: JSONException) { warnUnconfirmedLogout() }

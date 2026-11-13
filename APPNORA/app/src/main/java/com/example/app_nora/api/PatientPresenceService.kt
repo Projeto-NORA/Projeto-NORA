@@ -48,6 +48,8 @@ class PatientPresenceService : Service() {
             notifier.clear()
             activeConnection?.let(::sendOffline)
             activeConnection = connection
+            // Remover uma UBS retira na hora os avisos de oferta dela, sem esperar o próximo ciclo de 30 s.
+            connection.controller.onOffersRemoved = { notifier.sync(connection.controller.state, SettingsStore.flashNotificationsEnabled(applicationContext)) }
             heartbeat = scope.launch {
                 val controller = connection.controller
                 fun connected() = controller.state.session?.token == connection.session.token
@@ -114,6 +116,7 @@ class PatientPresenceService : Service() {
         notifier.clear()
         val ended = activeConnection
         activeConnection = null
+        ended?.controller?.onOffersRemoved = null
         if (requestedConnection === ended) requestedConnection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         ended?.let(::sendOffline)

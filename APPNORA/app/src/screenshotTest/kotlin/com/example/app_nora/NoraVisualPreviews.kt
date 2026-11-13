@@ -16,6 +16,10 @@ import com.android.tools.screenshot.PreviewTest
 import com.example.app_nora.api.*
 import com.example.app_nora.preferences.*
 import com.example.app_nora.ui.AppointmentsScreen
+import com.example.app_nora.ui.ChangePasswordScreen
+import com.example.app_nora.ui.JourneyScreen
+import com.example.app_nora.ui.LeaveQueueDialog
+import com.example.app_nora.ui.UnlinkDialog
 import com.example.app_nora.ui.FlashScreen
 import com.example.app_nora.ui.LocalClockMillis
 import com.example.app_nora.ui.NoraPatientContent
@@ -198,3 +202,56 @@ fun AppointmentsLight() = PlainScreen(Appearance.LIGHT) {
         PatientAppointment("ap-4", "Exame · fixture visual", "Profissional · fixture visual", at(-259_200), at(-257_400), "cancelled"))),
         {}, {}, {}, {})
 }
+
+private fun withAttendance(vararg items: Pair<PatientHealthUnit, UnitAttendance?>, failed: Set<String> = emptySet(),
+    queue: List<UnitQueueEntry> = emptyList()) = PatientState(
+    address = "https://unidade.example.test", session = session(), units = items.map { it.first }, selectedUnitId = items.first().first.id,
+    unitData = items.associate { (unit, value) ->
+        unit.id to UnitSnapshot(queue = queue.takeIf { unit.id == items.first().first.id }, attendance = value, attendanceFailed = unit.id in failed)
+    })
+
+@PreviewTest
+@Preview(name = "22 Jornada com indice de comparecimento", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun JourneyWithScoreLight() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(8, 1, 2, 0.5, 0.84, 12),
+        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"))), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "23 Jornada sem consultas encerradas escura", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun JourneyNoDataDark() = PlainScreen(Appearance.DARK) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(0, 0, 0, 0.0, null, 12)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "24 Jornada com duas UBS e uma sem resposta", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun JourneyOneUnitDownLight() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(5, 0, 0, 0.0, 1.0, 12), norte to null, failed = setOf(norte.id)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "25 Dialogo sair da fila", widthDp = 400, heightDp = 700, locale = "pt-rBR")
+@Composable
+fun LeaveQueueDialogLight() = PlainScreen(Appearance.LIGHT) {
+    LeaveQueueDialog(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "offered"), {}, {})
+}
+
+@PreviewTest
+@Preview(name = "26 Dialogo remover UBS com contagens escuro", widthDp = 400, heightDp = 900, locale = "pt-rBR")
+@Composable
+fun UnlinkDialogDark() = PlainScreen(Appearance.DARK) {
+    UnlinkDialog("UBS Centro · fixture visual", UnlinkImpact(2, 1), loading = false, busy = false, onConfirm = {}, onDismiss = {})
+}
+
+@PreviewTest
+@Preview(name = "27 Alterar senha clara", widthDp = 400, heightDp = 1000, locale = "pt-rBR")
+@Composable
+fun ChangePasswordLight() = PlainScreen(Appearance.LIGHT) { ChangePasswordScreen(required = false) { _, _ -> } }
+
+@PreviewTest
+@Preview(name = "28 Alterar senha exigida escura", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun ChangePasswordRequiredDark() = PlainScreen(Appearance.DARK) { ChangePasswordScreen(required = true) { _, _ -> } }
