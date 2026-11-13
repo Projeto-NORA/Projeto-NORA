@@ -60,6 +60,7 @@ public static class NoraApiHost
         builder.Services.AddSingleton<WorkflowService>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
+        builder.Services.AddHostedService<UnitSchemaCheckService>();
         builder.Services.AddRateLimiter(options=>
         {
             options.RejectionStatusCode=429;

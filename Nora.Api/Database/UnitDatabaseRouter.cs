@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Npgsql;
+using Nora.Api.Services;
 
 namespace Nora.Api.Database;
 
@@ -23,6 +25,8 @@ public sealed partial class UnitDatabaseRouter : IAsyncDisposable
 
     private readonly IConfiguration configuration;
     private readonly Dictionary<(Guid, string), NpgsqlDataSource> sources = [];
+    /// <summary>Bancos (pool) cujo schema já foi conferido como atual neste processo; só cresce, pois o schema não volta atrás.</summary>
+    private readonly ConcurrentDictionary<NpgsqlDataSource, bool> currentSchemas = new();
     private readonly object sync = new();
 
     public UnitDatabaseRouter(IConfiguration configuration)
@@ -109,13 +113,27 @@ public sealed partial class UnitDatabaseRouter : IAsyncDisposable
 
     internal Task<NpgsqlConnection> OpenForMigrationAsync(Guid unitId, CancellationToken ct) => Source(unitId).OpenConnectionAsync(ct).AsTask();
 
+    /// <summary>Chamado ao fim de uma migração bem-sucedida: o schema da UBS passa a contar como atual sem nova conferência.</summary>
+    internal void MarkSchemaCurrent(Guid unitId) => currentSchemas[Source(unitId)] = true;
+
+    /// <summary>
+    /// Abre a conexão da UBS e confere a identidade do banco. Na primeira abertura de cada banco (por processo) confere também a versão do
+    /// schema: um banco sem a versão atual falha com 503 <c>unit-database-outdated</c>, em vez de um erro de SQL numa rota qualquer.
+    /// Um banco desatualizado é conferido de novo a cada abertura, para voltar a funcionar assim que for migrado (inclusive por outro processo).
+    /// </summary>
     public async Task<NpgsqlConnection> OpenAsync(Guid unitId, CancellationToken ct = default)
     {
-        var connection = await Source(unitId).OpenConnectionAsync(ct);
+        var source = Source(unitId);
+        var connection = await source.OpenConnectionAsync(ct);
         try
         {
-            await using var command = new NpgsqlCommand("SELECT unit_id FROM nora_unit.identity WHERE singleton", connection);
-            if (await command.ExecuteScalarAsync(ct) is not Guid actual || actual != unitId) throw new DatabaseUnavailableException();
+            await using (var command = new NpgsqlCommand("SELECT unit_id FROM nora_unit.identity WHERE singleton", connection))
+                if (await command.ExecuteScalarAsync(ct) is not Guid actual || actual != unitId) throw new DatabaseUnavailableException();
+            if (!currentSchemas.ContainsKey(source))
+            {
+                if (await ReadSchemaVersionAsync(connection, ct) < UnitSchema.ExpectedVersion) throw new ApiCodedException(StatusCodes.Status503ServiceUnavailable, "unit-database-outdated");
+                currentSchemas[source] = true;
+            }
             return connection;
         }
         catch
@@ -123,6 +141,15 @@ public sealed partial class UnitDatabaseRouter : IAsyncDisposable
             await connection.DisposeAsync();
             throw;
         }
+    }
+
+    /// <summary>Versão carimbada em <c>nora_unit.schema_version</c>; 0 quando a tabela ou a linha não existem (banco migrado por uma versão anterior).</summary>
+    private static async Task<int> ReadSchemaVersionAsync(NpgsqlConnection connection, CancellationToken ct)
+    {
+        await using (var exists = new NpgsqlCommand("SELECT to_regclass('nora_unit.schema_version') IS NOT NULL", connection))
+            if (await exists.ExecuteScalarAsync(ct) is not true) return 0;
+        await using var read = new NpgsqlCommand("SELECT COALESCE((SELECT version FROM nora_unit.schema_version WHERE singleton), 0)", connection);
+        return (int)(await read.ExecuteScalarAsync(ct))!;
     }
 
     public async ValueTask DisposeAsync()

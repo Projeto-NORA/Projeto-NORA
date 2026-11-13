@@ -26,12 +26,17 @@ public sealed partial class UnitDatabaseProvisioner(DatabaseHelper central, Unit
         if (await units.FindAsync(unitId, ct) is null) throw new ApiNotFoundException();
         try
         {
-            if (!router.HasExplicitConnection(unitId))
+            // Banco que já abre, com a identidade certa e o schema na versão atual: não há o que criar nem migrar. Retornar cedo evita reaplicar
+            // todas as migrações (com lock exclusivo e ALTER TABLE) a cada nova tentativa; só garante a marcação, que é idempotente.
+            if (!await IsReadyAndCurrentAsync(unitId, ct))
             {
-                if (!router.AutoProvision) throw new InvalidOperationException("Criação automática desativada.");
-                await EnsureDatabaseAsync(router.DerivedDatabaseName(unitId), unitId, ct);
+                if (!router.HasExplicitConnection(unitId))
+                {
+                    if (!router.AutoProvision) throw new InvalidOperationException("Criação automática desativada.");
+                    await EnsureDatabaseAsync(router.DerivedDatabaseName(unitId), unitId, ct);
+                }
+                await migrations.MigrateAsync(unitId, ct);
             }
-            await migrations.MigrateAsync(unitId, ct);
             await units.MarkDatabaseReadyAsync(unitId, actorId, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -42,6 +47,14 @@ public sealed partial class UnitDatabaseProvisioner(DatabaseHelper central, Unit
             log.LogWarning("Não foi possível criar ou preparar o banco de uma UBS ({UnitId}); SQLSTATE {SqlState}.", unitId, (error as PostgresException)?.SqlState ?? "n/d");
             throw new ApiCodedException(StatusCodes.Status503ServiceUnavailable, "database-provisioning-failed");
         }
+    }
+
+    /// <summary>Verdadeiro só se o banco abre, a identidade confere e o schema está na versão atual; qualquer falha (inclusive banco inexistente) → falso.</summary>
+    private async Task<bool> IsReadyAndCurrentAsync(Guid unitId, CancellationToken ct)
+    {
+        try { await using var connection = await router.OpenAsync(unitId, ct); return true; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception) { return false; }
     }
 
     private async Task EnsureDatabaseAsync(string name, Guid unitId, CancellationToken ct)

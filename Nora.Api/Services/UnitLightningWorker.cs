@@ -18,6 +18,8 @@ public sealed class UnitLightningWorker(HealthUnitService units, UnitLightningDi
                     {
                         try { await dispatcher.AdvanceAsync(unit.Id, stoppingToken); }
                         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+                        // Schema desatualizado já foi avisado na subida (UnitSchemaCheckService); não repete o aviso a cada 15 s.
+                        catch (ApiCodedException outdated) when (outdated.Code == "unit-database-outdated") { }
                         catch (Exception) { log.LogWarning("Não foi possível atualizar as ofertas de uma unidade."); }
                     }
                 }

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Nora.Api;
 using Nora.Api.DAOs;
@@ -152,6 +153,90 @@ internal static class ReviewChecks
             Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.unit_access_events WHERE unit_id=$1", unit) == 0, "A leitura recusada deixou evento de acesso.");
         });
 
+        await Check("UBS com schema desatualizado: aviso no log (sem dado pessoal), 503 unit-database-outdated nas rotas dela, a API sobe e a migração recupera", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Antiga");
+            // Estado de um banco migrado por versão anterior: sem o carimbo de versão e sem a coluna source.
+            await using (var old = await h.Router.OpenAsync(unit))
+            await using (var downgrade = new NpgsqlCommand("DROP TABLE IF EXISTS nora_unit.schema_version; ALTER TABLE nora_unit.appointment_events DROP COLUMN source", old))
+                await downgrade.ExecuteNonQueryAsync();
+            var capture = new LogCapture();
+            var (restarted, obs, municipal) = await h.RestartAsync(services: services => services.AddSingleton<ILoggerProvider>(capture));
+            var warned = false;
+            for (var attempt = 0; attempt < 100 && !warned; attempt++)
+            {
+                warned = capture.Lines.Any(line => line.Contains(unit.ToString()) && line.Contains("--migrate-all-units"));
+                if (!warned) await Task.Delay(100);
+            }
+            Require(warned, "A subida não registrou o aviso de schema desatualizado com a instrução --migrate-all-units.");
+            Require(!capture.Lines.Any(line => line.Contains("Host=") || line.Contains("Username=") || line.Contains(Cpf(91))), "O aviso expôs connection string ou dado pessoal.");
+            var window = $"from={Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"))}&to={Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O"))}";
+            using (var metrics = await obs.GetAsync($"/api/obs/units/{unit}/metrics?{window}")) await ExpectProblem(metrics, 503, "unit-database-outdated");
+            using (var registry = await obs.GetAsync($"/api/obs/units/{unit}/registry")) await ExpectProblem(registry, 503, "unit-database-outdated");
+            using (var summary = await municipal.GetAsync("/api/municipal/summary")) await ExpectProblem(summary, 503, "unit-database-outdated");
+            await restarted.Services.GetRequiredService<UnitMigrationDao>().MigrateAsync(unit);
+            using (var metrics = await obs.GetAsync($"/api/obs/units/{unit}/metrics?{window}")) Expect(metrics, 200);
+            using (var summary = await municipal.GetAsync("/api/municipal/summary")) Expect(summary, 200);
+            Require(await h.UnitScalarAsync<int>(unit, "SELECT version FROM nora_unit.schema_version WHERE singleton") == ExpectedUnitSchemaVersion(), "A migração não carimbou a versão atual do schema da UBS.");
+        });
+
+        await Check("Nova tentativa de banco numa UBS pronta e atual retorna sem reaplicar migrações (não espera o lock de migração)", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Pronta");
+            await using var holder = await h.Router.OpenAsync(unit);
+            await using (var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(62419804)", holder)) await acquire.ExecuteNonQueryAsync();
+            try
+            {
+                using var response = await h.Municipal.PostAsync($"/api/municipal/units/{unit}/database", null).WaitAsync(TimeSpan.FromSeconds(8));
+                Expect(response, 200);
+                Require((await Read(response)).GetProperty("databaseState").GetString() == "ready", "A nova tentativa não devolveu a unidade pronta.");
+            }
+            finally { await using var release = new NpgsqlCommand("SELECT pg_advisory_unlock(62419804)", holder); await release.ExecuteNonQueryAsync(); }
+            // Banco sem o carimbo de versão (desatualizado) é migrado de novo pela mesma rota.
+            await using (var old = await h.Router.OpenAsync(unit)) await using (var drop = new NpgsqlCommand("DROP TABLE IF EXISTS nora_unit.schema_version", old)) await drop.ExecuteNonQueryAsync();
+            var (_, _, freshMunicipal) = await h.RestartAsync();
+            using var healed = await freshMunicipal.PostAsync($"/api/municipal/units/{unit}/database", null); Expect(healed, 200);
+            Require(await h.UnitScalarAsync<int>(unit, "SELECT version FROM nora_unit.schema_version WHERE singleton") == ExpectedUnitSchemaVersion(), "A nova tentativa não migrou a UBS desatualizada.");
+        });
+
+        await Check("Migrações de UBS 004, 008 e 010: restrições CHECK só são recriadas quando faltam ou diferem; reaplicar duas vezes mantém a mesma restrição validada", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Restrições");
+            var migrations = h.App.Services.GetRequiredService<UnitMigrationDao>();
+            (string Table, string Name)[] constraints = [("patient_registry_events", "patient_registry_events_action_check"), ("waiting_list_events", "waiting_list_events_source_check"), ("appointment_events", "appointment_events_source_check")];
+            async Task<Dictionary<string, (long Oid, bool Validated, string Definition)>> Snapshot()
+            {
+                var result = new Dictionary<string, (long, bool, string)>();
+                await using var connection = await h.Router.OpenAsync(unit);
+                foreach (var (table, name) in constraints)
+                {
+                    await using var query = new NpgsqlCommand("SELECT c.oid::bigint, c.convalidated, pg_get_constraintdef(c.oid) FROM pg_constraint c WHERE c.conrelid=$1::regclass AND c.conname=$2", connection);
+                    query.Parameters.AddWithValue("nora_unit." + table); query.Parameters.AddWithValue(name);
+                    await using var reader = await query.ExecuteReaderAsync();
+                    Require(await reader.ReadAsync(), $"Restrição {name} ausente.");
+                    result[name] = (reader.GetInt64(0), reader.GetBoolean(1), reader.GetString(2));
+                }
+                return result;
+            }
+            var before = await Snapshot();
+            await migrations.MigrateAsync(unit); await migrations.MigrateAsync(unit);
+            var after = await Snapshot();
+            foreach (var (_, name) in constraints)
+                Require(before[name].Oid == after[name].Oid && after[name].Validated, $"A restrição {name} foi recriada (ou ficou sem validar) ao reaplicar a migração.");
+            // Dados já gravados: a restrição diferente é substituída, validada contra as linhas existentes.
+            await using (var connection = await h.Router.OpenAsync(unit))
+            await using (var seed = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry(cpf,full_name,email,created_by) VALUES('52998224725','Paciente','p@example.test','00000000-0000-0000-0000-000000000001'); INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action) VALUES('52998224725','00000000-0000-0000-0000-000000000001','updated'); ALTER TABLE nora_unit.appointment_events DROP CONSTRAINT appointment_events_source_check; ALTER TABLE nora_unit.appointment_events ADD CONSTRAINT appointment_events_source_check CHECK (source IN ('staff'))", connection))
+            await seed.ExecuteNonQueryAsync();
+            await migrations.MigrateAsync(unit);
+            var repaired = await Snapshot();
+            Require(repaired["appointment_events_source_check"].Oid != after["appointment_events_source_check"].Oid && repaired["appointment_events_source_check"].Validated
+                && repaired["appointment_events_source_check"].Definition.Contains("'patient'") && repaired["appointment_events_source_check"].Definition.Contains("'system'") && repaired["appointment_events_source_check"].Definition.Contains("'staff'"), "A restrição diferente não foi substituída pela esperada.");
+            Require(repaired["patient_registry_events_action_check"].Oid == after["patient_registry_events_action_check"].Oid && repaired["waiting_list_events_source_check"].Oid == after["waiting_list_events_source_check"].Oid, "Restrições corretas foram recriadas sem necessidade.");
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
@@ -165,6 +250,11 @@ internal static class ReviewChecks
     }
 
     private static void Require(bool valid, string message) { if (!valid) throw new InvalidOperationException(message); }
+
+    /// <summary>Maior número de migração de UBS embutida (o carimbo esperado em nora_unit.schema_version).</summary>
+    private static int ExpectedUnitSchemaVersion() => typeof(UnitMigrationDao).Assembly.GetManifestResourceNames()
+        .Where(name => name.Contains(".Database.UnitMigrations.", StringComparison.Ordinal) && name.EndsWith(".sql", StringComparison.Ordinal))
+        .Max(name => int.Parse(name[(name.IndexOf(".UnitMigrations.", StringComparison.Ordinal) + ".UnitMigrations.".Length)..][..3]));
 
     /// <summary>API de teste num schema próprio, com a Secretaria e um administrador OBS já autenticados. A verificação periódica fica desligada.</summary>
     private sealed class Harness : IAsyncDisposable
@@ -184,16 +274,7 @@ internal static class ReviewChecks
         public static async Task<Harness> StartAsync(string connection, string[]? extraArgs = null, Action<IServiceCollection>? services = null)
         {
             var schema = "nora_review_" + Guid.NewGuid().ToString("N");
-            var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj"))) directory = directory.Parent;
-            var args = new List<string> { "--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
-                "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-review-registration-key-32-bytes" };
-            if (extraArgs is not null) args.AddRange(extraArgs);
-            var app = NoraApiHost.Create(new()
-            {
-                Args = [.. args], EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name,
-                ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
-            }, collection => { collection.Replace(ServiceDescriptor.Singleton<IEmailSender>(new NoMail())); services?.Invoke(collection); });
+            var app = BuildApp(connection, schema, extraArgs, services);
             await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
             var accounts = app.Services.GetRequiredService<AccountService>();
             var manager = await accounts.ProvisionAsync("municipal", "manager", new("Gestora de revisão", Cpf(90), "manager@example.test", Password));
@@ -205,6 +286,18 @@ internal static class ReviewChecks
         }
 
         public HttpClient NewClient() { var client = Client(App); Owned.Add(client); return client; }
+
+        /// <summary>Outra instância da API sobre o mesmo schema e os mesmos bancos (como um reinício do processo, com roteador e cache novos).</summary>
+        public async Task<(WebApplication App, HttpClient Obs, HttpClient Municipal)> RestartAsync(string[]? extraArgs = null, Action<IServiceCollection>? services = null)
+        {
+            var app = BuildApp(Connection, Schema, extraArgs, services);
+            await app.StartAsync();
+            var obs = Client(app); var municipal = Client(app);
+            await Login(obs, "obs", "admin@example.test"); await Login(municipal, "municipal", "manager@example.test");
+            Owned.Add(obs); Owned.Add(municipal); Restarted.Add(app);
+            return (app, obs, municipal);
+        }
+        public List<WebApplication> Restarted { get; } = [];
 
         /// <summary>Cadastra uma UBS pela API (o banco é criado automaticamente, salvo AutoProvision falso) e concede o acesso ao administrador OBS.</summary>
         public async Task<Guid> CreateUnitAsync(string name, bool grantObs = true, int expectedStatus = 201)
@@ -240,6 +333,7 @@ internal static class ReviewChecks
         public async ValueTask DisposeAsync()
         {
             foreach (var owned in Owned) owned.Dispose();
+            foreach (var restarted in Restarted) { await restarted.StopAsync(); await restarted.DisposeAsync(); }
             Anonymous.Dispose(); Municipal.Dispose(); Obs.Dispose();
             await App.StopAsync();
             try
@@ -249,6 +343,35 @@ internal static class ReviewChecks
             }
             catch (Exception) { /* o cluster descartável é removido pelo script */ }
             await App.DisposeAsync();
+        }
+    }
+
+    private static WebApplication BuildApp(string connection, string schema, string[]? extraArgs, Action<IServiceCollection>? services)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj"))) directory = directory.Parent;
+        var args = new List<string> { "--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+            "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-review-registration-key-32-bytes" };
+        if (extraArgs is not null) args.AddRange(extraArgs);
+        return NoraApiHost.Create(new()
+        {
+            Args = [.. args], EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name,
+            ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
+        }, collection => { collection.Replace(ServiceDescriptor.Singleton<IEmailSender>(new NoMail())); services?.Invoke(collection); });
+    }
+
+    /// <summary>Provedor de log que guarda as mensagens (categoria|nível|texto) para conferir avisos sem dado pessoal.</summary>
+    private sealed class LogCapture : ILoggerProvider
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Lines { get; } = new();
+        public ILogger CreateLogger(string categoryName) => new Sink(categoryName, Lines);
+        public void Dispose() { }
+        private sealed class Sink(string category, System.Collections.Concurrent.ConcurrentQueue<string> lines) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                lines.Enqueue($"{category}|{logLevel}|{formatter(state, exception)}");
         }
     }
 
