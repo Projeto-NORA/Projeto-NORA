@@ -416,6 +416,24 @@ internal static class ReviewChecks
             catch (InvalidOperationException error) when (error.Message.Contains("Nora:TimeZone") && error.Message.Contains("Mars/Olympus") && !error.Message.Contains("Host=")) { }
         });
 
+        await Check("Banco de UBS criado pela API não aceita CONNECT de PUBLIC: outro papel é recusado (42501) e o usuário da API continua abrindo", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Reservada", grantObs: false);
+            var outsider = "nora_outsider_" + Guid.NewGuid().ToString("N")[..12];
+            await h.ExecuteAsync($"CREATE ROLE \"{outsider}\" LOGIN");
+            try
+            {
+                var builder = new NpgsqlConnectionStringBuilder(connectionString) { Username = outsider, Pooling = false };
+                await using (var control = new NpgsqlConnection(builder.ConnectionString)) await control.OpenAsync(); // o papel existe e conecta onde PUBLIC ainda tem CONNECT
+                builder.Database = h.Router.DerivedDatabaseName(unit);
+                try { await using var denied = new NpgsqlConnection(builder.ConnectionString); await denied.OpenAsync(); throw new InvalidOperationException("Um papel qualquer conseguiu conectar ao banco da UBS (PUBLIC ainda tem CONNECT)."); }
+                catch (PostgresException error) { Require(error.SqlState == "42501", $"Recusa esperada 42501 (permissão negada), recebida {error.SqlState}."); }
+                await using var owner = await h.Router.OpenAsync(unit);
+            }
+            finally { await h.ExecuteAsync($"DROP ROLE IF EXISTS \"{outsider}\""); }
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;

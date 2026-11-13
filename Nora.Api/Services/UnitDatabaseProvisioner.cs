@@ -57,6 +57,22 @@ public sealed partial class UnitDatabaseProvisioner(DatabaseHelper central, Unit
         catch (Exception) { return false; }
     }
 
+    /// <summary>
+    /// Todo banco novo nasce com CONNECT para PUBLIC (qualquer papel do cluster conecta). Os bancos de UBS guardam dados nominais: tira o
+    /// CONNECT de PUBLIC e o concede ao usuário da API. Idempotente e executado logo após o CREATE DATABASE (e de novo se o banco já
+    /// existir, para recuperar uma tentativa interrompida); o identificador vem só do prefixo validado + GUID. Num banco existente de que a
+    /// API não é dona (42501), a restrição é ignorada em vez de impedir o provisionamento.
+    /// </summary>
+    private async Task RestrictConnectAsync(NpgsqlConnection connection, string name, bool ignoreNotOwner, CancellationToken ct)
+    {
+        try
+        {
+            await central.ExecuteAsync(connection, $"REVOKE CONNECT ON DATABASE \"{name}\" FROM PUBLIC", ct);
+            await central.ExecuteAsync(connection, $"GRANT CONNECT ON DATABASE \"{name}\" TO CURRENT_USER", ct);
+        }
+        catch (PostgresException error) when (ignoreNotOwner && error.SqlState == "42501") { }
+    }
+
     private async Task EnsureDatabaseAsync(string name, Guid unitId, CancellationToken ct)
     {
         // O identificador vem só do prefixo validado + GUID em hexadecimal; a verificação abaixo é uma segunda barreira.
@@ -67,9 +83,10 @@ public sealed partial class UnitDatabaseProvisioner(DatabaseHelper central, Unit
         try
         {
             await using (var exists = central.Command(connection, "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)", name))
-                if (await exists.ExecuteScalarAsync(ct) is true) return;
+                if (await exists.ExecuteScalarAsync(ct) is true) { await RestrictConnectAsync(connection, name, ignoreNotOwner: true, ct); return; }
             try { await central.ExecuteAsync(connection, $"CREATE DATABASE \"{name}\"", ct); }
             catch (PostgresException error) when (error.SqlState == "42P04") { /* criado por outra tentativa */ }
+            await RestrictConnectAsync(connection, name, ignoreNotOwner: false, ct);
         }
         finally
         {
