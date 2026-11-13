@@ -457,6 +457,21 @@ internal static class ReviewChecks
             Require(ids.Contains(ready) && !ids.Contains(pending), "A lista do paciente deveria trazer a UBS pronta e omitir a pendente.");
         });
 
+        await Check("Espera média parte dos eventos de conclusão da janela: índice (status, occurred_at) existe e o plano o usa", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Espera", grantObs: false);
+            Require(await h.UnitScalarAsync<bool>(unit, "SELECT to_regclass('nora_unit.waiting_list_events_status_time_idx') IS NOT NULL"), "O índice (status, occurred_at) de waiting_list_events não existe.");
+            await using var connection = await h.Router.OpenAsync(unit);
+            // Com poucas linhas o planejador prefere varredura sequencial; desligá-la mostra se o índice é utilizável pela consulta.
+            await using (var settings = new NpgsqlCommand("SET enable_seqscan=off", connection)) await settings.ExecuteNonQueryAsync();
+            await using var explain = new NpgsqlCommand("EXPLAIN " + UnitMetricsDao.WaitSql, connection);
+            explain.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow.AddDays(-30)); explain.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow); explain.Parameters.AddWithValue("");
+            var plan = new List<string>();
+            await using (var reader = await explain.ExecuteReaderAsync()) while (await reader.ReadAsync()) plan.Add(reader.GetString(0));
+            Require(plan.Any(line => line.Contains("waiting_list_events_status_time_idx")), "O plano da espera média não usa o índice (status, occurred_at):\n" + string.Join("\n", plan));
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
