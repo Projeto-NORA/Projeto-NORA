@@ -159,8 +159,12 @@ internal static class ApiEndpoints
             var session = Session(context); var visible = new List<HealthUnit>();
             foreach (var unit in await service.ListForPatientAsync(session.User.Id, ct))
             {
+                // UBS ainda sem banco não tem cadastro a conferir: fica fora da lista em vez de derrubar a lista inteira com 503.
+                // Banco pronto e fora do ar continua respondendo 503. Banco desatualizado também fica de fora (a equipe é avisada no log).
+                if (unit.DatabaseState != "ready") continue;
                 try { await access.ExecutePatientAsync(session, unit.Id, _ => Task.FromResult(true), ct); visible.Add(unit); }
                 catch (ApiForbiddenException) { }
+                catch (ApiCodedException outdated) when (outdated.Code == "unit-database-outdated") { }
             }
             return Results.Ok(new { units = visible });
         });

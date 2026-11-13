@@ -434,6 +434,29 @@ internal static class ReviewChecks
             finally { await h.ExecuteAsync($"DROP ROLE IF EXISTS \"{outsider}\""); }
         });
 
+        await Check("Paciente vinculado a UBS pendente: GET /api/patient/units lista as prontas e omite a pendente (sem 503); sem banco disponível a rota da UBS continua 503", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var ready = await h.CreateUnitAsync("UBS Pronta do Paciente");
+            Guid pending;
+            h.App.Configuration["Nora:UnitDatabases:AutoProvision"] = "false";
+            try
+            {
+                pending = await h.CreateUnitAsync("UBS Pendente do Paciente");
+                using (var registry = await h.Obs.GetAsync($"/api/obs/units/{pending}/registry")) await ExpectProblem(registry, 503, "service-unavailable"); // sem banco e sem criação automática
+            }
+            finally { h.App.Configuration["Nora:UnitDatabases:AutoProvision"] = "true"; }
+            Require(await h.ScalarAsync<bool>("SELECT database_ready_at IS NULL FROM nora.health_units WHERE id=$1", pending), "A UBS pendente deveria estar sem banco pronto.");
+            var patientId = (await h.App.Services.GetRequiredService<AccountService>().ProvisionAsync("patient", "patient", new("Paciente Duas UBS", Cpf(1), "patient1@example.test", Password))).Id;
+            using (var register = await h.Obs.PostAsJsonAsync($"/api/obs/units/{ready}/registry", new { cpf = Cpf(1), fullName = "Paciente Duas UBS", email = "patient1@example.test" })) Expect(register, 201);
+            using var patient = h.NewClient(); await Login(patient, "patient", Cpf(1));
+            using (var link = await patient.PostAsJsonAsync("/api/patient/units/link", new { unitIds = new[] { ready } })) Expect(link, 200);
+            await h.ExecuteAsync("INSERT INTO nora.patient_units(patient_id,unit_id) VALUES($1,$2)", patientId, pending); // vínculo anterior à UBS ficar sem banco
+            using var response = await patient.GetAsync("/api/patient/units"); Expect(response, 200);
+            var ids = (await Read(response)).GetProperty("units").EnumerateArray().Select(unit => unit.GetProperty("id").GetGuid()).ToList();
+            Require(ids.Contains(ready) && !ids.Contains(pending), "A lista do paciente deveria trazer a UBS pronta e omitir a pendente.");
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;

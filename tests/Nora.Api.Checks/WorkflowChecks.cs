@@ -274,6 +274,16 @@ internal static class WorkflowChecks
                 using var otherPatientUnits = await secondPatient.GetAsync("/api/patient/units"); Expect(otherPatientUnits, 200);
                 using var otherUnitsBody = await Json(otherPatientUnits);
                 Require(otherUnitsBody.RootElement.GetProperty("units").GetArrayLength() == 0, "Paciente recebeu UBS sem vínculo.");
+                // UBS marcada como pronta cujo banco não está acessível (sem chave explícita e com a criação automática desligada) responde 503: não é omitida em silêncio.
+                // (UBS ainda pendente, sem banco, é omitida da lista; isso é conferido em ReviewChecks.)
+                await using (var unitLookup = await database.OpenAsync())
+                await using (var unitIdQuery = database.Command(unitLookup, "SELECT id FROM nora.health_units WHERE name='UBS atualizada'"))
+                {
+                    var readyUnit = (Guid)(await unitIdQuery.ExecuteScalarAsync())!; var explicitKey = $"Nora:UnitDatabases:{readyUnit:N}"; var savedKey = app.Configuration[explicitKey];
+                    app.Configuration[explicitKey] = ""; app.Configuration["Nora:UnitDatabases:AutoProvision"] = "false";
+                    try { using var unavailable = await patient.GetAsync("/api/patient/units"); Expect(unavailable, 503); }
+                    finally { app.Configuration[explicitKey] = savedKey; app.Configuration["Nora:UnitDatabases:AutoProvision"] = "true"; }
+                }
                 if (!string.IsNullOrWhiteSpace(unitDatabaseConnection)) Require(patientUnitsBody.RootElement.GetProperty("units").EnumerateArray().Any(u => u.GetProperty("name").GetString() == "UBS atualizada"), "Paciente não recebeu unidade cadastrada pela Secretaria.");
                 if (!string.IsNullOrWhiteSpace(unitDatabaseConnection))
                 {
