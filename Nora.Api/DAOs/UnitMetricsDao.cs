@@ -64,10 +64,13 @@ public sealed partial class UnitMetricsDao
     private readonly TimeProvider time;
     private readonly string zone;
 
+    /// <summary>Fuso do dia da série diária: <c>Nora:TimeZone</c> (padrão America/Sao_Paulo). A existência no PostgreSQL é conferida na subida (TimeZoneStartupCheck).</summary>
+    public static string ConfiguredZone(IConfiguration configuration) => configuration["Nora:TimeZone"] is { Length: > 0 } configured ? configured : "America/Sao_Paulo";
+
     public UnitMetricsDao(UnitDatabaseRouter databases, TimeProvider time, IConfiguration configuration)
     {
         this.databases = databases; this.time = time;
-        zone = configuration["Nora:TimeZone"] is { Length: > 0 } configured ? configured : "America/Sao_Paulo";
+        zone = ConfiguredZone(configuration);
         if (!ZonePattern().IsMatch(zone)) throw new InvalidOperationException("Fuso horário configurado inválido.");
     }
 

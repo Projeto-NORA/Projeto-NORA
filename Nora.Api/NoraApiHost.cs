@@ -60,6 +60,7 @@ public static class NoraApiHost
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<PasswordResetService>();
         builder.Services.AddSingleton<WorkflowService>();
+        builder.Services.AddHostedService<TimeZoneStartupCheck>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
         builder.Services.AddHostedService<UnitSchemaCheckService>();

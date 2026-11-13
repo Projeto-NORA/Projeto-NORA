@@ -404,6 +404,18 @@ internal static class ReviewChecks
             });
         else Console.WriteLine("SKIP CLI de migração (revisão): compile Nora.Api em Release antes.");
 
+        await Check("Fuso horário configurado desconhecido pelo PostgreSQL impede a subida com mensagem clara; fusos válidos (inclusive em minúsculas) sobem", async () =>
+        {
+            foreach (var valid in new[] { "America/Sao_Paulo", "america/sao_paulo", "UTC" })
+            {
+                await using var app = BuildApp(connectionString, "nora_review_zone_" + Guid.NewGuid().ToString("N"), ["--Nora:TimeZone", valid], null);
+                await app.StartAsync(); await app.StopAsync();
+            }
+            await using var invalid = BuildApp(connectionString, "nora_review_zone_" + Guid.NewGuid().ToString("N"), ["--Nora:TimeZone", "Mars/Olympus"], null);
+            try { await invalid.StartAsync(); throw new InvalidOperationException("A API subiu com um fuso horário que o PostgreSQL não conhece."); }
+            catch (InvalidOperationException error) when (error.Message.Contains("Nora:TimeZone") && error.Message.Contains("Mars/Olympus") && !error.Message.Contains("Host=")) { }
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
