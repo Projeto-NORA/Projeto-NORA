@@ -89,6 +89,20 @@ internal static class ReviewChecks
             }
         });
 
+        await Check("POST /api/municipal/units tem o mesmo limite da nova tentativa de banco (20 por 10 min por IP, compartilhado)", async () =>
+        {
+            // Sem criação automática cada cadastro é barato (a UBS fica pending); o limite vale igual.
+            await using var h = await Harness.StartAsync(connectionString, ["--Nora:UnitDatabases:AutoProvision", "false"]);
+            Guid last = Guid.Empty;
+            for (var i = 0; i < 20; i++) last = await h.CreateUnitAsync($"UBS limite {i}", grantObs: false);
+            using var limited = await h.Municipal.PostAsJsonAsync("/api/municipal/units", new { name = "UBS acima do limite", region = "Centro", address = "Rua de teste, 10", latitude = -23.55, longitude = -46.63 });
+            await ExpectProblem(limited, 429, "too-many-requests");
+            using var retry = await h.Municipal.PostAsync($"/api/municipal/units/{last}/database", null);
+            await ExpectProblem(retry, 429, "too-many-requests");
+            Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.health_units") == 20, "A criação acima do limite foi gravada.");
+        });
+
+        // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
     }
@@ -101,4 +115,131 @@ internal static class ReviewChecks
     }
 
     private static void Require(bool valid, string message) { if (!valid) throw new InvalidOperationException(message); }
+
+    /// <summary>API de teste num schema próprio, com a Secretaria e um administrador OBS já autenticados. A verificação periódica fica desligada.</summary>
+    private sealed class Harness : IAsyncDisposable
+    {
+        public required WebApplication App { get; init; }
+        public required string Schema { get; init; }
+        public required string Connection { get; init; }
+        public required HttpClient Anonymous { get; init; }
+        public required HttpClient Municipal { get; init; }
+        public required HttpClient Obs { get; init; }
+        public required Guid ManagerId { get; init; }
+        public required Guid ObsId { get; init; }
+        public DatabaseHelper Database => App.Services.GetRequiredService<DatabaseHelper>();
+        public UnitDatabaseRouter Router => App.Services.GetRequiredService<UnitDatabaseRouter>();
+        public List<IDisposable> Owned { get; } = [];
+
+        public static async Task<Harness> StartAsync(string connection, string[]? extraArgs = null, Action<IServiceCollection>? services = null)
+        {
+            var schema = "nora_review_" + Guid.NewGuid().ToString("N");
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj"))) directory = directory.Parent;
+            var args = new List<string> { "--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+                "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-review-registration-key-32-bytes" };
+            if (extraArgs is not null) args.AddRange(extraArgs);
+            var app = NoraApiHost.Create(new()
+            {
+                Args = [.. args], EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name,
+                ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
+            }, collection => { collection.Replace(ServiceDescriptor.Singleton<IEmailSender>(new NoMail())); services?.Invoke(collection); });
+            await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
+            var accounts = app.Services.GetRequiredService<AccountService>();
+            var manager = await accounts.ProvisionAsync("municipal", "manager", new("Gestora de revisão", Cpf(90), "manager@example.test", Password));
+            var obs = await accounts.ProvisionAsync("obs", "administrator", new("Administrador de revisão", Cpf(91), "admin@example.test", Password));
+            await app.StartAsync();
+            var harness = new Harness { App = app, Schema = schema, Connection = connection, Anonymous = Client(app), Municipal = Client(app), Obs = Client(app), ManagerId = manager.Id, ObsId = obs.Id };
+            await Login(harness.Municipal, "municipal", "manager@example.test"); await Login(harness.Obs, "obs", "admin@example.test");
+            return harness;
+        }
+
+        public HttpClient NewClient() { var client = Client(App); Owned.Add(client); return client; }
+
+        /// <summary>Cadastra uma UBS pela API (o banco é criado automaticamente, salvo AutoProvision falso) e concede o acesso ao administrador OBS.</summary>
+        public async Task<Guid> CreateUnitAsync(string name, bool grantObs = true, int expectedStatus = 201)
+        {
+            using var response = await Municipal.PostAsJsonAsync("/api/municipal/units", new { name, region = "Centro", address = "Rua de teste, 10", latitude = -23.55, longitude = -46.63 });
+            Expect(response, expectedStatus);
+            var id = (await Read(response)).GetProperty("id").GetGuid();
+            if (grantObs) { using var grant = await Municipal.PutAsync($"/api/municipal/staff/{ObsId}/units/{id}", null); Expect(grant, 204); }
+            return id;
+        }
+
+        public async Task<T> ScalarAsync<T>(string sql, params object[] values)
+        {
+            await using var connection = await Database.OpenAsync();
+            await using var command = Database.Command(connection, sql, values);
+            return (T)(await command.ExecuteScalarAsync())!;
+        }
+
+        public async Task<T> UnitScalarAsync<T>(Guid unit, string sql, params object[] values)
+        {
+            await using var connection = await Router.OpenAsync(unit);
+            await using var command = new NpgsqlCommand(sql, connection);
+            foreach (var value in values) command.Parameters.AddWithValue(value);
+            return (T)(await command.ExecuteScalarAsync())!;
+        }
+
+        public async Task ExecuteAsync(string sql, params object[] values)
+        {
+            await using var connection = await Database.OpenAsync();
+            await Database.ExecuteAsync(connection, sql, default, values);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            foreach (var owned in Owned) owned.Dispose();
+            Anonymous.Dispose(); Municipal.Dispose(); Obs.Dispose();
+            await App.StopAsync();
+            try
+            {
+                await using var connection = await Database.OpenAsync();
+                await Database.ExecuteAsync(connection, $"DROP SCHEMA IF EXISTS {Schema} CASCADE", default);
+            }
+            catch (Exception) { /* o cluster descartável é removido pelo script */ }
+            await App.DisposeAsync();
+        }
+    }
+
+    private static HttpClient Client(WebApplication app) => new()
+    {
+        BaseAddress = new(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()),
+        Timeout = TimeSpan.FromSeconds(60)
+    };
+    private static async Task Login(HttpClient client, string scope, string identifier, string password = Password)
+    {
+        using var response = await client.PostAsJsonAsync("/api/auth/login", new { scope, identifier, password });
+        Expect(response, 200);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await Read(response)).GetProperty("token").GetString()!);
+    }
+    private static async Task<JsonElement> Read(HttpResponseMessage response)
+    {
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.Clone();
+    }
+    private static void Expect(HttpResponseMessage response, int status) => Require((int)response.StatusCode == status, $"Esperado HTTP {status}; recebido {(int)response.StatusCode} em {response.RequestMessage?.Method} {response.RequestMessage?.RequestUri?.AbsolutePath}.");
+    private static async Task ExpectProblem(HttpResponseMessage response, int status, string code)
+    {
+        Expect(response, status);
+        var body = await Read(response);
+        Require(body.GetProperty("code").GetString() == code && body.GetProperty("type").GetString() == $"urn:nora:problem:{code}" && body.GetProperty("status").GetInt32() == status, $"Código de erro esperado '{code}', recebido '{body.GetProperty("code").GetString()}'.");
+    }
+    private static string Cpf(int number)
+    {
+        var cpf = (123456780 + number).ToString();
+        for (var count = 9; count <= 10; count++)
+        {
+            var sum = Enumerable.Range(0, count).Sum(i => (cpf[i] - '0') * (count + 1 - i));
+            var digit = sum * 10 % 11;
+            cpf += (digit == 10 ? 0 : digit).ToString();
+        }
+        return cpf;
+    }
+
+    private sealed class NoMail : IEmailSender
+    {
+        public bool IsConfigured => true;
+        public Task SendAsync(string address, string subject, string body, CancellationToken ct) => Task.CompletedTask;
+    }
 }

@@ -74,7 +74,7 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | PUT/DELETE /api/municipal/staff/{id}/units/{unitId} | Municipal | Concede ou revoga acesso e registra autor e data |
 | GET /api/municipal/units/{unitId}/registry | Municipal | Lista os cadastros de referência da UBS selecionada (mesmos campos da listagem do OBS, sem `attendance`) e registra a consulta |
 | GET /api/municipal/units | Municipal | 200 unidades com nome, região, endereço, coordenadas e `databaseState` |
-| POST /api/municipal/units | Municipal | 201 unidade cadastrada; cria o banco da UBS e informa `databaseState` |
+| POST /api/municipal/units | Municipal limitado (20 por 10 min/IP, contador compartilhado com a nova tentativa de banco) | 201 unidade cadastrada; cria o banco da UBS e informa `databaseState`; 429 acima do limite |
 | POST /api/municipal/units/{id}/database | Municipal limitado (20 por 10 min/IP) | 200 unidade com o banco pronto (tentativa idempotente); 503 `database-provisioning-failed` |
 | PUT /api/municipal/units/{id} | Municipal | 200 unidade alterada; 404 se inexistente |
 | GET /api/municipal/summary | Municipal | 200 patients/inactivePatients/waitingPatients/waitingEntries/unitsWithoutDatabase/openSlots/acceptedOffers e contagens agregadas de vagas e ofertas; sem indivíduos |
@@ -190,7 +190,7 @@ A conexão de cada UBS é resolvida no servidor. A chave explícita `Nora:UnitDa
 
 `POST /api/municipal/units` grava a UBS e, em seguida, cria o banco se ele não existir (`CREATE DATABASE` fora de transação, com identificador montado apenas do prefixo validado e do GUID em hexadecimal), aplica as migrações de UBS, preenche `health_units.database_ready_at` e registra o evento `unit-database-created` (uma única vez). **O usuário PostgreSQL da API precisa da permissão CREATEDB**; sem ela (SQLSTATE 42501) ou diante de qualquer falha, a UBS continua cadastrada com `databaseState` `pending` e a resposta continua 201. A falha é registrada sem connection string e só com o SQLSTATE.
 
-`POST /api/municipal/units/{id}/database` repete a tentativa de forma idempotente: cria o banco se faltar, reaplica as migrações e só marca/registra na primeira vez. Sucesso → 200 com a unidade; falha → 503 com `code` `database-provisioning-failed`; unidade inexistente → 404. É limitada a 20 chamadas por 10 minutos por IP.
+`POST /api/municipal/units/{id}/database` repete a tentativa de forma idempotente: cria o banco se faltar, reaplica as migrações e só marca/registra na primeira vez. Sucesso → 200 com a unidade; falha → 503 com `code` `database-provisioning-failed`; unidade inexistente → 404. É limitada a 20 chamadas por 10 minutos por IP; o cadastro de UBS (`POST /api/municipal/units`), que também cria um banco, usa o mesmo limitador e o mesmo contador.
 
 `databaseState` aparece em `GET`, `POST` e `PUT /api/municipal/units` (e nas listas de unidades por conta). `ready` significa chave explícita configurada ou `database_ready_at` preenchido; `pending`, o contrário. UBS `pending` ficam fora do catálogo público (`/api/registration/units`), do vínculo pelo aplicativo (cadastro e `POST /api/patient/units/link` respondem 400 se a lista incluir uma UBS inexistente ou sem banco pronto), do resumo e dos indicadores, que informam `unitsWithoutDatabase`, e da verificação periódica de ofertas. Um banco `ready` que esteja fora do ar continua respondendo 503. As listas de unidades de uma conta OBS (`/api/obs/units`) e da Secretaria continuam trazendo as unidades `pending`, com o estado, para que a interface avise.
 

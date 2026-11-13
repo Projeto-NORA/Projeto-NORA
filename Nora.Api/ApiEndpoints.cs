@@ -239,7 +239,8 @@ internal static class ApiEndpoints
             Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => registry.ListAsync(unitId, false, ct), ct)));
         municipal.MapGet("/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
             Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct, "appointment_read")));
-        municipal.MapPost("/units", async (HealthUnitRequest request, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, Session(context).User.Id, ct), statusCode: StatusCodes.Status201Created));
+        // Cada cadastro cria um banco: mesmo limitador da nova tentativa (compartilhado por IP).
+        municipal.MapPost("/units", async (HealthUnitRequest request, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, Session(context).User.Id, ct), statusCode: StatusCodes.Status201Created)).RequireRateLimiting("unit-database");
         municipal.MapPost("/units/{id:guid}/database", async (Guid id, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ProvisionDatabaseAsync(id, Session(context).User.Id, ct))).RequireRateLimiting("unit-database");
         municipal.MapGet("/history", async (DateTimeOffset? from, DateTimeOffset? to, Guid? unitId, int? limit, DateTimeOffset? before, HistoryDao history, CancellationToken ct) =>
             Results.Ok(await history.ReadAsync(from, to, unitId, limit, before, ct)));
