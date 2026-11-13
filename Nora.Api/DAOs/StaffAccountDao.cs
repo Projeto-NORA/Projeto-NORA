@@ -8,7 +8,7 @@ namespace Nora.Api.DAOs;
 public sealed class StaffAccountDao(DatabaseHelper database, TimeProvider time)
 {
     /// <summary>Duplicidade de CPF/e-mail no escopo obs vira PostgresException 23505, mapeada para 409.</summary>
-    public async Task<StaffAccount> CreateAsync(Guid actorId, string role, CreatePatientRequest request, string passwordHash, CancellationToken ct)
+    public async Task<StaffAccount> CreateAsync(Guid actorId, string role, StaffAccountDraft request, string passwordHash, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);

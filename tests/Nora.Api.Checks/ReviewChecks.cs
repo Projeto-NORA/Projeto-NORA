@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -472,6 +473,33 @@ internal static class ReviewChecks
             Require(plan.Any(line => line.Contains("waiting_list_events_status_time_idx")), "O plano da espera média não usa o índice (status, occurred_at):\n" + string.Join("\n", plan));
         });
 
+        await Check("Rehash de senha no login não sobrescreve um hash trocado no meio do caminho (WHERE password_hash = hash lido); sem concorrência o rehash acontece", async () =>
+        {
+            var hasher = new RehashingHasher();
+            await using var h = await Harness.StartAsync(connectionString, services: services => services.Replace(ServiceDescriptor.Singleton<IPasswordHasher<Account>>(hasher)));
+            var accounts = h.App.Services.GetRequiredService<AccountService>();
+            await accounts.ProvisionAsync("patient", "patient", new("Paciente Rehash", Cpf(1), "patient1@example.test", Password));
+            await accounts.ProvisionAsync("patient", "patient", new("Paciente Corrida", Cpf(2), "patient2@example.test", Password));
+            async Task<string> Hash(int n) => await h.ScalarAsync<string>("SELECT password_hash FROM nora.accounts WHERE cpf=$1", Cpf(n));
+            // Sem concorrência: o login com verificação "SuccessRehashNeeded" troca o hash por um novo, que continua validando a mesma senha.
+            var before = await Hash(1);
+            hasher.ForceRehash = true;
+            using (var login = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(1), password = Password })) Expect(login, 200);
+            var after = await Hash(1);
+            Require(after != before && hasher.Verify(after, Password), "O rehash do login não gravou um hash novo e válido.");
+            // Com concorrência: a senha da conta muda entre a leitura da conta e o rehash; o rehash não pode desfazer a troca.
+            var concurrent = hasher.Create("Senha-trocada-concorrente-123");
+            hasher.Hook = () =>
+            {
+                using var connection = new NpgsqlConnection(connectionString); connection.Open();
+                using var update = new NpgsqlCommand($"UPDATE {h.Schema}.accounts SET password_hash=$1 WHERE cpf=$2", connection);
+                update.Parameters.AddWithValue(concurrent); update.Parameters.AddWithValue(Cpf(2)); update.ExecuteNonQuery();
+            };
+            using (var raced = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(2), password = Password })) Expect(raced, 200);
+            Require(await Hash(2) == concurrent, "O rehash do login sobrescreveu o hash trocado no meio do caminho.");
+            hasher.ForceRehash = false;
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
@@ -657,6 +685,25 @@ internal static class ReviewChecks
             cpf += (digit == 10 ? 0 : digit).ToString();
         }
         return cpf;
+    }
+
+    /// <summary>Hasher real que, quando armado, declara SuccessRehashNeeded e roda um gancho depois de conferir a senha (simula troca concorrente).</summary>
+    private sealed class RehashingHasher : IPasswordHasher<Account>
+    {
+        private readonly PasswordHasher<Account> inner = new();
+        private static readonly Account Placeholder = new(new(Guid.Empty, "", "", ""), "", "", "");
+        public bool ForceRehash { get; set; }
+        public Action? Hook { get; set; }
+        public string HashPassword(Account user, string password) => inner.HashPassword(user, password);
+        public string Create(string password) => inner.HashPassword(Placeholder, password);
+        public bool Verify(string hash, string password) => inner.VerifyHashedPassword(Placeholder, hash, password) != PasswordVerificationResult.Failed;
+        public PasswordVerificationResult VerifyHashedPassword(Account user, string hashedPassword, string providedPassword)
+        {
+            var result = inner.VerifyHashedPassword(user, hashedPassword, providedPassword);
+            if (result == PasswordVerificationResult.Failed || !ForceRehash) return result;
+            var hook = Hook; Hook = null; hook?.Invoke();
+            return PasswordVerificationResult.SuccessRehashNeeded;
+        }
     }
 
     private sealed class NoMail : IEmailSender

@@ -24,7 +24,7 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
         var account = await accounts.FindAsync(request.Scope, identifier, ct);
         var result = passwords.VerifyHashedPassword(account ?? _dummy, account?.PasswordHash ?? (_dummyHash ??= passwords.HashPassword(_dummy, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)))), request.Password);
         if (account is null || result == PasswordVerificationResult.Failed) return null;
-        if (result == PasswordVerificationResult.SuccessRehashNeeded) await accounts.RehashAsync(account.User.Id, passwords.HashPassword(account, request.Password), ct);
+        if (result == PasswordVerificationResult.SuccessRehashNeeded) await accounts.RehashAsync(account.User.Id, account.PasswordHash, passwords.HashPassword(account, request.Password), ct);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var expiresAt = time.GetUtcNow().AddHours(8);
         if (await sessions.CreateAsync(account.User.Id, HashToken(token), expiresAt, ct) == 0) return null;
