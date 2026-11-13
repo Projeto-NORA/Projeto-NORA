@@ -40,9 +40,13 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         return result;
     }
     /// <summary>
-    /// Remoção voluntária do vínculo: segura o vínculo, roda a ação na UBS e remove a linha de patient_units (evento 'unlinked') na mesma
-    /// transação central. Não exige cadastro ativo na UBS, para que o paciente consiga sair mesmo com o cadastro desativado.
-    /// Falha da UBS desfaz a remoção do vínculo; repetir é seguro, pois a ação só cancela o que ainda estiver ativo.
+    /// Remoção voluntária do vínculo: segura o vínculo, remove a linha de patient_units (evento 'unlinked') na transação central ainda
+    /// aberta, roda a ação na UBS (que confirma a própria transação) e só então confirma a central. Não exige cadastro ativo na UBS, para
+    /// que o paciente consiga sair mesmo com o cadastro desativado.
+    /// Duas transações de bancos diferentes não têm commit atômico. A ordem acima reduz a janela de inconsistência a uma única falha: o commit
+    /// central depois do commit da UBS. Falha da UBS ou de qualquer instrução central antes disso desfaz tudo, e nada fica cancelado. Se o
+    /// commit central falhar depois de a UBS confirmar, as consultas e entradas ficam canceladas e o vínculo continua; repetir a chamada é
+    /// seguro e conclui, pois a ação só cancela o que ainda estiver ativo (a contagem da repetição refere-se apenas ao que restava ativo).
     /// </summary>
     public async Task<T> ExecutePatientUnlinkAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct)
     {
@@ -53,9 +57,9 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
         await using (var link = central.Command(connection, "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await link.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
-        var result = await action(cpf);
         await central.ExecuteAsync(connection, "DELETE FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2", ct, session.User.Id, unitId);
         await central.ExecuteAsync(connection, "INSERT INTO nora.patient_unit_link_events(patient_id,unit_id,action) VALUES($1,$2,'unlinked')", ct, session.User.Id, unitId);
+        var result = await action(cpf);
         await transaction.CommitAsync(ct);
         return result;
     }

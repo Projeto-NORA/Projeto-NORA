@@ -293,6 +293,61 @@ internal static class ReviewChecks
             using (var sameAccount = await again.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" })) await ExpectProblem(sameAccount, 429, "too-many-requests");
         });
 
+        await Check("Remoção de vínculo com falha do lado central: antes do commit da UBS nada é cancelado; falha no commit central deixa a UBS cancelada e repetir conclui", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Saída");
+            var accounts = h.App.Services.GetRequiredService<AccountService>();
+            var patientId = (await accounts.ProvisionAsync("patient", "patient", new("Paciente Saída", Cpf(1), "patient1@example.test", Password))).Id;
+            using (var register = await h.Obs.PostAsJsonAsync($"/api/obs/units/{unit}/registry", new { cpf = Cpf(1), fullName = "Paciente Saída", email = "patient1@example.test" })) Expect(register, 201);
+            using var patient = h.NewClient(); await Login(patient, "patient", Cpf(1));
+            var unlinkPath = $"/api/patient/units/{unit}/unlink";
+            async Task LinkAndSeed(int seed)
+            {
+                using var link = await patient.PostAsJsonAsync("/api/patient/units/link", new { unitIds = new[] { unit } }); Expect(link, 200);
+                var start = DateTimeOffset.UtcNow.AddDays(3 + seed * 3);
+                foreach (var offset in new[] { 0, 2 })
+                {
+                    using var booked = await h.Obs.PostAsJsonAsync($"/api/obs/units/{unit}/appointments", new { cpf = Cpf(1), specialty = "Clínica", professional = $"Prof {seed}-{offset}", startsAt = start.AddHours(offset), endsAt = start.AddHours(offset).AddMinutes(30) }); Expect(booked, 201);
+                }
+                using var queued = await h.Obs.PostAsJsonAsync($"/api/obs/units/{unit}/waiting-list", new { cpf = Cpf(1), specialty = $"Especialidade {seed}" }); Expect(queued, 201);
+            }
+            async Task<(long Scheduled, long Waiting, long Links, long Unlinked)> State() =>
+                (await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.appointments WHERE status='scheduled'"), await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')"),
+                 await h.ScalarAsync<long>("SELECT count(*) FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2", patientId, unit), await h.ScalarAsync<long>("SELECT count(*) FROM nora.patient_unit_link_events WHERE patient_id=$1 AND unit_id=$2 AND action='unlinked'", patientId, unit));
+            async Task Inject(bool deferred)
+            {
+                await h.ExecuteAsync("CREATE OR REPLACE FUNCTION nora.fail_unlink_event() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN IF NEW.action = 'unlinked' THEN RAISE EXCEPTION 'falha injetada'; END IF; RETURN NEW; END $f$");
+                await h.ExecuteAsync(deferred
+                    ? "CREATE CONSTRAINT TRIGGER fail_unlink AFTER INSERT ON nora.patient_unit_link_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION nora.fail_unlink_event()"
+                    : "CREATE TRIGGER fail_unlink BEFORE INSERT ON nora.patient_unit_link_events FOR EACH ROW EXECUTE FUNCTION nora.fail_unlink_event()");
+            }
+            Task Heal() => h.ExecuteAsync("DROP TRIGGER fail_unlink ON nora.patient_unit_link_events");
+
+            // (a) Falha ao gravar o evento central: nada da UBS pode ter sido cancelado, e repetir devolve as contagens completas.
+            await LinkAndSeed(0);
+            await Inject(deferred: false);
+            using (var failed = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Require((int)failed.StatusCode >= 500, "A falha injetada no lado central deveria falhar a requisição.");
+            var afterFailure = await State();
+            Require(afterFailure.Scheduled == 2 && afterFailure.Waiting == 1 && afterFailure.Links == 1 && afterFailure.Unlinked == 0, $"Falha central antes do commit deixou a UBS alterada ou o vínculo removido (consultas {afterFailure.Scheduled}, fila {afterFailure.Waiting}, vínculos {afterFailure.Links}).");
+            await Heal();
+            using (var repeated = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true }))
+            { Expect(repeated, 200); var body = await Read(repeated); Require(body.GetProperty("cancelledAppointments").GetInt32() == 2 && body.GetProperty("cancelledEntries").GetInt32() == 1, "A repetição deveria devolver as contagens completas."); }
+            var concluded = await State();
+            Require(concluded.Scheduled == 0 && concluded.Waiting == 0 && concluded.Links == 0 && concluded.Unlinked == 1, "A repetição não concluiu a remoção do vínculo.");
+
+            // (b) Falha só no commit central (a UBS já confirmou): as consultas ficam canceladas e o vínculo continua; repetir conclui sem duplicar o evento.
+            await LinkAndSeed(1);
+            await Inject(deferred: true);
+            using (var failedCommit = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Require((int)failedCommit.StatusCode >= 500, "A falha no commit central deveria falhar a requisição.");
+            var partial = await State();
+            Require(partial.Links == 1 && partial.Unlinked == 1, "Falha no commit central deveria manter o vínculo e não gravar novo evento.");
+            await Heal();
+            using (var concludedAgain = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Expect(concludedAgain, 200);
+            var final = await State();
+            Require(final.Links == 0 && final.Unlinked == 2 && final.Scheduled == 0 && final.Waiting == 0, "Repetir depois da falha no commit deveria concluir a remoção, com um único evento por remoção.");
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
