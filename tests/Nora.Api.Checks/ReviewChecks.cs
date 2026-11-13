@@ -12,6 +12,7 @@ using Npgsql;
 using Nora.Api;
 using Nora.Api.DAOs;
 using Nora.Api.Database;
+using Nora.Api.Models;
 using Nora.Api.Services;
 
 /// <summary>
@@ -100,6 +101,55 @@ internal static class ReviewChecks
             using var retry = await h.Municipal.PostAsync($"/api/municipal/units/{last}/database", null);
             await ExpectProblem(retry, 429, "too-many-requests");
             Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.health_units") == 20, "A criação acima do limite foi gravada.");
+        });
+
+        await Check("Revalidação na transação: desativação aguarda a requisição OBS em andamento; sessão revogada, conta inativa e troca obrigatória são recusadas nos executores de UBS", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Revalidação", grantObs: false);
+            var access = h.App.Services.GetRequiredService<UnitAccessService>(); var auth = h.App.Services.GetRequiredService<AuthService>();
+            using (var created = await h.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Atendente Corrida", cpf = Cpf(60), email = "race@example.test", password = "Provisoria-123", role = "attendant" })) Expect(created, 201);
+            var staffId = await h.ScalarAsync<Guid>("SELECT id FROM nora.accounts WHERE email='race@example.test'");
+            using (var grant = await h.Municipal.PutAsync($"/api/municipal/staff/{staffId}/units/{unit}", null)) Expect(grant, 204);
+            using var staff = h.NewClient(); await Login(staff, "obs", "race@example.test", "Provisoria-123");
+            using (var change = await staff.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = "Senha-corrida-123" })) Expect(change, 204);
+            async Task<SessionInfo> Session()
+            {
+                using var login = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "obs", identifier = "race@example.test", password = "Senha-corrida-123" });
+                Expect(login, 200);
+                return (await auth.AuthenticateAsync((await Read(login)).GetProperty("token").GetString()!, default))!;
+            }
+            var session = await Session();
+            // Requisição em andamento (autenticada antes da desativação): a desativação precisa esperar o fim dela.
+            var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var held = access.ExecuteAsync(session, unit, async () => { started.TrySetResult(); await release.Task; return true; }, CancellationToken.None);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var deactivation = h.Municipal.PatchAsJsonAsync($"/api/municipal/staff/{staffId}/active", new { isActive = false, confirmed = true });
+            try { await Task.Delay(300); Require(!deactivation.IsCompleted, "A desativação da conta não aguardou a requisição OBS em andamento."); }
+            finally { release.TrySetResult(); }
+            await held;
+            using (var done = await deactivation) Expect(done, 204);
+            // Depois da desativação a mesma sessão (já autenticada) não executa mais nada.
+            try { await access.ExecuteAsync(session, unit, () => Task.FromResult(true), default); throw new InvalidOperationException("Conta desativada ainda executou operação da UBS."); }
+            catch (ApiUnauthorizedException) { }
+            using (var reactivate = await h.Municipal.PatchAsJsonAsync($"/api/municipal/staff/{staffId}/active", new { isActive = true, confirmed = true })) Expect(reactivate, 204);
+            try { await access.ExecuteAsync(session, unit, () => Task.FromResult(true), default); throw new InvalidOperationException("Sessão revogada pela desativação ainda executou operação da UBS."); }
+            catch (ApiUnauthorizedException) { }
+            // Troca obrigatória imposta depois da autenticação (redefinição de senha pela Secretaria) bloqueia a operação com o código dedicado.
+            var fresh = await Session();
+            await h.ExecuteAsync("UPDATE nora.accounts SET must_change_password=true WHERE id=$1", staffId);
+            try { await access.ExecuteAsync(fresh, unit, () => Task.FromResult(true), default); throw new InvalidOperationException("Troca obrigatória pendente não bloqueou a operação da UBS."); }
+            catch (ApiCodedException error) when (error.Status == 403 && error.Code == "password-change-required") { }
+            await h.ExecuteAsync("UPDATE nora.accounts SET must_change_password=false WHERE id=$1", staffId);
+            Require(await access.ExecuteAsync(fresh, unit, () => Task.FromResult(true), default), "Sessão válida deveria executar a operação.");
+            // Leitura nominal da gestão: sessão revogada depois da autenticação é recusada dentro da transação.
+            using var managerLogin = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "municipal", identifier = "manager@example.test", password = Password });
+            Expect(managerLogin, 200);
+            var managerSession = (await auth.AuthenticateAsync((await Read(managerLogin)).GetProperty("token").GetString()!, default))!;
+            await h.ExecuteAsync("UPDATE nora.sessions SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=$1", managerSession.TokenHash);
+            try { await access.ExecuteManagementReadAsync(managerSession, unit, () => Task.FromResult(true), default); throw new InvalidOperationException("Sessão da gestão revogada ainda leu a UBS."); }
+            catch (ApiUnauthorizedException) { }
+            Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.unit_access_events WHERE unit_id=$1", unit) == 0, "A leitura recusada deixou evento de acesso.");
         });
 
         // {{NOVOS}}

@@ -228,7 +228,9 @@ internal static class WorkflowChecks
                     Require(await audit.ExecuteScalarAsync() is Guid actor && actor == obsId, "Cadastro da UBS não registrou o autor.");
                 var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var heldSession = new SessionInfo(new UserInfo(obsId, "Operador de teste", "administrator", "obs"), "not-used-in-this-service-check");
+                // O executor revalida conta e sessão na transação: a operação segurada usa a sessão real do cliente OBS.
+                var heldSession = (await app.Services.GetRequiredService<AuthService>().AuthenticateAsync(obs.DefaultRequestHeaders.Authorization!.Parameter!, default))!;
+                Require(heldSession.User.Id == obsId, "Sessão do OBS não foi resolvida.");
                 var held = app.Services.GetRequiredService<UnitAccessService>().ExecuteAsync(heldSession, unitId, async () =>
                 {
                     started.TrySetResult(); await release.Task; return true;
