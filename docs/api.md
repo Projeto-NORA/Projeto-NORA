@@ -138,7 +138,7 @@ A migração 009 mantém concessões de UBS a contas OBS e histórico de concess
 
 A fonte de identidade, sessões e cadastro de unidades permanece no banco central existente. A infraestrutura `UnitDatabaseRouter` permite configurar uma conexão PostgreSQL distinta para cada UBS pela chave privada `Nora:UnitDatabases:<id-sem-hífens>`; em variáveis de ambiente .NET, use `Nora__UnitDatabases__<id-sem-hífens>`. A chave deve conter uma connection string Npgsql, definida no ambiente seguro do servidor, sem registrá-la no Git. A chave explícita é opcional: veja a criação automática do banco em Banco da UBS criado automaticamente.
 
-Após configurar a conexão, execute `Nora.Api --migrate-unit=<id-da-UBS>` uma vez por UBS. O comando é explícito e distinto de `--migrate`, que continua responsável apenas pelo banco central. A migração da UBS cria `nora_unit.identity`, que vincula aquele banco a um único identificador de unidade; abertura e reaplicação rejeitam identidade diferente. A migração recusa um banco contendo a tabela central de contas no schema configurado. O pool é limitado a dez conexões por UBS. Duas bases PostgreSQL descartáveis foram usadas para verificar a separação de cadastros, auditoria de criação, duplicidade de CPF, reaplicação e recusa de configuração trocada.
+Após configurar a conexão, execute `Nora.Api --migrate-unit=<id-da-UBS>` uma vez por UBS. O comando é explícito e distinto de `--migrate`, que continua responsável apenas pelo banco central. A migração da UBS cria `nora_unit.identity`, que vincula aquele banco a um único identificador de unidade; abertura e reaplicação rejeitam identidade diferente. A migração recusa um banco contendo a tabela central de contas no schema configurado. O pool de conexões das UBS está descrito em Dimensionamento de conexões. Duas bases PostgreSQL descartáveis foram usadas para verificar a separação de cadastros, auditoria de criação, duplicidade de CPF, reaplicação e recusa de configuração trocada.
 
 O cadastro de referência retornado pelas rotas de listagem tem, por registro: `cpf`, `fullName`, `email`, `phone` (nulo quando ausente), `address` (`cep`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`, `ibge`; nulo quando ausente), `isActive` (situação local na UBS), `isOnline` (presença recente no aplicativo), `createdAt` (UTC) e, só na listagem do OBS, `attendance`.
 
@@ -195,6 +195,20 @@ A conexão de cada UBS é resolvida no servidor. A chave explícita `Nora:UnitDa
 `databaseState` aparece em `GET`, `POST` e `PUT /api/municipal/units` (e nas listas de unidades por conta). `ready` significa chave explícita configurada ou `database_ready_at` preenchido; `pending`, o contrário. UBS `pending` ficam fora do catálogo público (`/api/registration/units`), do vínculo pelo aplicativo (cadastro e `POST /api/patient/units/link` respondem 400 se a lista incluir uma UBS inexistente ou sem banco pronto), do resumo e dos indicadores, que informam `unitsWithoutDatabase`, e da verificação periódica de ofertas. Um banco `ready` que esteja fora do ar continua respondendo 503. As listas de unidades de uma conta OBS (`/api/obs/units`) e da Secretaria continuam trazendo as unidades `pending`, com o estado, para que a interface avise.
 
 Comandos de migração: `--migrate` (banco central), `--migrate-unit=<id>` (uma UBS; passa a preencher `database_ready_at`) e `--migrate-all-units` (aplica as migrações de UBS em todas as unidades `ready`; imprime quantas foram atualizadas e sai com código 1 se alguma falhar). A migração 010 de UBS precisa chegar aos bancos existentes por `--migrate-all-units`.
+
+## Dimensionamento de conexões
+
+Cada UBS com banco derivado tem um pool Npgsql próprio. Em vez de herdar o pool da conexão central (que, sem `Maximum Pool Size`, vale 100 e pode trazer um `Minimum Pool Size` alto), a conexão derivada usa `Maximum Pool Size` de `Nora:UnitDatabases:MaxPoolSize` (inteiro de 1 a 100; padrão 3; valor inválido impede a inicialização), `Minimum Pool Size` 0, `Connection Idle Lifetime` de 60 s e `Connection Pruning Interval` de 10 s. A verificação periódica de ofertas visita todas as UBS prontas a cada 15 s, uma de cada vez; com essa poda, as conexões das unidades quietas fecham entre as visitas em vez de ficarem abertas. Chaves explícitas (`Nora:UnitDatabases:<id>`) mantêm a própria connection string, com o máximo limitado a dez.
+
+O teto de conexões que a API pode abrir é a soma dos pools, e o PostgreSQL precisa comportá-lo:
+
+```text
+max_connections ≥ pool central + (nº de UBS × MaxPoolSize) + folga
+```
+
+O pool central é o `Maximum Pool Size` da connection string `Nora` (padrão do Npgsql: 100; defina um valor explícito, como 20). A folga cobre `superuser_reserved_connections` (3 por padrão), manutenção, migrações, o provisionamento de bancos e ferramentas de backup. Exemplo: 20 + 90 UBS × 3 + 20 = 310; o padrão `max_connections=100` não basta para 90 UBS e deve ser elevado ou substituído por pooling externo. O teto só é atingido se todas as UBS receberem carga simultânea; no uso normal o número real é bem menor, mas o dimensionamento deve prever o pior caso.
+
+Alternativa: PgBouncer em modo `transaction`, com `default_pool_size` pequeno por banco; as conexões lógicas da API deixam de ser conexões do servidor. Os travamentos da API usam `pg_advisory_xact_lock` (por transação), compatíveis com esse modo, mas o provisionamento de bancos usa `pg_advisory_lock` de sessão e `CREATE DATABASE`, portanto a conexão central usada para criar bancos deve falar direto com o PostgreSQL, não pelo PgBouncer.
 
 ## Origem dos eventos de consulta e score de comparecimento
 
