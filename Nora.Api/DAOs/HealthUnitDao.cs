@@ -90,8 +90,11 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
         if (!await reader.ReadAsync(ct)) throw new ApiNotFoundException();
         return Read(reader);
     }
-    /// <summary>Marca o banco como pronto uma única vez e registra o evento; actorId é nulo quando vem do comando de migração.</summary>
-    public async Task<bool> MarkDatabaseReadyAsync(Guid unitId, Guid? actorId, CancellationToken ct)
+    /// <summary>
+    /// Marca o banco como pronto uma única vez. Com <paramref name="recordEvent"/> (criação/preparação pela API) registra também o evento
+    /// unit-database-created; os comandos de migração (--migrate-unit, --migrate-all-units) só marcam, sem evento, pois o banco não foi criado por eles.
+    /// </summary>
+    public async Task<bool> MarkDatabaseReadyAsync(Guid unitId, Guid? actorId, CancellationToken ct, bool recordEvent = true)
     {
         await using var connection = await database.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -101,7 +104,7 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
             await using var exists = database.Command(connection, "SELECT EXISTS(SELECT 1 FROM nora.health_units WHERE id=$1)", unitId);
             if ((bool)(await exists.ExecuteScalarAsync(ct))! == false) throw new ApiNotFoundException();
         }
-        else await database.ExecuteAsync(connection, "INSERT INTO nora.unit_database_events(unit_id,actor_id) VALUES($1,$2)", ct, unitId, actorId is { } id ? (object)id : DBNull.Value);
+        else if (recordEvent) await database.ExecuteAsync(connection, "INSERT INTO nora.unit_database_events(unit_id,actor_id) VALUES($1,$2)", ct, unitId, actorId is { } id ? (object)id : DBNull.Value);
         await transaction.CommitAsync(ct);
         return changed > 0;
     }

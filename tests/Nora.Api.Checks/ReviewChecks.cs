@@ -382,6 +382,28 @@ internal static class ReviewChecks
             { using var rejected = await h.Municipal.GetAsync($"/api/municipal/history?before={Uri.EscapeDataString(invalid)}"); Expect(rejected, 400); }
         });
 
+        var cliDll = Path.Combine(root, ".build", "Nora.Api", "bin", "Release", "net10.0", "Nora.Api.dll");
+        if (File.Exists(cliDll))
+            await Check("--migrate-all-units e --migrate-unit marcam o banco como pronto sem gravar 'unit-database-created' (só migração: o banco não foi criado pela API)", async () =>
+            {
+                await using var h = await Harness.StartAsync(connectionString);
+                var unit = await h.CreateUnitAsync("UBS Antiga CLI", grantObs: false);
+                var explicitConnection = new NpgsqlConnectionStringBuilder(connectionString) { Database = h.Router.DerivedDatabaseName(unit) }.ConnectionString;
+                async Task OldDatabase() { await h.ExecuteAsync("UPDATE nora.health_units SET database_ready_at=NULL WHERE id=$1", unit); await h.ExecuteAsync("DELETE FROM nora.unit_database_events WHERE unit_id=$1", unit); }
+                foreach (var command in new[] { "--migrate-all-units", $"--migrate-unit={unit}" })
+                {
+                    await OldDatabase(); // como um banco de antes desta versão: pronto por chave explícita, sem database_ready_at e sem evento
+                    var (code, output) = await RunCli(cliDll, connectionString, h.Schema, command, $"--Nora:UnitDatabases:{unit:N}={explicitConnection}");
+                    Require(code == 0, $"{command} falhou: {output}");
+                    Require(await h.ScalarAsync<bool>("SELECT database_ready_at IS NOT NULL FROM nora.health_units WHERE id=$1", unit), $"{command} não marcou o banco como pronto.");
+                    Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.unit_database_events WHERE unit_id=$1", unit) == 0, $"{command} gravou 'unit-database-created' para um banco que a API não criou.");
+                }
+                // A criação pela API continua registrando o evento uma única vez, com o autor.
+                var created = await h.CreateUnitAsync("UBS Criada pela API", grantObs: false);
+                Require(await h.ScalarAsync<long>("SELECT count(*) FROM nora.unit_database_events WHERE unit_id=$1 AND actor_id=$2", created, h.ManagerId) == 1, "A criação pela API deveria registrar o evento com o autor.");
+            });
+        else Console.WriteLine("SKIP CLI de migração (revisão): compile Nora.Api em Release antes.");
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
@@ -520,6 +542,18 @@ internal static class ReviewChecks
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
                 lines.Enqueue($"{category}|{logLevel}|{formatter(state, exception)}");
         }
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunCli(string dll, string connection, string schema, params string[] arguments)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        start.ArgumentList.Add(dll);
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        foreach (var argument in new[] { "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Logging:LogLevel:Default", "Warning" }) start.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(120_000)) { process.Kill(true); throw new TimeoutException("CLI excedeu o prazo."); }
+        return (process.ExitCode, await output + await error);
     }
 
     private static HttpClient Client(WebApplication app) => new()
