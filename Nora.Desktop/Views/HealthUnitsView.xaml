@@ -3,39 +3,52 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
         <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Unidades cadastradas" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
-        <TextBlock Text="Pesquise por nome, região ou endereço." Style="{StaticResource Muted}" Margin="0,0,0,12" />
+        <TextBlock Text="Pesquise por nome, região ou endereço. A UBS selecionada continua selecionada mesmo escondida pela pesquisa." Style="{StaticResource Muted}" Margin="0,0,0,12" />
         <TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS" Margin="0,0,0,12" />
-        <ListBox ItemsSource="{Binding FilteredUnits}" SelectedItem="{Binding SelectedUnit}" MaxHeight="220" AutomationProperties.Name="UBS cadastradas">
-          <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="6"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" /><TextBlock Text="{Binding Region}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" /><TextBlock Text="{Binding Address}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+        <ListBox ItemsSource="{Binding FilteredUnits}" SelectedItem="{Binding SelectedUnit}" MaxHeight="260" AutomationProperties.Name="UBS cadastradas">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="6">
+                <DockPanel LastChildFill="False">
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding DatabaseLabel, Converter={StaticResource TextVisibility}}" VerticalAlignment="Center">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,5,0">
+                      <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE73E;" /><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /><Style.Triggers><DataTrigger Binding="{Binding DatabasePending}" Value="True"><Setter Property="Text" Value="&#xE7BA;" /><Setter Property="Foreground" Value="{DynamicResource WarningBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding DatabaseLabel}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" DockPanel.Dock="Left" />
+                </DockPanel>
+                <TextBlock Text="{Binding Region}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" />
+                <TextBlock Text="{Binding Address}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
         </ListBox>
-        <TextBlock Text="{Binding UnitsState}" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+        <TextBlock Text="{Binding UnitsState}" Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding UnitsState, Converter={StaticResource TextVisibility}}" />
+        <TextBlock Text="{Binding SelectedUnitLabel}" FontWeight="SemiBold" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel Margin="0,12,0,0"><Button Content="Editar selecionada" Click="OnEdit" IsEnabled="{Binding CanEditUnit}" Margin="0,0,8,0" /><Button Content="Nova UBS" Click="OnNew" IsEnabled="{Binding CanOperate}" /></WrapPanel>
+        <Border Margin="0,14,0,0" CornerRadius="10" Padding="14" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" Visibility="{Binding SelectedUnitDatabasePending, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Base da UBS não criada">
+          <StackPanel>
+            <TextBlock Text="Base da UBS ainda não criada" FontWeight="SemiBold" />
+            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,10" Text="A UBS está cadastrada, mas sem a base de dados dela ela fica fora dos números da rede, do cadastro público e do aplicativo. O usuário PostgreSQL da API precisa de permissão para criar bancos de dados; ajuste a permissão no servidor e tente de novo." />
+            <Button Content="Tentar criar a base" Click="OnProvision" IsEnabled="{Binding CanProvisionUnitDatabase}" HorizontalAlignment="Left" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
+          </StackPanel>
+        </Border>
       </StackPanel>
     </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18"><StackPanel>
-      <TextBlock Text="Cadastros da UBS selecionada" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Text="A consulta mostra os dados de referência desta unidade e é registrada no histórico de acesso." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
-      <Button Content="Consultar pacientes da UBS" Click="OnReadRegistry" IsEnabled="{Binding CanReadUnitRegistry}" HorizontalAlignment="Left" Margin="0,0,0,12" />
-      <DataGrid ItemsSource="{Binding UnitRegistry}" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Pacientes da UBS selecionada">
-        <DataGrid.Columns><DataGridTextColumn Header="Nome" Binding="{Binding FullName}" Width="*" /><DataGridTextColumn Header="CPF" Binding="{Binding Cpf}" Width="140" /><DataGridTextColumn Header="E-mail" Binding="{Binding Email}" Width="*" /></DataGrid.Columns>
-      </DataGrid>
-      <TextBlock Text="{Binding UnitRegistryState}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
-    </StackPanel></Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18"><StackPanel>
-      <TextBlock Text="Agenda da UBS selecionada" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Text="Consultas dos últimos 30 dias e dos próximos 30 dias. A consulta é registrada no histórico de acesso." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
-      <Button Content="Consultar agenda da UBS" Click="OnReadAppointments" IsEnabled="{Binding CanReadUnitRegistry}" HorizontalAlignment="Left" Margin="0,0,0,12" />
-      <DataGrid ItemsSource="{Binding MunicipalAppointments}" IsReadOnly="True" AutoGenerateColumns="False" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Consultas da UBS selecionada">
-        <DataGrid.Columns><DataGridTextColumn Header="Data e hora" Binding="{Binding TimeDisplay}" Width="*" /><DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="*" /><DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" /><DataGridTextColumn Header="Profissional" Binding="{Binding Professional}" Width="*" /><DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="*" /></DataGrid.Columns>
-      </DataGrid>
-      <TextBlock Text="{Binding MunicipalAppointmentsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
-    </StackPanel></Border>
-    <Border Style="{StaticResource Card}"><StackPanel IsEnabled="{Binding CanOperate}">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18"><StackPanel IsEnabled="{Binding CanOperate}">
       <TextBlock Text="{Binding UnitDraftTitle}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="Informe coordenadas verificadas em graus decimais; valores negativos indicam sul e oeste." Style="{StaticResource Muted}" Margin="0,8,0,16" />
       <TextBlock Text="Nome da UBS" /><TextBox Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da UBS" Margin="0,5,0,12" />
+      <TextBlock Text="{Binding UnitNameError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitNameError, Converter={StaticResource TextVisibility}}" />
       <TextBlock Text="Região" /><TextBox Text="{Binding UnitRegion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Região da UBS" Margin="0,5,0,12" />
+      <TextBlock Text="{Binding UnitRegionError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitRegionError, Converter={StaticResource TextVisibility}}" />
       <TextBlock Text="Endereço" /><TextBox Text="{Binding UnitAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da UBS" Margin="0,5,0,12" />
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions><StackPanel Margin="0,0,8,0"><TextBlock Text="Latitude" /><TextBox Text="{Binding UnitLatitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Latitude da UBS" Margin="0,5,0,12" /></StackPanel><StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Longitude" /><TextBox Text="{Binding UnitLongitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Longitude da UBS" Margin="0,5,0,12" /></StackPanel></Grid>
+      <TextBlock Text="{Binding UnitAddressError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitAddressError, Converter={StaticResource TextVisibility}}" />
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,8,0"><TextBlock Text="Latitude" /><TextBox Text="{Binding UnitLatitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Latitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLatitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLatitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
+        <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Longitude" /><TextBox Text="{Binding UnitLongitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Longitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLongitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLongitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
+      </Grid>
+      <TextBlock Text="{Binding UnitCoordinateWarning}" Style="{StaticResource FieldWarning}" Visibility="{Binding UnitCoordinateWarning, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
       <Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
     </StackPanel></Border>
   </StackPanel>

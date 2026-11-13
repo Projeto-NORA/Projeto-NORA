@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl x:Class="Nora.Desktop.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <UserControl.Resources>
     <Style x:Key="AppearanceCard" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -54,8 +54,16 @@
           <StackPanel Grid.Column="1" Margin="10,0,0,0"><TextBlock Text="{Binding Workspace.UnitLabelTitle}" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.UnitLabel}" /></Border></StackPanel>
           <StackPanel Grid.Row="1" Margin="0,14,10,0"><TextBlock Text="Perfil da conta" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.AccountRoleLabel}" /></Border></StackPanel>
         </Grid>
-        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail, senha e localidade" FontWeight="SemiBold" /><TextBlock Text="A tela está preparada para essas alterações, mas elas precisam ser salvas e validadas pela API. Até essa integração, nenhum dado pessoal é gravado somente neste computador." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
-        <WrapPanel Margin="0,14,0,0"><Button Content="Alterar nome e localidade" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar e-mail" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar senha" IsEnabled="False" ToolTip="Disponível quando a API de perfil estiver integrada." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /></WrapPanel>
+        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail e localidade" FontWeight="SemiBold" /><TextBlock Text="A API ainda não tem rota para alterar nome, e-mail ou localidade, por isso esses controles continuam indisponíveis. Nenhum dado pessoal é gravado somente neste computador. A senha já pode ser trocada no cartão abaixo." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
+        <WrapPanel Margin="0,14,0,0"><Button Content="Alterar nome e localidade" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar e-mail" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /></WrapPanel>
+      </StackPanel>
+    </Border>
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" x:Name="PasswordCard">
+      <StackPanel>
+        <TextBlock Text="Alterar senha" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="Informe a senha atual e escolha uma nova. Ao concluir, as outras sessões desta conta são encerradas; esta continua aberta. A senha nunca é salva neste computador." Style="{StaticResource Muted}" Margin="0,8,0,18" />
+        <TextBlock Text="Entre na conta para alterar a senha." Style="{StaticResource Muted}" Visibility="{Binding Workspace.IsSignedOut, Converter={StaticResource BoolVisibility}}" />
+        <views:ChangePasswordView DataContext="{Binding Workspace}" Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24">

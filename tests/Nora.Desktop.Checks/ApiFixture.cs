@@ -46,10 +46,30 @@ internal static partial class Program
         public List<Guid>? Granted { get; set; }
         /// <summary>UBS cujo banco "está fora do ar": qualquer rota dela responde 503 com problem+json.</summary>
         public HashSet<Guid> UnavailableUnits { get; } = [];
+        /// <summary>A conta entra com senha provisória: toda rota (exceto me, logout e troca de senha) responde 403 password-change-required até a troca.</summary>
+        public bool MustChangePassword { get; set; }
+        public string CurrentPassword { get; set; } = "isolated-test-password";
+        public List<(string Current, string New)> PasswordChanges { get; } = [];
+        public bool FailProvisioning { get; set; }
+        public bool NewUnitsPending { get; set; }
+        /// <summary>Resumo e indicadores respondem 503 service-unavailable (uma base de UBS fora do ar).</summary>
+        public bool FailNetwork503 { get; set; }
+        /// <summary>Sem consulta encerrada no período: o score devolvido é nulo.</summary>
+        public bool NoClosedAppointments { get; set; }
+        /// <summary>Cada requisição de indicadores fica retida até o teste liberá-la (ignora o cancelamento, como um servidor lento).</summary>
+        public bool HoldMetrics { get; set; }
+        public List<TaskCompletionSource<bool>> HeldMetrics { get; } = [];
+        public List<System.Collections.Specialized.NameValueCollection> MetricsQueries { get; } = [];
+        public List<System.Collections.Specialized.NameValueCollection> HistoryQueries { get; } = [];
+        public List<System.Collections.Specialized.NameValueCollection> SummaryQueries { get; } = [];
+        public List<HistoryEvent> History { get; } = [];
+        public List<StaffAccount> StaffAccounts { get; } = [new(StaffId, "Equipe Fixture", "attendant", "equipe@example.test", true, false)];
+        public (string FullName, string Cpf, string Email, string Role, string Password)? LastStaffCreate { get; private set; }
+        public string? LastStaffPassword { get; private set; }
 
         public HealthUnit AddUnit(HealthUnit unit) { units.Add(unit); State(unit.Id); return unit; }
-        public HealthUnit AddUnit(string name = "UBS de teste", string region = "Centro", double latitude = -23.5, double longitude = -46.6)
-            => AddUnit(new HealthUnit(Guid.NewGuid(), name, region, "Rua de teste, 10", latitude, longitude));
+        public HealthUnit AddUnit(string name = "UBS de teste", string region = "Centro", double latitude = -23.5, double longitude = -46.6, string? databaseState = null)
+            => AddUnit(new HealthUnit(Guid.NewGuid(), name, region, "Rua de teste, 10", latitude, longitude, databaseState ?? "ready"));
         private UnitState State(Guid unitId) => states.TryGetValue(unitId, out var state) ? state : states[unitId] = new();
         public UnitPatientRecord AddRegistry(Guid unitId, UnitPatientRecord record) { State(unitId).Registry.Add(record); return record; }
         public UnitPatientRecord AddRegistry(Guid unitId, string name, string cpf = "52998224725", string? email = null, string? phone = null, bool active = true)
@@ -85,7 +105,7 @@ internal static partial class Program
                 Scope = body.RootElement.GetProperty("scope").GetString()!;
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
                 var accountName = UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture";
-                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(AccountId, accountName, Scope == "obs" ? ObsRole : "manager", Scope)));
+                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(AccountId, accountName, Scope == "obs" ? ObsRole : "manager", Scope, MustChangePassword)));
             }
             if (request.Method == HttpMethod.Get && path == "/api/address/cep/01001000")
             {
@@ -93,6 +113,16 @@ internal static partial class Program
                 return Reply(new AddressInfo("01001000", "Praça da Sé", null, null, "Sé", "São Paulo", "SP", "3550308"));
             }
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
+            if (path == "/api/auth/password" && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var current = body.RootElement.GetProperty("currentPassword").GetString()!; var next = body.RootElement.GetProperty("newPassword").GetString()!;
+                if (current != CurrentPassword) return Problem(HttpStatusCode.BadRequest, "invalid-current-password");
+                if (next.Length is < 8 or > 256 || next == current) return Problem(HttpStatusCode.BadRequest, "invalid-input");
+                PasswordChanges.Add((current, next)); CurrentPassword = next; MustChangePassword = false;
+                return new(HttpStatusCode.NoContent);
+            }
+            if (MustChangePassword && path != "/api/auth/logout" && path != "/api/auth/me") return Problem(HttpStatusCode.Forbidden, "password-change-required");
             if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
@@ -206,9 +236,46 @@ internal static partial class Program
 
         private async Task<HttpResponseMessage> HandleMunicipalAsync(HttpRequestMessage request, string path, CancellationToken cancellationToken)
         {
-            if (path == "/api/municipal/staff" && request.Method == HttpMethod.Get) return Reply(new[] { new StaffAccount(StaffId, "Equipe Fixture", "attendant") });
-            if (path == $"/api/municipal/staff/{StaffId}/units" && request.Method == HttpMethod.Get) return Reply(units.Where(unit => staffUnitIds.Contains(unit.Id)).ToArray());
-            if (path.StartsWith($"/api/municipal/staff/{StaffId}/units/", StringComparison.Ordinal))
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            if (path == "/api/municipal/staff" && request.Method == HttpMethod.Get) return Reply(StaffAccounts.ToArray());
+            if (path == "/api/municipal/staff" && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var root = body.RootElement;
+                var fullName = root.GetProperty("fullName").GetString()!; var cpf = root.GetProperty("cpf").GetString()!; var email = root.GetProperty("email").GetString()!;
+                var role = root.GetProperty("role").GetString()!; var password = root.GetProperty("password").GetString()!;
+                LastStaffCreate = (fullName, cpf, email, role, password);
+                if (role is not ("attendant" or "administrator") || fullName.Trim().Length < 2 || !Nora.Desktop.Services.BrazilianDataValidator.IsValidCpf(cpf) || !Nora.Desktop.Services.BrazilianDataValidator.IsValidEmail(email) || password.Length is < 8 or > 256)
+                    return Problem(HttpStatusCode.BadRequest, "invalid-input");
+                if (StaffAccounts.Any(item => item.Email == email)) return Problem(HttpStatusCode.Conflict, "conflict");
+                var created = new StaffAccount(Guid.NewGuid(), fullName, role, email, true, true);
+                StaffAccounts.Add(created); History.Add(new(DateTimeOffset.UtcNow, "staff-created", "Gestor Fixture", null, null, fullName));
+                return new(HttpStatusCode.Created) { Content = JsonContent.Create(created) };
+            }
+            var staffParts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (staffParts is ["api", "municipal", "staff", var staffText, "active"] && request.Method == HttpMethod.Patch)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                Require(body.RootElement.GetProperty("confirmed").GetBoolean(), "Alteração de conta sem confirmação.");
+                var index = StaffAccounts.FindIndex(item => item.Id == Guid.Parse(staffText)); if (index < 0) return Problem(HttpStatusCode.NotFound, "not-found");
+                var active = body.RootElement.GetProperty("isActive").GetBoolean();
+                StaffAccounts[index] = StaffAccounts[index] with { IsActive = active };
+                History.Add(new(DateTimeOffset.UtcNow, active ? "staff-reactivated" : "staff-deactivated", "Gestor Fixture", null, null, StaffAccounts[index].FullName));
+                return new(HttpStatusCode.NoContent);
+            }
+            if (staffParts is ["api", "municipal", "staff", var resetText, "password"] && request.Method == HttpMethod.Post)
+            {
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                Require(body.RootElement.GetProperty("confirmed").GetBoolean(), "Redefinição sem confirmação.");
+                var index = StaffAccounts.FindIndex(item => item.Id == Guid.Parse(resetText)); if (index < 0) return Problem(HttpStatusCode.NotFound, "not-found");
+                LastStaffPassword = body.RootElement.GetProperty("password").GetString();
+                StaffAccounts[index] = StaffAccounts[index] with { MustChangePassword = true };
+                History.Add(new(DateTimeOffset.UtcNow, "staff-password-reset", "Gestor Fixture", null, null, StaffAccounts[index].FullName));
+                return new(HttpStatusCode.NoContent);
+            }
+            if (path.StartsWith("/api/municipal/staff/", StringComparison.Ordinal) && path.EndsWith("/units", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+                return Reply(units.Where(unit => staffUnitIds.Contains(unit.Id)).ToArray());
+            if (path.StartsWith("/api/municipal/staff/", StringComparison.Ordinal) && path.Contains("/units/", StringComparison.Ordinal))
             {
                 var id = Guid.Parse(path.Split('/').Last());
                 if (request.Method == HttpMethod.Put) staffUnitIds.Add(id);
@@ -216,15 +283,43 @@ internal static partial class Program
                 else throw new InvalidOperationException("Método não previsto para vínculo.");
                 return new(HttpStatusCode.NoContent);
             }
+            if (path == "/api/municipal/history" && request.Method == HttpMethod.Get)
+            {
+                HistoryQueries.Add(query);
+                var limit = query["limit"] is { } limitText ? int.Parse(limitText, CultureInfo.InvariantCulture) : 100;
+                DateTimeOffset? from = query["from"] is { } f ? DateTimeOffset.Parse(f, CultureInfo.InvariantCulture) : null, to = query["to"] is { } t ? DateTimeOffset.Parse(t, CultureInfo.InvariantCulture) : null, before = query["before"] is { } b ? DateTimeOffset.Parse(b, CultureInfo.InvariantCulture) : null;
+                Guid? unit = query["unitId"] is { } u ? Guid.Parse(u) : null;
+                return Reply(History.Where(item => (from is null || item.OccurredAt >= from) && (to is null || item.OccurredAt < to) && (before is null || item.OccurredAt < before) && (unit is null || item.UnitId == unit))
+                    .OrderByDescending(item => item.OccurredAt).Take(limit).ToArray());
+            }
+            if (path == "/api/municipal/metrics" && request.Method == HttpMethod.Get)
+            {
+                MetricsQueries.Add(query);
+                if (FailNetwork503) return Problem(HttpStatusCode.ServiceUnavailable, "service-unavailable");
+                if (HoldMetrics) { var held = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldMetrics.Add(held); await held.Task; }
+                return Reply(BuildMetrics(DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture), DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture), query["unitId"] is { } unitText ? Guid.Parse(unitText) : null, query["region"], query["specialty"]));
+            }
+            if (path.StartsWith("/api/municipal/units/", StringComparison.Ordinal) && path.EndsWith("/database", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
+            {
+                var id = Guid.Parse(path.Split('/')[4]); var index = units.FindIndex(unit => unit.Id == id); if (index < 0) return Problem(HttpStatusCode.NotFound, "not-found");
+                if (FailProvisioning) return Problem(HttpStatusCode.ServiceUnavailable, "database-provisioning-failed");
+                units[index] = units[index] with { DatabaseState = "ready" };
+                History.Add(new(DateTimeOffset.UtcNow, "unit-database-created", "Gestor Fixture", id, units[index].Name, null));
+                return Reply(units[index]);
+            }
             if (path.StartsWith("/api/municipal/units/", StringComparison.Ordinal) && path.EndsWith("/registry", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
             {
                 var id = Guid.Parse(path.Split('/')[4]);
                 Require(units.Any(unit => unit.Id == id), "Consulta solicitou uma UBS inexistente.");
-                return Reply(new[] { new UnitPatientRecord("52998224725", "Paciente Sintético", "registered@example.test") });
+                return Reply(new[] { new UnitPatientRecord("52998224725", "Paciente Sintético", "registered@example.test", "+5511999990000", new AddressInfo("01001000", "Praça da Sé", "10", null, "Sé", "São Paulo", "SP"), true, true, new DateTimeOffset(2026, 3, 12, 15, 30, 0, TimeSpan.Zero)), new UnitPatientRecord("11144477735", "Outro Paciente", "outro@example.test", null, null, false, false, new DateTimeOffset(2026, 4, 2, 9, 0, 0, TimeSpan.Zero)) });
             }
             if (path.StartsWith("/api/municipal/units/", StringComparison.Ordinal) && path.EndsWith("/appointments", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
             {
                 var id = Guid.Parse(path.Split('/')[4]); Require(units.Any(unit => unit.Id == id), "Agenda solicitou UBS inexistente.");
+                var from = DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture); var to = DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture);
+                Require(to - from <= TimeSpan.FromDays(366), "Intervalo acima de 366 dias.");
+                LastAppointmentRange = (from, to);
+                if (State(id).Appointments.Count > 0) return Reply(State(id).Appointments.Where(item => item.StartsAt >= from && item.StartsAt < to).ToArray());
                 var start = DateTimeOffset.UtcNow.AddDays(1);
                 return Reply(new[] { new AppointmentInfo(Guid.NewGuid(), "52998224725", "Paciente Sintético", "Clínica", "Profissional", start, start.AddMinutes(30), "scheduled") });
             }
@@ -233,12 +328,53 @@ internal static partial class Program
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
                 var id = request.Method == HttpMethod.Post ? Guid.NewGuid() : Guid.Parse(path.Split('/').Last());
-                var unit = new HealthUnit(id, body.RootElement.GetProperty("name").GetString()!, body.RootElement.GetProperty("region").GetString()!, body.RootElement.GetProperty("address").GetString()!, body.RootElement.GetProperty("latitude").GetDouble(), body.RootElement.GetProperty("longitude").GetDouble());
+                var state = request.Method == HttpMethod.Post ? (NewUnitsPending ? "pending" : "ready") : units.FirstOrDefault(existing => existing.Id == id)?.DatabaseState ?? "ready";
+                var unit = new HealthUnit(id, body.RootElement.GetProperty("name").GetString()!, body.RootElement.GetProperty("region").GetString()!, body.RootElement.GetProperty("address").GetString()!, body.RootElement.GetProperty("latitude").GetDouble(), body.RootElement.GetProperty("longitude").GetDouble(), state);
                 units.RemoveAll(existing => existing.Id == id); AddUnit(unit); return Reply(unit);
             }
             if (path == "/api/municipal/summary")
-                return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)]));
+            {
+                SummaryQueries.Add(query);
+                if (FailNetwork503) return Problem(HttpStatusCode.ServiceUnavailable, "service-unavailable");
+                var pending = units.Count(unit => unit.DatabasePending);
+                return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending));
+            }
             throw new InvalidOperationException("Rota inesperada da fixture: " + request.Method + " " + path);
+        }
+
+        /// <summary>Indicadores sintéticos e determinísticos: cada UBS da fixture tem números próprios e os filtros restringem o resultado como no servidor.</summary>
+        private NetworkMetrics BuildMetrics(DateTimeOffset from, DateTimeOffset to, Guid? unitId, string? region, string? specialty)
+        {
+            var ready = units.Where(unit => !unit.DatabasePending).ToList();
+            var scoped = ready.Where(unit => (unitId is null || unit.Id == unitId) && (string.IsNullOrEmpty(region) || string.Equals(unit.Region, region, StringComparison.OrdinalIgnoreCase))).ToList();
+            AppointmentMetrics Appointments(int index)
+            {
+                var completed = NoClosedAppointments ? 0 : 10 * (index + 1); var missed = NoClosedAppointments ? 0 : 2 * (index + 1);
+                var weight = NoClosedAppointments ? 0 : 0.5 * index;
+                return new(1, 0, completed, missed, NoClosedAppointments ? 0 : index + 1, NoClosedAppointments ? 0 : index, weight, completed + missed + weight == 0 ? null : Math.Round(completed / (completed + missed + weight), 4));
+            }
+            WaitingMetrics Waiting(int index) => new(3 * (index + 1), 2 * (index + 1), index + 1, 90 * (index + 1), 1500);
+            LightningMetrics Lightning(int index) => new(index + 1, index, 1, 0);
+            var byUnit = scoped.Select(unit => { var index = ready.IndexOf(unit); return new UnitMetricsSummary(unit.Id, unit.Name, unit.Region, Appointments(index), Waiting(index), Lightning(index)); }).ToArray();
+            var byRegion = byUnit.GroupBy(item => item.Region, StringComparer.OrdinalIgnoreCase).Select(group =>
+            {
+                var completed = group.Sum(item => item.Appointments.Completed); var missed = group.Sum(item => item.Appointments.Missed); var weight = group.Sum(item => item.Appointments.CancellationWeight);
+                return new RegionMetricsSummary(group.Key, new(0, 0, completed, missed, group.Sum(item => item.Appointments.Cancelled), group.Sum(item => item.Appointments.CancelledByPatient), weight, completed + missed + weight == 0 ? null : Math.Round(completed / (completed + missed + weight), 4)),
+                    new(group.Sum(item => item.Waiting.ActiveEntries), group.Sum(item => item.Waiting.WaitingPatients), group.Sum(item => item.Waiting.AcceptedEntries), group.Average(item => item.Waiting.AverageWaitMinutes), 1500), new(0, 0, 0, 0));
+            }).ToArray();
+            var totalCompleted = byUnit.Sum(item => item.Appointments.Completed); var totalMissed = byUnit.Sum(item => item.Appointments.Missed); var totalWeight = byUnit.Sum(item => item.Appointments.CancellationWeight);
+            var totals = new MetricsSummary(
+                new(byUnit.Sum(item => item.Appointments.Scheduled), 0, totalCompleted, totalMissed, byUnit.Sum(item => item.Appointments.Cancelled), byUnit.Sum(item => item.Appointments.CancelledByPatient), totalWeight, totalCompleted + totalMissed + totalWeight == 0 ? null : Math.Round(totalCompleted / (totalCompleted + totalMissed + totalWeight), 4)),
+                byUnit.Length == 0 ? new(0, 0, 0, null, null) : new(byUnit.Sum(item => item.Waiting.ActiveEntries), byUnit.Sum(item => item.Waiting.WaitingPatients), byUnit.Sum(item => item.Waiting.AcceptedEntries), byUnit.Average(item => item.Waiting.AverageWaitMinutes), 1500),
+                new(byUnit.Sum(item => item.Lightning.RegisteredSlots), byUnit.Sum(item => item.Lightning.AcceptedOffers), byUnit.Sum(item => item.Lightning.DeclinedOffers), 0));
+            var specialties = new[]
+            {
+                new SpecialtyMetrics("Clínica geral", 30, 6, 3, 1.2, NoClosedAppointments ? null : 0.8, 5, 120),
+                new SpecialtyMetrics("Pediatria", 12, 2, 1, 0.4, NoClosedAppointments ? null : 0.8571, 2, null)
+            }.Where(item => string.IsNullOrEmpty(specialty) || string.Equals(item.Specialty, specialty, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var firstDay = DateOnly.FromDateTime(from.LocalDateTime);
+            var daily = byUnit.Length == 0 || NoClosedAppointments ? [] : Enumerable.Range(0, Math.Min(5, Math.Max(1, (int)(to - from).TotalDays))).Select(offset => new DailyMetrics(firstDay.AddDays(offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 1, 3 * byUnit.Length + offset, offset % 2, 1)).ToArray();
+            return new(from, to, totals, byUnit, byRegion, specialties, daily, units.Count(unit => unit.DatabasePending));
         }
 
         private static HttpResponseMessage Problem(HttpStatusCode status, string code) => new(status)

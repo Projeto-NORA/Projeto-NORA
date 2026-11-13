@@ -6,6 +6,7 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
     <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+      <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
       <DockPanel Margin="16,24">
         <StackPanel DockPanel.Dock="Top">
           <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="18" Padding="14" Margin="0,0,0,22">
@@ -129,8 +130,12 @@
         <Grid />
       </DockPanel>
     </Border>
-    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral." />
-    <Grid Grid.Column="2" Background="{DynamicResource BackgroundGradientBrush}">
+    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral.">
+      <GridSplitter.Style><Style TargetType="GridSplitter"><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></GridSplitter.Style>
+    </GridSplitter>
+    <Grid Background="{DynamicResource BackgroundGradientBrush}">
+      <!-- Troca obrigatória de senha: sem menu lateral, a área principal ocupa a janela inteira. -->
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Grid.Column" Value="2" /><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Grid.Column" Value="0" /><Setter Property="Grid.ColumnSpan" Value="3" /></DataTrigger></Style.Triggers></Style></Grid.Style>
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
@@ -182,6 +187,7 @@
         <Grid x:Name="PageContainer" Margin="32,32,32,24">
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
+          <views:PasswordChangeRequiredView DataContext="{Binding Workspace}" Visibility="{Binding MustChangePassword, Converter={StaticResource BoolVisibility}}" />
         </Grid>
       </ScrollViewer>
       <Border Grid.Row="3" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">

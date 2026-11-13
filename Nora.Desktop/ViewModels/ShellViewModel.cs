@@ -25,10 +25,12 @@ public sealed class ShellViewModel : ObservableObject
     public string Status { get => status; private set { status = value; Notify(); } }
     public bool HasPreferenceError => storage.Error != null;
     public string Page { get => page; private set { page = value; Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); Notify(nameof(SectionSummary)); } }
-    public bool IsHome => Page != "settings";
-    public bool IsSettings => Page == "settings";
-    public string PageLabel => Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
-    public string SectionSummary => Page switch
+    public bool IsHome => Page != "settings" && !ShowPasswordRequired;
+    public bool IsSettings => Page == "settings" && !ShowPasswordRequired;
+    /// <summary>Senha provisória: a janela mostra só a definição da nova senha (e Sair), sem menu nem dados.</summary>
+    public bool ShowPasswordRequired => Workspace.MustChangePassword;
+    public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
+    public string SectionSummary => ShowPasswordRequired ? "Troca obrigatória da senha provisória" : Page switch
     {
         "home" => IsMunicipal ? "Panorama e prioridades da rede" : "Visão operacional e prioridades do dia",
         "units" => "Acompanhe as unidades da rede",
@@ -87,6 +89,11 @@ public sealed class ShellViewModel : ObservableObject
     {
         Profile = profile;
         Workspace = new(profile, api);
+        Workspace.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName != nameof(WorkspaceViewModel.MustChangePassword)) return;
+            foreach (var name in new[] { nameof(ShowPasswordRequired), nameof(IsHome), nameof(IsSettings), nameof(PageLabel), nameof(SectionSummary) }) Notify(name);
+        };
         this.storage = storage;
         this.themes = themes;
         preferences = storage.Load();
@@ -106,7 +113,7 @@ public sealed class ShellViewModel : ObservableObject
     }
     public void Navigate(string destination)
     {
-        if (destination != "settings" && !Navigation.Any(n => n.Id == destination && n.Available)) return;
+        if (ShowPasswordRequired || (destination != "settings" && !Navigation.Any(n => n.Id == destination && n.Available))) return;
         Workspace.Section = destination;
         Page = destination;
         if (SaveNavigation) { preferences.LastPage = Page; Persist(); }

@@ -1,5 +1,6 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:g="clr-namespace:Nora.Desktop.Generics">
   <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+  <g:TextVisibilityConverter x:Key="TextVisibility" />
   <Style TargetType="TextBlock">
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
@@ -339,4 +340,28 @@
     <Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="14,8" /><Setter Property="Margin" Value="24,0,24,16" /><Setter Property="MaxWidth" Value="860" /><Setter Property="VerticalAlignment" Value="Bottom" />
     <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.16" /></Setter.Value></Setter>
   </Style>
+  <!-- Mensagem junto ao campo: a cor reforça, mas o texto sempre diz o que corrigir. -->
+  <Style x:Key="FieldError" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="0,-10,0,12" />
+  </Style>
+  <Style x:Key="FieldWarning" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="0,-6,0,12" />
+  </Style>
+  <DataTemplate x:Key="MetricCardTemplate">
+    <Border Style="{StaticResource Card}" Margin="6" Padding="20" AutomationProperties.Name="{Binding AutomationLabel}">
+      <StackPanel>
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" />
+        <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,10,0,4" />
+        <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="11" LineHeight="16" />
+      </StackPanel>
+    </Border>
+  </DataTemplate>
+  <ItemsPanelTemplate x:Key="ThreeColumnPanel"><UniformGrid Columns="3" /></ItemsPanelTemplate>
 </ResourceDictionary>

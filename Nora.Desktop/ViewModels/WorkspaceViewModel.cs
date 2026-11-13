@@ -31,12 +31,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     [
         nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(CanReadUnitRegistry),
         nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment), nameof(CanCreateLightning),
-        nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit)
+        nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
+        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanQueryHistory), nameof(MetricsLoading)
     ];
     private static readonly string[] SessionDependents =
     [
         nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
-        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit)
+        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState)
     ];
     private static readonly string[] SectionDependents =
     [
@@ -63,15 +64,16 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         SelectAgendaDayCommand = new RelayCommand(_ => AgendaViewMode = "Dia");
         SelectAgendaWeekCommand = new RelayCommand(_ => AgendaViewMode = "Semana");
         SelectCalendarDayCommand = new RelayCommand(day => SelectCalendarDay(day as AgendaCalendarDay));
-        BuildAgendaDays();
+        BuildAgendaDays(); ResetAgendaRange();
+        Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
     }
 
     public string Endpoint { get => endpoint; set { endpoint = value; Notify(); } }
     public string Identifier { get => identifier; set { identifier = value; Notify(); } }
     /// <summary>Há trabalho em andamento: ação do usuário, ciclo automático ou carga de seção.</summary>
     public bool IsBusy => userBusy || backgroundOperations > 0;
-    /// <summary>A barra de progresso só acompanha ação pedida pelo usuário; a atualização automática é silenciosa.</summary>
-    public bool ShowProgress => userBusy;
+    /// <summary>A barra de progresso acompanha ação pedida pelo usuário e a consulta disparada por filtro; a atualização automática é silenciosa.</summary>
+    public bool ShowProgress => userBusy || networkLoading > 0;
     public bool IsAuthenticated => user != null;
     public bool IsSignedOut => !IsAuthenticated;
     /// <summary>Botões e formulários só ficam bloqueados por ação do usuário; a atualização automática não os desabilita.</summary>
@@ -152,7 +154,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public string SlotOpenCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(entry => entry.Status is "open" or "offered").ToString() : "—";
 
     public string PatientCount => summary?.Patients.ToString() ?? "—";
+    public string InactiveCount => summary?.InactivePatients?.ToString() ?? "—";
     public string WaitingCount => summary?.WaitingPatients.ToString() ?? "—";
+    public string WaitingEntriesCount => summary?.WaitingEntries?.ToString() ?? "—";
+    /// <summary>Totais "agora" do resumo da rede (respeitam o filtro de UBS, não o de período).</summary>
+    public System.Collections.ObjectModel.ObservableCollection<MetricCard> SummaryCards { get; } = [];
+    private MetricCard[] BuildSummaryCards() =>
+    [
+        new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo em alguma UBS (CPF contado uma vez)"),
+        new("Desativados", InactiveCount, "Pessoas que só têm cadastro desativado"),
+        new("Pacientes aguardando", WaitingCount, "Pessoas na fila agora (CPF contado uma vez)"),
+        new("Solicitações na fila", WaitingEntriesCount, "Entradas ativas: uma pessoa pode ter mais de uma"),
+        new("Vagas abertas", SlotCount, "Vagas abertas ou ofertadas agora"),
+        new("Ofertas aceitas", AcceptedCount, "Total histórico; não confirma o atendimento")
+    ];
     public string SlotCount => summary?.OpenSlots.ToString() ?? "—";
     public string AcceptedCount => summary?.AcceptedOffers.ToString() ?? "—";
     public string RegisteredSlotsCount => summary?.RegisteredSlots?.ToString() ?? "—";
@@ -161,6 +176,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public string ExpiredOffersCount => summary?.ExpiredOffers?.ToString() ?? "—";
     public string PendingOffersCount => summary?.PendingOffers?.ToString() ?? "—";
     public string CancelledOffersCount => summary?.CancelledOffers?.ToString() ?? "—";
+    public static IReadOnlyList<PeriodOption> LightningPeriodOptions { get; } =
+        [new(0, "Todo o histórico"), new(7, "Últimos 7 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias")];
     public int LightningPeriodDays
     {
         get => lightningPeriodDays;
@@ -184,19 +201,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] LightningNames =
         [nameof(CanFilterLightning), nameof(LightningOpen), nameof(LightningAccepted), nameof(LightningRegistered), nameof(LightningCreated), nameof(LightningDeclined), nameof(LightningExpired), nameof(LightningPending), nameof(LightningCancelled)];
     private static readonly string[] SummaryNames =
-        [nameof(PatientCount), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
+        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
     private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); }
     public bool CanExportSummary => IsAuthenticated && summary != null;
     public string SummaryReceivedLabel => summaryReceivedAt is { } time ? $"Recebido em {time.ToLocalTime():dd/MM/yyyy HH:mm:ss}" : "Nenhum resumo carregado";
     public string CreateSummaryCsv()
     {
         if (!CanExportSummary || summary is null || summaryReceivedAt is null) throw new InvalidOperationException("Nenhum resumo disponível para exportar.");
-        return Nora.Desktop.Services.MunicipalCsv.Create(summary, summaryReceivedAt.Value, LightningPeriodDays, appliedSummaryUnitId);
+        return Nora.Desktop.Services.MunicipalCsv.Create(summary, summaryReceivedAt.Value, LightningPeriodDays, appliedSummaryUnitId is null ? null : AppliedSummaryUnitLabel);
     }
     private void NotifySummary()
     {
         NotifyLightning();
         foreach (var name in SummaryNames) Notify(name);
+        Replace(SummaryCards, BuildSummaryCards());
     }
     public ICommand RefreshCommand { get; }
     public ICommand LogoutCommand { get; }
@@ -212,16 +230,21 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         api.Configure(Endpoint);
         var session = await api.LoginAsync(profile.Id, Identifier.Trim(), password);
         user = session.User;
-        NotifySession();
+        mustChangePassword = session.User.MustChangePassword;
+        NotifySession(); Notify(nameof(MustChangePassword));
+        // Senha provisória: nenhum dado é lido até a pessoa definir a senha nova.
+        if (mustChangePassword) { Say(MessageKind.Info, "Esta conta usa uma senha provisória. Defina uma nova senha para continuar."); return; }
         refreshTimer.Start();
-        try
-        {
-            if (IsMunicipal) await LoadSummaryAsync();
-            else await InitializeObsUnitsAsync();
-            MarkFresh();
-        }
+        try { await LoadAfterLoginAsync(); }
         catch (NoraApiException error) when (!error.Unauthorized) { RegisterRefreshFailure(error.Message, show: false); throw; }
     });
+
+    /// <summary>Carga inicial depois do login (ou da troca obrigatória de senha): rede e UBS na Secretaria; UBS autorizadas no OBS.</summary>
+    private async Task LoadAfterLoginAsync()
+    {
+        if (IsMunicipal) await LoadMunicipalAsync(); else await InitializeObsUnitsAsync();
+        MarkFresh();
+    }
 
     private async Task LogoutAsync()
     {
@@ -234,23 +257,37 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         Say(MessageKind.Success, "Você saiu da conta.");
     }
 
-    private async Task LoadSummaryAsync()
+    /// <summary>Resumo, UBS e indicadores da rede em paralelo; cada parte se aplica assim que chega, mesmo que outra falhe.</summary>
+    private Task LoadMunicipalAsync() => Task.WhenAll(LoadSummaryAsync(), LoadUnitsCoreAsync(), LoadMetricsAsync(networkVersion));
+
+    /// <summary>Resumo da rede com o filtro de UBS atual. Sem mudança de conteúdo nada é recalculado, só o horário da leitura.</summary>
+    private async Task LoadSummaryAsync(int version = -1, CancellationToken cancellation = default)
     {
-        var result = await api.SummaryAsync(appliedSummaryUnitId);
-        if (disposed) return;
-        summary = result;
-        if (LightningPeriodDays != 0 && CurrentLightningCohort == null) LightningPeriodDays = 0;
+        if (version < 0) version = networkVersion;
+        Guid? unit = summaryUnitFilter == Guid.Empty ? null : summaryUnitFilter;
+        var result = await api.SummaryAsync(unit, cancellation);
+        if (disposed || !IsAuthenticated || version != networkVersion || cancellation.IsCancellationRequested) return;
         summaryReceivedAt = DateTimeOffset.Now;
-        NotifySummary();
+        if (summary is not null && appliedSummaryUnitId == unit && System.Text.Json.JsonSerializer.Serialize(summary) == System.Text.Json.JsonSerializer.Serialize(result)) { Notify(nameof(SummaryReceivedLabel)); return; }
+        summary = result; appliedSummaryUnitId = unit;
+        if (LightningPeriodDays != 0 && CurrentLightningCohort == null) LightningPeriodDays = 0;
+        NotifySummary(); Notify(nameof(MetricsScopeLabel));
     }
 
-    /// <summary>Lê o que a seção atual precisa. Municipal: resumo da rede. OBS: dados da UBS ativa, ou a lista de UBS quando ela ainda não veio.</summary>
+    /// <summary>Lê o que a seção atual precisa. Municipal: resumo da rede, indicadores (só nas seções que os mostram) e UBS (em Unidades). OBS: dados da UBS ativa, ou a lista de UBS quando ela ainda não veio.</summary>
     private async Task RefreshAsync(UnitScope scope)
     {
-        if (IsMunicipal) { await LoadSummaryAsync(); return; }
+        if (mustChangePassword) return;
+        if (IsMunicipal)
+        {
+            var version = networkVersion;
+            await Task.WhenAll(LoadSummaryAsync(version), NetworkSections.Contains(Section) ? LoadMetricsAsync(version) : Task.CompletedTask, Section == "units" || !UnitsLoaded ? LoadUnitsCoreAsync() : Task.CompletedTask);
+            return;
+        }
         if (ActiveObsUnit is { } unit) { if (scope != UnitScope.None) await LoadUnitScopeAsync(unit, scope); return; }
         if (!ObsUnitsLoaded) await InitializeObsUnitsAsync();
     }
+    private static readonly HashSet<string> NetworkSections = ["home", "units", "specialties", "indicators"];
 
     /// <summary>Ação do usuário: uma por vez, aguarda o ciclo automático em andamento e depois executa; nunca é descartada em silêncio.</summary>
     private async Task RunAsync(Func<Task> operation)
@@ -266,7 +303,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
                 if (disposed) return;
                 await operation();
             }
-            catch (NoraApiException error) { if (error.Unauthorized && IsAuthenticated) SignOut(); Say(MessageKind.Error, error.Message); }
+            catch (NoraApiException error)
+            {
+                if (error.Code == "password-change-required" && IsAuthenticated) { EnterPasswordChange(); return; }
+                if (error.Unauthorized && IsAuthenticated) SignOut();
+                Say(MessageKind.Error, error.Message);
+            }
             finally { gate.Release(); }
         }
         finally { SetUserBusy(false); }
@@ -291,7 +333,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             catch (NoraApiException error)
             {
                 if (disposed) return;
-                if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); }
+                if (error.Code == "password-change-required") EnterPasswordChange();
+                else if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); }
                 else RegisterRefreshFailure(error.Message, show: true);
             }
             finally { gate.Release(); }
@@ -314,8 +357,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private bool sectionLoadPending;
     private void OnSectionEntered()
     {
-        if (disposed || !IsAuthenticated) return;
-        if (IsMunicipal || ScopeFor(Section) == UnitScope.None) return;
+        if (disposed || !IsAuthenticated || mustChangePassword) return;
+        if (IsMunicipal) { EnterMunicipalSection(); return; }
+        if (ScopeFor(Section) == UnitScope.None) return;
         sectionLoadPending = true;
         StartBackground(() =>
         {
@@ -325,15 +369,35 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         });
     }
 
-    private void SignOut()
+    /// <summary>Secretaria: as contas e o histórico carregam ao abrir Usuários e histórico; os indicadores só se ainda não vieram.</summary>
+    private void EnterMunicipalSection()
     {
-        refreshTimer.Stop();
-        api.ClearSession(); user = null; summary = null; summaryReceivedAt = null; LightningPeriodDays = 0;
+        if (Section == "users" && (!staffLoaded || !historyLoaded))
+            StartBackground(async () =>
+            {
+                if (!staffLoaded) await LoadStaffCoreAsync();
+                if (!historyLoaded) await LoadHistoryPageAsync(reset: true);
+            });
+        else if (NetworkSections.Contains(Section) && metrics is null && networkLoading == 0) ReloadNetwork(includeSummary: false);
+    }
+
+    /// <summary>Tira da memória tudo o que foi lido da API (a sessão continua): usado ao sair e ao exigir a troca da senha provisória.</summary>
+    private void ResetLoadedData()
+    {
+        summary = null; summaryReceivedAt = null; LightningPeriodDays = 0;
         ClearRefreshState();
         NotifySummary();
         ClearObsUnits(); ClearStaff(); ClearUnits();
+    }
+
+    private void SignOut()
+    {
+        refreshTimer.Stop();
+        api.ClearSession(); user = null; mustChangePassword = false;
+        ResetLoadedData();
         Identifier = "";
-        NotifySession();
+        ClearPasswordErrors();
+        NotifySession(); Notify(nameof(MustChangePassword));
     }
     private void NotifySession()
     {

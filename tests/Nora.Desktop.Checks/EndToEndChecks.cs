@@ -81,8 +81,8 @@ internal static partial class Program
                     var network = municipal.ViewModel.Workspace;
                     Require(network.PatientCount == "3" && network.WaitingCount == "2", "Resumo da Secretaria não agregou a rede sem duplicar paciente: " + network.Message);
                     Pump(network.LoadUnitsAsync()); network.SummaryUnitFilter = network.Units.Single(u => u.Name == "UBS Cadastro E2E 2").Id;
-                    Pump(network.ApplySummaryUnitAsync());
-                    Require(network.PatientCount == "1" && network.WaitingCount == "0" && network.CreateSummaryCsv().Contains(network.SummaryUnitFilter.ToString()), "Filtro de UBS ou escopo do CSV não refletiu a unidade: " + network.Message);
+                    PumpUntil(() => !network.IsBusy);
+                    Require(network.PatientCount == "1" && network.WaitingCount == "0" && network.CreateSummaryCsv().Contains("UBS Cadastro E2E 2"), "Filtro de UBS ou escopo do CSV não refletiu a unidade: " + network.Message);
                     network.SelectedUnit = network.Units.Single(u => u.Name == "UBS Cadastro E2E 1");
                     Pump(network.LoadMunicipalAppointmentsAsync());
                     Require(network.MunicipalAppointments.Any(a => a.PatientName == "Referência WPF " + suffix && a.Status == "cancelled"), "Secretaria não consultou a agenda real da UBS: " + network.Message);

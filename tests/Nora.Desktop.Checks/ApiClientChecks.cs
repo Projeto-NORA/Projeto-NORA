@@ -182,7 +182,7 @@ internal static partial class Program
                 Pump(vm.LoginAsync("isolated-test-password"));
                 vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua Teste"; vm.UnitLatitude = "-23.5"; vm.UnitLongitude = "-46.6";
                 Pump(vm.SaveUnitAsync()); Pump(vm.LoadUnitRegistryAsync());
-                Require(vm.UnitRegistry.Single().FullName == "Paciente Sintético", "Consulta de pacientes da UBS não atualizou a lista.");
+                Require(vm.UnitRegistry.Count == 2 && vm.UnitRegistry.Any(item => item.FullName == "Paciente Sintético"), "Consulta de pacientes da UBS não atualizou a lista.");
                 Pump(vm.LoadMunicipalAppointmentsAsync());
                 Require(vm.MunicipalAppointments.Single().PatientName == "Paciente Sintético", "Consulta de agenda da UBS não atualizou a lista.");
                 vm.SelectedUnit = null; Require(vm.UnitRegistry.Count == 0 && !vm.UnitRegistryLoaded, "Troca de UBS preservou dados anteriores.");
@@ -217,7 +217,7 @@ internal static partial class Program
                 Require(unitName.IsEnabled && vm.CanEditUnit == vm.HasSelectedUnit && vm.CanOperate && !vm.ShowProgress, "Atualização automática desabilitou o formulário de UBS ou acendeu a barra.");
                 unitName.Text = "Digitado durante a atualização"; Require(vm.UnitName == unitName.Text, "Formulário de UBS perdeu a digitação durante o ciclo.");
                 window.ViewModel.Navigate("users"); content = Layout(window, 980, 640);
-                Require(Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Conta OBS").IsEnabled, "Formulário de vínculos foi desabilitado pelo ciclo automático.");
+                Require(Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Contas OBS").IsEnabled && Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS para conceder acesso").IsEnabled, "Formulário de vínculos foi desabilitado pelo ciclo automático.");
                 fixture.PauseReads.TrySetResult(); Pump(refresh);
             }
             finally { fixture.PauseReads?.TrySetResult(); if (refresh != null) Pump(refresh); window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -266,9 +266,10 @@ internal static partial class Program
                     if (profile.IsMunicipal)
                     {
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
-                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Fila de ofertas · total atual"), "Indicador agregado não foi identificado.");
-                        // Período, Região e Especialidade seguem sem integração e desabilitados; o filtro de UBS já é real.
-                        Require(Descendants<ComboBox>(content).Count(box => !box.IsEnabled) == 3, "Filtros sem integração não foram desabilitados (ou o filtro de UBS foi desabilitado).");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes aguardando"), "Total de pacientes aguardando não apareceu na Visão geral.");
+                        // Os quatro filtros agora são reais: nenhum combo desabilitado nem rótulo "Indisponível".
+                        Require(Descendants<ComboBox>(content).Count(box => box.IsEnabled) == 4 && Descendants<ComboBox>(content).All(box => box.IsEnabled), "Os quatro filtros da rede deveriam estar habilitados.");
+                        Require(!Descendants<TextBlock>(content).Any(text => text.Text == "Indisponível") && !Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string),  "Ainda há filtro rotulado como indisponível.");
                     }
                     else
                     {
@@ -289,7 +290,7 @@ internal static partial class Program
                     Layout(window, 980, 640);
                     Require(vm.LightningPeriodDays == 7 && vm.LightningCreated == "2" && vm.LightningDeclined == "1", "Filtro não selecionou a coorte correta.");
                     var filteredCsv = vm.CreateSummaryCsv();
-                    Require(filteredCsv.Contains("Últimos 7 dias") && filteredCsv.Contains("Ofertas criadas;2;") && filteredCsv.Contains("Pacientes cadastrados;1;Total atual"), "CSV não refletiu o período e o escopo dos totais.");
+                    Require(filteredCsv.Contains("Últimos 7 dias") && filteredCsv.Contains("Ofertas criadas;2;") && filteredCsv.Contains("Pacientes cadastrados;1;"), "CSV não refletiu o período e o escopo dos totais.");
                     window.ViewModel.Navigate("units");
                     Layout(window, 980, 640); PumpUntil(() => !vm.IsBusy);
                     Require(vm.UnitsLoaded && vm.Units.Count == 1, "Cadastro não carregou as unidades da API.");
@@ -324,6 +325,10 @@ internal static partial class Program
         RunUnitFlowChecks(application, storageRoot, args);
         RunAgendaAndQueueChecks(application, storageRoot, args);
         RunMessageChecks(application, storageRoot, args);
+        RunSecretariaChecks(application, storageRoot, args);
+        RunSecretariaMetricsChecks(application, storageRoot, args);
+        RunPasswordChecks(application, storageRoot, args);
+        RunSecretariaCycleChecks(application, storageRoot, args);
         RunPatientInterfaceChecks(application, storageRoot, args);
         RunListingChecks(storageRoot, args);
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
