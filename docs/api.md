@@ -43,7 +43,7 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | GET /api/address/cep/{cep} | Público limitado | 200 endereço do CEP;404 inexistente; consulta somente os oito dígitos |
 | GET /api/auth/me | Sessão | 200 id/fullName/role/scope/mustChangePassword |
 | POST /api/auth/logout | Sessão | 204 |
-| POST /api/auth/password | Sessão limitada (10 por 10 min/IP) | 204; corpo `currentPassword` e `newPassword` (8 a 256); senha atual incorreta → 400 `invalid-current-password`; nova igual à atual → 400; limpa a troca obrigatória e revoga as outras sessões da conta |
+| POST /api/auth/password | Sessão limitada (10 por 10 min por conta autenticada) | 204; corpo `currentPassword` e `newPassword` (8 a 256); senha atual incorreta → 400 `invalid-current-password`; nova igual à atual → 400; limpa a troca obrigatória e revoga as outras sessões da conta |
 | GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/address/isOnline/isActive/createdAt, por cadastro mais recente |
 | POST /api/patients | OBS | 201; fullName/cpf/email/password validados; phone e address opcionais |
 | PATCH /api/patients/{id}/active | OBS atendente/administrador | 204; `isActive` booleano obrigatório; altera acesso e pendências atomicamente |
@@ -82,11 +82,17 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | GET /api/municipal/history?from=&to=&unitId=&limit=&before= | Municipal | 200 histórico de ações da gestão, mais recentes primeiro |
 | GET /api/patient/units/{unitId}/attendance | Paciente vinculado | 200 score do próprio paciente nos últimos 12 meses |
 | POST /api/patient/units/{unitId}/waiting-list/{id}/cancel | Paciente vinculado | 204; `confirmed: true`; só a própria entrada ativa |
-| POST /api/patient/units/{unitId}/unlink | Paciente vinculado limitado (10 por 10 min/IP) | 200 `cancelledAppointments` e `cancelledEntries`; remove o vínculo |
+| POST /api/patient/units/{unitId}/unlink | Paciente vinculado limitado (10 por 10 min por conta autenticada) | 200 `cancelledAppointments` e `cancelledEntries`; remove o vínculo |
 
 Fila: waiting/offered/completed/cancelled. Vaga: open/offered/accepted/closed (a vaga fica `closed` quando faltam menos de dez minutos para a consulta ou ela já começou, e não é mais ofertada). Oferta: pending/accepted/declined/expired/cancelled. Aguardando inclui waiting/offered; vagas abertas inclui open/offered; aceites conta accepted. Datas UTC no servidor, horário local nos clientes. O resumo municipal também fornece `registeredSlots` (vagas já criadas), `createdOffers` (ofertas criadas), `declinedOffers`, `expiredOffers`, `pendingOffers` e `cancelledOffers`. `pendingOffers` é estado atual; os demais são totais históricos. Uma oferta criada não prova envio de notificação e um aceite não confirma atendimento ou reaproveitamento clínico. Totais não são métricas de atendimento realizado.
 
 Prazo10min para todos. Transações/advisory lock serializam fila, ofertas, respostas/cancelamento/expiração. Prazo conferido nas operações e worker15s. Aceite vencido/limite não confirma. Recusa/expiração conclui ciclo da entrada e passa ao próximo; nova inclusão cria outro ciclo administrativo.
+
+## Limites de taxa, IP do cliente e proxy reverso
+
+Os limites das rotas públicas são por IP (`context.Connection.RemoteIpAddress`). Os das rotas autenticadas `POST /api/auth/password` e `POST /api/patient/units/{unitId}/unlink` são **por conta autenticada** (10 por 10 minutos cada): o limitador do ASP.NET Core roda antes da autenticação e só conhece o IP, que atrás de NAT ou proxy é compartilhado por muitas pessoas, então um filtro de endpoint (`AccountRateLimiter`), depois do filtro de sessão, usa o id da conta já validado, sem consulta extra ao banco. Uma conta esgotada recebe 429 sem afetar as demais, e trocar de sessão não zera o contador (o estado fica em memória do processo; reiniciar a API o zera).
+
+`X-Forwarded-For` e `X-Forwarded-Proto` são **ignorados por padrão**, para que um cliente não forje o IP usado pelos limites. Atrás de um proxy reverso (por exemplo no Render), declare os endereços confiáveis em `Nora:ForwardedHeaders:KnownProxies` (IPs) e/ou `Nora:ForwardedHeaders:KnownNetworks` (CIDR, ex.: `10.0.0.0/8`); em variáveis de ambiente, `Nora__ForwardedHeaders__KnownProxies__0=...` ou uma lista separada por vírgula. Só então o middleware é ligado, honra o cabeçalho apenas de conexões vindas desses endereços e lê só a entrada mais próxima (`ForwardLimit` 1). Endereço ou rede inválidos impedem a inicialização. Não defina `ASPNETCORE_FORWARDEDHEADERS_ENABLED`: ele ligaria o tratamento do cabeçalho sem a lista de proxies.
 
 ## Erros e verificação
 

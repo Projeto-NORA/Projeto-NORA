@@ -56,7 +56,7 @@ internal static class ApiEndpoints
         {
             await service.ChangePasswordAsync(Session(context),request,ct);
             return Results.NoContent();
-        }).RequireRateLimiting("password-change");
+        }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PasswordChange));
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context).User.Id, ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
@@ -203,7 +203,7 @@ internal static class ApiEndpoints
             var result = await access.ExecutePatientUnlinkAsync(session, unitId, cpf => unlink.CancelPendingAsync(unitId, session.User.Id, cpf, ct), ct);
             await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.Ok(result);
-        }).RequireRateLimiting("patient-unlink");
+        }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PatientUnlink));
         patient.MapGet("/patient/units/{unitId:guid}/attendance", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
             Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => registry.ReadOwnAttendanceAsync(unitId, cpf, ct), ct)));
         var legacyPatient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient")).AddEndpointFilter(new LegacyWorkflowFilter());
@@ -257,6 +257,15 @@ internal static class ApiEndpoints
         public ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
             => LegacyEnabled(invocation.HttpContext.RequestServices.GetRequiredService<IConfiguration>(), invocation.HttpContext.RequestServices.GetRequiredService<IHostEnvironment>())
                 ? next(invocation) : ValueTask.FromResult<object?>(Results.StatusCode(StatusCodes.Status403Forbidden));
+    }
+    /// <summary>Limite por conta autenticada; precisa vir depois do SessionFilter (filtros do grupo rodam antes dos do endpoint).</summary>
+    private sealed class AccountRateLimitFilter(string policy):IEndpointFilter
+    {
+        public ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation,EndpointFilterDelegate next)
+        {
+            invocation.HttpContext.RequestServices.GetRequiredService<AccountRateLimiter>().Require(policy,Session(invocation.HttpContext).User.Id);
+            return next(invocation);
+        }
     }
     private sealed class SessionFilter(string? scope,bool allowPasswordChangePending=false):IEndpointFilter
     {

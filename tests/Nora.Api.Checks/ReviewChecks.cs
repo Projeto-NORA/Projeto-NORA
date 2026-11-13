@@ -56,6 +56,39 @@ internal static class ReviewChecks
             return Task.CompletedTask;
         });
 
+        await Check("X-Forwarded-For: desligado por padrão e ignorado de quem não é proxy conhecido; com KnownProxies o IP do cliente vem do cabeçalho; entrada inválida impede a subida", async () =>
+        {
+            // /api/address/cep/{cep} (30 por minuto por IP) responde 400 sem consulta externa para CEP inválido: serve de sonda do IP usado pelo limitador.
+            async Task<int> Probe(string[] args, int requests)
+            {
+                await using var app = BuildApp(null, "unused", args, null);
+                await app.StartAsync();
+                try
+                {
+                    using var client = Client(app); var limited = 0;
+                    for (var i = 0; i < requests; i++)
+                    {
+                        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/address/cep/12ABC");
+                        request.Headers.Add("X-Forwarded-For", $"203.0.113.{i + 1}");
+                        using var response = await client.SendAsync(request);
+                        if ((int)response.StatusCode == 429) limited++; else Expect(response, 400);
+                    }
+                    return limited;
+                }
+                finally { await app.StopAsync(); }
+            }
+            Require(await Probe([], 31) == 1, "Sem KnownProxies o cabeçalho X-Forwarded-For deve ser ignorado (todas as chamadas são do mesmo IP).");
+            Require(await Probe(["--Nora:ForwardedHeaders:KnownProxies:0", "10.9.9.9"], 31) == 1, "Cabeçalho de quem não é proxy conhecido deve ser ignorado.");
+            Require(await Probe(["--Nora:ForwardedHeaders:KnownProxies:0", "127.0.0.1"], 31) == 0, "Com o proxy conhecido, cada IP do X-Forwarded-For deve ter o próprio limite.");
+            Require(await Probe(["--Nora:ForwardedHeaders:KnownNetworks:0", "127.0.0.0/8"], 31) == 0, "Com KnownNetworks cobrindo o proxy, cada IP do X-Forwarded-For deve ter o próprio limite.");
+            Require(await Probe(["--Nora:ForwardedHeaders:KnownProxies", "10.9.9.9,127.0.0.1"], 31) == 0, "Lista separada por vírgula (variável de ambiente) deve valer.");
+            foreach (var invalid in new[] { new[] { "--Nora:ForwardedHeaders:KnownProxies:0", "não-é-ip" }, ["--Nora:ForwardedHeaders:KnownNetworks:0", "10.0.0.0/99"] })
+            {
+                try { await using var rejected = BuildApp(null, "unused", invalid, null); throw new InvalidOperationException("Configuração inválida de proxy foi aceita."); }
+                catch (InvalidOperationException error) when (error.Message.Contains("ForwardedHeaders")) { }
+            }
+        });
+
         var connectionString = Environment.GetEnvironmentVariable("NORA_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -237,6 +270,29 @@ internal static class ReviewChecks
             Require(repaired["patient_registry_events_action_check"].Oid == after["patient_registry_events_action_check"].Oid && repaired["waiting_list_events_source_check"].Oid == after["waiting_list_events_source_check"].Oid, "Restrições corretas foram recriadas sem necessidade.");
         });
 
+        await Check("Limites de troca de senha e de remoção de vínculo são por conta autenticada, não por IP: uma conta esgotada não limita outra no mesmo IP", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var accounts = h.App.Services.GetRequiredService<AccountService>();
+            foreach (var n in new[] { 1, 2 }) await accounts.ProvisionAsync("patient", "patient", new($"Paciente {n}", Cpf(n), $"patient{n}@example.test", Password));
+            using var first = h.NewClient(); using var second = h.NewClient();
+            await Login(first, "patient", Cpf(1)); await Login(second, "patient", Cpf(2));
+            var unlinkPath = $"/api/patient/units/{Guid.NewGuid()}/unlink";
+            for (var i = 0; i < 10; i++)
+            {
+                using var wrong = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" }); await ExpectProblem(wrong, 400, "invalid-current-password");
+                using var unlink = await first.PostAsJsonAsync(unlinkPath, new { confirmed = true }); Expect(unlink, 403);
+            }
+            using (var limitedPassword = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" })) await ExpectProblem(limitedPassword, 429, "too-many-requests");
+            using (var limitedUnlink = await first.PostAsJsonAsync(unlinkPath, new { confirmed = true })) await ExpectProblem(limitedUnlink, 429, "too-many-requests");
+            // Outra conta, mesmo IP: o contador dela está intacto.
+            using (var otherPassword = await second.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" })) await ExpectProblem(otherPassword, 400, "invalid-current-password");
+            using (var otherUnlink = await second.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Expect(otherUnlink, 403);
+            // A mesma conta com outra sessão continua limitada (o limite é da conta, não do token).
+            using var again = h.NewClient(); await Login(again, "patient", Cpf(1));
+            using (var sameAccount = await again.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" })) await ExpectProblem(sameAccount, 429, "too-many-requests");
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
@@ -346,12 +402,14 @@ internal static class ReviewChecks
         }
     }
 
-    private static WebApplication BuildApp(string connection, string schema, string[]? extraArgs, Action<IServiceCollection>? services)
+    /// <param name="connection">Nulo sobe a API sem banco (só rotas que não o usam).</param>
+    private static WebApplication BuildApp(string? connection, string schema, string[]? extraArgs, Action<IServiceCollection>? services)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj"))) directory = directory.Parent;
-        var args = new List<string> { "--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+        var args = new List<string> { "--urls", "http://127.0.0.1:0", "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
             "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-review-registration-key-32-bytes" };
+        if (connection is not null) args.AddRange(["--ConnectionStrings:Nora", connection]);
         if (extraArgs is not null) args.AddRange(extraArgs);
         return NoraApiHost.Create(new()
         {
