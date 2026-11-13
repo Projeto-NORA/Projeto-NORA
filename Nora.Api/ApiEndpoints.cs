@@ -242,7 +242,7 @@ internal static class ApiEndpoints
         // Cada cadastro cria um banco: mesmo limitador da nova tentativa (compartilhado por IP).
         municipal.MapPost("/units", async (HealthUnitRequest request, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, Session(context).User.Id, ct), statusCode: StatusCodes.Status201Created)).RequireRateLimiting("unit-database");
         municipal.MapPost("/units/{id:guid}/database", async (Guid id, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ProvisionDatabaseAsync(id, Session(context).User.Id, ct))).RequireRateLimiting("unit-database");
-        municipal.MapGet("/history", async (DateTimeOffset? from, DateTimeOffset? to, Guid? unitId, int? limit, DateTimeOffset? before, HistoryDao history, CancellationToken ct) =>
+        municipal.MapGet("/history", async (DateTimeOffset? from, DateTimeOffset? to, Guid? unitId, int? limit, string? before, HistoryDao history, CancellationToken ct) =>
             Results.Ok(await history.ReadAsync(from, to, unitId, limit, before, ct)));
         municipal.MapGet("/metrics", async (DateTimeOffset from, DateTimeOffset to, Guid? unitId, string? region, string? specialty, MetricsService metrics, CancellationToken ct) =>
             Results.Ok(await metrics.ReadNetworkAsync(from, to, unitId, region, specialty, ct)));

@@ -348,6 +348,40 @@ internal static class ReviewChecks
             Require(final.Links == 0 && final.Unlinked == 2 && final.Scheduled == 0 && final.Waiting == 0, "Repetir depois da falha no commit deveria concluir a remoção, com um único evento por remoção.");
         });
 
+        await Check("Histórico: cursor composto (instante + desempate) não perde nem repete eventos empatados; aceita o instante ISO antigo; rejeita cursor inválido", async () =>
+        {
+            await using var h = await Harness.StartAsync(connectionString);
+            var unit = await h.CreateUnitAsync("UBS Histórico");
+            var tiedAt = DateTimeOffset.UtcNow.AddMinutes(-30); tiedAt = new(tiedAt.Ticks - tiedAt.Ticks % 10, TimeSpan.Zero); // o PostgreSQL guarda microssegundos
+            var tied = tiedAt.ToString("O");
+            // Oito eventos de duas tabelas no MESMO instante, mais os eventos normais da criação da UBS em instantes distintos.
+            foreach (var action in new[] { "created", "deactivated", "reactivated", "password_reset", "created" })
+                await h.ExecuteAsync($"INSERT INTO nora.staff_account_events(account_id,actor_id,action,occurred_at) VALUES($1,$2,'{action}',$3::timestamptz)", h.ObsId, h.ManagerId, tied);
+            foreach (var action in new[] { "registry_read", "appointment_read", "registry_read" })
+                await h.ExecuteAsync($"INSERT INTO nora.unit_access_events(actor_id,unit_id,action,occurred_at) VALUES($1,$2,'{action}',$3::timestamptz)", h.ManagerId, unit, tied);
+            using var everything = await h.Municipal.GetAsync("/api/municipal/history?limit=200"); Expect(everything, 200);
+            var all = (await Read(everything)).EnumerateArray().ToArray();
+            Require(all.Length >= 9 && all.Count(row => row.GetProperty("occurredAt").GetDateTimeOffset() == tiedAt) == 8, "A carga de eventos empatados não apareceu no histórico.");
+            // Percorre o histórico inteiro de 3 em 3 seguindo o cursor de cada página (o campo opaco 'cursor'; sem ele, o instante do último item).
+            var collected = new List<string>(); string? before = null;
+            for (var page = 0; page < 50; page++)
+            {
+                using var response = await h.Municipal.GetAsync("/api/municipal/history?limit=3" + (before is null ? "" : $"&before={Uri.EscapeDataString(before)}")); Expect(response, 200);
+                var rows = (await Read(response)).EnumerateArray().ToArray();
+                collected.AddRange(rows.Select(row => $"{row.GetProperty("occurredAt").GetDateTimeOffset():O}|{row.GetProperty("kind").GetString()}|{(row.TryGetProperty("cursor", out var c) ? c.GetString() : string.Empty)}"));
+                if (rows.Length < 3) break;
+                var last = rows[^1];
+                before = last.TryGetProperty("cursor", out var cursor) && cursor.ValueKind == JsonValueKind.String ? cursor.GetString() : last.GetProperty("occurredAt").GetDateTimeOffset().ToString("O");
+            }
+            Require(collected.Count == all.Length, $"A paginação por cursor devolveu {collected.Count} eventos de {all.Length}: eventos empatados foram perdidos ou repetidos.");
+            Require(collected.Distinct().Count() == collected.Count, "A paginação por cursor repetiu eventos.");
+            // Compatibilidade: o instante ISO continua valendo (só eventos estritamente anteriores).
+            using (var legacy = await h.Municipal.GetAsync($"/api/municipal/history?limit=200&before={Uri.EscapeDataString(tied)}"))
+            { Expect(legacy, 200); Require((await Read(legacy)).EnumerateArray().All(row => row.GetProperty("occurredAt").GetDateTimeOffset() < tiedAt), "O cursor por instante ISO deixou de excluir o próprio instante."); }
+            foreach (var invalid in new[] { "c1_", "c1_%%%", "c1_AAAA", "ontem", "12345" })
+            { using var rejected = await h.Municipal.GetAsync($"/api/municipal/history?before={Uri.EscapeDataString(invalid)}"); Expect(rejected, 400); }
+        });
+
         // {{NOVOS}}
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão passaram.");
         return failures;
