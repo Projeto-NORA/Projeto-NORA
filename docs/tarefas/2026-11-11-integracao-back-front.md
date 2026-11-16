@@ -120,14 +120,16 @@ login (a unidade só muda por ação explícita, como já documentado).
       ele: 28/28 fluxos de banco e bancos separados por UBS).
 - [x] Fase 1: legado removido dos clientes.
 - [x] Fase 1: OBS.
-- [ ] Fase 1: Secretaria.
+- [x] Fase 1: Secretaria (commit `dbe3eb8`).
 - [x] Fase 1: APPNORA.
-- [ ] Fase 1: testes reescritos, validação e commit.
+- [x] Fase 1: testes reescritos, validação e commit (`30f2fcf`, `7ba3c54`).
 - [x] Fase 2: rotas novas na API, com testes.
-- [ ] Fase 2: rotas novas ligadas nos três apps, validação e commit.
-- [ ] Fase 3: regras perguntadas e telas novas implementadas, validação e
-      commit.
-- [ ] Documentação e pendências atualizadas.
+- [x] Fase 2: rotas novas ligadas nos três apps, validação e commit
+      (`2171794`, `dbe3eb8`, `49a22d1`, correções da revisão no merge `3d46a78`).
+- [x] Fase 3: regras perguntadas e telas novas implementadas, validação e
+      commit (`69dc3ef`, `c440585`, `75a6a06`, `fffca9b`, `ca0e380`).
+- [x] Documentação e pendências atualizadas (P-030, P-036 e P-037 resolvidas;
+      P-041 a P-044 abertas).
 - [ ] Melhorias de back e de front propostas.
 - [ ] Merge e push na `main`.
 
@@ -147,14 +149,27 @@ instrumentados em emulador não rodam nesta máquina (sem aceleração).
 - Fase 3 do back integrada e verde com PostgreSQL 18 (merge `69dc3ef` comunicação e Jornada; merge `c440585`
   especialidades, grade, agendamento do paciente, presença, capacidade, metas e alertas): HTTP 30/30, fluxos 28/28,
   bancos separados por UBS, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 20/20.
-- Em andamento: workflow `wf_f10ad86b-7d5` (script em `~/.claude/projects/.../workflows/scripts/nora-fase3-integracao-wf_f10ad86b-7d5.js`;
-  para retomar após queda, relançar com `resumeFromRunId`). Fases: (1) back da Família, cancelamento na
-  desativação, sugestão de e-mail e manutenção (P-036) ∥ desktop agenda/capacidade/metas/alertas ∥ app
-  agendamento e presença; (2) desktop e app comunicação, Jornada, Família e e-mail; (3) revisão adversarial
-  em 3 lentes por área (regras, segurança, estados/UX) com refutação; (4) correções; (5) validação completa.
-  Os agentes do workflow não commitam: o coordenador commita depois de conferir.
-- Falta depois do workflow: conferir, commitar por área, documentação da Fase 3 (telas e PENDENCIAS P-030,
-  P-036, P-037), loop final de verificação, propostas de melhoria, merge e push na `main`.
+- Workflow `wf_f10ad86b-7d5` concluído (57 agentes, nenhum com erro):
+  - (1) back da Família, cancelamento na desativação, sugestão de e-mail e manutenção (P-036);
+    desktop com agenda, capacidade, metas e alertas; app com agendamento e presença;
+  - (2) desktop e app com comunicação, Jornada, Família e e-mail;
+  - (3) revisão adversarial em 3 lentes por área, com refutação: 35 achados confirmados (back 10, desktop 14, app 11);
+  - (4) correções, todas com teste que ficou vermelho antes;
+  - (5) validação completa.
+- A validação do workflow teve uma falha: "Consulta agregada das ofertas" em `FamilyChecks.Review.cs`.
+  - Reproduzida por mim.
+  - Causa: o relógio dos testes fica parado, então os dois vínculos empatam em `requested_at`, e o
+    desempate pelo `id` (UUID aleatório) dá uma ordem diferente a cada rodada.
+  - A API estava certa. O teste agora calcula a ordem esperada com o mesmo `ORDER BY` do banco.
+- Conferido por mim depois da correção (PostgreSQL 18 descartável):
+  - API: HTTP 30/30, fluxos 28/28, bancos separados, plataforma 19/19, revisão 17/17, comunicação 16/16,
+    agenda 20/20, Família 21/21 e revisão da Família 11/11;
+  - desktop 140/140;
+  - Android: 217 testes locais sem falha e lint com 0 erros.
+- Commits por área: `75a6a06` (API), `fffca9b` (desktop), `ca0e380` (app).
+- Documentação da Fase 3 em revisão pelo workflow `wf_9090b4b5-1e5`: um redator por área e um verificador
+  por documento, que confere cada frase no código.
+- Falta: loop final de verificação, propostas de melhoria, merge e push na `main`.
 
 ### Retomada de 2026-11-13 e 2026-11-15 (sessões caíram por falta de bateria)
 

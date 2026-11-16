@@ -1,5 +1,25 @@
 # Integração back-end x front-end — estado em 2026-11-11
 
+## Estado em 2026-11-16
+
+A Fase 3 fechou o grupo 3 (P-030, P-036 e P-037 resolvidas; commits `69dc3ef`, `c440585`, `75a6a06`, `fffca9b` e `ca0e380`). A seção de 2026-11-15, logo abaixo, fica como histórico: onde ela diz "em andamento" ou "aviso de indisponibilidade" para estes itens, o texto está superado, e o mesmo vale para as seções de 2026-11-11 quanto aos itens do grupo 3 e aos problemas do back citados aqui. Os contratos estão em [api.md](api.md); as telas, em [obs-painel-operacional.md](obs-painel-operacional.md), [secretaria.md](secretaria.md) e [app-paciente.md](app-paciente.md).
+
+**Fechado na Fase 3.**
+
+- Agenda pelo catálogo: a Secretaria mantém a lista única de especialidades da rede; o administrador da UBS cadastra profissionais e consultórios, monta a grade semanal e lança bloqueios por data (o atendente só lê). Com ao menos um profissional ativo a UBS passa a marcar pelo catálogo, só em horários livres da grade.
+- Agendamento e presença pelo paciente: o app marca de 24 h a 90 dias antes, com no máximo uma consulta futura marcada pelo app por especialidade na rede, e confirma presença de 48 h a 2 h antes da consulta.
+- Capacidade (ocupação da grade) por UBS e na rede, consultórios ativos da UBS no OBS, metas da rede com sobrescrita por UBS (status cumprida, perto, fora ou sem dado) e alertas avaliados pela API nos cinco critérios decididos, no OBS e na Secretaria.
+- Comunicados da Secretaria para equipes e pacientes, por rede, região ou UBS, com leituras; Jornada com exames e vacinas lançados pelo OBS e lidos pelo paciente.
+- Família: o responsável pede o vínculo com um dependente numa UBS, a equipe aprova ou recusa, e o responsável age pelo dependente naquela UBS (consultas, agendamento, presença, fila, Vaga Relâmpago, Jornada e participação); o dependente sem conta também recebe ofertas.
+- Troca do e-mail da conta: a correção do e-mail de referência pela UBS, quando o paciente tem conta vinculada àquela UBS, gera uma sugestão que o paciente confirma por código enviado ao endereço novo.
+- Desativação do paciente na UBS também cancela as consultas futuras dele naquela UBS (cancelamento da unidade, sem peso no score), com prévia antes da confirmação.
+- Limpeza periódica de sessões revogadas ou vencidas e de desafios vencidos, e a leitura das ofertas de Vaga Relâmpago deixou de escrever (redistribuição só pelas ações e pelo worker).
+- Números da última rodada: API HTTP 30/30; PostgreSQL 18 fluxos 28/28, bancos separados PASS, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 20/20, Família 21/21 e correções da revisão da Família 11/11; desktop 140/140; Android 217 testes locais, 48 previews, lint 0 erros e 6 avisos antigos. O E2E desktop com banco passou 141/141 depois de todas as correções, e a solução inteira (`NORA.slnx`) compila com 0 erros e 0 avisos. Detalhes e ressalvas em [execucao.md](execucao.md).
+
+**Continua fora.** "Entrar com Google" e push por servidor, sem definição (P-042): os avisos de oferta e de comunicado do app são notificações locais do ciclo de 30 s. Os testes instrumentados do Android só compilam nesta máquina, sem emulador acelerado (P-040). Decisões da Família ainda por confirmar e testes que faltam estão em P-041, P-043 e P-044. Do grupo 3 de 2026-11-11 também não foram feitos o "chamar próximo" da fila no OBS, os serviços e horários da UBS no app e a confirmação clínica das vagas reaproveitadas.
+
+**Problemas do back da lista de 2026-11-11 que já não valem.** A desativação na UBS agora cancela as consultas futuras; a correção do e-mail de referência leva à troca do e-mail da conta por código; sessões e desafios vencidos são apagados pela limpeza periódica; `X-Forwarded-For` só é lido de proxies declarados; `GET .../lightning-offers` não escreve mais; e na agenda da Fase 3 só o administrador da UBS altera profissionais, consultórios, grade e bloqueios (no resto, atendente e administrador continuam com as mesmas permissões). As contagens do resumo (`waitingPatients` por pessoa, `patients` só ativos) e a criação do banco da UBS ao cadastrá-la já tinham sido corrigidas em 2026-11-15 (P-033 e P-034). Fora dessa lista, continua valendo que a sobreposição de horários de uma pessoa entre UBS diferentes não é verificada (só dentro da UBS).
+
 ## Estado em 2026-11-15
 
 O levantamento abaixo é o de 2026-11-11 e fica como histórico. Desde então as lacunas dos grupos 1 e 2 foram resolvidas e commitadas (HEAD `3d46a78`); o que segue em andamento é o grupo 3, pela Fase 3. Detalhes por pendência em [PENDENCIAS.md](PENDENCIAS.md) e as decisões do usuário em `tarefas/2026-11-11-integracao-back-front.md`.

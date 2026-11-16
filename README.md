@@ -10,9 +10,9 @@ Plataforma NORA para acompanhamento do paciente, operação de unidades de saúd
 
 A identidade dos desktops usa roxo; o APPNORA do paciente segue a paleta específica branca e azul-marinho. Cartões e navegação inspirados no protótipo foram reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
 
-## Estado em 2026-11-15
+## Estado em 2026-11-16
 
-Os três clientes (OBS, Secretaria e APPNORA) operam só pelo fluxo por UBS: cada UBS tem banco próprio, criado pela API ao cadastrar a unidade, e o fluxo global antigo foi removido dos clientes. A API calcula o score de comparecimento e os indicadores por UBS e por rede, o OBS e a Secretaria mostram indicadores, histórico, contas e estado da base, e o app mostra o score na Jornada, avisa ofertas e deixa sair da fila, remover UBS e trocar a senha. Última rodada: build Release 0/0, API HTTP 30/30, PostgreSQL 18 28/28 fluxos, 19/19 plataforma e 17/17 revisão, desktop 103/103, E2E com banco 104/104, Android 84/84 locais; os testes instrumentados do Android só compilam nesta máquina. Em andamento, a Fase 3: agendamento pelo paciente, capacidade e profissionais, metas e alertas, comunicação, família e jornada (regras decididas, ver `docs/tarefas/2026-11-11-integracao-back-front.md`). Entrar com Google e push por servidor seguem sem definição. Detalhes em [Integração back x front](docs/integracao-back-front.md) e [Pendências](docs/PENDENCIAS.md).
+Os três clientes (OBS, Secretaria e APPNORA) operam só pelo fluxo por UBS: cada UBS tem banco próprio, criado pela API ao cadastrar a unidade, e o fluxo global antigo foi removido dos clientes. A API calcula o score de comparecimento e os indicadores por UBS e por rede, o OBS e a Secretaria mostram indicadores, histórico, contas e estado da base, e o app mostra o score na Jornada, avisa ofertas e deixa sair da fila, remover UBS e trocar a senha. A Fase 3 acrescentou agenda pelo catálogo (especialidades da rede, profissionais, consultórios, grade e bloqueios), agendamento e confirmação de presença pelo paciente, capacidade, metas e alertas avaliados, comunicados, Jornada com exames e vacinas, Família (o responsável age pelo dependente depois da aprovação da UBS), troca do e-mail da conta por código quando a UBS corrige o e-mail de referência, cancelamento das consultas futuras ao desativar o paciente na UBS e limpeza periódica de sessões e códigos vencidos. Última rodada: API HTTP 30/30; PostgreSQL 18 com 28/28 fluxos, 19/19 plataforma, 17/17 revisão, 16/16 comunicação e Jornada, 20/20 agenda, 21/21 Família, e-mail e manutenção e 11/11 correções da revisão da Família; desktop 140/140; Android 217 testes locais e 48 previews; os testes instrumentados do Android só compilam nesta máquina. Entrar com Google e push por servidor seguem sem definição (P-042). Antes de publicar esta versão rode `Nora.Api --migrate` e depois, em outra execução, `Nora.Api --migrate-all-units` (central até a migração 017, UBS até a 014). Detalhes em [Integração back x front](docs/integracao-back-front.md), [Execução e validação](docs/execucao.md) e [Pendências](docs/PENDENCIAS.md).
 
 ## Escopo da primeira etapa
 
@@ -20,7 +20,7 @@ Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configu
 
 A API persiste contas, sessões, fila e ofertas. OBS aceita atendente/administrador; Android usa conta individual; Municipal recebe totais e pode consultar, por solicitação, os cadastros de referência da UBS selecionada. Recusa/expiração passa ao próximo, com prazo de10 minutos para todos e controle concorrente no servidor. As preferências são locais e separadas por app; credenciais/token não são persistidos nos clientes.
 
-Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Consultas/agendamento, notificações externas e séries/filtros analíticos ficam para definição posterior (P-013). Não há dados fictícios de produção; testes de integração usam banco descartável, e capturas visuais usam fixtures isoladas somente nos harnesses/previews.
+Conexão privada e provisionamento definitivo das contas ainda exigem configuração PostgreSQL do usuário (P-012). Na primeira etapa, consultas/agendamento, notificações externas e séries/filtros analíticos ficaram para definição posterior (P-013); o agendamento e os filtros dos indicadores vieram depois (ver o estado acima), e o push por servidor segue sem definição (P-042). Não há dados fictícios de produção; testes de integração usam banco descartável, e capturas visuais usam fixtures isoladas somente nos harnesses/previews.
 
 ## Documentação
 
@@ -47,7 +47,7 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 - [Retomada e publicação atual](docs/tarefas/2026-10-07-retomada-implementacao-publicacao.md).
 - [Retomada e fila de solicitações de 08/10](docs/tarefas/2026-10-08-retomada-e-fila-solicitacoes.md).
 
-A Secretaria exibe contagens agregadas dos estados das ofertas de Vaga Relâmpago e permite exportar o resumo carregado em CSV. Indicadores de agenda, filtros e operações que ainda não possuem dados na API permanecem identificados na interface.
+A Secretaria exibe contagens agregadas dos estados das ofertas de Vaga Relâmpago e permite exportar o resumo carregado em CSV. O que ainda não tem dado na API, como as vagas reaproveitadas com confirmação clínica, continua identificado na interface.
 
 ## Desenvolvimento
 
