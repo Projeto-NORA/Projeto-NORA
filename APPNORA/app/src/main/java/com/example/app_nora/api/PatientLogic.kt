@@ -16,11 +16,18 @@ fun parseInstantMillis(value: String): Long? = try {
         .parse(FRACTION.replace(value, ""))?.time
 } catch (_: ParseException) { null }
 
+/** Instante em UTC no formato dos parâmetros de período da API (`2026-11-12T12:00:00Z`). */
+fun formatInstantUtc(millis: Long): String =
+    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(millis)
+
 private fun format(pattern: String, millis: Long): String = SimpleDateFormat(pattern, PT_BR).format(millis)
 
 /** "12/11/2026 às 14:30"; devolve o texto original se a data for ilegível. */
 fun formatDateTime(value: String): String =
     parseInstantMillis(value)?.let { format("dd/MM/yyyy 'às' HH:mm", it) } ?: value
+
+/** "12/11/2026 às 14:30" a partir de um instante. */
+fun formatDateTime(millis: Long): String = format("dd/MM/yyyy 'às' HH:mm", millis)
 
 /** "12/11/2026, das 14:30 às 15:00" (mesmo dia) ou início e fim completos quando atravessa o dia. */
 fun formatRange(startsAt: String, endsAt: String): String {
@@ -30,6 +37,9 @@ fun formatRange(startsAt: String, endsAt: String): String {
         "${format("dd/MM/yyyy", start)}, das ${format("HH:mm", start)} às ${format("HH:mm", end)}"
     else "${formatDateTime(startsAt)} até ${formatDateTime(endsAt)}"
 }
+
+/** "12/11/2026" (dia no fuso do aparelho); devolve o texto original se a data for ilegível. */
+fun formatDate(value: String): String = parseInstantMillis(value)?.let { format("dd/MM/yyyy", it) } ?: value
 
 /** "14:30"; devolve o texto original se a data for ilegível. */
 fun formatClock(value: String): String = parseInstantMillis(value)?.let { format("HH:mm", it) } ?: value
@@ -97,7 +107,9 @@ fun groupQueue(entries: List<UnitQueueEntry>): QueueGroups {
  */
 data class UnitSnapshot(val queue: List<UnitQueueEntry>? = null, val offers: List<UnitOffer>? = null,
     val appointments: List<PatientAppointment>? = null, val attendance: UnitAttendance? = null,
-    val attendanceFailed: Boolean = false)
+    val attendanceFailed: Boolean = false,
+    /** Exames e vacinas da UBS (Jornada); `recordsFailed` quando a última leitura falhou ou a UBS não veio na resposta. */
+    val records: UnitRecords? = null, val recordsFailed: Boolean = false)
 
 data class UnitOfferRef(val unit: PatientHealthUnit, val offer: UnitOffer)
 
@@ -225,6 +237,17 @@ class NotifiedOffers {
 }
 
 // ---- Textos de situação ------------------------------------------------------------------------------
+
+/**
+ * Quem marcou a consulta, em português; nulo para um valor desconhecido (nunca mostra o valor cru). `patient` é neutro de propósito: o
+ * servidor grava o mesmo valor quando o próprio paciente marca e quando um responsável marca por ele (o responsável fica só na auditoria).
+ */
+fun bookedByLabel(value: String): String? = when (value) {
+    "patient" -> "Marcada pelo aplicativo"
+    "staff" -> "Marcada pela equipe da UBS"
+    "lightning" -> "Marcada ao aceitar uma Vaga Relâmpago"
+    else -> null
+}
 
 /** Tradução única para toda situação que o servidor devolve; nunca mostra o valor cru. */
 fun statusLabel(value: String): String = when (value) {

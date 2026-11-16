@@ -17,6 +17,7 @@ class SettingsStore(context: Context) {
             putString("appearance", value.appearance.name)
             putBoolean("appointment_notifications", value.appointmentNotifications)
             putBoolean("flash_notifications", value.flashNotifications)
+            putBoolean("announcement_notifications", value.announcementNotifications)
             putBoolean("show_guidance", value.showGuidance)
             putBoolean("comfortable_spacing", value.comfortableSpacing)
         }
@@ -27,6 +28,10 @@ class SettingsStore(context: Context) {
         /** Lida a cada ciclo pelo serviço de conexão, que não compartilha a instância da tela. */
         fun flashNotificationsEnabled(context: Context): Boolean =
             context.getSharedPreferences("nora_preferences", Context.MODE_PRIVATE).all["flash_notifications"] as? Boolean ?: true
+
+        /** Lida a cada ciclo pelo serviço de conexão: a preferência "Comunicados da rede" (ligada por padrão). */
+        fun announcementNotificationsEnabled(context: Context): Boolean =
+            context.getSharedPreferences("nora_preferences", Context.MODE_PRIVATE).all["announcement_notifications"] as? Boolean ?: true
     }
 
     // A restored/older preference with a different type must not prevent app startup.
@@ -36,6 +41,7 @@ class SettingsStore(context: Context) {
             appearance = Appearance.fromStored(stored["appearance"] as? String),
             appointmentNotifications = stored["appointment_notifications"] as? Boolean ?: true,
             flashNotifications = stored["flash_notifications"] as? Boolean ?: true,
+            announcementNotifications = stored["announcement_notifications"] as? Boolean ?: true,
             showGuidance = stored["show_guidance"] as? Boolean ?: true,
             comfortableSpacing = stored["comfortable_spacing"] as? Boolean ?: true,
         )

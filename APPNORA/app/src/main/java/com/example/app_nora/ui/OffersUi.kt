@@ -57,8 +57,19 @@ internal fun rememberOpenOffers(patient: PatientState): OpenOffers {
     return remember(now, list) { OpenOffers(now, list) }
 }
 
+/** Ofertas abertas dos dependentes aprovados (lidas pela rota agregada), com o relógio que as acompanha. */
+internal class OpenDependentOffers(val now: State<Long>, val list: State<List<DependentOfferRef>>)
+
 @Composable
-private fun OfferCountdown(expiresAtMillis: Long, now: State<Long>) {
+internal fun rememberOpenDependentOffers(patient: PatientState): OpenDependentOffers {
+    val all = remember(patient.dependentOffers) { patient.dependentOffers.flatMap { it.offers } }
+    val now = rememberOfferClock(all)
+    val list = remember(patient.dependentOffers, now) { derivedStateOf { openDependentOffers(patient.dependentOffers, now.value) } }
+    return remember(now, list) { OpenDependentOffers(now, list) }
+}
+
+@Composable
+internal fun OfferCountdown(expiresAtMillis: Long, now: State<Long>) {
     // Só este texto lê o relógio: o resto do cartão não recompõe a cada segundo.
     val remaining = expiresAtMillis - now.value
     Text("Tempo restante: ${formatRemaining(remaining)}", style = MaterialTheme.typography.titleMedium,
@@ -76,6 +87,18 @@ internal fun OpenOfferSummary(ref: UnitOfferRef, now: State<Long>, onOpen: (Stri
     MutedText("${ref.unit.name} · ${formatRange(offer.startsAt, offer.endsAt)}")
     offer.expiresAtMillis?.let { OfferCountdown(it, now) }
     Button(onClick = { onOpen(ref.unit.id) }, modifier = Modifier.fillMaxWidth()) { Text("Ver oportunidade") }
+}
+
+/** Resumo de uma oferta aberta de um dependente: com o nome dele, a UBS e o atalho que passa a agir por ele. */
+@Composable
+internal fun OpenDependentOfferSummary(ref: DependentOfferRef, now: State<Long>, onOpen: (String, String) -> Unit) {
+    val offer = ref.offer
+    Text("Para ${ref.dependentName}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Bold)
+    Text(offer.specialty, fontWeight = FontWeight.SemiBold)
+    MutedText("${ref.unitName} · ${formatRange(offer.startsAt, offer.endsAt)}")
+    offer.expiresAtMillis?.let { OfferCountdown(it, now) }
+    Button(onClick = { onOpen(ref.dependentId, ref.unitId) }, modifier = Modifier.fillMaxWidth()) { Text("Ver oportunidade de ${ref.dependentName}") }
 }
 
 @Composable

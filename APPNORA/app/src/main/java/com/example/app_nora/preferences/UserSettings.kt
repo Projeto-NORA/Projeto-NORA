@@ -21,6 +21,8 @@ data class UserSettings(
     val appearance: Appearance = Appearance.SYSTEM,
     val appointmentNotifications: Boolean = true,
     val flashNotifications: Boolean = true,
+    /** Notificação dos comunicados da rede (canal próprio); ligada por padrão. */
+    val announcementNotifications: Boolean = true,
     val showGuidance: Boolean = true,
     val comfortableSpacing: Boolean = true,
 )

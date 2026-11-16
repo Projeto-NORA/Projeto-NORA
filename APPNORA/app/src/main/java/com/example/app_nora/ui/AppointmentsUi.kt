@@ -13,8 +13,11 @@ import com.example.app_nora.api.*
 
 @Composable
 fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadUnits: () -> Unit,
-    onLoadAppointments: () -> Unit, onCancelAppointment: (String) -> Unit) {
+    onLoadAppointments: () -> Unit, onCancelAppointment: (String) -> Unit,
+    onConfirmPresence: (String, String) -> Unit = { _, _ -> }, onBook: () -> Unit = {}) {
     var cancelPending by remember(patient.selectedUnitId, patient.session?.token) { mutableStateOf<PatientAppointment?>(null) }
+    // A janela de confirmação muda de estado sozinha: o relógio acorda só nesses instantes.
+    val presenceNow = rememberPresenceClock(patient.appointments.orEmpty())
     ScreenTitle("Consultas", "Veja seus atendimentos futuros e anteriores.")
     SectionCard("Sua agenda", "Informações da unidade de saúde") {
         if (patient.session == null) MutedText("Entre na sua conta para consultar sua agenda.")
@@ -30,15 +33,22 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
             OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
             if (patient.selectedUnitId != null) {
                 OutlinedButton(onClick = onLoadAppointments, enabled = !patient.busy) { Text("Atualizar consultas") }
+                Button(onClick = onBook, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Agendar nova consulta") }
                 if (patient.appointments?.isEmpty() == true) MutedText("Nenhuma consulta encontrada neste período.")
                 patient.appointments?.forEach { appointment ->
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    Text(appointment.specialty, fontWeight = FontWeight.SemiBold)
-                    Text(appointment.professional)
-                    Text(formatRange(appointment.startsAt, appointment.endsAt))
-                    Text(statusLabel(appointment.status))
-                    if (appointment.status in listOf("scheduled", "called"))
-                        TextButton(onClick = { cancelPending = appointment }, enabled = !patient.busy) { Text("Cancelar consulta") }
+                    key(appointment.id) {
+                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        Text(appointment.specialty, fontWeight = FontWeight.SemiBold)
+                        Text("Profissional: ${appointment.professional}")
+                        Text(formatRange(appointment.startsAt, appointment.endsAt))
+                        Text(statusLabel(appointment.status))
+                        bookedByLabel(appointment.bookedBy)?.let { MutedText(it) }
+                        PresenceConfirmation(appointment, presenceNow.value, patient.busy) {
+                            onConfirmPresence(patient.selectedUnitId, appointment.id)
+                        }
+                        if (appointment.status in listOf("scheduled", "called"))
+                            TextButton(onClick = { cancelPending = appointment }, enabled = !patient.busy) { Text("Cancelar consulta") }
+                    }
                 }
             }
         }

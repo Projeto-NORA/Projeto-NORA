@@ -16,8 +16,8 @@ import com.example.app_nora.R
 
 /**
  * Notificação local de Vaga Relâmpago, disparada pelo ciclo de 30 s do serviço de conexão (não há push).
- * Só leva especialidade, UBS e prazo; o toque abre a tela da oferta com a UBS selecionada. Nada de token,
- * CPF ou profissional no Intent ou no texto, e a tela de bloqueio mostra uma versão genérica.
+ * Só leva especialidade, UBS, prazo e, para dependentes, o nome deles; o toque abre a tela da oferta com a UBS selecionada
+ * (e o dependente, se for dele). Nada de token, CPF ou profissional no Intent ou no texto, e a tela de bloqueio mostra uma versão genérica.
  */
 internal class LightningNotifier(private val context: Context) {
     private val manager = NotificationManagerCompat.from(context)
@@ -28,12 +28,12 @@ internal class LightningNotifier(private val context: Context) {
      * ou sem a permissão do Android, nada é postado e o que estava na bandeja é retirado.
      */
     fun sync(state: PatientState, enabled: Boolean, now: Long = System.currentTimeMillis()) {
-        val open = if (enabled && canNotify()) openOffersAcrossUnits(state.units, state.unitData, now) else emptyList()
+        val open = if (enabled && canNotify()) openOfferNotices(state, now) else emptyList()
         for (id in notified.retain(open.mapTo(HashSet()) { it.offer.id })) manager.cancel(id, NOTIFICATION_ID)
         if (open.isEmpty()) return
         ensureChannel()
         val fresh = notified.markFresh(open.map { it.offer.id })
-        for (ref in open) if (ref.offer.id in fresh) post(ref, now)
+        for (notice in open) if (notice.offer.id in fresh) post(notice, now)
     }
 
     /** Retira todos os avisos (fim da conexão ou logout). */
@@ -52,11 +52,13 @@ internal class LightningNotifier(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission") // canNotify() confere a permissão antes de qualquer chamada.
-    private fun post(ref: UnitOfferRef, now: Long) {
-        val offer = ref.offer
+    private fun post(notice: OfferNotice, now: Long) {
+        val offer = notice.offer
         val open = PendingIntent.getActivity(context, offer.id.hashCode(), Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra(MainActivity.EXTRA_FLASH_UNIT, ref.unit.id)
+            putExtra(MainActivity.EXTRA_FLASH_UNIT, notice.unitId)
+            // Só o id do vínculo (um GUID) viaja no Intent; nunca nome, CPF ou token.
+            notice.dependentId?.let { putExtra(MainActivity.EXTRA_FLASH_DEPENDENT, it) }
         }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val publicVersion = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_presence)
@@ -65,8 +67,8 @@ internal class LightningNotifier(private val context: Context) {
             .build()
         val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_presence)
-            .setContentTitle("Vaga Relâmpago · ${offer.specialty}")
-            .setContentText("${ref.unit.name} · responda até ${formatClock(offer.expiresAt)}")
+            .setContentTitle(offerNoticeTitle(notice))
+            .setContentText(offerNoticeText(notice))
             .setContentIntent(open)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)

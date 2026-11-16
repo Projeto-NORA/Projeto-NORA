@@ -33,6 +33,7 @@ class PatientPresenceService : Service() {
     private var heartbeat: Job? = null
     private var activeConnection: Connection? = null
     private val notifier by lazy { LightningNotifier(this) }
+    private val communityNotifier by lazy { CommunityNotifier(this) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -46,6 +47,7 @@ class PatientPresenceService : Service() {
         if (activeConnection !== connection) {
             heartbeat?.cancel()
             notifier.clear()
+            communityNotifier.clear()
             activeConnection?.let(::sendOffline)
             activeConnection = connection
             // Remover uma UBS retira na hora os avisos de oferta dela, sem esperar o próximo ciclo de 30 s.
@@ -59,10 +61,15 @@ class PatientPresenceService : Service() {
                     // Same cycle, no second timer: network failures are silent and retried in the next cycle.
                     controller.pollOffers(connection.session, connection.generation)
                     if (!connected()) break
+                    // Comunicados novos (cursor), pedidos de família, ofertas dos dependentes e e-mail: uma requisição leve de cada.
+                    val announcements = controller.pollCommunity(connection.session, connection.generation)
+                    if (!connected()) break
                     notifier.sync(controller.state, SettingsStore.flashNotificationsEnabled(applicationContext))
+                    communityNotifier.notify(announcements, SettingsStore.announcementNotificationsEnabled(applicationContext))
                     delay(30_000)
                 }
                 notifier.clear()
+                communityNotifier.clear()
                 stopSelf()
             }
         }
@@ -114,6 +121,7 @@ class PatientPresenceService : Service() {
         heartbeat?.cancel()
         heartbeat = null
         notifier.clear()
+        communityNotifier.clear()
         val ended = activeConnection
         activeConnection = null
         ended?.controller?.onOffersRemoved = null
