@@ -23,13 +23,13 @@ public sealed partial class SchedulingService
     private readonly SchedulingDao dao;
     private readonly SpecialtyDao specialties;
     private readonly SchedulingAccessService access;
-    private readonly HealthUnitDao units;
     private readonly TimeProvider time;
     private readonly SlotEngine engine;
+    private readonly FamilyService family;
 
-    public SchedulingService(SchedulingDao dao, SpecialtyDao specialties, SchedulingAccessService access, HealthUnitDao units, TimeProvider time, IConfiguration configuration)
+    public SchedulingService(SchedulingDao dao, SpecialtyDao specialties, SchedulingAccessService access, TimeProvider time, IConfiguration configuration, FamilyService family)
     {
-        this.dao = dao; this.specialties = specialties; this.access = access; this.units = units; this.time = time;
+        this.dao = dao; this.specialties = specialties; this.access = access; this.time = time; this.family = family;
         var zone = UnitMetricsDao.ConfiguredZone(configuration);
         try { engine = new(TimeZoneInfo.FindSystemTimeZoneById(zone)); }
         catch (Exception error) when (error is TimeZoneNotFoundException or InvalidTimeZoneException) { throw new InvalidOperationException($"O fuso horário '{zone}' de Nora:TimeZone não está disponível no sistema operacional da API.", error); }
@@ -168,12 +168,31 @@ public sealed partial class SchedulingService
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         var start = requested.ToUniversalTime();
         return await access.ExecutePatientNetworkAsync(session, unitId, async cpf =>
-        {
-            var now = time.GetUtcNow();
-            if (start < now + PatientMinimumLead || start > now + PatientMaximumLead) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
-            foreach (var unit in await units.ListForPatientAsync(session.User.Id, ct))
-                if (unit.DatabaseState == "ready" && await dao.CountPatientBookingsAsync(unit.Id, cpf, specialtyId, now, ct) > 0) throw new ApiCodedException(StatusCodes.Status409Conflict, "specialty-limit");
-            return await dao.BookAsync(unitId, session.User.Id, cpf, professional, specialty, start, null, "patient", engine, ct);
-        }, ct);
+            await BookForPatientAsync(session.User.Id, null, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct);
+    }
+
+    /// <summary>
+    /// Marcação do responsável pelo dependente (Família): as mesmas regras e a mesma ordem de recusas de <see cref="PatientBookAsync"/>, com o limite de uma consulta futura por especialidade
+    /// contado por CPF do dependente nas UBS da rede onde ele tem vínculo de família aprovado ou conta própria vinculada. O autor do evento é o responsável (<c>guardian_id</c> registra isso);
+    /// a origem continua <c>patient</c>.
+    /// </summary>
+    public async Task<AppointmentInfo> GuardianBookAsync(SessionInfo session, Guid dependentId, Guid unitId, PatientBookingRequest request, CancellationToken ct)
+    {
+        if (request.ProfessionalId is not { } professional || professional == Guid.Empty || request.SpecialtyId is not { } specialtyId || specialtyId == Guid.Empty || request.StartsAt is not { } requested) throw new ApiInputException();
+        var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
+        if (specialty is not { IsActive: true }) throw new ApiInputException();
+        var start = requested.ToUniversalTime();
+        return await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, async cpf =>
+            await BookForPatientAsync(session.User.Id, session.User.Id, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct);
+    }
+
+    /// <summary>Corpo comum da marcação pelo app (próprio paciente ou responsável): janela, limite por especialidade nas UBS informadas, horário livre. Chamado já sob o executor e o lock de CPF.</summary>
+    private async Task<AppointmentInfo> BookForPatientAsync(Guid actorId, Guid? guardianId, string cpf, Guid unitId, Func<Task<IEnumerable<Guid>>> limitUnits, Guid professional, Specialty specialty, DateTimeOffset start, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        if (start < now + PatientMinimumLead || start > now + PatientMaximumLead) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
+        foreach (var unit in await limitUnits())
+            if (await dao.CountPatientBookingsAsync(unit, cpf, specialty.Id, now, ct) > 0) throw new ApiCodedException(StatusCodes.Status409Conflict, "specialty-limit");
+        return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, null, "patient", engine, ct, guardianId);
     }
 }

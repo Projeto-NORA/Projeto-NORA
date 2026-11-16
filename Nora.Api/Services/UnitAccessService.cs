@@ -64,6 +64,29 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         return result;
     }
 
+    /// <summary>
+    /// Executor do responsável (Família): a conta do responsável age em nome de um dependente numa UBS. Na transação central repete a revalidação de conta e sessão do responsável e
+    /// segura o vínculo (<c>FOR SHARE</c>, de modo que encerrar o vínculo espera as operações em andamento) que precisa estar aprovado, ser do responsável e da UBS da URL; depois confere
+    /// o cadastro ativo do dependente na UBS e executa <paramref name="action"/> com o CPF do dependente, a mesma lógica das rotas do paciente. Sem vínculo aprovado, de outro responsável,
+    /// encerrado, de outra UBS ou com o cadastro do dependente inativo → 403 (nunca revela qual). O CPF do dependente nunca vem do cliente.
+    /// </summary>
+    /// <param name="serializeCpf">Segura o lock de CPF <c>62419805</c> (o mesmo da conta do próprio dependente e da remoção de vínculo) para serializar o que depende do conjunto de consultas do CPF na rede (agendamento).</param>
+    public async Task<T> ExecuteGuardianAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool serializeCpf = false)
+    {
+        if (dependentId == Guid.Empty || unitId == Guid.Empty || session.User.Scope != "patient" || session.User.Role != "patient") throw new ApiForbiddenException();
+        await using var connection = await central.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await RevalidateAsync(connection, session, ct);
+        string dependentCpf;
+        await using (var link = central.Command(connection, "SELECT dependent_cpf FROM nora.family_links WHERE id=$1 AND guardian_id=$2 AND unit_id=$3 AND status='approved' FOR SHARE", dependentId, session.User.Id, unitId))
+            dependentCpf = await link.ExecuteScalarAsync(ct) as string ?? throw new ApiForbiddenException();
+        if (serializeCpf) await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, dependentCpf);
+        if (!await registry.IsActiveAsync(unitId, dependentCpf, ct)) throw new ApiForbiddenException();
+        var result = await action(dependentCpf);
+        await transaction.CommitAsync(ct);
+        return result;
+    }
+
     public async Task<T> ExecuteManagementReadAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct, string eventType = "registry_read")
     {
         if (unitId == Guid.Empty || session.User.Scope != "municipal" || session.User.Role != "manager" || eventType is not ("registry_read" or "appointment_read")) throw new ApiForbiddenException();

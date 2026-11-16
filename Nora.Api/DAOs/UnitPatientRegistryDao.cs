@@ -9,7 +9,8 @@ namespace Nora.Api.DAOs;
 /// <summary>Internal database boundary. Callers must authorize staff and the selected UBS before use.</summary>
 public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
 {
-    public async Task UpdateEmailAsync(Guid unitId, Guid actorId, string value, string? newEmail, CancellationToken ct = default)
+    /// <summary>Devolve o e-mail de referência que havia antes (já em minúsculas, como é gravado), para o chamador saber se ele mudou.</summary>
+    public async Task<string> UpdateEmailAsync(Guid unitId, Guid actorId, string value, string? newEmail, CancellationToken ct = default)
     {
         var cpf = AccountService.NormalizeCpf(value);
         var email = newEmail?.Trim().ToLowerInvariant() ?? "";
@@ -17,10 +18,11 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
             !MailAddress.TryCreate(email, out var address) || address.Address != email) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.patient_registry SET email=$2 WHERE cpf=$1", connection))
+        string previous;
+        await using (var update = new NpgsqlCommand("UPDATE nora_unit.patient_registry r SET email=$2 FROM (SELECT cpf,email FROM nora_unit.patient_registry WHERE cpf=$1 FOR UPDATE) old WHERE r.cpf=old.cpf RETURNING old.email", connection))
         {
             update.Parameters.AddWithValue(cpf); update.Parameters.AddWithValue(email);
-            if (await update.ExecuteNonQueryAsync(ct) != 1) throw new ApiNotFoundException();
+            previous = await update.ExecuteScalarAsync(ct) as string ?? throw new ApiNotFoundException();
         }
         await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action) VALUES($1,$2,'email_updated')", connection))
         {
@@ -28,6 +30,7 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
             await audit.ExecuteNonQueryAsync(ct);
         }
         await transaction.CommitAsync(ct);
+        return previous;
     }
 
     public async Task CreateAsync(Guid unitId, Guid actorId, UnitPatientRecord patient, CancellationToken ct = default)
@@ -50,19 +53,22 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
         await transaction.CommitAsync(ct);
     }
 
-    public async Task UpdateAsync(Guid unitId, Guid actorId, UnitPatientRecord patient, CancellationToken ct = default)
+    /// <summary>Devolve o e-mail de referência que havia antes da edição.</summary>
+    public async Task<string> UpdateAsync(Guid unitId, Guid actorId, UnitPatientRecord patient, CancellationToken ct = default)
     {
         var normalized = Normalize(unitId, actorId, patient); var address = normalized.Address;
         await using var connection = await databases.OpenAsync(unitId, ct); await using var transaction = await connection.BeginTransactionAsync(ct);
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.patient_registry SET full_name=$2,email=$3,phone=NULLIF($4,''),cep=NULLIF($5,''),street=NULLIF($6,''),address_number=NULLIF($7,''),complement=NULLIF($8,''),neighborhood=NULLIF($9,''),city=NULLIF($10,''),state=NULLIF($11,''),ibge=NULLIF($12,'') WHERE cpf=$1", connection))
+        string previous;
+        await using (var update = new NpgsqlCommand("UPDATE nora_unit.patient_registry r SET full_name=$2,email=$3,phone=NULLIF($4,''),cep=NULLIF($5,''),street=NULLIF($6,''),address_number=NULLIF($7,''),complement=NULLIF($8,''),neighborhood=NULLIF($9,''),city=NULLIF($10,''),state=NULLIF($11,''),ibge=NULLIF($12,'') FROM (SELECT cpf,email FROM nora_unit.patient_registry WHERE cpf=$1 FOR UPDATE) old WHERE r.cpf=old.cpf RETURNING old.email", connection))
         {
             foreach (var value in new object[] { normalized.Cpf, normalized.FullName, normalized.Email, normalized.Phone ?? "", address?.Cep ?? "", address?.Street ?? "", address?.Number ?? "", address?.Complement ?? "", address?.Neighborhood ?? "", address?.City ?? "", address?.State ?? "", address?.Ibge ?? "" })
                 update.Parameters.AddWithValue(value);
-            if (await update.ExecuteNonQueryAsync(ct) != 1) throw new ApiNotFoundException();
+            previous = await update.ExecuteScalarAsync(ct) as string ?? throw new ApiNotFoundException();
         }
         await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action) VALUES($1,$2,'updated')", connection))
         { audit.Parameters.AddWithValue(normalized.Cpf); audit.Parameters.AddWithValue(actorId); await audit.ExecuteNonQueryAsync(ct); }
         await transaction.CommitAsync(ct);
+        return previous;
     }
 
     private static UnitPatientRecord Normalize(Guid unitId, Guid actorId, UnitPatientRecord patient)
@@ -99,6 +105,27 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
         string? Optional(int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
         AddressInfo? address = reader.IsDBNull(4) ? null : new(reader.GetString(4), reader.GetString(5), Optional(6), Optional(7), Optional(8), reader.GetString(9), reader.GetString(10), Optional(11));
         return new(reader.GetString(0), reader.GetString(1), reader.GetString(2), Optional(3), address, reader.GetBoolean(12), false, reader.GetFieldValue<DateTimeOffset>(13));
+    }
+
+    /// <summary>E-mail de referência atual (já em minúsculas, como é gravado) do cadastro, ativo ou não, ou nulo se o CPF não tem cadastro na UBS.</summary>
+    public async Task<string?> ReferenceEmailAsync(Guid unitId, string cpf, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT email FROM nora_unit.patient_registry WHERE cpf=$1", connection);
+        query.Parameters.AddWithValue(cpf); return await query.ExecuteScalarAsync(ct) as string;
+    }
+
+    /// <summary>Nomes do cadastro de referência (ativo ou não) dos CPFs informados, numa consulta só. CPF sem cadastro não aparece.</summary>
+    public async Task<Dictionary<string, string>> ReadNamesAsync(Guid unitId, string[] cpfs, CancellationToken ct)
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (cpfs.Length == 0) return names;
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT cpf,full_name FROM nora_unit.patient_registry WHERE cpf=ANY($1)", connection);
+        query.Parameters.AddWithValue(cpfs);
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) names[reader.GetString(0)] = reader.GetString(1);
+        return names;
     }
 
     public async Task<bool> IsActiveAsync(Guid unitId, string cpf, CancellationToken ct)

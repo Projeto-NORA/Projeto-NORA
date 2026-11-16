@@ -7,6 +7,7 @@ internal static class ApiProblems
         var (code, title, detail) = customCode switch
         {
             _ when SchedulingProblems.TryGet(customCode, out var scheduling) => scheduling,
+            _ when FamilyProblems.TryGet(customCode, out var familyProblem) => familyProblem,
             "invalid-current-password" => ("invalid-current-password", "Senha atual incorreta", "A senha atual informada não confere."),
             "password-change-required" => ("password-change-required", "Troca de senha obrigatória", "Defina uma nova senha antes de continuar."),
             "unit-database-outdated" => ("unit-database-outdated", "Banco da UBS desatualizado", "O banco desta unidade ainda não recebeu a versão atual do schema. A equipe técnica precisa executar a migração das UBS."),

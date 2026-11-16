@@ -338,7 +338,7 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
     /// especialidade, recalcula a grade com os locks de profissional e de paciente seguros e recusa horário que não seja exatamente um atendimento livre.
     /// Atendimento ocupado, bloqueado, segurado por vaga relâmpago ou inexistente → 409 slot-unavailable; paciente já com consulta no mesmo horário → 409 patient-overlap.
     /// </summary>
-    internal async Task<AppointmentInfo> BookAsync(Guid unitId, Guid actorId, string cpf, Guid professionalId, Specialty specialty, DateTimeOffset startsAt, DateTimeOffset? endsAt, string bookedBy, SlotEngine engine, CancellationToken ct)
+    internal async Task<AppointmentInfo> BookAsync(Guid unitId, Guid actorId, string cpf, Guid professionalId, Specialty specialty, DateTimeOffset startsAt, DateTimeOffset? endsAt, string bookedBy, SlotEngine engine, CancellationToken ct, Guid? guardianId = null)
     {
         var start = startsAt.ToUniversalTime();
         await using var connection = await databases.OpenAsync(unitId, ct);
@@ -367,7 +367,7 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         await using (var insert = Cmd(connection, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at,professional_id,specialty_id,room_id,booked_by) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8,$9,$10,$11,$12)",
             id, cpf, specialty.Name, name, start, new DateTimeOffset(chosen.End, TimeSpan.Zero), actorId, now, professionalId, specialty.Id, chosen.Template.RoomId, bookedBy))
             await insert.ExecuteNonQueryAsync(ct);
-        await using (var audit = Cmd(connection, "INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,'scheduled',$3,$4)", id, actorId, now, bookedBy))
+        await using (var audit = Cmd(connection, "INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,'scheduled',$3,$4,$5::uuid)", id, actorId, now, bookedBy, guardianId))
             await audit.ExecuteNonQueryAsync(ct);
         var result = await AppointmentDao.ReadOneAsync(connection, id, ct);
         await transaction.CommitAsync(ct);
@@ -378,7 +378,7 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
     /// Confirmação de presença pelo próprio paciente: de 48 h até 2 h antes do início (limites incluídos); fora disso 409 confirmation-window. Idempotente: repetir devolve a consulta
     /// já confirmada sem mudar o instante. Só consulta <c>scheduled</c> pode ser confirmada (outra situação → 409); consulta de outra pessoa ou inexistente → 404.
     /// </summary>
-    public async Task<AppointmentInfo> ConfirmAsync(Guid unitId, string cpf, Guid id, CancellationToken ct)
+    public async Task<AppointmentInfo> ConfirmAsync(Guid unitId, string cpf, Guid id, CancellationToken ct, Guid? confirmedBy = null)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -394,7 +394,7 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         {
             var now = time.GetUtcNow();
             if (now < startsAt.AddHours(-48) || now > startsAt.AddHours(-2)) throw new ApiCodedException(StatusCodes.Status409Conflict, "confirmation-window");
-            await using var update = Cmd(connection, "UPDATE nora_unit.appointments SET confirmed_at=$2 WHERE id=$1", id, now);
+            await using var update = Cmd(connection, "UPDATE nora_unit.appointments SET confirmed_at=$2,confirmed_by=$3::uuid WHERE id=$1", id, now, confirmedBy);
             await update.ExecuteNonQueryAsync(ct);
         }
         var result = await AppointmentDao.ReadOneAsync(connection, id, ct);

@@ -177,13 +177,9 @@ internal static partial class ApiEndpoints
             var session = Session(context);
             return Results.Ok(await access.ExecutePatientAsync(session, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf), ct));
         });
-        patient.MapGet("/patient/units/{unitId:guid}/lightning-offers", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            await access.ExecutePatientAsync(session, unitId, _ => Task.FromResult(true), ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.Ok(new { offers = await access.ExecutePatientAsync(session, unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) });
-        });
+        // Só leitura (P-036): a redistribuição das ofertas não acontece mais aqui. As ações (fila, vaga, recusa, desativação) e o worker periódico redistribuem.
+        patient.MapGet("/patient/units/{unitId:guid}/lightning-offers", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
+            Results.Ok(new { offers = await access.ExecutePatientAsync(Session(context), unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) }));
         patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
             Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }));
         patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
@@ -253,6 +249,7 @@ internal static partial class ApiEndpoints
             Results.Ok(await metrics.ReadNetworkAsync(from, to, unitId, region, specialty, ct)));
         municipal.MapPut("/units/{id:guid}", async (Guid id, HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.UpdateAsync(id, request, ct)));
         app.MapSchedulingEndpoints();
+        app.MapFamilyEndpoints(); // Fase 3 — Família e troca do e-mail da conta (ApiEndpoints.Family.cs)
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }

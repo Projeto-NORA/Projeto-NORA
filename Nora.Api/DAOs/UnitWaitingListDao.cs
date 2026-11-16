@@ -51,7 +51,7 @@ public sealed class UnitWaitingListDao(UnitDatabaseRouter databases, TimeProvide
     }
 
     /// <summary>Cancela a própria entrada do paciente (CPF da sessão), com evento de origem 'patient'. Outra pessoa ou inexistente → 404; já encerrada → 409.</summary>
-    public async Task CancelByPatientAsync(Guid unitId, Guid actorId, string cpf, long id, bool confirmed, CancellationToken ct)
+    public async Task CancelByPatientAsync(Guid unitId, Guid actorId, string cpf, long id, bool confirmed, CancellationToken ct, Guid? guardianId = null)
     {
         if (id <= 0 || actorId == Guid.Empty || !confirmed) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct); await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -66,13 +66,13 @@ public sealed class UnitWaitingListDao(UnitDatabaseRouter databases, TimeProvide
         { reopen.Parameters.AddWithValue(id); await reopen.ExecuteNonQueryAsync(ct); }
         await using (var cancel = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status='cancelled' WHERE entry_id=$1 AND status='pending'", connection))
         { cancel.Parameters.AddWithValue(id); await cancel.ExecuteNonQueryAsync(ct); }
-        await RecordAsync(connection, id, actorId, "cancelled", time.GetUtcNow(), ct, "patient"); await transaction.CommitAsync(ct);
+        await RecordAsync(connection, id, actorId, "cancelled", time.GetUtcNow(), ct, "patient", guardianId); await transaction.CommitAsync(ct);
     }
 
-    private static async Task RecordAsync(NpgsqlConnection connection, long id, Guid actor, string status, DateTimeOffset now, CancellationToken ct, string origin = "staff")
+    private static async Task RecordAsync(NpgsqlConnection connection, long id, Guid actor, string status, DateTimeOffset now, CancellationToken ct, string origin = "staff", Guid? guardianId = null)
     {
-        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source) VALUES($1,$2,$3,$4,$5)", connection);
-        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); await insert.ExecuteNonQueryAsync(ct);
+        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,$3,$4,$5,$6)", connection);
+        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); insert.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); await insert.ExecuteNonQueryAsync(ct);
     }
     internal static async Task LockAsync(NpgsqlConnection connection, CancellationToken ct)
     { await using var command = new NpgsqlCommand("SELECT pg_advisory_xact_lock(62419811)", connection); await command.ExecuteNonQueryAsync(ct); }

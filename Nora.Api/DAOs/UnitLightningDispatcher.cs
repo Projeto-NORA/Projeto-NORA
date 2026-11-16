@@ -16,6 +16,11 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
         await using (var query = central.Command(centralConnection, "SELECT a.cpf FROM nora.patient_units p JOIN nora.accounts a ON a.id=p.patient_id WHERE p.unit_id=$1 AND a.scope='patient' AND a.is_active ORDER BY a.id FOR SHARE OF a,p", unitId))
         await using (var reader = await query.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct)) eligible.Add(reader.GetString(0));
+        // Família: o dependente com vínculo aprovado nesta UBS e responsável ativo também recebe ofertas, tenha conta própria ou não (quem responde é o responsável).
+        // Os vínculos ficam bloqueados para leitura até o fim da operação, como os vínculos e as contas acima: encerrar o vínculo espera.
+        await using (var family = central.Command(centralConnection, "SELECT l.dependent_cpf FROM nora.family_links l JOIN nora.accounts g ON g.id=l.guardian_id WHERE l.unit_id=$1 AND l.status='approved' AND g.scope='patient' AND g.is_active ORDER BY l.id FOR SHARE OF l,g", unitId))
+        await using (var reader = await family.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct)) if (!eligible.Contains(reader.GetString(0))) eligible.Add(reader.GetString(0));
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await UnitWaitingListDao.LockAsync(connection, ct);

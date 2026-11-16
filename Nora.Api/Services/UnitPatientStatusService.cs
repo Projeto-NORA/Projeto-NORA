@@ -5,14 +5,21 @@ using Nora.Api.Models;
 
 namespace Nora.Api.Services;
 
-public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabaseRouter databases, TimeProvider time, UnitPatientRegistryDao registry)
+public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabaseRouter databases, TimeProvider time, UnitPatientRegistryDao registry, EmailChangeDao emailChanges)
 {
+    private static string NormalizeEmail(string? email) => email?.Trim().ToLowerInvariant() ?? "";
+
+    /// <summary>
+    /// Corrige o e-mail de referência. Se ele mudou e o paciente tem conta vinculada a esta UBS, registra uma sugestão pendente de troca do e-mail da conta (o app pergunta ao paciente; a conta só
+    /// troca depois de o código enviado ao endereço novo ser confirmado). Tudo na transação central que segura o lock do CPF.
+    /// </summary>
     public async Task UpdateEmailAsync(Guid unitId, Guid actorId, string cpfValue, string? email, CancellationToken ct)
     {
         var cpf = AccountService.NormalizeCpf(cpfValue);
         if (!AccountService.ValidCpf(cpf)) throw new ApiInputException();
         await using var connection = await central.OpenAsync(ct); await using var transaction = await connection.BeginTransactionAsync(ct);
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
+        await RecordSuggestionAsync(connection, unitId, cpf, email, ct);
         await registry.UpdateEmailAsync(unitId, actorId, cpf, email, ct);
         await transaction.CommitAsync(ct);
     }
@@ -22,8 +29,37 @@ public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabas
         if (!AccountService.ValidCpf(cpf)) throw new ApiInputException();
         await using var connection = await central.OpenAsync(ct); await using var transaction = await connection.BeginTransactionAsync(ct);
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
+        await RecordSuggestionAsync(connection, unitId, cpf, patient.Email, ct);
         await registry.UpdateAsync(unitId, actorId, patient, ct);
         await transaction.CommitAsync(ct);
+    }
+
+    /// <summary>
+    /// Grava na transação central, ainda aberta, a sugestão de troca do e-mail da conta, ANTES de a UBS gravar o e-mail novo. O e-mail de referência atual é lido da UBS (CPF sem cadastro → 404) para só sugerir
+    /// quando ele muda. Assim, uma falha do banco central desfaz tudo e a repetição da correção recomeça do zero; resta só a janela do commit central depois do commit da UBS, que não tem como ser atômico.
+    /// </summary>
+    private async Task RecordSuggestionAsync(NpgsqlConnection connection, Guid unitId, string cpf, string? email, CancellationToken ct)
+    {
+        var previous = await registry.ReferenceEmailAsync(unitId, cpf, ct) ?? throw new ApiNotFoundException();
+        var current = NormalizeEmail(email);
+        if (!string.Equals(previous, current, StringComparison.Ordinal)) await emailChanges.RecordAsync(connection, unitId, cpf, current, time.GetUtcNow(), ct);
+    }
+
+    /// <summary>
+    /// Prévia da desativação para a confirmação do OBS: quantas consultas futuras (<c>scheduled</c> ou <c>called</c>, com início depois de agora) seriam canceladas e quantas entradas de fila ativas
+    /// (<c>waiting</c> ou <c>offered</c>) seriam encerradas. CPF sem cadastro na UBS → 404. Não grava nada.
+    /// </summary>
+    public async Task<DeactivationPreview> PreviewDeactivationAsync(Guid unitId, string? cpfValue, CancellationToken ct)
+    {
+        var cpf = AccountService.NormalizeCpf(cpfValue);
+        if (unitId == Guid.Empty || !AccountService.ValidCpf(cpf)) throw new ApiInputException();
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.patient_registry WHERE cpf=$1),(SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status IN ('scheduled','called') AND starts_at>$2),(SELECT count(*) FROM nora_unit.waiting_list WHERE cpf=$1 AND status IN ('waiting','offered'))", connection);
+        query.Parameters.AddWithValue(cpf); query.Parameters.AddWithValue(time.GetUtcNow());
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
+        if (!reader.GetBoolean(0)) throw new ApiNotFoundException();
+        return new((int)reader.GetInt64(1), (int)reader.GetInt64(2));
     }
     public async Task SetActiveAsync(Guid unitId, Guid actorId, UnitPatientActiveRequest request, CancellationToken ct)
     {
@@ -53,6 +89,10 @@ public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabas
                 { cancel.Parameters.AddWithValue(cpf); await cancel.ExecuteNonQueryAsync(ct); }
                 await using (var cancelQueue = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.waiting_list SET status='cancelled' WHERE cpf=$1 AND status IN ('waiting','offered') RETURNING id) INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source) SELECT id,$2,'cancelled',$3,'staff' FROM changed", connection))
                 { cancelQueue.Parameters.AddWithValue(cpf); cancelQueue.Parameters.AddWithValue(actorId); cancelQueue.Parameters.AddWithValue(now); await cancelQueue.ExecuteNonQueryAsync(ct); }
+                // As consultas futuras também saem da agenda, como cancelamento da unidade: origem 'staff', que não pesa no score, e o horário volta à disponibilidade.
+                // A Vaga Relâmpago a partir delas continua sendo decisão manual da equipe.
+                await using (var cancelAppointments = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.appointments SET status='cancelled' WHERE cpf=$1 AND status IN ('scheduled','called') AND starts_at>$3 RETURNING id) INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) SELECT id,$2,'cancelled',$3,'staff' FROM changed", connection))
+                { cancelAppointments.Parameters.AddWithValue(cpf); cancelAppointments.Parameters.AddWithValue(actorId); cancelAppointments.Parameters.AddWithValue(now); await cancelAppointments.ExecuteNonQueryAsync(ct); }
             }
             await using var audit = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action,occurred_at) VALUES($1,$2,$3,$4)", connection);
             audit.Parameters.AddWithValue(cpf); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(request.IsActive ? "reactivated" : "deactivated"); audit.Parameters.AddWithValue(now); await audit.ExecuteNonQueryAsync(ct);

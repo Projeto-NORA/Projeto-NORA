@@ -175,7 +175,7 @@ public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatie
     private static string CodeHash(byte[] key, Guid id, string code) => Hash(key, $"code:{id:N}:{code}");
     private static bool IsHash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
     private static bool EqualHash(string first, string second) => IsHash(first) && IsHash(second) && CryptographicOperations.FixedTimeEquals(Convert.FromHexString(first), Convert.FromHexString(second));
-    private static string Mask(string address)
+    internal static string Mask(string address)
     {
         var at = address.IndexOf('@');
         return at > 0 ? address[..1] + "***" + address[at..] : "***";

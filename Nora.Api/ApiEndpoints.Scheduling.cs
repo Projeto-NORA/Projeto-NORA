@@ -102,7 +102,7 @@ internal static partial class ApiEndpoints
             Results.Json(await service.PatientBookAsync(Session(context), unitId, request, ct), statusCode: StatusCodes.Status201Created))
             .AddEndpointFilter(new SchedulingRateLimitFilter(SchedulingRateLimiter.Booking));
         patient.MapPost("/patient/units/{unitId:guid}/appointments/{id:guid}/confirm", async (Guid unitId, Guid id, HttpContext context, UnitAccessService access, SchedulingDao dao, CancellationToken ct) =>
-            Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => dao.ConfirmAsync(unitId, cpf, id, ct), ct)))
+            Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => dao.ConfirmAsync(unitId, cpf, id, ct, Session(context).User.Id), ct)))
             .AddEndpointFilter(new SchedulingRateLimitFilter(SchedulingRateLimiter.Confirmation));
     }
 

@@ -34,6 +34,10 @@ public sealed class SchedulingAccessService(DatabaseHelper central, UnitPatientR
         return result;
     }
 
+    /// <summary>Executor do responsável pelo dependente com o lock de CPF (do dependente) seguro: ver <see cref="UnitAccessService.ExecuteGuardianAsync{T}"/>. Usado pelo agendamento, que depende das consultas do CPF na rede inteira.</summary>
+    public Task<T> ExecuteGuardianNetworkAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<string, Task<T>> action, CancellationToken ct) =>
+        access.ExecuteGuardianAsync(session, dependentId, unitId, action, ct, serializeCpf: true);
+
     /// <summary>
     /// Como <see cref="UnitAccessService.ExecutePatientAsync{T}"/>, e além disso serializa, pelo mesmo lock de CPF da remoção de vínculo (<c>62419805</c>), tudo o que depende do conjunto de
     /// consultas do paciente na rede inteira. É o que impede duas UBS, em paralelo, de furarem o limite de uma consulta futura por especialidade: o segundo pedido só começa depois

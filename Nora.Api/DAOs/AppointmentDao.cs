@@ -50,7 +50,8 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         return items;
     }
 
-    public async Task<AppointmentInfo> ChangeStatusAsync(Guid unitId, Guid actorId, Guid id, AppointmentStatusRequest request, CancellationToken ct, string? patientCpf = null)
+    /// <param name="guardianId">Conta do responsável quando o paciente é um dependente (Família): vai para o evento, que continua com origem "patient".</param>
+    public async Task<AppointmentInfo> ChangeStatusAsync(Guid unitId, Guid actorId, Guid id, AppointmentStatusRequest request, CancellationToken ct, string? patientCpf = null, Guid? guardianId = null)
     {
         if (id == Guid.Empty || request.Status is not ("called" or "completed" or "missed" or "cancelled") || (request.Status == "cancelled" && !request.Confirmed)) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct);
@@ -64,15 +65,15 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         }
         await using (var update = new NpgsqlCommand("UPDATE nora_unit.appointments SET status=$2 WHERE id=$1", connection))
         { update.Parameters.AddWithValue(id); update.Parameters.AddWithValue(request.Status); await update.ExecuteNonQueryAsync(ct); }
-        await InsertEventAsync(connection, id, actorId, request.Status, time.GetUtcNow(), patientCpf is null ? "staff" : "patient", ct);
+        await InsertEventAsync(connection, id, actorId, request.Status, time.GetUtcNow(), patientCpf is null ? "staff" : "patient", ct, guardianId);
         var result = await ReadOneAsync(connection, id, ct); await transaction.CommitAsync(ct); return result;
     }
 
     /// <summary>Origem: "staff" (OBS), "patient" (aplicativo) ou "system"; só cancelamentos "patient" pesam no score de comparecimento.</summary>
-    private static async Task InsertEventAsync(NpgsqlConnection connection, Guid id, Guid actor, string status, DateTimeOffset now, string origin, CancellationToken ct)
+    private static async Task InsertEventAsync(NpgsqlConnection connection, Guid id, Guid actor, string status, DateTimeOffset now, string origin, CancellationToken ct, Guid? guardianId = null)
     {
-        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,$3,$4,$5)", connection);
-        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); await insert.ExecuteNonQueryAsync(ct);
+        await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,$3,$4,$5,$6)", connection);
+        insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); insert.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); await insert.ExecuteNonQueryAsync(ct);
     }
     internal static async Task<AppointmentInfo> ReadOneAsync(NpgsqlConnection connection, Guid id, CancellationToken ct)
     {

@@ -76,6 +76,14 @@ public static class NoraApiHost
         builder.Services.AddSingleton<AnnouncementService>();
         builder.Services.AddSingleton<HealthRecordDao>();
         builder.Services.AddSingleton<HealthRecordService>();
+        // Fase 3 — Família, e-mail da conta e manutenção
+        builder.Services.AddSingleton<FamilyRateLimiter>();
+        builder.Services.AddSingleton<FamilyDao>();
+        builder.Services.AddSingleton<FamilyService>();
+        builder.Services.AddSingleton<EmailChangeDao>();
+        builder.Services.AddSingleton<EmailChangeService>();
+        builder.Services.AddSingleton<MaintenanceService>();
+        builder.Services.AddHostedService<MaintenanceWorker>();
         builder.Services.AddHostedService<TimeZoneStartupCheck>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();

@@ -18,6 +18,8 @@ if (args.Contains("--review-only")) return await ReviewChecks.RunAsync(directory
 // Itera só nas verificações de comunicação e Jornada, ou só nas de agenda.
 if (args.Contains("--community-only")) return await CommunityChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--scheduling-only")) return await SchedulingChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--family-only")) return await FamilyChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--family-review-only")) return await FamilyChecks.RunReviewAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -212,7 +214,9 @@ var platformFailures = await PlatformChecks.RunAsync(directory.FullName);
 var reviewFailures = await ReviewChecks.RunAsync(directory.FullName);
 var communityFailures = await CommunityChecks.RunAsync(directory.FullName);
 var schedulingFailures = await SchedulingChecks.RunAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 ? 0 : 1;
+var familyFailures = await FamilyChecks.RunAsync(directory.FullName);
+var familyReviewFailures = await FamilyChecks.RunReviewAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 
