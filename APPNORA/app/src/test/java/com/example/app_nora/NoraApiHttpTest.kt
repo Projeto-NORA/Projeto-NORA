@@ -173,6 +173,17 @@ class NoraApiHttpTest {
     private val professionalId = "12345678-1234-1234-1234-123456789012"
     private val slotJson = """{"slots":[{"startsAt":"2026-11-20T12:00:00+00:00","endsAt":"2026-11-20T12:30:00+00:00","professionalId":"12345678-1234-1234-1234-123456789012","professionalName":"Dra. Ana","specialtyId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","specialtyName":"Cardiologia","roomId":"11111111-2222-3333-4444-555555555555","roomName":"Sala 1"}]}"""
 
+    @Test fun unlinkPreviewReadsTheExactNumbersTheRemovalWillCancel() = runBlocking {
+        route("/api/patient/units/$unitId/unlink-preview", 200, """{"futureAppointments":4,"activeWaitingEntries":2}""")
+        assertEquals(UnlinkImpact(4, 2), api().unlinkPreview("token-x", unitId))
+        assertEquals("GET", lastMethod); assertEquals("/api/patient/units/$unitId/unlink-preview", lastUri)
+        assertEquals("Bearer token-x", lastAuthorization)
+        route("/api/patient/units/$unitId/unlink-preview", 503, """{"title":"SEGREDO","status":503}""")
+        try { api().unlinkPreview("t", unitId); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(503, failure.status); assertFalse(failure.message.orEmpty().contains("SEGREDO")) }
+        try { api().unlinkPreview("t", "../x"); fail("expected failure") } catch (_: IllegalArgumentException) {}
+    }
+
     @Test fun specialtiesAndAvailabilityAreParsedAndTheQueryCarriesTheWindow() = runBlocking {
         route("/api/patient/specialties", 200, """{"specialties":[{"id":"$specialtyId","name":"Cardiologia","isActive":true}]}""")
         assertEquals(listOf(Specialty(specialtyId, "Cardiologia")), api().specialties("token-x"))
@@ -235,6 +246,19 @@ class NoraApiHttpTest {
         val items = api().appointments("t", unitId)
         assertEquals("staff", items[0].bookedBy); assertNull(items[0].confirmedAt)
         assertEquals("lightning", items[1].bookedBy); assertEquals("2026-11-12T12:00:00Z", items[1].confirmedAt)
+        assertFalse(items[0].bookedByYou); assertNull(items[0].bookedByGuardianName)
+    }
+
+    @Test fun whoBookedIsParsedFromTheOwnTheDelegatedAndTheBookingAnswers() = runBlocking {
+        fun body(byYou: Boolean, guardian: String?) = """{"id":"$offerId","specialty":"Clínica","professional":"P","startsAt":"2026-11-20T12:00:00Z",""" +
+            """"endsAt":"2026-11-20T12:30:00Z","status":"scheduled","confirmedAt":null,"bookedBy":"patient","bookedByYou":$byYou,""" +
+            """"bookedByGuardianName":${guardian?.let { "\"$it\"" } ?: "null"}}"""
+        route("/api/patient/units/$unitId/appointments", 200, """{"appointments":[${body(false, "Ana Lima")}]}""")
+        api().appointments("t", unitId).single().let { assertFalse(it.bookedByYou); assertEquals("Ana Lima", it.bookedByGuardianName) }
+        route("$dependentBase/appointments", 200, """{"appointments":[${body(true, null)}]}""")
+        api().dependentAppointments("t", dependentId, unitId).single().let { assertTrue(it.bookedByYou); assertNull(it.bookedByGuardianName) }
+        route("/api/patient/units/$unitId/appointments", 201, body(true, null))
+        assertTrue(api().bookAppointment("t", unitId, professionalId, specialtyId, "2026-11-20T12:00:00Z").bookedByYou)
     }
 
     @Test fun schedulingIdentifiersNeverBecomePathOrQuery() = runBlocking {

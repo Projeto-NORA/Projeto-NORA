@@ -42,7 +42,7 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
                         Text("Profissional: ${appointment.professional}")
                         Text(formatRange(appointment.startsAt, appointment.endsAt))
                         Text(statusLabel(appointment.status))
-                        bookedByLabel(appointment.bookedBy)?.let { MutedText(it) }
+                        bookedByLabel(appointment.bookedBy, appointment.bookedByYou, appointment.bookedByGuardianName)?.let { MutedText(it) }
                         PresenceConfirmation(appointment, presenceNow.value, patient.busy) {
                             onConfirmPresence(patient.selectedUnitId, appointment.id)
                         }

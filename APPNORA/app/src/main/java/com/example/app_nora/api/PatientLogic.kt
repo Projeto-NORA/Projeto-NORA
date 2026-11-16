@@ -193,20 +193,8 @@ fun countLabel(count: Int, singular: String, plural: String): String = if (count
 
 // ---- Remoção de vínculo ------------------------------------------------------------------------------
 
-/** O que o paciente perde ao remover uma UBS, segundo o que o aplicativo já leu dela. */
+/** O que a remoção da UBS cancelaria, segundo a prévia do servidor: todas as consultas futuras e as solicitações ativas de fila. */
 data class UnlinkImpact(val appointments: Int, val queueEntries: Int)
-
-/**
- * Consultas futuras (agendadas ou chamadas, com início depois de [now]) e solicitações ativas da fila.
- * Devolve nulo enquanto a agenda ou a fila da UBS não foi lida: não se mostra contagem inventada.
- */
-fun unlinkImpact(snapshot: UnitSnapshot?, now: Long): UnlinkImpact? {
-    val appointments = snapshot?.appointments ?: return null
-    val queue = snapshot.queue ?: return null
-    return UnlinkImpact(
-        appointments.count { (it.status == "scheduled" || it.status == "called") && (it.startsAtMillis?.let { start -> start > now } ?: false) },
-        queue.count { it.status == "waiting" || it.status == "offered" })
-}
 
 /** Resultado da remoção, com os números devolvidos pelo servidor. */
 fun unlinkResultMessage(unitName: String, result: UnlinkResult): String =
@@ -239,14 +227,19 @@ class NotifiedOffers {
 // ---- Textos de situação ------------------------------------------------------------------------------
 
 /**
- * Quem marcou a consulta, em português; nulo para um valor desconhecido (nunca mostra o valor cru). `patient` é neutro de propósito: o
- * servidor grava o mesmo valor quando o próprio paciente marca e quando um responsável marca por ele (o responsável fica só na auditoria).
+ * Quem marcou a consulta, em português; nulo para um valor desconhecido (nunca mostra o valor cru). [byYou] (a conta que lê marcou) vale
+ * mais que [guardianName] (o responsável que marcou pelo vínculo de Família); sem nenhum dos dois, como em servidor antigo, `patient` fica
+ * neutro, porque o servidor grava o mesmo valor quando o próprio paciente marca e quando um responsável marca por ele.
  */
-fun bookedByLabel(value: String): String? = when (value) {
-    "patient" -> "Marcada pelo aplicativo"
-    "staff" -> "Marcada pela equipe da UBS"
-    "lightning" -> "Marcada ao aceitar uma Vaga Relâmpago"
-    else -> null
+fun bookedByLabel(value: String, byYou: Boolean = false, guardianName: String? = null): String? = when {
+    byYou -> "Marcada por você"
+    !guardianName.isNullOrBlank() -> "Marcada por ${guardianName.trim()}"
+    else -> when (value) {
+        "patient" -> "Marcada pelo aplicativo"
+        "staff" -> "Marcada pela equipe da UBS"
+        "lightning" -> "Marcada ao aceitar uma Vaga Relâmpago"
+        else -> null
+    }
 }
 
 /** Tradução única para toda situação que o servidor devolve; nunca mostra o valor cru. */

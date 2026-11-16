@@ -152,12 +152,19 @@ class BookingLogicTest {
     }
 
     @Test fun bookedByIsAlwaysTranslated() {
-        // O servidor grava "patient" tanto quando a pessoa marca pela própria conta quanto quando um responsável marca por ela:
-        // o texto não pode afirmar quem foi.
+        // Sem `bookedByYou` nem nome de responsável (servidor antigo), o texto do aplicativo é neutro: não afirma quem foi.
         assertEquals("Marcada pelo aplicativo", bookedByLabel("patient"))
+        assertEquals("Marcada pelo aplicativo", bookedByLabel("patient", guardianName = "  "))
         assertEquals("Marcada pela equipe da UBS", bookedByLabel("staff"))
         assertEquals("Marcada ao aceitar uma Vaga Relâmpago", bookedByLabel("lightning"))
         assertNull(bookedByLabel("outro"))
+    }
+
+    @Test fun bookedByNamesWhoBookedWhenTheServerSays() {
+        assertEquals("Marcada por você", bookedByLabel("patient", byYou = true))
+        assertEquals("quem marcou é quem vê: vale mais que o nome", "Marcada por você", bookedByLabel("patient", byYou = true, guardianName = "Ana Lima"))
+        assertEquals("Marcada por Ana Lima", bookedByLabel("patient", guardianName = "Ana Lima"))
+        assertEquals("Marcada por Ana Lima", bookedByLabel("lightning", guardianName = "Ana Lima"))
     }
 
     // ---- Textos do agendamento quando se age por um dependente ------------------------------------------------------

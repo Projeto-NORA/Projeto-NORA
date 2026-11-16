@@ -259,6 +259,44 @@ class FamilyControllerTest {
         assertNull(controller.selectNearestUnit(-23.5, -46.6))
     }
 
+    @Test fun openingTheUnitsScreenWhileActingReturnsToTheOwnUnitsWithoutAnyErrorOfTheDependent() = runBlocking {
+        val api = FamilyFakeApi()
+        api.depAppointments["dep-1"] = listOf(appointment("ap-1", 30 * hour))
+        val held = CompletableDeferred<Unit>()
+        // O cancelamento da consulta do dependente fica em voo até [held]; a tela UBS abre no meio dele.
+        val gate = object : PatientApi by api {
+            override suspend fun dependentCancelAppointment(token: String, dependentId: String, unitId: String, id: String) {
+                held.await(); api.dependentCancelAppointment(token, dependentId, unitId, id)
+            }
+        }
+        api.links = mutableListOf(link("dep-1", "approved", "unit-b", "UBS B"))
+        api.units = listOf(unitA, unitB)
+        val controller = PatientController(MemoryAddressStore()) { gate }
+        controller.clock = { now }
+        controller.login("paciente@example.test", "test-only-input")
+        controller.loadFamily()
+        controller.switchActing("dep-1")
+        val cancelling = launch { controller.cancelAppointment("ap-1") }
+        yield()
+        assertTrue(controller.state.busy)
+        assertTrue("abrir a tela UBS sai do agindo por, mesmo com a ação do dependente em andamento", controller.showOwnUnits())
+        assertNull(controller.state.actingFor)
+        api.depFailure = failure(403, "forbidden", ApiContext.APPOINTMENT_CANCEL)
+        held.complete(Unit)
+        cancelling.join()
+        assertNull("o erro do dependente não chega à tela UBS", controller.state.message)
+        assertFalse(controller.state.busy)
+        assertFalse("já nas próprias UBS, não há o que avisar", controller.showOwnUnits())
+        // Atualizar, escolher e localizar valem para as UBS do próprio responsável.
+        api.calls.clear()
+        controller.loadUnits()
+        assertTrue(api.calls.toString(), api.calls.none { it.startsWith("dep.") })
+        controller.selectUnit("unit-b")
+        assertEquals("unit-b", controller.state.selectedUnitId)
+        assertEquals("unit-a", controller.selectNearestUnit(-23.5, -46.6)?.id)
+        assertEquals("unit-a", controller.state.effective().selectedUnitId)
+    }
+
     @Test fun switchingTheActingPersonDropsTheBookingStateOfTheOther() = runBlocking {
         val api = FamilyFakeApi()
         val slot = AvailableSlot(formatInstantUtc(now + 2 * day), formatInstantUtc(now + 2 * day + 1_800_000), "prof-1", "Ana", "spec-1", "Cardiologia")
@@ -280,6 +318,12 @@ class FamilyControllerTest {
         val ownRecords = CompletableDeferred<Unit>()
         val depRecords = CompletableDeferred<Unit>()
         var ownRecordsFailure: Throwable? = null
+        /** Lista de UBS: falha enquanto [unitsFailure] existir e, com [unitsGate], espera o sinal. */
+        var unitsFailure: Throwable? = null
+        var unitsGate: CompletableDeferred<Unit>? = null
+        override suspend fun units(token: String): List<PatientHealthUnit> {
+            unitsGate?.await(); unitsFailure?.let { throw it }; return inner.units(token)
+        }
         override suspend fun attendance(token: String, unitId: String): UnitAttendance { ownAttendance.await(); return inner.attendance(token, unitId) }
         override suspend fun healthRecords(token: String): List<UnitRecords> {
             ownRecords.await(); ownRecordsFailure?.let { throw it }; return inner.healthRecords(token)
@@ -340,6 +384,65 @@ class FamilyControllerTest {
         assertNull(controller.state.records.error)
     }
 
+    @Test fun aLinkThatEndsDuringTheDependentsRecordsReadDoesNotLeaveTheOwnRecordsStuckLoading() = runBlocking {
+        val api = FamilyFakeApi()
+        val (controller, gate) = gated(api)
+        controller.actFor("dep-1")
+        val dependent = launch { controller.loadRecords() }
+        yield()
+        assertTrue(controller.state.records.loading)
+        // O responsável encerra o vínculo com a leitura do dependente ainda em voo.
+        api.changeResult = link("dep-1", "ended", "unit-b", "UBS B")
+        controller.endDependent("dep-1")
+        assertNull(controller.state.actingFor)
+        gate.depRecords.complete(Unit)
+        dependent.join()
+        assertFalse("a visão própria não herda o indicador da leitura do dependente", controller.state.records.loading)
+        gate.ownRecords.complete(Unit)
+        controller.loadRecords()
+        assertEquals("a leitura própria acontece", listOf("own.records"), api.callsOf("own.records"))
+        assertFalse(controller.state.records.loading)
+    }
+
+    @Test fun anOwnRecordsReadWaitingForTheUnitsDoesNotMarkTheDependentsViewAsLoading() = runBlocking {
+        val api = FamilyFakeApi()
+        val gate = GatedApi(api)
+        api.links = mutableListOf(link("dep-1", "approved", "unit-b", "UBS B"))
+        api.units = listOf(unitA, unitB)
+        val controller = PatientController(MemoryAddressStore()) { gate }
+        controller.clock = { now }
+        gate.unitsFailure = IOException("sem rede")
+        controller.login("paciente@example.test", "test-only-input")
+        controller.loadFamily()
+        assertNull(controller.state.units)
+        gate.unitsFailure = null
+        gate.unitsGate = CompletableDeferred()
+        gate.ownRecords.complete(Unit)
+        val own = launch { controller.loadRecords() }
+        yield()
+        // As UBS ainda estão chegando quando o responsável passa a agir pelo dependente.
+        assertTrue(controller.actFor("dep-1"))
+        gate.unitsGate?.complete(Unit)
+        own.join()
+        assertEquals("dep-1", controller.state.actingFor)
+        assertFalse("a leitura própria não deixa a Jornada do dependente presa em 'Atualizando…'", controller.state.records.loading)
+    }
+
+    @Test fun aForbiddenRecordsReadWhileActingRereadsTheLinks() = runBlocking {
+        val api = FamilyFakeApi()
+        val controller = withDependent(api)
+        controller.switchActing("dep-1")
+        assertEquals(1, api.callsOf("own.dependents").size)
+        // A equipe encerrou o vínculo: a Jornada do dependente responde 403 e a lista de vínculos já não o traz aprovado.
+        api.links = mutableListOf(link("dep-1", "ended", "unit-b", "UBS B"))
+        api.depFailure = failure(403, "forbidden", ApiContext.RECORDS)
+        controller.loadRecords()
+        assertEquals("os vínculos são relidos", 2, api.callsOf("own.dependents").size)
+        assertNull(controller.state.actingFor)
+        assertNull("o erro do dependente não fica na visão própria", controller.state.records.error)
+        assertFalse(controller.state.records.loading)
+    }
+
     @Test fun aForbiddenAvailabilityReadThatEndsTheLinkDoesNotLeaveTheDependentsErrorOnTheOwnView() = runBlocking {
         val api = FamilyFakeApi()
         val controller = withDependent(api)
@@ -374,6 +477,26 @@ class FamilyControllerTest {
         controller.pollCommunity(session, generation)
         assertEquals(1, api.callsOf("own.dependents").size)
         assertEquals(2, api.callsOf("own.dependentOffers").size)
+    }
+
+    @Test fun aNewOfferOfTheDependentBeingActedForReachesTheScreensInTheSameCycle() = runBlocking {
+        val api = FamilyFakeApi()
+        val controller = withDependent(api)
+        controller.switchActing("dep-1")
+        assertEquals(emptyList<UnitOffer>(), controller.state.effective().unitOffers)
+        val session = requireNotNull(controller.state.session)
+        val generation = controller.beginPresence()
+        // A UBS cria uma vaga e Maria recebe uma oferta: o ciclo de 30 s a lê pela rota agregada.
+        api.depOffers["dep-1"] = listOf(offer("off-2"))
+        api.dependentOffersResult = listOf(DependentOffers("dep-1", "unit-b", "UBS B", "Maria Souza", listOf(offer("off-2"))))
+        controller.pollCommunity(session, generation)
+        val view = controller.state.effective()
+        assertEquals("Vaga Relâmpago do dependente", listOf("off-2"), view.unitOffers?.map { it.id })
+        assertEquals("Início do dependente", listOf("off-2"), openOffersAcrossUnits(view.units, view.unitData, now).map { it.offer.id })
+        // Sem mudança, o ciclo seguinte não relê a lista do dependente.
+        val reads = api.callsOf("dep.offers").size
+        controller.pollCommunity(session, generation)
+        assertEquals(reads, api.callsOf("dep.offers").size)
     }
 
     @Test fun aPendingRequestIsRereadEachCycleSoTheApprovalAppears() = runBlocking {

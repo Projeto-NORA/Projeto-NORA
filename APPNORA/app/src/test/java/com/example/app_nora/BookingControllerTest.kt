@@ -313,8 +313,10 @@ class BookingControllerTest {
             }
         }
         val controller = ready(api, unitA, unitB, via = spy)
+        // As consultas da UBS A já estão lidas, mas a UBS selecionada é a B.
+        controller.selectUnit(unitA.id)
+        controller.loadAppointments()
         controller.selectUnit(unitB.id)
-        controller.loadUnitDetails(unitA.id)
         controller.confirmPresence(unitA.id, "a1")
         assertEquals(listOf("unit-a"), seen)
         assertEquals("unit-b", controller.state.selectedUnitId)

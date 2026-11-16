@@ -3,6 +3,7 @@ package com.example.app_nora
 import android.app.NotificationManager
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.lifecycle.Lifecycle
@@ -38,7 +39,12 @@ class PatientPresenceServiceTest {
         val controller = PatientController(isolated) { api }
         var originalActivity: MainActivity? = null
         var originalViewModel: PatientViewModel? = null
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+        // O toque na notificação entrega um Intent sem ação nem categoria e a MainActivity o adota (setIntent em onNewIntent). O
+        // ActivityScenario só acompanha o ciclo de vida da Activity enquanto o Intent dela for igual (filterEquals) ao do lançamento;
+        // lançada com MAIN/LAUNCHER, ele perderia a Activity depois do toque e o close() quebraria. Lançar com o mesmo Intent da
+        // notificação mantém o acompanhamento até o fim.
+        val launch = Intent(context, MainActivity::class.java)
+        ActivityScenario.launch<MainActivity>(launch).use { scenario ->
             try {
                 instrumentation.waitForIdleSync()
                 scenario.onActivity { activity ->

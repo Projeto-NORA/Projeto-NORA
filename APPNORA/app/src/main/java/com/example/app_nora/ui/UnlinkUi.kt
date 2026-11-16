@@ -11,8 +11,9 @@ import androidx.compose.ui.unit.dp
 import com.example.app_nora.api.*
 
 /**
- * Aviso antes de remover o vínculo com uma UBS. [impact] é o que o aplicativo já leu (nulo enquanto [loading] ou quando a
- * leitura falhou); confirmar fica bloqueado só enquanto confere, porque a remoção também vale para cadastro desativado.
+ * Aviso antes de remover o vínculo com uma UBS. [impact] é a prévia do servidor relida agora, com exatamente o que a remoção cancela
+ * (nulo enquanto [loading] ou quando a prévia falhou). Confirmar fica bloqueado só enquanto confere, porque a remoção também vale para
+ * cadastro desativado.
  */
 @Composable
 internal fun UnlinkDialog(unitName: String, impact: UnlinkImpact?, loading: Boolean, busy: Boolean,
@@ -24,7 +25,7 @@ internal fun UnlinkDialog(unitName: String, impact: UnlinkImpact?, loading: Bool
                 Text("Você deixa de usar neste aplicativo a unidade $unitName.")
                 when {
                     loading -> Text("Conferindo o que será cancelado…")
-                    impact == null -> Text("Não foi possível conferir o que será cancelado. A remoção cancela suas consultas " +
+                    impact == null -> Text("Não foi possível conferir o que será cancelado. A remoção cancela todas as suas consultas " +
                         "futuras e solicitações de fila nesta UBS.", color = MaterialTheme.colorScheme.error)
                     impact.appointments == 0 && impact.queueEntries == 0 ->
                         Text("Você não tem consultas futuras nem solicitações de fila nesta UBS.")

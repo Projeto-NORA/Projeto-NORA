@@ -21,10 +21,12 @@ data class UnitLinkResult(val linkedUnits: List<String>, val unmatchedUnits: Lis
 data class PatientHealthUnit(val id: String, val name: String, val region: String, val address: String, val latitude: Double, val longitude: Double)
 /**
  * `confirmedAt` é nulo até o paciente confirmar a presença; `bookedBy` é `staff`, `patient` ou `lightning`
- * (consultas de servidor mais antigo, sem o campo, contam como da equipe).
+ * (consultas de servidor mais antigo, sem o campo, contam como da equipe). `bookedByYou` diz se a conta que lê marcou a consulta
+ * pelo app (para si ou como responsável) e `bookedByGuardianName` é o responsável que a marcou por vínculo de Família; servidor
+ * antigo, sem esses campos, deixa os dois vazios.
  */
 data class PatientAppointment(val id: String, val specialty: String, val professional: String, val startsAt: String, val endsAt: String, val status: String,
-    val confirmedAt: String? = null, val bookedBy: String = "staff") {
+    val confirmedAt: String? = null, val bookedBy: String = "staff", val bookedByYou: Boolean = false, val bookedByGuardianName: String? = null) {
     /** Instante de início já interpretado uma vez; `null` quando o servidor enviou uma data ilegível. */
     val startsAtMillis: Long? = parseInstantMillis(startsAt)
 }
@@ -95,6 +97,8 @@ interface PatientApi {
     suspend fun attendance(token: String, unitId: String): UnitAttendance = throw ApiFailure(501, "Participação indisponível.")
     suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long): Unit = throw ApiFailure(501, "Cancelamento indisponível.")
     suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult = throw ApiFailure(501, "Remoção indisponível.")
+    /** Exatamente o que a remoção do vínculo cancelaria agora: todas as consultas futuras e entradas ativas de fila na UBS. */
+    suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact = throw ApiFailure(501, "Remoção indisponível.")
     suspend fun changePassword(token: String, currentPassword: String, newPassword: String): Unit = throw ApiFailure(501, "Troca de senha indisponível.")
     suspend fun specialties(token: String): List<Specialty> = throw ApiFailure(501, "Especialidades indisponíveis.")
     /** Horários livres no intervalo [fromMillis, toMillis); o servidor ainda recorta a janela de 24 h a 90 dias. */
@@ -259,7 +263,8 @@ class NoraApi(private val address: String) : PatientApi {
 
     private fun appointment(body: JSONObject) = PatientAppointment(body.getString("id"), body.getString("specialty"), body.getString("professional"),
         body.getString("startsAt"), body.getString("endsAt"), body.getString("status"),
-        body.stringOrNull("confirmedAt"), body.optString("bookedBy", "staff").ifBlank { "staff" })
+        body.stringOrNull("confirmedAt"), body.optString("bookedBy", "staff").ifBlank { "staff" },
+        body.optBoolean("bookedByYou", false), body.stringOrNull("bookedByGuardianName")?.takeIf { it.isNotBlank() })
 
     override suspend fun cancelAppointment(token: String, unitId: String, id: String) = cancelAppt(token, own(unitId), id)
     override suspend fun dependentCancelAppointment(token: String, dependentId: String, unitId: String, id: String) = cancelAppt(token, delegated(dependentId, unitId), id)
@@ -319,6 +324,13 @@ class NoraApi(private val address: String) : PatientApi {
     override suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult {
         val body = request("${own(unitId)}/unlink", "POST", token, JSONObject().put("confirmed", true), ApiContext.UNLINK)
         return UnlinkResult(body.getInt("cancelledAppointments"), body.getInt("cancelledEntries"))
+    }
+
+    override suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact {
+        val body = request("${own(unitId)}/unlink-preview", token = token, context = ApiContext.UNLINK)
+        val impact = UnlinkImpact(body.getInt("futureAppointments"), body.getInt("activeWaitingEntries"))
+        require(impact.appointments >= 0 && impact.queueEntries >= 0) { "Prévia de remoção inválida." }
+        return impact
     }
 
     // ---- Comunicados ---------------------------------------------------------------------------------------

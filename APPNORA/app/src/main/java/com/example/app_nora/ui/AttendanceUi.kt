@@ -19,21 +19,28 @@ internal const val ATTENDANCE_EXPLANATION =
 internal const val ATTENDANCE_NOT_PRIORITY =
     "O índice não altera fila, prioridade clínica nem seu direito ao atendimento."
 
-/** Índice de comparecimento do próprio paciente, geral e por UBS, com os números que o compõem. */
+/**
+ * Índice de comparecimento, geral e por UBS, com os números que o compõem: do próprio paciente ou, agindo por um dependente, dele
+ * (o servidor conta nos cancelamentos os feitos pelo aplicativo na conta do dependente, por ele ou pelo responsável).
+ */
 @Composable
 internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
     val summary = remember(patient.units, patient.unitData) { summarizeAttendance(patient.units, patient.unitData) }
     var detailOpen by rememberSaveable { mutableStateOf(false) }
     val units = patient.units
-    SectionCard("Índice de Jornada", "Seu comparecimento nos últimos ${summary.windowMonths} meses") {
+    val name = patient.actingLink()?.let(::dependentDisplayName)
+    val participation = if (name == null) "sua participação" else "a participação de $name"
+    SectionCard("Índice de Jornada", (if (name == null) "Seu comparecimento" else "Comparecimento de $name") +
+        " nos últimos ${summary.windowMonths} meses") {
         when {
             patient.session == null -> MutedText("Entre na sua conta para ver seu índice.")
             units == null -> MutedText(if (patient.loadingUnits) "Carregando suas UBS…"
                 else "Não foi possível carregar suas UBS. Atualize para tentar novamente.")
             units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro.")
             summary.answeredUnits == 0 && summary.failedUnits == 0 ->
-                MutedText(if (patient.attendanceLoading) "Consultando sua participação…" else "Sua participação ainda não foi consultada.")
-            summary.answeredUnits == 0 -> MutedText("Não foi possível consultar sua participação. Atualize para tentar novamente.")
+                MutedText(if (patient.attendanceLoading) "Consultando $participation…"
+                    else "${participation.replaceFirstChar { it.uppercase() }} ainda não foi consultada.")
+            summary.answeredUnits == 0 -> MutedText("Não foi possível consultar $participation. Atualize para tentar novamente.")
             else -> {
                 val percent = summary.percent
                 if (percent == null) {
@@ -45,7 +52,7 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
                         modifier = Modifier.clearAndSetSemantics { contentDescription = "Comparecimento de $percent por cento" })
                     Text("Consultas concluídas: ${summary.completed}")
                     Text("Faltas: ${summary.missed}")
-                    Text("Cancelamentos feitos por você: ${summary.cancelledByPatient}")
+                    Text("${if (name == null) "Cancelamentos feitos por você" else "Cancelamentos pelo aplicativo"}: ${summary.cancelledByPatient}")
                 }
                 if (summary.failedUnits > 0) Text(
                     if (summary.failedUnits == 1) "Uma UBS não respondeu e não entrou nesta conta. Atualize para tentar de novo."
@@ -60,7 +67,8 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
             }
         }
         MutedText(ATTENDANCE_EXPLANATION)
-        MutedText(ATTENDANCE_NOT_PRIORITY)
+        MutedText(if (name == null) ATTENDANCE_NOT_PRIORITY
+            else "O índice não altera fila, prioridade clínica nem o direito de $name ao atendimento.")
         if (patient.session != null && units != null) OutlinedButton(onClick = onRefresh, enabled = !patient.attendanceLoading,
             modifier = Modifier.fillMaxWidth()) {
             Text(if (patient.attendanceLoading) "Atualizando…" else "Atualizar participação")

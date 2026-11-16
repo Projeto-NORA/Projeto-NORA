@@ -101,6 +101,8 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     var clock: () -> Long = System::currentTimeMillis
     // Só a última leitura de horários pode gravar o resultado; as anteriores, ainda em voo, são descartadas.
     private var availabilityGeneration = 0L
+    // Cada troca da pessoa em tela; a falha de uma ação iniciada antes da troca não vira mensagem da visão nova.
+    private var viewSwitches = 0L
     private val presenceMutex = Mutex()
     // Leitura completa (abrir Avisos, mudar vínculos) e incremental (ciclo de 30 s) nunca correm juntas.
     private val announcementMutex = Mutex()
@@ -171,6 +173,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         catch (_: JSONException) {
             if (isCurrent(session, generation)) state = state.copy(message = INCOMPATIBLE_RESPONSE_MESSAGE)
         }
+    }
+
+    /** O paciente negou ACCESS_LOCAL_NETWORK para um endereço da rede local: nada é enviado e a tela diz o que fazer. */
+    fun localNetworkDenied() {
+        state = state.copy(message = LOCAL_NETWORK_DENIED_MESSAGE)
     }
 
     fun changeAddress(value: String) {
@@ -499,13 +506,33 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (approvedLinks(state.family.links).isNotEmpty()) {
             cycleCall(session, generation, "Ofertas dos dependentes") { it.dependentsOpenOffers(session.token) }?.let { offers ->
                 val approved = approvedLinks(state.family.links).map { it.id }.toSet()
-                if (isCurrent(session, generation)) state = state.copy(dependentOffers = offers.filter { it.dependentId in approved })
+                if (isCurrent(session, generation)) {
+                    state = state.copy(dependentOffers = offers.filter { it.dependentId in approved })
+                    refreshActingOffers(session, generation)
+                }
             }
         } else if (state.dependentOffers.isNotEmpty()) state = state.copy(dependentOffers = emptyList())
         if (!isCurrent(session, generation)) return fresh
         cycleCall(session, generation, "Sugestão de e-mail") { SuggestionRead(it.emailSuggestion(session.token)) }
             ?.let { if (isCurrent(session, generation)) applyEmailSuggestion(it.value) }
         return fresh
+    }
+
+    /**
+     * Agindo por um dependente, Início e Vaga Relâmpago mostram as ofertas lidas pela rota dele, não as do aviso agregado. Quando as
+     * abertas do aviso não batem com as abertas da tela (oferta nova, ou uma que deixou de estar aberta), relê a lista dele: uma
+     * chamada só quando mudou. Com uma ação em andamento (`busy`) espera o próximo ciclo, para não sobrescrever o resultado dela.
+     */
+    private suspend fun refreshActingOffers(session: PatientSession, generation: Long) {
+        val link = state.actingLink() ?: return
+        if (state.busy) return
+        val now = clock()
+        val announced = state.dependentOffers.firstOrNull { it.dependentId == link.id }?.offers.orEmpty()
+            .filter { it.isOpenAt(now) }.mapTo(HashSet()) { it.id }
+        val shown = state.dependentData[link.id]?.offers.orEmpty().filter { it.isOpenAt(now) }.mapTo(HashSet()) { it.id }
+        if (announced == shown) return
+        val offers = cycleCall(session, generation, "Ofertas do dependente") { it.dependentUnitOffers(session.token, link.id, link.unitId) } ?: return
+        if (isLive(session, link.id) && !state.busy) updateUnit(link.unitId, link.id) { it.copy(offers = offers) }
     }
 
     private class SuggestionRead(val value: EmailSuggestion?)
@@ -776,32 +803,24 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     }
 
     /**
-     * Lê, sem `busy`, a fila e as consultas da UBS que ainda não foram lidas, para o aviso da remoção mostrar o que
-     * será cancelado. `false` quando alguma leitura falhou (por exemplo, cadastro desativado na unidade).
+     * Confere, sem `busy`, o que a remoção da UBS vai cancelar, pela prévia do servidor (`unlink-preview`), relida a cada abertura do aviso:
+     * os números são exatamente os que a remoção cancelaria, sem limite de data. `null` quando não foi possível conferir (UBS indisponível,
+     * limite de leituras, cadastro desativado, sem rede): o aviso então diz, sem número, que todas as consultas futuras e as solicitações
+     * de fila da UBS serão canceladas.
      */
-    suspend fun loadUnitDetails(unitId: String): Boolean {
-        val session = state.session ?: return false
-        if (state.units?.any { it.id == unitId } != true) return false
-        val api = api(state.address, null)
+    suspend fun checkUnlinkImpact(unitId: String): UnlinkImpact? {
+        val session = state.session ?: return null
+        if (state.units?.any { it.id == unitId } != true) return null
         try {
-            if (state.unitData[unitId]?.queue == null) {
-                val queue = api.unitQueue(session.token, unitId)
-                if (!isCurrent(session)) return false
-                updateUnit(unitId) { it.copy(queue = queue) }
-            }
-            if (state.unitData[unitId]?.appointments == null) {
-                val appointments = api.appointments(session.token, unitId)
-                if (!isCurrent(session)) return false
-                updateUnit(unitId) { it.copy(appointments = appointments) }
-            }
-            return true
+            val impact = api(state.address, null).unlinkPreview(session.token, unitId)
+            return if (isCurrent(session)) impact else null
         }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) { if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message) }
-        catch (_: IOException) { Log.w("NORA", "Dados da UBS não carregados para a remoção.") }
-        catch (_: JSONException) { Log.w("NORA", "Dados incompatíveis da UBS.") }
-        catch (_: IllegalArgumentException) { Log.w("NORA", "UBS com identificador inválido.") }
-        return false
+        catch (_: IOException) { Log.w("NORA", "Prévia da remoção da UBS não carregada.") }
+        catch (_: JSONException) { Log.w("NORA", "Prévia da remoção da UBS incompatível.") }
+        catch (_: IllegalArgumentException) { Log.w("NORA", "Prévia da remoção da UBS inválida.") }
+        return null
     }
 
     /** Remove o vínculo com a UBS selecionada; o servidor cancela consultas futuras e solicitações. */
@@ -877,8 +896,10 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (state.records.loading) return
         val acting = state.actingFor
         if (acting == null && state.units == null) loadUnitsInBackground()
+        // Enquanto as UBS chegavam a pessoa em tela pode ter mudado: a leitura é de quem estava em tela e não marca a visão de outro.
+        if (!isCurrent(session) || state.actingFor != acting) return
         val units = state.effective().units ?: return
-        if (!isLive(session, acting) || units.isEmpty()) return
+        if (units.isEmpty()) return
         state = state.copy(records = RecordsState(loading = true))
         try {
             val api = api(state.address, acting)
@@ -900,7 +921,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) {
             if (failure.status == 401) { if (isCurrent(session)) state = signedOut(state, failure.message) }
-            else recordsFailed(session, acting, units, failureMessage(failure.status, failure.code, ApiContext.RECORDS, acting != null))
+            else {
+                // 403 agindo por um dependente: o vínculo pode ter terminado; relê os pedidos (como as demais leituras do dependente).
+                if (failure.status == 403 && acting != null) loadFamily()
+                recordsFailed(session, acting, units, failureMessage(failure.status, failure.code, ApiContext.RECORDS, acting != null))
+            }
         }
         catch (_: IOException) { recordsFailed(session, acting, units, CONNECTION_FAILED_MESSAGE) }
         catch (_: JSONException) { recordsFailed(session, acting, units, INCOMPATIBLE_RESPONSE_MESSAGE) }
@@ -915,12 +940,14 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         for (unit in units) updateUnit(unit.id, acting) { it.copy(records = null, recordsFailed = true) }
         // A mensagem só vai para a tela da pessoa a quem a leitura pertence.
         if (state.actingFor == acting) state = state.copy(records = RecordsState(error = error))
-        if (acting != null && error == DEPENDENT_FORBIDDEN_MESSAGE) Log.w("NORA", "O vínculo pode ter terminado; os pedidos serão relidos.")
     }
 
     // ---- Família: pedidos, vínculos e "agindo por" ----------------------------------------------------------
 
-    /** Troca a lista de vínculos; se o vínculo pelo qual se age deixou de estar aprovado, volta a agir por si. */
+    /**
+     * Troca a lista de vínculos; se o vínculo pelo qual se age deixou de estar aprovado, volta a agir por si. Como em [actFor], os
+     * indicadores de leitura passam a ser os do próprio paciente: a leitura do dependente ainda em voo termina sem mexer neles.
+     */
     private fun applyFamily(links: List<FamilyLink>) {
         val approved = approvedLinks(links).map { it.id }.toSet()
         val lostActing = state.actingFor != null && state.actingFor !in approved
@@ -929,6 +956,8 @@ class PatientController(private val store: AddressStore, private val apiFactory:
             actingFor = if (lostActing) null else state.actingFor,
             availability = if (lostActing) null else state.availability, availabilityLoading = state.availabilityLoading && !lostActing,
             lastBooked = if (lostActing) null else state.lastBooked, bookingError = if (lostActing) null else state.bookingError,
+            records = if (lostActing) RecordsState() else state.records,
+            attendanceLoading = if (lostActing) "" in attendanceInFlight else state.attendanceLoading,
             message = if (lostActing) "O vínculo com esta pessoa terminou. Você voltou a agir por você." else state.message)
     }
 
@@ -1013,11 +1042,26 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     fun actFor(linkId: String?): Boolean {
         if (state.session == null || state.busy || state.actingFor == linkId) return false
         if (linkId != null && state.family.links?.none { it.id == linkId && it.isApproved() } != false) return false
+        switchView(linkId)
+        return linkId != null
+    }
+
+    /**
+     * A tela UBS é sempre do próprio responsável: abri-la agindo por um dependente volta a agir por si, mesmo com uma ação do dependente
+     * em andamento (ela termina sem pôr mensagem na tela). `true` quando houve a troca, para a tela avisar.
+     */
+    fun showOwnUnits(): Boolean {
+        if (state.session == null || state.actingFor == null) return false
+        switchView(null)
+        return true
+    }
+
+    private fun switchView(linkId: String?) {
         availabilityGeneration++
+        viewSwitches++
         // Leituras em voo de quem deixou de estar em tela terminam sozinhas e não mexem nos indicadores da nova visão.
         state = state.copy(actingFor = linkId, availability = null, availabilityLoading = false, bookingError = null, lastBooked = null,
             message = null, records = RecordsState(), attendanceLoading = (linkId ?: "") in attendanceInFlight)
-        return linkId != null
     }
 
     /** [actFor] seguido da leitura dos dados do dependente. */
@@ -1112,17 +1156,19 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (state.busy) return
         state = state.copy(busy = true, message = null)
         val acting = state.actingFor
+        val view = viewSwitches
+        fun fail(text: String?) { if (view == viewSwitches) state = state.copy(message = text) }
         try { action() }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) {
             val text = if (context == ApiContext.GENERIC) failure.message else failureMessage(failure.status, failure.code, context, acting != null)
             // 403 agindo por um dependente: o vínculo pode ter terminado; relê os pedidos para a tela mostrar o estado real.
             if (failure.status == 403 && acting != null && state.session != null) loadFamily()
-            state = if (failure.status == 401) signedOut(state, text) else state.copy(message = text)
+            if (failure.status == 401) state = signedOut(state, text) else fail(text)
         }
-        catch (invalid: IllegalArgumentException) { state = state.copy(message = invalid.message) }
-        catch (_: IOException) { state = state.copy(message = CONNECTION_FAILED_MESSAGE) }
-        catch (_: JSONException) { state = state.copy(message = INCOMPATIBLE_RESPONSE_MESSAGE) }
+        catch (invalid: IllegalArgumentException) { fail(invalid.message) }
+        catch (_: IOException) { fail(CONNECTION_FAILED_MESSAGE) }
+        catch (_: JSONException) { fail(INCOMPATIBLE_RESPONSE_MESSAGE) }
         finally { state = state.copy(busy = false) }
     }
 }

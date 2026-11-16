@@ -36,7 +36,7 @@ O levantamento abaixo é o de 2026-11-11 e fica como histórico. Desde então as
 
 **Em andamento (Fase 3, grupo 3; P-030 e P-037).** As regras já foram decididas: agenda, capacidade, metas e alertas (grade semanal por profissional, bloqueios por data, consultórios, especialidades únicas da rede, agendamento pelo paciente de 24 h a 90 dias, confirmação de 48 h a 2 h, metas com sobrescrita por UBS e os limites de alerta); comunicação e jornada (comunicados para equipes e pacientes, exames e vacinas lançados pelo OBS); e família (vínculo pedido pelo responsável e aprovado pela equipe). O back está em dois worktrees (A: agenda, capacidade, metas e alertas; B: comunicação e jornada), depois vêm família e as telas nos três apps. Até lá as telas correspondentes continuam com aviso de indisponibilidade. "Entrar com Google" e push por servidor seguem sem definição.
 
-**Ainda aberto fora da Fase 3.** P-036 (manutenção e segurança que não foi tratada pela revisão) e P-040 (testes instrumentais do Android com API real).
+**Ainda aberto fora da Fase 3.** P-036 (manutenção e segurança que não foi tratada pela revisão) e P-040 (testes instrumentais do Android com API real). Atualização de 2026-11-16: P-040 foi resolvida, com a suíte instrumentada e o E2E `-Android` verdes no emulador (ver `PENDENCIAS.md`).
 
 **Como ler o restante.** As seções abaixo descrevem as lacunas como estavam em 2026-11-11; onde disserem "só front", "falta rota" ou "ainda não corrigido" para os itens da lista de resolvidos, o texto está superado.
 

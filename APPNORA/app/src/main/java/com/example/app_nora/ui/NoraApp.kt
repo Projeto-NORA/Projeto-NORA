@@ -55,6 +55,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.ContextCompat
 import java.io.IOException
 import org.json.JSONException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 
@@ -70,6 +71,26 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Log.w("NORA", "Notificações desativadas pelo usuário; a conexão continua indicada pelo gerenciador de tarefas do Android.")
     }
+    // Android 17 (API 37): falar com um endereço da rede local (10.0.2.2 do emulador, servidor da UBS em IP privado) exige
+    // ACCESS_LOCAL_NETWORK, permissão de execução. Ela é pedida na hora de usar o serviço antes de entrar (login, cadastro e
+    // recuperação de senha); depois de concedida vale para o resto da sessão, inclusive para o serviço de conexão.
+    var localNetworkAnswer by remember { mutableStateOf<CompletableDeferred<Boolean>?>(null) }
+    val localNetworkPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        localNetworkAnswer?.complete(granted)
+        localNetworkAnswer = null
+    }
+    val allowLocalNetwork: suspend () -> Boolean = allow@{
+        if (Build.VERSION.SDK_INT < LOCAL_NETWORK_SDK || !ApiAddress.usesLocalNetwork(controller.state.address) ||
+            ContextCompat.checkSelfPermission(context, ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) return@allow true
+        val answer = CompletableDeferred<Boolean>()
+        localNetworkAnswer?.cancel()
+        localNetworkAnswer = answer
+        localNetworkPermission.launch(ACCESS_LOCAL_NETWORK)
+        answer.await()
+    }
+    // Para as chamadas que mostram o próprio erro (cadastro e recuperação): a recusa vira uma falha com a explicação.
+    suspend fun <T> withLocalNetwork(call: suspend () -> T): T =
+        if (allowLocalNetwork()) call() else throw ApiFailure(0, LOCAL_NETWORK_DENIED_MESSAGE)
     LaunchedEffect(controller, lifecycle, session?.token) {
         if (session == null) {
             PatientPresenceService.stop(context)
@@ -90,7 +111,9 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
     }
     NoraPatientContent(store.settings, store::update, controller.state,
         onAddressChange = controller::changeAddress,
-        onLogin = { identifier, password -> scope.launch { controller.login(identifier, password) } },
+        onLogin = { identifier, password ->
+            scope.launch { if (allowLocalNetwork()) controller.login(identifier, password) else controller.localNetworkDenied() }
+        },
         onRefresh = { scope.launch { controller.refreshUnit() } },
         openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened, openFlashDependent = openFlashDependent,
         openNotices = openNotices, onNoticesOpened = onNoticesOpened,
@@ -110,8 +133,9 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
         onLoadAppointments = { scope.launch { controller.loadAppointments() } },
         onLoadAttendance = { scope.launch { controller.loadAttendance() } },
         onCancelQueueEntry = { id -> scope.launch { controller.cancelQueueEntry(id) } },
-        onLoadUnitDetails = controller::loadUnitDetails,
+        onCheckUnlink = controller::checkUnlinkImpact,
         onUnlinkUnit = { scope.launch { controller.unlinkSelectedUnit() } },
+        onShowOwnUnits = controller::showOwnUnits,
         onChangePassword = controller::changePassword,
         onCancelAppointment = { id -> scope.launch { controller.cancelAppointment(id) } },
         onConfirmPresence = { unitId, id -> scope.launch { controller.confirmPresence(unitId, id) } },
@@ -122,19 +146,18 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
         onLocateUnit = controller::selectNearestUnit,
         onRespondUnit = { id, accept -> scope.launch { controller.respondUnitOffer(id, accept) } },
         onLogout = { scope.launch { controller.logout() } },
-        onRegistrationUnits = controller::registrationUnits,
+        onRegistrationUnits = { withLocalNetwork(controller::registrationUnits) },
         onLinkUnits = controller::linkUnits,
-        onStartRegistration = controller::startRegistration,
-        onSendRegistrationCode = controller::sendRegistrationCode,
-        onConfirmRegistration = controller::confirmRegistration,
-        onRequestPasswordReset = controller::requestPasswordReset,
-        onConfirmPasswordReset = controller::confirmPasswordReset)
+        onStartRegistration = { name, cpf, password, units -> withLocalNetwork { controller.startRegistration(name, cpf, password, units) } },
+        onSendRegistrationCode = { challenge, option -> withLocalNetwork { controller.sendRegistrationCode(challenge, option) } },
+        onConfirmRegistration = { challenge, code -> withLocalNetwork { controller.confirmRegistration(challenge, code) } },
+        onRequestPasswordReset = { cpf -> withLocalNetwork { controller.requestPasswordReset(cpf) } },
+        onConfirmPasswordReset = { challenge, code, password -> withLocalNetwork { controller.confirmPasswordReset(challenge, code, password) } })
 }
 
-@Composable
-fun NoraContent(settings: UserSettings, onSettingsChange: (UserSettings) -> Unit) {
-    NoraPatientContent(settings, onSettingsChange)
-}
+/** Permissão do Android 17 (API 37) para a rede local; o nome vai em texto para não depender da constante do SDK. */
+private const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+private const val LOCAL_NETWORK_SDK = 37
 
 private enum class PatientDestination(val title: String) {
     HOME("Início"),
@@ -239,7 +262,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     initiallyShowSettings: Boolean = false, onLoadUnits: () -> Unit = {}, onLoadAppointments: () -> Unit = {}, onCancelAppointment: (String) -> Unit = {}, onSelectUnit: (String) -> Unit = {},
     onLocateUnit: (Double, Double) -> PatientHealthUnit? = { _, _ -> null },
     onLoadAttendance: () -> Unit = {}, onCancelQueueEntry: (Long) -> Unit = {},
-    onLoadUnitDetails: suspend (String) -> Boolean = { false }, onUnlinkUnit: () -> Unit = {},
+    onCheckUnlink: suspend (String) -> UnlinkImpact? = { null }, onUnlinkUnit: () -> Unit = {}, onShowOwnUnits: () -> Boolean = { false },
     onChangePassword: suspend (String, String) -> Unit = { _, _ -> throw ApiFailure(503, "Troca de senha indisponível.") },
     onConfirmPresence: (String, String) -> Unit = { _, _ -> }, onOpenBooking: () -> Unit = {},
     onLoadAvailability: (String, Int) -> Unit = { _, _ -> }, onBookSlot: (AvailableSlot) -> Unit = {},
@@ -256,27 +279,33 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         if (patient.session != null) hadSession = true
         else if (hadSession) { hadSession = false; destination = PatientDestination.HOME }
     }
-    // Toque na notificação de Vaga Relâmpago: abre a tela da oferta com a UBS escolhida (espera as UBS carregarem).
-    // Se a oferta é de um dependente, passa a agir por ele (espera a lista de vínculos chegar).
-    // Com uma ação em andamento (`busy`) o controlador recusa trocar "agindo por" e UBS: então o pedido espera (`busy` é chave do efeito)
-    // em vez de abrir a tela na visão de outra pessoa e perder o pedido.
-    LaunchedEffect(openFlashUnit, openFlashDependent, patient.session?.token, patient.units, patient.family.links, patient.busy) {
-        val target = openFlashUnit ?: return@LaunchedEffect
-        when (flashOpenDecision(target, openFlashDependent, patient)) {
+    // Pedido de abrir a Vaga Relâmpago de uma oferta: do toque na notificação ou de um botão "Ver oportunidade" (Início e Avisos). Se a
+    // oferta é de um dependente, passa a agir por ele (espera a lista de vínculos chegar); se é do paciente, volta a agir por si e escolhe
+    // a UBS (espera as UBS carregarem). Com uma ação em andamento (`busy`) o controlador recusa trocar "agindo por" e UBS: então o pedido
+    // espera (`busy` é chave do efeito) em vez de abrir a tela na visão de outra pessoa e perder o pedido.
+    var offerRequest by remember { mutableStateOf<Pair<String, String?>?>(null) }
+    val flashRequest = openFlashUnit?.let { it to openFlashDependent } ?: offerRequest
+    LaunchedEffect(flashRequest, patient.session?.token, patient.units, patient.family.links, patient.busy) {
+        val (target, dependentId) = flashRequest ?: return@LaunchedEffect
+        fun finish() { offerRequest = null; if (openFlashUnit != null) onFlashOpened() }
+        when (flashOpenDecision(target, dependentId, patient)) {
             FlashOpen.WAIT -> Unit
-            FlashOpen.DROP -> onFlashOpened()
+            FlashOpen.DROP -> finish()
             FlashOpen.OPEN_DEPENDENT -> {
-                family.onActFor(openFlashDependent)
+                // Já agindo por ele, a troca não relê nada: a oferta nova (a da notificação) só aparece relendo a lista dele.
+                val already = patient.actingFor == dependentId && destination == PatientDestination.FLASH
+                family.onActFor(dependentId)
                 settingsOpen = false
                 destination = PatientDestination.FLASH
-                onFlashOpened()
+                if (already) onRefresh()
+                finish()
             }
             FlashOpen.OPEN_OWN -> {
                 family.onActFor(null)
                 onSelectUnit(target)
                 settingsOpen = false
                 destination = PatientDestination.FLASH
-                onFlashOpened()
+                finish()
             }
         }
     }
@@ -292,7 +321,12 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         if (settingsOpen) settingsScroll.scrollTo(0)
     }
     LaunchedEffect(destination) { pageScroll.scrollTo(0) }
+    // A tela UBS é do próprio responsável: aberta por qualquer caminho agindo por um dependente, volta a agir por si (antes de reler as
+    // UBS) e avisa enquanto a tela estiver aberta.
+    var ownUnitsNotice by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(destination, patient.session?.token) {
+        if (destination != PatientDestination.UNITS) ownUnitsNotice = false
+        else if (patient.session != null && onShowOwnUnits()) ownUnitsNotice = true
         if ((destination == PatientDestination.UNITS || (destination in listOf(PatientDestination.APPOINTMENTS, PatientDestination.FLASH, PatientDestination.JOURNEY, PatientDestination.BOOKING, PatientDestination.NOTICES) && patient.units == null)) && patient.session != null) onLoadUnits()
     }
     // Ao abrir o agendamento: limpa o resultado anterior e relê as especialidades. Só uma vez por entrada na tela: recriar a Activity
@@ -407,16 +441,17 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             patient = view, onAddressChange = onAddressChange, onLogin = onLogin,
                             onRefresh = onRefresh, onLoadUnits = onLoadUnits, onLeaveQueue = onCancelQueueEntry,
                             onConfirmPresence = onConfirmPresence,
-                            onOpenOffer = { unitId -> onSelectUnit(unitId); destination = PatientDestination.FLASH },
-                            onOpenDependentOffer = { dependentId, _ -> family.onActFor(dependentId); destination = PatientDestination.FLASH },
+                            // O Início mostra as ofertas da visão em tela: agindo por um dependente, as dele.
+                            onOpenOffer = { unitId -> offerRequest = unitId to patient.actingFor },
+                            onOpenDependentOffer = { dependentId, unitId -> offerRequest = unitId to dependentId },
                             onOpenProfile = { destination = PatientDestination.PROFILE },
                             onRequestPasswordReset = onRequestPasswordReset,
                             onConfirmPasswordReset = onConfirmPasswordReset)
                         PatientDestination.JOURNEY -> JourneyScreen(view, onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
                             onRefreshAttendance = onLoadAttendance, onLeaveQueue = onCancelQueueEntry, onLoadRecords = community.onLoadRecords)
                         PatientDestination.NOTICES -> NoticesScreen(patient,
-                            onOpenOffer = { unitId -> family.onActFor(null); onSelectUnit(unitId); destination = PatientDestination.FLASH },
-                            onOpenDependentOffer = { dependentId, _ -> family.onActFor(dependentId); destination = PatientDestination.FLASH },
+                            onOpenOffer = { unitId -> offerRequest = unitId to null },
+                            onOpenDependentOffer = { dependentId, unitId -> offerRequest = unitId to dependentId },
                             onMarkRead = community.onMarkAnnouncementRead, onReload = community.onLoadAnnouncements, onLoadUnits = onLoadUnits)
                         PatientDestination.FAMILY -> FamilyScreen(patient, family, onRegistrationUnits)
                         PatientDestination.PROFILE -> ProfileScreen(patient,
@@ -427,7 +462,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             }, email = email)
                         PatientDestination.APPOINTMENTS -> AppointmentsScreen(view, onSelectUnit, onLoadUnits, onLoadAppointments, onCancelAppointment,
                             onConfirmPresence, onBook = { destination = PatientDestination.BOOKING })
-                        PatientDestination.UNITS -> UnitsScreen(patient, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onLoadUnitDetails, onUnlinkUnit)
+                        PatientDestination.UNITS -> UnitsScreen(patient, ownUnitsNotice, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onCheckUnlink, onUnlinkUnit)
                         PatientDestination.BOOKING -> BookingScreen(view, onSelectUnit, onLoadUnits, onOpenBooking, onLoadAvailability, onBookSlot,
                             onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
                             actingName = patient.actingLink()?.let(::dependentDisplayName))
@@ -610,7 +645,10 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                     connectionSettingsOpen = true
                     localMessage = "Informe o endereço da sua UBS para continuar."
                 } else {
+                    // A senha sai do formulário no envio: o botão desliga na hora (um segundo toque antes de `busy` chegar não
+                    // repete o login) e a senha não fica na tela depois de uma falha.
                     onLogin(identifier, password)
+                    password = ""
                 }
             }, enabled = canSubmit, modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -1125,10 +1163,11 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
 }
 
 @Composable
-private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
+private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
-    onLink: suspend (List<String>) -> UnitLinkResult, onLoadUnitDetails: suspend (String) -> Boolean, onUnlink: () -> Unit) {
+    onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit) {
     ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
+    if (ownUnitsNotice) ActionMessage("Agora você está vendo as suas UBS")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
     // A seleção do diálogo de vínculo sobrevive à rotação; o catálogo é consultado de novo se faltar.
@@ -1142,8 +1181,9 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
     val scope = rememberCoroutineScope()
     // Remoção de vínculo: ação destrutiva, então o diálogo não sobrevive à rotação e nunca abre sozinho.
     var unlinkOpen by remember(selected?.id) { mutableStateOf(false) }
-    var detailsFailed by remember(selected?.id) { mutableStateOf(false) }
-    val clock = LocalClockMillis.current
+    // O que a remoção vai cancelar, relido a cada abertura do aviso; nulo enquanto confere ou quando não foi possível conferir.
+    var checking by remember(selected?.id) { mutableStateOf(false) }
+    var impact by remember(selected?.id) { mutableStateOf<UnlinkImpact?>(null) }
     suspend fun linkAction(action: suspend () -> Unit) {
         linkBusy = true; linkError = null
         try { action() }
@@ -1175,25 +1215,25 @@ private fun UnitsScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelect
                 selected?.let { MutedText("${it.region} · ${it.address}") }
             }
         }
-        patient.message?.let { MutedText(it) }
+        // Até a troca para as próprias UBS (no primeiro quadro), a mensagem em tela ainda é a do dependente: não aparece aqui.
+        patient.message?.takeIf { patient.actingFor == null }?.let { MutedText(it) }
         if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
         if (patient.session != null) OutlinedButton(onClick = {
             linkOpen = true; chosenIds = emptyList(); catalog = null
         }, enabled = !patient.busy) { Text("Vincular outra UBS") }
-        if (patient.session != null && selected != null) OutlinedButton(onClick = { unlinkOpen = true; detailsFailed = false }, enabled = !patient.busy,
+        if (patient.session != null && selected != null) OutlinedButton(onClick = { unlinkOpen = true; checking = true; impact = null }, enabled = !patient.busy,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Remover esta UBS") }
         MutedText("Distâncias, horários e serviços ainda não são fornecidos pela rede.")
     }
     UnitsMap(selected, onLocateUnit)
-    // Confere o que será cancelado: lê fila e consultas da UBS só se ainda não estiverem lidas.
+    // Confere o que será cancelado: relê a fila e as consultas futuras da UBS a cada abertura, sem confiar no que já estava lido.
     LaunchedEffect(unlinkOpen, selected?.id) {
         val id = selected?.id
-        if (unlinkOpen && id != null) detailsFailed = !onLoadUnitDetails(id)
+        if (unlinkOpen && id != null) { impact = onCheckUnlink(id); checking = false }
     }
     if (unlinkOpen && selected != null) {
-        val impact = unlinkImpact(patient.unitData[selected.id], clock())
-        UnlinkDialog(selected.name, impact, loading = impact == null && !detailsFailed, busy = patient.busy,
+        UnlinkDialog(selected.name, impact, loading = checking, busy = patient.busy,
             onConfirm = { unlinkOpen = false; onUnlink() }, onDismiss = { unlinkOpen = false })
     }
     LaunchedEffect(linkOpen) {

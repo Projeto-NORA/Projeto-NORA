@@ -38,6 +38,7 @@ enum class ApiContext {
 
 const val UNIT_FORBIDDEN_MESSAGE = "Seu cadastro nesta UBS está desativado ou sem vínculo. Procure a unidade."
 const val OFFER_UNAVAILABLE_MESSAGE = "Esta oportunidade não está mais disponível."
+const val LOCAL_NETWORK_DENIED_MESSAGE = "O endereço do serviço fica na rede local. Permita o acesso à rede local para o NORA nas configurações do Android e tente novamente."
 const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. Confira o endereço e sua conexão e tente novamente."
 const val INCOMPATIBLE_RESPONSE_MESSAGE = "O serviço retornou uma resposta incompatível. Contate a unidade."
 

@@ -71,6 +71,27 @@ O histórico acima descreve outro computador. Aqui o SDK está em `C:/Users/Pich
 
 As15 capturas atuais foram renderizadas em Compose/Layoutlib, incluindo Sistema claro/escuro, fonte130% e tablet. A [galeria](../../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md) identifica essa origem e as fixtures de preview. Os15renders/comparações,7unitários, APKs e lint passaram; não houve execução de teste instrumentado nem HTTP/PostgreSQL nesta rodada. P-003 mantém os testes em dispositivo e recriação de sessão. Para reproduzir as capturas sem emulador, veja [execucao.md](execucao.md#galeria-visual-de-10102026).
 
+## Ambiente Pichau em 16/11/2026
+
+A situação de 10/10 mudou: `emulator -accel-check` agora responde `WHPX(10.0.26300) is installed and usable` e o AVD `Medium_Phone_API_37.0` (Android 17, API 37) faz boot a frio sem janela em cerca de 10 a 35 segundos. Comando usado, com o JDK 21 do Adoptium em `JAVA_HOME` e `GRADLE_USER_HOME` em `.build/gradle-user` do repositório:
+
+```powershell
+$sdk = 'C:/Users/Pichau/AppData/Local/Android/Sdk'
+& "$sdk/emulator/emulator.exe" -avd Medium_Phone_API_37.0 -no-window -no-audio -no-snapshot-save
+& "$sdk/platform-tools/adb.exe" wait-for-device
+& "$sdk/platform-tools/adb.exe" shell getprop sys.boot_completed   # 1 = pronto
+```
+
+Resultados de 2026-11-16 (P-045 e P-040, tarefa `docs/tarefas/2026-11-16-app-instrumentados-e2e.md`): `connectedDebugAndroidTest` com 30 testes, 28 aprovados e 2 pulados por assumption (`patientUsesRealDisposablePostgresApi` sem `noraApiUrl` e `VisualCaptureTest` sem `noraCaptureVisual=true`); com `tests/validar-clientes-descartavel.ps1 -Android`, 29 aprovados e só o `VisualCaptureTest` pulado.
+
+Três particularidades desta imagem que custaram diagnóstico:
+
+- **Rede local no Android 17.** O app tem `targetSdk` 37, e o `10.0.2.2` (o computador visto do emulador) é rede local: sem a permissão `ACCESS_LOCAL_NETWORK` concedida, o sistema descarta os pacotes do uid do app e a conexão expira em 10 s, enquanto o `adb shell` (outro uid) conecta normalmente. Por isso um teste com `nc` pelo shell não reproduz o problema; para testar como o app, use `adb shell run-as com.example.app_nora ...` com o app de depuração instalado. O app pede a permissão na tela; o teste a concede com `pm grant`.
+- **Sondas com `nc`.** O Kestrel não responde quando o cliente fecha a escrita logo depois do pedido (`printf ... | nc`); mantenha a escrita aberta, por exemplo `(printf 'GET / HTTP/1.0\r\n\r\n'; sleep 2) | toybox nc -w 6 10.0.2.2 <porta>`.
+- **Rede do emulador.** Nesta versão o tráfego do emulador sai pelo `netsimd` (libslirp), não pelo processo do emulador; é ele que aparece em `Get-NetTCPConnection` quando o emulador conecta a uma porta do computador.
+
+O runner desinstala o app no fim de cada execução; para inspecionar à mão, reinstale com `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+
 ## Fontes sobre emulação
 
 - [Aceleração do Android Emulator e WHPX/AEHD](https://developer.android.com/studio/run/emulator-acceleration).

@@ -192,6 +192,14 @@ class PatientControllerTest {
     @Test fun patientUsesRealDisposablePostgresApi() = runBlocking {
         val address = InstrumentationRegistry.getArguments().getString("noraApiUrl").orEmpty()
         assumeTrue("Pass noraApiUrl for the isolated integration fixture", address.isNotBlank())
+        // O teste fala com o controlador sem a tela, então faz o papel do paciente que concede a rede local: no Android 17 (API 37)
+        // o 10.0.2.2 do emulador é rede local e, sem ACCESS_LOCAL_NETWORK, a conexão expira (ver ApiAddress.usesLocalNetwork).
+        if (android.os.Build.VERSION.SDK_INT >= 37 && ApiAddress.usesLocalNetwork(address)) {
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            // Lê a saída até o fim para só seguir depois que o `pm grant` terminou.
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "pm grant ${instrumentation.targetContext.packageName} android.permission.ACCESS_LOCAL_NETWORK")).use { it.readBytes() }
+        }
         val password = "Disposable-patient-registration!29"
         val controller = PatientController(isolatedContext())
         controller.changeAddress(address)
@@ -233,9 +241,21 @@ class PatientControllerTest {
         // O ciclo de consulta automática lê as ofertas de todas as UBS vinculadas sem ação do usuário.
         val generation = controller.beginPresence()
         controller.publishPresence(session, generation, true)
-        controller.pollOffers(session, generation)
-        assertFalse(controller.state.busy)
-        val available = requireNotNull(controller.state.unitData[units[0].id]?.offers).single { it.status == "pending" }
+        // A API só cria a oferta no seu ciclo de 15 s (UnitLightningWorker), e só depois que a conta existe e está vinculada à UBS;
+        // o app a encontra no próprio ciclo automático. O teste repete esse ciclo por até 45 s, como o laço de 30 s do app faria.
+        val offerDeadline = System.currentTimeMillis() + 45_000
+        var found: UnitOffer? = null
+        while (found == null) {
+            controller.pollOffers(session, generation)
+            assertFalse(controller.state.busy)
+            found = controller.state.unitData[units[0].id]?.offers?.singleOrNull { it.status == "pending" }
+            if (found == null) {
+                assertTrue("Nenhuma oferta pendente na UBS 1 em 45 s: ${controller.state.unitData.mapValues { it.value.offers }}",
+                    System.currentTimeMillis() < offerDeadline)
+                kotlinx.coroutines.delay(1_000)
+            }
+        }
+        val available = requireNotNull(found)
         assertEquals("Cardiologia", available.specialty)
         assertTrue(openOffersAcrossUnits(controller.state.units, controller.state.unitData, System.currentTimeMillis()).any { it.offer.id == available.id })
         controller.publishPresence(session, generation, false)

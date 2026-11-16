@@ -48,6 +48,13 @@ class PatientActionsTest {
             queueCalls++; queueFailure?.let { throw it }; return queues[unitId].orEmpty()
         }
         override suspend fun appointments(token: String, unitId: String): List<PatientAppointment> { appointmentCalls++; return appointmentsByUnit[unitId].orEmpty() }
+        /** Prévia da remoção: o que o servidor diz que cancelará em cada UBS (todas as futuras, sem limite de data). */
+        val previews = mutableMapOf<String, UnlinkImpact>()
+        val previewed = mutableListOf<String>()
+        var previewFailure: Throwable? = null
+        override suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact {
+            previewed += unitId; previewFailure?.let { throw it }; return previews[unitId] ?: UnlinkImpact(0, 0)
+        }
         override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> { offersCalls++; return offers[unitId].orEmpty() }
         override suspend fun attendance(token: String, unitId: String): UnitAttendance {
             attendanceCalls++
@@ -206,20 +213,32 @@ class PatientActionsTest {
 
     // ---- Remover vínculo ------------------------------------------------------------------------------
 
-    @Test fun detailsAreReadOnlyWhenMissingAndNeverRaiseBusy() = runBlocking {
+    @Test fun theUnlinkWarningAsksTheServerForTheExactNumbersEachTimeAndNeverRaisesBusy() = runBlocking {
         val api = FakeApi().apply { units = listOf(unitA, unitB) }
         val controller = controller(api)
         controller.signIn()
         controller.selectUnit(unitB.id)
-        assertTrue(controller.loadUnitDetails(unitB.id))
-        assertEquals(1, api.queueCalls); assertEquals(1, api.appointmentCalls)
-        assertTrue(controller.loadUnitDetails(unitB.id))
-        assertEquals("Já lidos: não repete", 1, api.queueCalls)
+        assertEquals(UnlinkImpact(0, 0), controller.checkUnlinkImpact(unitB.id))
+        // Depois da primeira abertura a equipe marca consultas (uma delas daqui a dois anos) e o paciente entra na fila: o aviso usa
+        // os números da prévia do servidor, sem contar nada no aparelho nem recortar por data.
+        api.previews[unitB.id] = UnlinkImpact(3, 1)
+        assertEquals("cada abertura do aviso relê a prévia", UnlinkImpact(3, 1), controller.checkUnlinkImpact(unitB.id))
+        assertEquals(listOf(unitB.id, unitB.id), api.previewed)
         assertFalse(controller.state.busy)
-        assertNotNull(unlinkImpact(controller.state.unitData[unitB.id], now))
-        api.queueFailure = ApiFailure(403, "x", "forbidden")
-        assertFalse(controller.loadUnitDetails(unitA.id))
-        assertNull(controller.state.message)
+    }
+
+    @Test fun theUnlinkWarningIsGenericWhenThePreviewFails() = runBlocking {
+        val api = FakeApi().apply { units = listOf(unitA) }
+        val controller = controller(api)
+        controller.signIn()
+        for (failure in listOf(ApiFailure(503, "x", null), ApiFailure(429, "x", "too-many-requests"), ApiFailure(403, "x", "forbidden"), IOException("offline"))) {
+            api.previewFailure = failure
+            assertNull("sem como conferir, o aviso fica genérico", controller.checkUnlinkImpact(unitA.id))
+        }
+        assertNull(controller.state.message); assertNotNull(controller.state.session)
+        api.previewFailure = ApiFailure(401, "Sessão expirada.", "unauthorized")
+        assertNull(controller.checkUnlinkImpact(unitA.id))
+        assertNull("401 encerra a sessão", controller.state.session)
     }
 
     @Test fun unlinkingClearsTheUnitAndSelectsTheOnlyRemainingOne() = runBlocking {

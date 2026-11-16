@@ -7,6 +7,7 @@ internal class PasswordGate(private val inner: PatientApi, private val onRequire
     override suspend fun units(token: String) = watch { inner.units(token) }
     override suspend fun linkUnits(token: String, unitIds: List<String>) = watch { inner.linkUnits(token, unitIds) }
     override suspend fun appointments(token: String, unitId: String) = watch { inner.appointments(token, unitId) }
+    override suspend fun dependentUnitOffers(token: String, dependentId: String, unitId: String) = watch { inner.dependentUnitOffers(token, dependentId, unitId) }
     override suspend fun cancelAppointment(token: String, unitId: String, id: String) = watch { inner.cancelAppointment(token, unitId, id) }
     override suspend fun unitQueue(token: String, unitId: String) = watch { inner.unitQueue(token, unitId) }
     override suspend fun unitOffers(token: String, unitId: String) = watch { inner.unitOffers(token, unitId) }
@@ -14,6 +15,7 @@ internal class PasswordGate(private val inner: PatientApi, private val onRequire
     override suspend fun attendance(token: String, unitId: String) = watch { inner.attendance(token, unitId) }
     override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = watch { inner.cancelQueueEntry(token, unitId, entryId) }
     override suspend fun unlinkUnit(token: String, unitId: String) = watch { inner.unlinkUnit(token, unitId) }
+    override suspend fun unlinkPreview(token: String, unitId: String) = watch { inner.unlinkPreview(token, unitId) }
     override suspend fun presence(token: String, online: Boolean) = watch { inner.presence(token, online) }
     override suspend fun specialties(token: String) = watch { inner.specialties(token) }
     override suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long) =

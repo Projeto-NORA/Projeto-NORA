@@ -4,12 +4,8 @@ import com.example.app_nora.api.*
 import org.junit.Assert.*
 import org.junit.Test
 
-/** Score geral, contagem do que a remoção de UBS cancela e textos de resultado: tudo puro, sem Android. */
+/** Score geral e textos de resultado da remoção de UBS: tudo puro, sem Android. */
 class AttendanceLogicTest {
-    private val now = requireNotNull(parseInstantMillis("2026-11-11T12:00:00Z"))
-    private fun iso(offsetSeconds: Long): String =
-        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ROOT)
-            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(now + offsetSeconds * 1000)
     private fun unit(id: String) = PatientHealthUnit(id, "UBS $id", "Centro", "Rua", -23.0, -46.0)
     private fun attendance(completed: Int, missed: Int, cancelled: Int, weight: Double, score: Double?) =
         UnitAttendance(completed, missed, cancelled, weight, score, 12)
@@ -65,27 +61,6 @@ class AttendanceLogicTest {
         assertEquals(1, attendancePercent(0.001))
         assertEquals(0, attendancePercent(0.0))
         assertEquals(50, attendancePercent(0.5))
-    }
-
-    @Test fun unlinkImpactCountsOnlyFutureOpenAppointmentsAndActiveQueue() {
-        val snapshot = UnitSnapshot(
-            queue = listOf(UnitQueueEntry(1, "A", iso(-100), "waiting"), UnitQueueEntry(2, "B", iso(-100), "offered"),
-                UnitQueueEntry(3, "C", iso(-100), "completed"), UnitQueueEntry(4, "D", iso(-100), "cancelled")),
-            appointments = listOf(
-                PatientAppointment("f1", "x", "p", iso(3600), iso(5400), "scheduled"),
-                PatientAppointment("f2", "x", "p", iso(7200), iso(9000), "called"),
-                PatientAppointment("past", "x", "p", iso(-3600), iso(-1800), "scheduled"),
-                PatientAppointment("done", "x", "p", iso(-86_400), iso(-85_000), "completed"),
-                PatientAppointment("cancelled", "x", "p", iso(3600), iso(5400), "cancelled"),
-                PatientAppointment("bad", "x", "p", "lixo", "lixo", "scheduled")))
-        assertEquals(UnlinkImpact(2, 2), unlinkImpact(snapshot, now))
-        assertEquals(UnlinkImpact(0, 0), unlinkImpact(UnitSnapshot(queue = emptyList(), appointments = emptyList()), now))
-    }
-
-    @Test fun unlinkImpactIsUnknownUntilBothListsWereRead() {
-        assertNull(unlinkImpact(null, now))
-        assertNull(unlinkImpact(UnitSnapshot(queue = emptyList()), now))
-        assertNull(unlinkImpact(UnitSnapshot(appointments = emptyList()), now))
     }
 
     @Test fun resultMessageUsesTheServerNumbersWithPlurals() {
