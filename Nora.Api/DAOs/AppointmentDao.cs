@@ -5,10 +5,12 @@ using Nora.Api.Services;
 
 namespace Nora.Api.DAOs;
 
-public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider time)
+public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider time, SchedulingService? scheduling = null)
 {
     public async Task<AppointmentInfo> CreateAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct)
     {
+        // Com ao menos um profissional ativo cadastrado a UBS marca só pelo catálogo e pela grade (Fase 3); sem profissional continua o texto livre abaixo.
+        if (scheduling is not null && await scheduling.UsesCatalogAsync(unitId, ct)) return await scheduling.BookForStaffAsync(unitId, actorId, request, ct);
         var cpf = AccountService.NormalizeCpf(request.Cpf);
         var specialty = request.Specialty?.Trim() ?? "";
         var professional = request.Professional?.Trim() ?? "";
@@ -41,7 +43,7 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         from = from.ToUniversalTime(); to = to.ToUniversalTime();
         if (to <= from || to - from > TimeSpan.FromDays(366)) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT a.id,a.cpf,p.full_name,a.specialty,a.professional,a.starts_at,a.ends_at,a.status FROM nora_unit.appointments a JOIN nora_unit.patient_registry p ON p.cpf=a.cpf WHERE a.starts_at >= $1 AND a.starts_at < $2 AND ($3='' OR a.cpf=$3) ORDER BY a.starts_at,a.id", connection);
+        await using var query = new NpgsqlCommand("SELECT " + Columns + " FROM nora_unit.appointments a JOIN nora_unit.patient_registry p ON p.cpf=a.cpf WHERE a.starts_at >= $1 AND a.starts_at < $2 AND ($3='' OR a.cpf=$3) ORDER BY a.starts_at,a.id", connection);
         query.Parameters.AddWithValue(from); query.Parameters.AddWithValue(to); query.Parameters.AddWithValue(cpf ?? "");
         await using var reader = await query.ExecuteReaderAsync(ct); var items = new List<AppointmentInfo>();
         while (await reader.ReadAsync(ct)) items.Add(Read(reader));
@@ -72,11 +74,13 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         await using var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) VALUES($1,$2,$3,$4,$5)", connection);
         insert.Parameters.AddWithValue(id); insert.Parameters.AddWithValue(actor); insert.Parameters.AddWithValue(status); insert.Parameters.AddWithValue(now); insert.Parameters.AddWithValue(origin); await insert.ExecuteNonQueryAsync(ct);
     }
-    private static async Task<AppointmentInfo> ReadOneAsync(NpgsqlConnection connection, Guid id, CancellationToken ct)
+    internal static async Task<AppointmentInfo> ReadOneAsync(NpgsqlConnection connection, Guid id, CancellationToken ct)
     {
-        await using var query = new NpgsqlCommand("SELECT a.id,a.cpf,p.full_name,a.specialty,a.professional,a.starts_at,a.ends_at,a.status FROM nora_unit.appointments a JOIN nora_unit.patient_registry p ON p.cpf=a.cpf WHERE a.id=$1", connection);
+        await using var query = new NpgsqlCommand("SELECT " + Columns + " FROM nora_unit.appointments a JOIN nora_unit.patient_registry p ON p.cpf=a.cpf WHERE a.id=$1", connection);
         query.Parameters.AddWithValue(id); await using var reader = await query.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) throw new ApiNotFoundException(); return Read(reader);
     }
-    private static AppointmentInfo Read(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6), reader.GetString(7));
+    internal const string Columns = "a.id,a.cpf,p.full_name,a.specialty,a.professional,a.starts_at,a.ends_at,a.status,a.confirmed_at,a.booked_by,a.professional_id,a.specialty_id";
+    internal static AppointmentInfo Read(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6), reader.GetString(7),
+        reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8), reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetGuid(10), reader.IsDBNull(11) ? null : reader.GetGuid(11));
 }
