@@ -1,5 +1,35 @@
 # Execução e validação
 
+## Estado atual das validações — 2026-11-15
+
+Números do HEAD `3d46a78`, rodados com PostgreSQL 18.6 descartável. As seções seguintes são registros datados de rodadas anteriores e não descrevem o estado atual.
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| API HTTP (`Nora.Api.Checks`) | 30/30 |
+| PostgreSQL 18: fluxos | 28/28 |
+| PostgreSQL 18: bancos separados por UBS | PASS |
+| PostgreSQL 18: plataforma (banco da UBS, contas, score, indicadores, histórico, ações do paciente) | 19/19 |
+| PostgreSQL 18: revisão crítica do back | 17/17 |
+| Suíte desktop (`Nora.Desktop.Checks`) | 103/103 |
+| E2E desktop com banco, por UBS (`tests/validar-clientes-descartavel.ps1`) | 104/104 |
+| Android: testes locais | 84/84 |
+| Android: previews `validateDebugScreenshotTest` | 28 |
+| Android: lint | 0 erros, 6 avisos antigos (versões disponíveis e `UnitsMap.kt`) |
+| Android: testes instrumentados | só compilam (`assembleDebugAndroidTest`); sem emulador acelerado nesta máquina (P-040, P-003) |
+
+**PostgreSQL 18 portátil.** A máquina Pichau só tinha o PostgreSQL 17; o 18.6 foi instalado como binários oficiais (EDB, `postgresql-18.6-5-windows-x64-binaries.zip`) em `%LOCALAPPDATA%\Programs\PostgreSQL8`, sem serviço do Windows nem senha, e o 17 não foi tocado. Os scripts `tests/validar-postgres-descartavel.ps1`, `tests/validar-clientes-descartavel.ps1` e `scripts/iniciar-local.ps1` aceitam `-PostgreSqlBin <pasta>in` (padrão `C:\Program Files\PostgreSQL8in`) e `-Port` (padrões 55439, 55440 e 5433). O cluster descartável de `validar-postgres-descartavel.ps1` sobe com `max_connections=16`, o que obriga o pool de cada UBS a ser enxuto.
+
+```powershell
+pwsh -NoProfile -File tests/validar-postgres-descartavel.ps1 -PostgreSqlBin "$env:LOCALAPPDATA\Programs\PostgreSQL8in" -IncludeUnitDatabases
+pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -PostgreSqlBin "$env:LOCALAPPDATA\Programs\PostgreSQL8in"
+```
+
+**E2E por UBS.** `validar-clientes-descartavel.ps1` sobe a fixture por UBS (`NORA_TEST_REGISTRATION=1` e `NORA_E2E_UNIT_REGISTRY=1`, com bancos de UBS descartáveis) e o desktop exercita OBS e Secretaria contra a API real. Com `-Android` o script também instala e roda os testes instrumentados, o que exige emulador.
+
+**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate-all-units` antes de receber tráfego, e confira que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa a migração das UBS.
+
 ## Integração por UBS — 2026-11-09
 
 Com dados sintéticos, a solução Release compilou sem avisos ou erros; passaram 28 verificações PostgreSQL de fluxos, a conferência de bancos separados e o teste focado do OBS para cadastro, estado local e painel. O teste integrado executou OBS, gestão e o controlador Android com API, bancos descartáveis e e-mail simulado, incluindo cadastro, agenda, fila, aceite de Vaga Relâmpago e conferência de vínculos. Interações da interface Android, inclusive resultado parcial do vínculo, foram exercitadas separadamente com dados sintéticos; o fluxo completo de cadastro pela tela até o e-mail real ainda não foi testado. A localização física, o envio real de e-mail e a hospedagem continuam sem verificação. A suíte WPF ampla passou 43/66: muitas falhas procuram os controles e contratos globais anteriores, enquanto outros casos de apresentação e rolagem ainda precisam de análise; não é uma validação completa da nova interface.

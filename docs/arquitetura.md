@@ -1,5 +1,7 @@
 # Arquitetura da primeira etapa
 
+Estado em 2026-11-15: os três clientes usam só o fluxo por UBS (o legado global foi removido deles e as rotas antigas ficam bloqueadas na API), cada UBS tem banco criado pela própria API, e a API calcula score e indicadores. As seções abaixo mantêm o texto de etapas anteriores; as seções "Banco de cada UBS", "Score e indicadores" e "Estrutura dos clientes", no fim, descrevem o estado atual e prevalecem onde houver divergência.
+
 ## Aplicativos e responsabilidades
 
 `APPNORA` é o cliente Android Kotlin/Jetpack Compose. `MainActivity` inicializa `SettingsStore`, mantém `PatientController` em `AndroidViewModel` apenas em memória e apresenta `NoraApp`; `NoraContent` organiza Início e Configurações, com retorno nativo e estados de rolagem independentes. `preferences/UserSettings.kt` define os valores locais, `SettingsStore.kt` encapsula persistência e estado observável, e `ui/NoraTheme.kt` aplica as paletas e a aparência das barras do sistema.
@@ -33,13 +35,13 @@ No Android, `NoraTheme` combina a opção persistida com `isSystemInDarkTheme()`
 
 ## Limites da fundação
 
-OBS cadastra pacientes e opera fila/ofertas por entrada. Android mostra apenas acompanhamento da própria conta e responde à oferta. Municipal consulta totais agregados e, sob solicitação, cadastros de referência e agenda da UBS selecionada. Estados vazios e indisponibilidade são explícitos. Notificações externas e séries/filtros analíticos adicionais ainda não foram implementados; não há gráficos fictícios.
+OBS cadastra pacientes e opera fila/ofertas por entrada. Android mostra apenas acompanhamento da própria conta e responde à oferta. Municipal consulta totais agregados e, sob solicitação, cadastros de referência e agenda da UBS selecionada. Estados vazios e indisponibilidade são explícitos. Indicadores e séries por UBS e por rede existem; push por servidor e a avaliação dos alertas ainda não. Não há gráficos fictícios.
 
 Preferências de notificação Android são locais, sem envio externo. Logout funciona para contas conectadas; reabrir exige login. A base definitiva e suas contas aguardam configuração privada PostgreSQL (P-012). Testes usam schemas aleatórios em instância descartável, sem modificar bases de uso.
 
 ## Painel operacional da UBS
 
-O perfil operacional do OBS organiza Painel da UBS, Fila, Agenda, Pacientes, Vaga Relâmpago, Indicadores e Alertas. `OperationalOverviewView`, `AgendaView` e `OperationalInsightsView` formam as superfícies novas; `WorkspaceView` continua sendo a fronteira dos dados e ações HTTP existentes. A agenda utiliza os dados da UBS confirmada; indicadores e alertas continuam identificando séries e operações que a API ainda não fornece.
+O perfil operacional do OBS organiza Painel da UBS, Fila, Agenda, Pacientes, Vaga Relâmpago, Indicadores e Alertas. `OperationalOverviewView`, `AgendaView` e `OperationalInsightsView` formam as superfícies novas; `WorkspaceView` continua sendo a fronteira dos dados e ações HTTP existentes. A agenda e os indicadores usam os dados da UBS confirmada; os alertas listam critérios e ainda não são avaliados.
 
 O usuário autenticado aparece pela identidade retornada na sessão, com avatar de iniciais. O vínculo e a filtragem real da unidade ainda pertencem ao servidor: a API possui cadastro de unidades e vínculos de contas, as rotas atuais operam por UBS; rotas globais antigas estão bloqueadas por padrão. Detalhes e próximos passos estão em `obs-painel-operacional.md`.
 
@@ -67,7 +69,7 @@ O paciente autenticado pode consultar as unidades vinculadas ao seu cadastro em 
 
 ## Preparação de bancos por unidade
 
-`UnitDatabaseRouter` obtém conexões somente de configuração privada no servidor e verifica `nora_unit.identity` ao abrir cada banco. `UnitMigrationDao` inicializa a identidade da UBS numa migração explícita separada do banco central; o servidor recusa um banco inicializado para outra UBS ou que contenha o schema central configurado. Os recursos de migração central e de UBS são filtrados separadamente. `UnitPatientRegistryDao` mantém o cadastro de referência e registra o autor em transação na base da unidade; as novas rotas OBS exigem concessão para a unidade e mantêm um bloqueio da concessão durante a operação, para coordenar revogação. O OBS consome essas rotas no cadastro de referência. Não há criação automática de bancos ou migração de cadastros legados; fila e vagas antigas ainda não consomem a infraestrutura. Testes em PostgreSQL descartável verificaram duas bases diferentes e a rejeição de identidade incorreta.
+`UnitDatabaseRouter` obtém conexões somente de configuração privada no servidor e verifica `nora_unit.identity` ao abrir cada banco. `UnitMigrationDao` inicializa a identidade da UBS numa migração explícita separada do banco central; o servidor recusa um banco inicializado para outra UBS ou que contenha o schema central configurado. Os recursos de migração central e de UBS são filtrados separadamente. `UnitPatientRegistryDao` mantém o cadastro de referência e registra o autor em transação na base da unidade; as novas rotas OBS exigem concessão para a unidade e mantêm um bloqueio da concessão durante a operação, para coordenar revogação. O OBS consome essas rotas no cadastro de referência. A criação automática de bancos existe desde 2026-11 (ver "Banco de cada UBS"); a migração de cadastros globais antigos para as UBS continua fora do escopo. Testes em PostgreSQL descartável verificaram duas bases diferentes e a rejeição de identidade incorreta.
 
 A gestão consulta o cadastro de referência de uma UBS pelo banco associado à unidade. `UnitAccessService` verifica a função municipal, confirma a unidade e grava uma ocorrência de consulta antes de retornar dados. A tela limpa os registros ao selecionar outra UBS ou sair.
 
@@ -78,3 +80,21 @@ A migração de UBS 005 persiste consultas e histórico de transições em cada 
 ## Fila e ofertas por UBS
 
 `UnitWaitingListDao`, `UnitLightningDao` e `UnitLightningDispatcher` mantêm fila, vagas e ofertas no banco da UBS; vínculos e estado de contas são conferidos no banco central. O processamento serializa a distribuição por unidade, seleciona a mesma especialidade por ordem de entrada, mantém dez minutos de prazo e registra aceite como consulta. O OBS e o Android usam as rotas por UBS. `UnitNetworkSummaryDao` agrega as unidades para a Secretaria, com CPF contado uma vez e opção de filtro por unidade. As rotas globais antigas são bloqueadas por padrão e o worker antigo só pode ser habilitado em Development para testes.
+
+## Banco de cada UBS — 2026-11-15
+
+`POST /api/municipal/units` grava a UBS e `UnitDatabaseProvisioner` cria o banco `<prefixo><id sem hífens>` (prefixo `Nora:UnitDatabases:NamePrefix`, padrão `nora_ubs_`), aplica as migrações de UBS e marca `health_units.database_ready_at`; o usuário PostgreSQL da API precisa da permissão `CREATEDB`. O banco nasce sem `CONNECT` para PUBLIC. Falha na criação deixa a UBS `pending` (fora do catálogo público, do resumo e das ofertas), com nova tentativa idempotente. A chave explícita `Nora:UnitDatabases:<id>` continua valendo e tem precedência. Cada UBS com banco derivado tem pool Npgsql próprio (`MaxPoolSize` padrão 3, mínimo 0, ociosidade de 60 s), e o PostgreSQL precisa comportar `pool central + nº de UBS × MaxPoolSize + folga` conexões (fórmula e exemplo em `api.md`).
+
+`nora_unit.schema_version` guarda o maior número de migração aplicado (hoje 011); um banco desatualizado faz as rotas da UBS responderem 503 `unit-database-outdated` até a migração. `Nora.Api --migrate-all-units` atualiza todas as UBS `ready` e `scripts/iniciar-local.ps1` o executa depois de `--migrate`; o primeiro deploy desta versão deve rodá-lo antes de receber tráfego. Cada executor de UBS revalida conta e sessão dentro da transação, e as rotas autenticadas têm limites por conta (`ForwardedHeaders` só com proxy declarado).
+
+## Score e indicadores
+
+`Nora.Api/Services/AttendanceScore.cs` define o score de comparecimento: `concluídas ÷ (concluídas + faltas + soma dos pesos dos cancelamentos)`, nulo quando o denominador é zero. `CancellationWeight` converte a antecedência do cancelamento em fração de falta, cada faixa incluindo o limite inferior: menos de 1 h = 1,0; 1 h a 2 h = 0,9; 2 h a 6 h = 0,8; 6 h a 12 h = 0,6; 12 h a 24 h = 0,4; 24 h a 48 h = 0,2; 48 h a 72 h = 0,1; 72 h a 96 h = 0,02; 96 h ou mais = 0; antecedência negativa pesa como falta. Só pesam cancelamentos feitos pelo paciente no app, identificados por `appointment_events.source = 'patient'` (migração de UBS 010); consultas agendadas ou chamadas e cancelamentos da equipe não entram. O período é pela data marcada, e o score por paciente usa os últimos 12 meses.
+
+`UnitMetricsDao` e `MetricsService` calculam, por UBS e para a rede, contagens por situação, espera média (da entrada na fila até a oferta aceita), série diária, quebras por UBS, região e especialidade e vagas do período, sem dado pessoal. `HistoryDao` une os eventos de acesso, contas e bancos no histórico paginado por cursor. O score por paciente sai agrupado na lista do cadastro de referência do OBS e na rota do próprio paciente. Contratos em `api.md`.
+
+## Estrutura dos clientes
+
+`WorkspaceViewModel` foi dividido em classes parciais por assunto: `.Account` (sessão e troca de senha), `.Alerts` (critérios de alerta), `.Appointments`, `.History`, `.Lightning`, `.Listings` (fichas), `.Messages` (faixa única de retorno), `.Metrics` e `.UnitMetrics` (indicadores da rede e da UBS), `.ObsUnits`, `.Staff`, `.UnitData` e `.Units`. Views novas do desktop: `AlertCriteriaView`, `ChangePasswordView`, `PasswordChangeRequiredView`, `EvolutionChartView` (série diária), `UnitIndicatorsView`, `Network*View` (filtros, indicadores, especialidades e desempenho por UBS), `ObsUnit*View` (escolha, aviso e cadastro da UBS), `HistoryView`, `Staff*View` (contas OBS), `ScoreNoteView` e `UnitQueueView`/`UnitLightningSlotsView`/`AgendaView`. Serviços novos: `Confirmation` e `BrazilianDataValidator`.
+
+No Android, `api/ApiMessages.kt` traduz status e `code` do `problem+json` em mensagens por contexto; `api/PatientLogic.kt` concentra regras puras (próxima consulta, ofertas abertas, score); `api/LightningNotifier.kt` dispara a notificação local; `PatientPresenceService` mantém presença e consulta ofertas no mesmo ciclo de 30 s. Telas separadas em `OffersUi`, `AppointmentsUi`, `QueueUi`, `AttendanceUi`, `JourneyUi`, `PasswordUi`, `UnlinkUi` e `UnitsMap`.

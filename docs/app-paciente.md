@@ -1,5 +1,20 @@
 # App do paciente
 
+## Estado atual — 2026-11-15
+
+Esta seção descreve o APPNORA como está no código (`30f2fcf`, `2171794`). O texto das seções seguintes é anterior; onde divergem, vale esta.
+
+- **Fluxo por UBS:** o fluxo global antigo foi removido do app; fila, ofertas, consultas e score usam só as rotas por UBS vinculada. Com uma única UBS vinculada ela é selecionada sozinha; com várias o paciente escolhe, e a seleção fica só em memória.
+- **Ofertas (Vaga Relâmpago):** cada oferta mostra contagem regressiva; vencida, aparece como "Prazo encerrado", sem Aceitar e Recusar. O histórico de ofertas e de fila fica recolhido, com as mais recentes primeiro, e a lista recarrega depois de cada resposta. Uma resposta tardia ou já encerrada (409) traz mensagem própria e recarga, não erro genérico.
+- **Aviso de oferta nova:** o serviço de conexão do Android consulta as ofertas de todas as UBS vinculadas a cada 30 s, no mesmo ciclo do sinal de presença, e dispara uma notificação local no canal "Vaga Relâmpago" quando chega oferta nova, também em segundo plano. Não há push por servidor: sem a conexão ativa não há aviso. A notificação leva só o id da UBS, em Intent imutável.
+- **Início:** mostra a próxima consulta real (ou o motivo de não mostrar) e o estado da fila e das ofertas. Sessão expirada em qualquer tela volta ao Início para entrar de novo.
+- **Jornada:** o índice **não é inventado**: a Jornada mostra o score de comparecimento dos últimos 12 meses (`GET /api/patient/units/{id}/attendance`), somado entre as UBS vinculadas e com detalhe por UBS, junto da explicação do cálculo e do aviso de que ele não altera fila, prioridade clínica nem direito ao atendimento. Sem consulta encerrada no período a tela diz que ainda não há dado. Exames e vacinas ainda não existem na rede (P-037).
+- **Fila:** o paciente sai da própria fila ("Sair da fila", com confirmação); entrada de outra pessoa ou já encerrada responde com mensagem e recarga.
+- **UBS:** "Remover UBS" avisa antes quantas consultas e solicitações serão canceladas e só então confirma; as consultas futuras canceladas pesam no score pela tabela normal. A UBS removida some do app e pode ser vinculada de novo.
+- **Conta:** "Alterar senha" no Perfil, com confirmação da senha atual; quando a API responde 403 `password-change-required` o app leva à tela de nova senha. Recuperação por código e cadastro seguem como descritos abaixo.
+- **Rotação:** o cadastro em andamento e o desafio de recuperação de senha sobrevivem à rotação; senhas nunca são salvas. Uma resposta inesperada da API é tratada em vez de derrubar o app.
+- **Ainda indisponível:** agendamento e confirmação de presença pelo paciente, exames e vacinas, Família (a tela avisa que o vínculo não existe) e avisos além das ofertas. As regras foram decididas e entram na Fase 3, em andamento (P-037). "Continuar com Google" apenas informa que o acesso não está habilitado.
+
 ## Objetivo
 
 O APPNORA oferece ao paciente um ponto simples para consultar a relação com a unidade de saúde. A navegação principal reúne Início, Jornada, Avisos, Família e Perfil. Configurações fica disponível pelo botão no topo e pelo Perfil. Da tela inicial, a pessoa chega diretamente a consultas, agendamento, unidades de saúde e Vaga Relâmpago.
@@ -14,7 +29,7 @@ Apresenta um atalho para consultar a agenda da UBS vinculada. Cards de acesso r�
 
 ### Jornada
 
-Organiza o espaço de consultas, exames, vacinas e histórico. O Índice de Jornada não é calculado pelo app até que a rede forneça dados e uma regra aprovada. A tela informa que o índice não altera fila, prioridade clínica ou direito ao atendimento.
+Organiza o espaço de consultas, exames, vacinas e histórico. O score de comparecimento aparece na Jornada com a regra aprovada pelo usuário (ver Estado atual); a tela informa que ele não altera fila, prioridade clínica ou direito ao atendimento. Exames e vacinas aguardam os registros da rede.
 
 ### Avisos
 
@@ -34,7 +49,7 @@ Na tela de UBS, o paciente conectado pode usar “Vincular outra UBS” para sel
 
 A tela Consultas permite consultar a agenda da UBS vinculada; o agendamento direto ainda não está disponível. A lista de unidades vinculadas ao paciente é consultada pela sessão autenticada; o seletor permite ver nome, região e endereço da unidade escolhida. O paciente pode cancelar uma consulta após confirmação. Confirmar presença, selecionar horário ou concluir um agendamento permanecem indisponíveis.
 
-Na tela de UBS, o mapa incorporado do OpenStreetMap oferece deslocamento e zoom. O botão “Encontrar minha UBS” solicita localização aproximada e usa uma posição disponível no aparelho com até dez minutos para selecionar a UBS vinculada mais próxima. Se não houver UBS vinculada, mostra a região no mapa. A posição aproximada pode ser enviada ao OpenStreetMap para centralizar o mapa. Sem permissão ou posição recente, a pessoa pode navegar manualmente. O mapa requer internet e atribui os dados ao OpenStreetMap. A lista vem da rota autenticada do paciente e contém apenas unidades vinculadas ao cadastro. Os vínculos são criados no cadastro inicial ou solicitados posteriormente pelo aplicativo; uma unidade desativada pela equipe deixa de aparecer até ser reativada. A remoção voluntária de vínculos ainda não está implementada. A pessoa pode selecionar uma UBS pelo nome para ver região, endereço e um marcador com as coordenadas cadastradas pela Secretaria; a seleção fica em memória e é apagada ao sair. O mapa envia somente as coordenadas escolhidas ao OpenStreetMap. A distância é usada somente para escolher a UBS vinculada mais próxima; não é exibida. Serviços, horários e ordenação por distância permanecem pendentes.
+Na tela de UBS, o mapa incorporado do OpenStreetMap oferece deslocamento e zoom. O botão “Encontrar minha UBS” solicita localização aproximada e usa uma posição disponível no aparelho com até dez minutos para selecionar a UBS vinculada mais próxima. Se não houver UBS vinculada, mostra a região no mapa. A posição aproximada pode ser enviada ao OpenStreetMap para centralizar o mapa. Sem permissão ou posição recente, a pessoa pode navegar manualmente. O mapa requer internet e atribui os dados ao OpenStreetMap. A lista vem da rota autenticada do paciente e contém apenas unidades vinculadas ao cadastro. Os vínculos são criados no cadastro inicial ou solicitados posteriormente pelo aplicativo; uma unidade desativada pela equipe deixa de aparecer até ser reativada. A remoção voluntária de vínculos existe em "Remover UBS" (ver Estado atual). A pessoa pode selecionar uma UBS pelo nome para ver região, endereço e um marcador com as coordenadas cadastradas pela Secretaria; a seleção fica em memória e é apagada ao sair. O mapa envia somente as coordenadas escolhidas ao OpenStreetMap. A distância é usada somente para escolher a UBS vinculada mais próxima; não é exibida. Serviços, horários e ordenação por distância permanecem pendentes.
 
 O mapa incorporado ajusta a altura da página à altura disponível do WebView e acompanha mudanças de tamanho. Essa correção evita a área branca observada quando o conteúdo de altura percentual recebia altura zero dentro da tela rolável. O término do carregamento da página não confirma que o mapa foi desenhado. A tela orienta a recarregar se o mapa não aparecer e informa erros de rede, HTTP e conexão segura; erros de certificado não são ignorados.
 
@@ -64,7 +79,7 @@ O painel inicial usa como referência o padrão de apps de saúde que priorizam 
 
 A API retorna a fila e as ofertas do paciente na UBS vinculada selecionada. A oferta contém especialidade, profissional, horário, prazo e estado; o aceite cria uma consulta na unidade. Distância e orientações adicionais ainda não são fornecidas.
 
-Agendamento e consultas exigem entidades e rotas para unidades, serviços, profissionais, horários, confirmações e cancelamentos. Jornada exige registros de consultas, exames e vacinas, além de uma definição aprovada para o Índice de Jornada que o mantenha separado de prioridade clínica. Modo Família exige vínculos de dependência e autorização por pessoa. Notificações externas precisam de canal de entrega e preferências vinculadas ao servidor.
+Agendamento e confirmação de presença exigem grade de horários, profissionais e especialidades (Fase 3). Jornada exige registros de exames e vacinas, que a equipe lançará no OBS. O score da Jornada já existe e permanece separado de prioridade clínica. Modo Família exige vínculos de dependência e autorização por pessoa. Notificações externas precisam de canal de entrega e preferências vinculadas ao servidor.
 
 ## Execução
 
@@ -83,4 +98,4 @@ A tela Consultas permite escolher uma UBS vinculada e carregar as consultas do p
 
 ## Fila e Vaga Relâmpago por UBS
 
-O paciente seleciona uma UBS vinculada para consultar suas entradas e ofertas. As oportunidades têm prazo de dez minutos; ao aceitar, a API cria a consulta no banco da UBS. Recusar libera o horário para a próxima pessoa elegível. A interface ainda depende de validação completa com dados sintéticos, e notificações externas não foram implementadas.
+O paciente seleciona uma UBS vinculada para consultar suas entradas e ofertas. As oportunidades têm prazo de dez minutos; ao aceitar, a API cria a consulta no banco da UBS. Recusar libera o horário para a próxima pessoa elegível. A interface foi exercitada nos testes locais e nos previews; o teste real contra a API em emulador só compila nesta máquina (P-040). O aviso é local, pelo serviço de conexão; push por servidor não existe.

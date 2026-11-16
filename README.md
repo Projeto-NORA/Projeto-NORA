@@ -10,6 +10,10 @@ Plataforma NORA para acompanhamento do paciente, operação de unidades de saúd
 
 A identidade dos desktops usa roxo; o APPNORA do paciente segue a paleta específica branca e azul-marinho. Cartões e navegação inspirados no protótipo foram reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
 
+## Estado em 2026-11-15
+
+Os três clientes (OBS, Secretaria e APPNORA) operam só pelo fluxo por UBS: cada UBS tem banco próprio, criado pela API ao cadastrar a unidade, e o fluxo global antigo foi removido dos clientes. A API calcula o score de comparecimento e os indicadores por UBS e por rede, o OBS e a Secretaria mostram indicadores, histórico, contas e estado da base, e o app mostra o score na Jornada, avisa ofertas e deixa sair da fila, remover UBS e trocar a senha. Última rodada: build Release 0/0, API HTTP 30/30, PostgreSQL 18 28/28 fluxos, 19/19 plataforma e 17/17 revisão, desktop 103/103, E2E com banco 104/104, Android 84/84 locais; os testes instrumentados do Android só compilam nesta máquina. Em andamento, a Fase 3: agendamento pelo paciente, capacidade e profissionais, metas e alertas, comunicação, família e jornada (regras decididas, ver `docs/tarefas/2026-11-11-integracao-back-front.md`). Entrar com Google e push por servidor seguem sem definição. Detalhes em [Integração back x front](docs/integracao-back-front.md) e [Pendências](docs/PENDENCIAS.md).
+
 ## Escopo da primeira etapa
 
 Temas Clara, Escura e Sistema, escolha persistida, navegação inicial e Configurações. Os desktops compartilham preferências da interface e atalhos; o Android possui preferências locais da interface e de notificações. A interface exibe estados vazios quando não há integração de dados.
@@ -32,6 +36,9 @@ Conexão privada e provisionamento definitivo das contas ainda exigem configura�
 - [Gestão / Secretaria](docs/secretaria.md).
 - [Documento da tarefa e validações](docs/tarefas/2026-10-07-inicio-plataforma-nora.md).
 - [Pendências](docs/PENDENCIAS.md).
+- [Integração back x front por UBS](docs/integracao-back-front.md).
+- [App do paciente](docs/app-paciente.md).
+- [Documento da tarefa da integração back x front](docs/tarefas/2026-11-11-integracao-back-front.md).
 - [Requisitos funcionais confirmados](docs/requisitos-funcionais.md).
 - [API e contratos HTTP](docs/api.md).
 - [Emulador Android e passo a passo](docs/android-emulador.md).
@@ -97,3 +104,9 @@ As listagens Windows agora compartilham itens com raio de 8 px e intervalo de 3 
 Integração de13/10 preserva a galeria do outro computador e as listagens: desktop58/58 com galeria,55/55 com PostgreSQL, Android7/7 locais e15/15 renders/comparações passaram. [Prévias atuais de pacientes/detalhes](docs/galeria/2026-10-13/README.md) e [registro da integração](docs/tarefas/2026-10-13-integracao-main.md). Usuário escolheu ativação do computador + login da secretária com manter conectado; implementação futura e detalhes de isolamento permanecem em P-014.
 
 A [galeria com fotos atualizadas](../../Claude-HTML/Projeto-NORA/galeria/2026-10-13-atualizada/index.html) mantém os83 itens e o site existente:68 fotos Windows substituídas e15 Android preservadas. Correções de captura e do nome no seletor da Fila conferidas em desktop64/64,61/61 com PostgreSQL e navegador14/14; [registro da atualização](docs/tarefas/2026-10-13-atualizar-fotos-galeria.md).
+
+## 2026-11-15 — Integração back x front por UBS
+
+- **Alteração:** remoção do fluxo global dos clientes; OBS completo por UBS (faixa única de retorno, carga da UBS no login, agenda por mês, fila com posição e espera, indicadores, participação na ficha, ofertas de uma vaga); Secretaria com indicadores da rede com filtros reais, contas OBS, histórico paginado e estado da base; APPNORA com ofertas com prazo, aviso local a cada 30 s, score na Jornada, sair da fila, remover UBS e trocar senha. Na API: banco por UBS criado automaticamente, score de comparecimento, indicadores, histórico, contas e ações do paciente, mais 15 correções da revisão crítica (pool por UBS, revalidação de sessão, versão do schema, limites por conta).
+- **Validação:** build Release 0/0; API HTTP 30/30; PostgreSQL 18 com 28/28 fluxos, bancos separados, 19/19 plataforma e 17/17 revisão; desktop 103/103; E2E com banco 104/104; Android 84/84 locais, 28 previews, lint 0 erros e 6 avisos antigos.
+- **Estado:** pendências P-023 a P-029, P-031 a P-035 e P-039 resolvidas. Abertas: P-030 (avaliação dos alertas), P-036, P-037 (Fase 3 em andamento) e P-040 (instrumentados do Android só compilam). Reprodução em `docs/execucao.md`.

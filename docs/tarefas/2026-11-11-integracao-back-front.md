@@ -67,7 +67,21 @@ dias; documentação, commits e pendências não decidiam estes pontos.
 | Janela do score por paciente | Últimos 12 meses. |
 | Senha de conta OBS criada pela Secretaria | Provisória, com troca obrigatória no primeiro login. |
 | Remover vínculo com UBS | As consultas futuras são canceladas junto e pesam no score pela tabela normal; o app avisa quantas serão canceladas antes de confirmar. |
-| Perfis do OBS | Só o administrador da UBS mantém profissionais, especialidades, consultórios e grade de horários; o atendente opera pacientes, fila, agenda e vagas. |
+| Perfis do OBS | Só o administrador da UBS mantém profissionais, consultórios e grade de horários; o atendente opera pacientes, fila, agenda e vagas. |
+| Especialidades (Fase 3) | Lista única da rede, mantida pela Secretaria; cada UBS escolhe dela. |
+| Grade de horários (Fase 3) | Grade semanal por profissional (dias, início, fim, duração do atendimento, consultório) mais bloqueios por data (folgas e feriados). |
+| Agendamento pela equipe (Fase 3) | Depois que a UBS tiver profissionais cadastrados, profissional e especialidade só do cadastro e só dentro da grade. Consultas antigas mantêm o texto que tinham. |
+| Consultórios ativos (Fase 3) | Dois números: consultórios em atendimento agora (consulta chamada) e consultórios com grade prevista para hoje. |
+| Agendamento pelo paciente (Fase 3) | Horários livres da grade, de 24 h até 90 dias à frente; uma consulta futura por especialidade marcada pelo app; vale na hora, sem aprovação, e aparece no OBS como marcada pelo paciente (a equipe pode cancelar). Decidido em 2026-11-13. |
+| Confirmação de presença (Fase 3) | O paciente confirma pelo app de 48 h até 2 h antes. Sem confirmação nada é cancelado: o OBS só mostra "confirmada" ou "sem confirmação" para a equipe decidir. Decidido em 2026-11-13. |
+| Metas (Fase 3) | Secretaria define metas de score de comparecimento (mínimo), taxa de faltas (máximo) e espera média (máximo) para a rede, com sobrescrita opcional por UBS. Estados: atingida; perto (até 10% da meta); fora. Decidido em 2026-11-13 e 2026-11-15. |
+| Comunicação (Fase 3) | Secretaria envia comunicados para equipes (OBS das UBS escolhidas: todas, por região ou específicas, com confirmação de leitura por conta) e para pacientes vinculados dessas UBS (aba Avisos do app, com notificação pela conexão ativa, desligável em Configurações). Decidido em 2026-11-13 e 2026-11-15. |
+| Família (Fase 3) | Responsável pede pelo app o vínculo com um dependente (CPF); a equipe da UBS aprova no OBS após conferir documentos. Aprovado, o responsável faz pelo dependente tudo que o próprio paciente faz (consultas, agendamento, presença, fila, ofertas, Jornada), com registro do responsável em cada ação. O dependente não precisa de conta própria; a UBS decide a idade (menor ou adulto sob cuidado); se o dependente tiver conta, os dois veem. Decidido em 2026-11-13 e 2026-11-15. |
+| Jornada (Fase 3) | A equipe registra no OBS exames (solicitados/realizados) e vacinas aplicadas: nome, data, UBS e observação curta, sem anexo. O paciente só visualiza no app. Decidido em 2026-11-13. |
+| Limite do agendamento (Fase 3) | "Uma consulta futura por especialidade marcada pelo app" vale na rede inteira, não por UBS. Decidido em 2026-11-15. |
+| Alertas (Fase 3) | Limites sugeridos aceitos: fila alta com 20 ou mais pessoas numa especialidade (por UBS); alguém aguardando há mais de 30 dias; faltas acima de 20% nos últimos 30 dias; ocupação acima de 95% da grade nos próximos 7 dias; qualquer meta "fora". Decidido em 2026-11-15. |
+| Profissional (Fase 3) | Guarda registro de conselho opcional (sigla, número, UF), sem validação externa. Decidido em 2026-11-15. |
+| Exames e vacinas (Fase 3) | Exame: solicitado → realizado (com data) ou cancelado. Vacina: aplicada, com dose (1ª, 2ª, 3ª, reforço ou única). Decidido em 2026-11-15. |
 
 Decisões técnicas minhas, sem regra de negócio envolvida: conta OBS com uma
 única UBS concedida entra direto nela; com várias, a pessoa escolhe a cada
@@ -102,12 +116,12 @@ login (a unidade só muda por ação explícita, como já documentado).
 - [x] Instalar PostgreSQL 18 nesta máquina (18.6, binários oficiais em
       `%LOCALAPPDATA%\Programs\PostgreSQL\18`, sem serviço; linha de base com
       ele: 28/28 fluxos de banco e bancos separados por UBS).
-- [ ] Fase 1: legado removido dos clientes.
-- [ ] Fase 1: OBS.
+- [x] Fase 1: legado removido dos clientes.
+- [x] Fase 1: OBS.
 - [ ] Fase 1: Secretaria.
-- [ ] Fase 1: APPNORA.
+- [x] Fase 1: APPNORA.
 - [ ] Fase 1: testes reescritos, validação e commit.
-- [ ] Fase 2: rotas novas na API, com testes.
+- [x] Fase 2: rotas novas na API, com testes.
 - [ ] Fase 2: rotas novas ligadas nos três apps, validação e commit.
 - [ ] Fase 3: regras perguntadas e telas novas implementadas, validação e
       commit.
@@ -125,6 +139,25 @@ testes HTTP da API, testes PostgreSQL 18 descartável
 instrumentados em emulador não rodam nesta máquina (sem aceleração).
 
 ## Estado
+
+### Retomada de 2026-11-13 e 2026-11-15 (sessões caíram por falta de bateria)
+
+- Commits desde a última atualização: `2171794` (Android Fase 2: score na Jornada, sair da fila, remover UBS,
+  trocar senha; 84/84 testes locais, 28 previews), `dbe3eb8` (Secretaria: indicadores da rede, histórico,
+  contas OBS, base da UBS, troca de senha comum; desktop 94/94), `49a22d1` (OBS: indicadores da UBS, espera
+  média e série no Painel, participação na ficha, ofertas da vaga, critérios de alerta, E2E por UBS; desktop
+  103/103 e E2E com PostgreSQL 18 104/104), merge `3d46a78` (15 achados da revisão crítica do back corrigidos
+  em 14 commits `fix`: pool por UBS, revalidação de sessão nos executores, versão do schema da UBS e 503
+  `unit-database-outdated`, limites por conta, ForwardedHeaders só com proxy confiável, cursor do histórico,
+  REVOKE CONNECT, índice da espera média; revisão 17/17).
+- Grafo do graphify reconstruído só com código (commit `dbe3eb8d`: 3518 nós, 8885 arestas); `graph.html` em
+  `Mateus-Projects/Claude-HTML/Projeto-NORA/graphify/graph.html`.
+- Em andamento: dois agentes da Fase 3 do back em worktrees isolados, com números de migração reservados
+  (A: central 015 e UBS 012, agenda/capacidade/metas/alertas; B: central 016 e UBS 013, comunicação e
+  jornada). Depois deles: família no back e as telas da Fase 3 nos três apps.
+- Pendências desta etapa a documentar no fechamento: `obs-painel-operacional.md`, `secretaria.md`,
+  `app-paciente.md`, `arquitetura.md` (ainda diz que não há criação automática de bancos), `PENDENCIAS.md`
+  (fechar P-023 a P-036 conforme entregue) e README.
 
 - 2026-11-11: documento criado; documentação lida; merge da `origin/main`
   feito; quatro levantamentos concluídos e conferidos por amostragem no código;
@@ -164,5 +197,33 @@ instrumentados em emulador não rodam nesta máquina (sem aceleração).
 - Pendente do Android fora de `APPNORA/`: `tests/validar-clientes-descartavel.ps1
   -Android` ainda sobe a fixture legada; o teste real do app agora exige
   `NORA_TEST_REGISTRATION=1` (P-040).
-- Em andamento: Fase 1 desktop (legado + OBS) no agente.
-- Falta: validar a Fase 1 desktop, Secretaria, Fases 2 e 3 e o fechamento.
+- Fase 1 desktop (legado + OBS) concluída pelo agente e conferida por mim
+  (commit `7ba3c54`): legado removido; faixa única de mensagens e barra de
+  progresso no shell; UBS carregada no login (única entra direto, várias exigem
+  escolha, nenhuma explica a concessão); agenda por mês com marcações e botões
+  por estado; fila com posição por especialidade e tempo de espera; atualização
+  automática sem desabilitar formulários; cliente HTTP robusto. Suíte desktop
+  71/71 (antes 43/66), build 0/0, abertura dos dois executáveis 2/2, capturas
+  conferidas.
+- Fase 2 do back concluída pelo agente em worktree isolado e integrada (merge
+  `6896ba3`): `source` nos eventos de consulta, indicadores por UBS e da rede,
+  score por paciente, histórico, criação automática do banco da UBS, contagens
+  novas do resumo, troca de senha e troca obrigatória, contas OBS pela
+  Secretaria, paciente sai da fila e remove vínculo, ofertas de uma vaga.
+  Contratos em `docs/api.md`. Depois da integração, rodado por mim: build 0/0;
+  API HTTP 30/30; PostgreSQL 18.6 descartável com 28/28 fluxos, bancos
+  separados por UBS e 19/19 de plataforma (rotas novas); desktop 71/71.
+- Commits locais até aqui: `30f2fcf` (Android Fase 1 + análise), `7ba3c54`
+  (desktop Fase 1), `425de83` e `250bdfa` (back Fase 2), merge `6896ba3`.
+- Em andamento, três agentes: revisão crítica do back (somente leitura);
+  Secretaria (Fase 1 + rotas novas + troca de senha comum aos dois perfis) em
+  `Nora.Desktop/**`; Android Fase 2 (score na Jornada, sair da fila, remover
+  UBS, trocar senha) em `APPNORA/**`.
+- Depois deles: OBS Fase 2 (Indicadores, tempo médio no Painel, score na ficha,
+  ofertas de uma vaga), E2E desktop com banco (o script ainda não define
+  `NORA_E2E_UNIT_REGISTRY=1`), correções que a revisão apontar, Fase 3.
+- Pontos que o agente do back deixou para confirmar: `daily.scheduled` conta as
+  consultas ainda agendadas, não o total marcado no dia; UBS com base pendente
+  continua aparecendo para o OBS e a Secretaria (operar nela responde 503);
+  `scripts/iniciar-local.ps1` ainda não roda `--migrate-all-units`.
+- Falta: concluir a Fase 2 nos clientes, Fase 3 e o fechamento.

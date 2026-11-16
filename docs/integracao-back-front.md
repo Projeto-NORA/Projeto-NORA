@@ -1,5 +1,25 @@
 # Integração back-end x front-end — estado em 2026-11-11
 
+## Estado em 2026-11-15
+
+O levantamento abaixo é o de 2026-11-11 e fica como histórico. Desde então as lacunas dos grupos 1 e 2 foram resolvidas e commitadas (HEAD `3d46a78`); o que segue em andamento é o grupo 3, pela Fase 3. Detalhes por pendência em [PENDENCIAS.md](PENDENCIAS.md) e as decisões do usuário em `tarefas/2026-11-11-integracao-back-front.md`.
+
+**Resolvido.**
+
+- Grupo 1, OBS: faixa única de mensagens e barra de progresso, carga e escolha da UBS no login, agenda por mês com marcações e botões por estado, fila com posição e tempo de espera, atualização automática sem desabilitar formulários (P-023 a P-026; `7ba3c54`).
+- Grupo 1, Secretaria: cadastro de referência completo, agenda com período, totais novos (P-028; `dbe3eb8`).
+- Grupo 1, APPNORA: sessão expirada, ofertas com contagem regressiva e prazo, consulta automática a cada 30 s com notificação local, UBS única selecionada, estado preservado na rotação (P-031, P-032; `30f2fcf`).
+- Legado global removido dos três clientes, com testes reescritos para o fluxo por UBS (P-027).
+- Grupo 2: histórico de ações (P-029), indicadores por UBS e da rede com o score de comparecimento (P-030, só a rota e as telas), contagens novas do resumo (P-033), banco da UBS criado pela API ao cadastrar (P-034), troca de senha, contas OBS pela Secretaria, sair da fila e remover UBS (P-035), ofertas de uma vaga, participação (score de 12 meses) na ficha do paciente no OBS e na Jornada do app.
+- Quinze achados da revisão crítica do back, corrigidos: pool por UBS, revalidação de sessão nos executores, versão do schema da UBS (503 `unit-database-outdated`), limites por conta, `ForwardedHeaders` só com proxy declarado, cursor do histórico, `REVOKE CONNECT` nos bancos de UBS, índice da espera média.
+- Números: build Release 0/0; API HTTP 30/30; PostgreSQL 18 fluxos 28/28, bancos separados PASS, plataforma 19/19, revisão 17/17; desktop 103/103; E2E com banco 104/104; Android 84/84 locais, 28 previews, lint 0 erros e 6 avisos antigos. Os testes instrumentados do Android só compilam nesta máquina (P-040).
+
+**Em andamento (Fase 3, grupo 3; P-030 e P-037).** As regras já foram decididas: agenda, capacidade, metas e alertas (grade semanal por profissional, bloqueios por data, consultórios, especialidades únicas da rede, agendamento pelo paciente de 24 h a 90 dias, confirmação de 48 h a 2 h, metas com sobrescrita por UBS e os limites de alerta); comunicação e jornada (comunicados para equipes e pacientes, exames e vacinas lançados pelo OBS); e família (vínculo pedido pelo responsável e aprovado pela equipe). O back está em dois worktrees (A: agenda, capacidade, metas e alertas; B: comunicação e jornada), depois vêm família e as telas nos três apps. Até lá as telas correspondentes continuam com aviso de indisponibilidade. "Entrar com Google" e push por servidor seguem sem definição.
+
+**Ainda aberto fora da Fase 3.** P-036 (manutenção e segurança que não foi tratada pela revisão) e P-040 (testes instrumentais do Android com API real).
+
+**Como ler o restante.** As seções abaixo descrevem as lacunas como estavam em 2026-11-11; onde disserem "só front", "falta rota" ou "ainda não corrigido" para os itens da lista de resolvidos, o texto está superado.
+
 Este documento cruza o que a `Nora.Api` oferece com o que os três clientes
 consomem (OBS, Secretaria e APPNORA), depois do commit `83ebcd4` ("faltam
 integrações com o back"). Os contratos estão em [api.md](api.md); aqui fica só
