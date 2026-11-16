@@ -213,6 +213,7 @@ internal static class ApiEndpoints
         var legacyPatient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient")).AddEndpointFilter(new LegacyWorkflowFilter());
         legacyPatient.MapGet("/patient/overview",async(HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.OverviewAsync(Session(context),ct)));
         legacyPatient.MapPost("/offers/{id:guid}/respond",async(Guid id,RespondOfferRequest request,HttpContext context,WorkflowService service,CancellationToken ct)=>Results.Ok(await service.RespondAsync(id,Session(context),request,ct)));
+        app.MapCommunityEndpoints(scope => new SessionFilter(scope)); // Fase 3 — comunicação e jornada (ApiEndpoints.Community.cs)
         var municipal = app.MapGroup("/api/municipal").AddEndpointFilter(new SessionFilter("municipal"));
         municipal.MapGet("/staff", async (HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListStaffAsync(ct)));
         municipal.MapPost("/staff", async (CreateStaffRequest request, HttpContext context, StaffAccountService service, CancellationToken ct) =>
