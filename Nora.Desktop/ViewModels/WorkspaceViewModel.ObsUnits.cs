@@ -51,6 +51,9 @@ public sealed partial class WorkspaceViewModel
     {
         "Nome Z–A" => MatchingObsRegistry().OrderByDescending(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
         "Nome A–Z" => MatchingObsRegistry().OrderBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
+        // Quem ainda não tem participação calculável vai para o fim nas duas direções.
+        "Maior participação" => MatchingObsRegistry().OrderBy(patient => patient.Attendance?.Score is null).ThenByDescending(patient => patient.Attendance?.Score).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
+        "Menor participação" => MatchingObsRegistry().OrderBy(patient => patient.Attendance?.Score is null).ThenBy(patient => patient.Attendance?.Score).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
         _ => MatchingObsRegistry().OrderByDescending(patient => patient.CreatedAt).ThenBy(patient => patient.Cpf, StringComparer.Ordinal)
     };
     private bool MatchesObsSearch(UnitPatientRecord patient)
@@ -78,6 +81,7 @@ public sealed partial class WorkspaceViewModel
         {
             activeObsUnit = value;
             Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(ActiveObsUnitRegion)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(NeedsObsUnitChoice)); Notify(nameof(ObsUnitPrompt)); Notify(nameof(UnitLabel)); Notify(nameof(AgendaStateText));
+            NotifyUnitMetrics(); Notify(nameof(UnitMetricsScopeLabel));
             NotifyUnitCounts();
         }
     }
@@ -162,7 +166,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
     private async Task ActivateUnitAsync(HealthUnit unit)
     {
-        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda);
+        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics);
         if (disposed || !IsAuthenticated) return;
         if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
         ActiveObsUnit = unit;
@@ -251,7 +255,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda, fila e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData();
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics();
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
     }
 

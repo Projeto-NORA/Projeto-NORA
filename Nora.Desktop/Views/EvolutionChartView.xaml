@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.EvolutionChartView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl x:Class="Nora.Desktop.Views.EvolutionChartView" x:Name="Root" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <StackPanel>
     <WrapPanel x:Name="Legend" Margin="0,0,0,10" />
     <Grid Height="250">
@@ -8,7 +8,7 @@
     <Expander Header="Ver os dados do gráfico em tabela" Margin="0,12,0,0" AutomationProperties.Name="Tabela dos dados do gráfico">
       <StackPanel Margin="0,8,0,0">
         <TextBlock Text="Mesmos valores do gráfico, um dia por linha. Dias sem consultas não aparecem na tabela." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" />
-        <DataGrid ItemsSource="{Binding DailyRows}" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="True" MaxHeight="280" MinHeight="64" RowHeight="40" AutomationProperties.Name="Consultas por dia">
+        <DataGrid ItemsSource="{Binding Data.Rows, ElementName=Root}" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="True" MaxHeight="280" MinHeight="64" RowHeight="40" AutomationProperties.Name="Consultas por dia">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Data" Binding="{Binding DateDisplay}" SortMemberPath="Date" Width="140" />
             <DataGridTextColumn Header="Concluídas" Binding="{Binding Completed}" Width="*" />

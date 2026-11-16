@@ -30,7 +30,7 @@ $noraDirectory = Join-Path $noraRoot ('.build\clients-validation-' + [guid]::New
 New-Item -ItemType Directory -Path $noraDirectory | Out-Null
 $noraData = Join-Path $noraDirectory 'data'
 $noraPreview = if ([IO.Path]::IsPathRooted($PreviewDirectory)) { $PreviewDirectory } else { Join-Path $noraRoot $PreviewDirectory }
-$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_TEST_REGISTRATION', 'NORA_TEST_UNIT_A_CONNECTION', 'NORA_TEST_UNIT_B_CONNECTION', 'NORA_TEST_UNIT_C_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
+$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_TEST_REGISTRATION', 'NORA_TEST_UNIT_A_CONNECTION', 'NORA_TEST_UNIT_B_CONNECTION', 'NORA_TEST_UNIT_C_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_UNIT_REGISTRY', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
 $noraPreviousEnvironment = @{}
 foreach ($noraName in $noraEnvironmentNames) { $noraPreviousEnvironment[$noraName] = [Environment]::GetEnvironmentVariable($noraName, 'Process') }
 $noraStarted = $false
@@ -67,6 +67,18 @@ function Wait-NoraFixtureMetadata($Process) {
     if (-not $noraUri.IsLoopback -or $noraUri.Scheme -ne 'http' -or $noraInfo.schema -notmatch '^nora_clients_[a-f0-9]{32}$') { throw 'Metadata não corresponde à fixture local descartável.' }
     $noraInfo
 }
+# Cria três bancos locais descartáveis (um por UBS "Cadastro E2E") e aponta as variáveis da fixture para eles. A fixture vincula cada banco a
+# uma única UBS, então cada subida da fixture precisa de bancos novos (sufixo diferente): reaproveitar um banco de outra execução é recusado.
+function New-NoraUnitDatabases([string] $Suffix) {
+    $noraCreateDb = Join-Path $PostgreSqlBin 'createdb.exe'
+    if (-not (Test-Path -LiteralPath $noraCreateDb)) { throw 'O utilitário createdb.exe não foi encontrado.' }
+    foreach ($noraLetter in @('A', 'B', 'C')) {
+        $noraUnitDb = 'nora_unit_' + $noraLetter.ToLowerInvariant() + $Suffix
+        & $noraCreateDb -h 127.0.0.1 -p $Port -U nora_checks $noraUnitDb
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao criar banco descartável $noraUnitDb." }
+        [Environment]::SetEnvironmentVariable("NORA_TEST_UNIT_${noraLetter}_CONNECTION", "Host=127.0.0.1;Port=$Port;Database=$noraUnitDb;Username=nora_checks", 'Process')
+    }
+}
 # Encerra a fixture pelo arquivo de parada e confere a limpeza; usada ao trocar a fixture do desktop pela do Android.
 function Stop-NoraFixtureProcess($Process) {
     if (-not $Process.HasExited) {
@@ -91,6 +103,10 @@ try {
     } finally { $noraControl.Dispose() }
     $noraStarted = $true
     $env:NORA_TEST_CONNECTION = "Host=127.0.0.1;Port=$Port;Database=postgres;Username=nora_checks"
+    # A fixture roda no modo por UBS (três "UBS Cadastro E2E", bancos separados, conta OBS com as três concedidas): é o único fluxo que o E2E do desktop exercita.
+    New-NoraUnitDatabases ''
+    $env:NORA_TEST_REGISTRATION = '1'
+    $env:NORA_E2E_UNIT_REGISTRY = '1'
     $noraFixture = Start-NoraCheckProcess 'dotnet' @(('"' + $noraApiChecks + '"'), '--client-fixture') 'fixture'
     $noraFixtureInfo = Wait-NoraFixtureMetadata $noraFixture
     $noraEndpoint = [uri]$noraFixtureInfo.address
@@ -102,19 +118,10 @@ try {
     try { $noraExitCode = Wait-NoraCheckProcess $noraDesktop $TestTimeoutSeconds 'Checks WPF' } finally { $noraDesktop.Dispose() }
     if ($noraExitCode -ne 0) { throw 'Checks WPF/E2E falharam; confira desktop.stdout.log e desktop.stderr.log.' }
     if ($Android) {
-        # O teste real do app usa só rotas por UBS e exige a fixture em modo de cadastro (três "UBS Cadastro E2E" e
-        # /__checks/registration-code), com um banco local descartável por UBS. Ela substitui a fixture legada do desktop.
+        # O teste real do app usa os dados originais da fixture (o E2E do desktop os alterou), então ela é reiniciada com bancos novos por UBS.
         Stop-NoraFixtureProcess $noraFixture
         $noraFixture = $null
-        $noraCreateDb = Join-Path $PostgreSqlBin 'createdb.exe'
-        if (-not (Test-Path -LiteralPath $noraCreateDb)) { throw 'O utilitário createdb.exe não foi encontrado.' }
-        foreach ($noraLetter in @('A', 'B', 'C')) {
-            $noraUnitDb = 'nora_unit_' + $noraLetter.ToLowerInvariant()
-            & $noraCreateDb -h 127.0.0.1 -p $Port -U nora_checks $noraUnitDb
-            if ($LASTEXITCODE -ne 0) { throw "Falha ao criar banco descartável $noraUnitDb." }
-            [Environment]::SetEnvironmentVariable("NORA_TEST_UNIT_${noraLetter}_CONNECTION", "Host=127.0.0.1;Port=$Port;Database=$noraUnitDb;Username=nora_checks", 'Process')
-        }
-        $env:NORA_TEST_REGISTRATION = '1'
+        New-NoraUnitDatabases '_android'
         $noraFixture = Start-NoraCheckProcess 'dotnet' @(('"' + $noraApiChecks + '"'), '--client-fixture') 'fixture-android'
         $noraFixtureInfo = Wait-NoraFixtureMetadata $noraFixture
         $noraEndpoint = [uri]$noraFixtureInfo.address

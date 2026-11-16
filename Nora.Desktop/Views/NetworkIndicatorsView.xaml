@@ -34,7 +34,7 @@
       <StackPanel>
         <TextBlock Text="Série no tempo" FontSize="19" FontWeight="SemiBold" />
         <TextBlock Text="Consultas por dia, pela data marcada, com os filtros acima." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
-        <views:EvolutionChartView />
+        <views:EvolutionChartView Data="{Binding NetworkChart}" />
       </StackPanel>
     </Border>
   </StackPanel>

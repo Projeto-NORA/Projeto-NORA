@@ -26,7 +26,6 @@ public sealed partial class WorkspaceViewModel
     private bool metricsFailed;
     private int networkLoading, networkVersion;
     private CancellationTokenSource? networkCts;
-    private DailyPoint[] chartDays = [];
     private readonly SortedSet<string> knownSpecialties = new(StringComparer.CurrentCultureIgnoreCase);
 
     public static IReadOnlyList<PeriodOption> PeriodOptions { get; } =
@@ -37,8 +36,9 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<PerformanceRow> UnitPerformance { get; } = [];
     public ObservableCollection<PerformanceRow> SpecialtyPerformance { get; } = [];
     public ObservableCollection<PerformanceRow> RegionPerformance { get; } = [];
-    public ObservableCollection<DailyPoint> DailyRows { get; } = [];
-    public IReadOnlyList<DailyPoint> ChartDays => chartDays;
+    public ChartSeries NetworkChart { get; } = new();
+    public ObservableCollection<DailyPoint> DailyRows => NetworkChart.Rows;
+    public IReadOnlyList<DailyPoint> ChartDays => NetworkChart.Days;
 
     public int MetricsPeriodDays
     {
@@ -96,8 +96,8 @@ public sealed partial class WorkspaceViewModel
         1 => "1 UBS está fora destes números porque a base dela ainda não foi criada. Crie a base na aba Unidades.",
         var count => $"{count} UBS estão fora destes números porque a base delas ainda não foi criada. Crie as bases na aba Unidades."
     };
-    public string ChartState => metrics is null ? "Sem indicadores carregados." : metrics.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "";
-    public bool HasChartData => metrics is { Daily.Length: > 0 };
+    public string ChartState => NetworkChart.State;
+    public bool HasChartData => NetworkChart.HasData;
 
     private static readonly string[] MetricsNames =
     [
@@ -208,10 +208,8 @@ public sealed partial class WorkspaceViewModel
         Replace(UnitPerformance, result.ByUnit.Select(unit => new PerformanceRow(unit.Name, unit.Region, unit.Appointments.AttendanceScore, unit.Appointments.Completed, unit.Appointments.Missed, unit.Appointments.Cancelled, unit.Waiting.ActiveEntries, unit.Waiting.AverageWaitMinutes)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         Replace(RegionPerformance, result.ByRegion.Select(region => new PerformanceRow(region.Region, "", region.Appointments.AttendanceScore, region.Appointments.Completed, region.Appointments.Missed, region.Appointments.Cancelled, region.Waiting.ActiveEntries, region.Waiting.AverageWaitMinutes)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         Replace(SpecialtyPerformance, result.BySpecialty.Select(item => new PerformanceRow(item.Specialty, "", item.AttendanceScore, item.Completed, item.Missed, item.Cancelled, item.ActiveEntries, item.AverageWaitMinutes)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
-        var sparse = result.Daily.Select(day => DateOnly.TryParseExact(day.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? new DailyPoint(date, day.Completed, day.Missed, day.Cancelled) : null)
-            .OfType<DailyPoint>().OrderBy(point => point.Date).ToArray();
-        Replace(DailyRows, sparse);
-        chartDays = BuildChartDays(sparse, request);
+        var sparse = SparseDays(result.Daily);
+        NetworkChart.Apply(BuildChartDays(sparse, request.From, request.To), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
         if (request.Specialty.Length == 0) CollectSpecialties(result);
         NotifyMetrics();
     }
@@ -224,22 +222,20 @@ public sealed partial class WorkspaceViewModel
         Replace(SpecialtyOptions, new[] { new FilterOption("", "Todas as especialidades") }.Concat(knownSpecialties.Select(name => new FilterOption(name, name))).ToArray());
     }
 
-    /// <summary>Série densa: dias sem registro valem zero (nenhum evento), para o eixo do tempo ser contínuo.</summary>
-    private static DailyPoint[] BuildChartDays(DailyPoint[] sparse, MetricsRequest request)
-    {
-        var first = DateOnly.FromDateTime(request.From.LocalDateTime); var last = DateOnly.FromDateTime(request.To.LocalDateTime.AddDays(-1));
-        if (sparse.Length > 0) { if (sparse[0].Date < first) first = sparse[0].Date; if (sparse[^1].Date > last) last = sparse[^1].Date; }
-        var length = last.DayNumber - first.DayNumber + 1;
-        if (length <= 0 || length > 400) return sparse;
-        var byDate = sparse.ToDictionary(point => point.Date);
-        var days = new DailyPoint[length];
-        for (var index = 0; index < length; index++) { var date = first.AddDays(index); days[index] = byDate.TryGetValue(date, out var point) ? point : new DailyPoint(date, 0, 0, 0); }
-        return days;
-    }
+    /// <summary>Série densa do período: dias sem registro valem zero. A janela é [from, to), então o último dia é o anterior a "to".</summary>
+    private static DailyPoint[] BuildChartDays(DailyPoint[] sparse, DateTimeOffset from, DateTimeOffset to) =>
+        ChartSeries.Dense(sparse, DateOnly.FromDateTime(from.LocalDateTime), DateOnly.FromDateTime(to.LocalDateTime.AddDays(-1)));
 
-    private MetricCard[] BuildOverviewCards()
+    /// <summary>Pontos esparsos da API (só dias com dado), em ordem de data.</summary>
+    private static DailyPoint[] SparseDays(DailyMetrics[] daily) =>
+        daily.Select(day => DateOnly.TryParseExact(day.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? new DailyPoint(date, day.Completed, day.Missed, day.Cancelled) : null)
+            .OfType<DailyPoint>().OrderBy(point => point.Date).ToArray();
+
+    private MetricCard[] BuildOverviewCards() => BuildCards(metrics?.Totals.Appointments, metrics?.Totals.Waiting);
+
+    /// <summary>Seis cartões do período, iguais na Secretaria (rede) e no OBS (UBS): consultas, score e esperas.</summary>
+    private static MetricCard[] BuildCards(AppointmentMetrics? appointments, WaitingMetrics? waiting)
     {
-        var appointments = metrics?.Totals.Appointments; var waiting = metrics?.Totals.Waiting;
         static string Number(long? value) => value is { } number ? DisplayFormat.Count(number) : "—";
         return
         [
@@ -259,11 +255,11 @@ public sealed partial class WorkspaceViewModel
     {
         Interlocked.Exchange(ref networkCts, null)?.Cancel();
         networkVersion++;
-        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; chartDays = [];
+        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; NetworkChart.Clear("Sem indicadores carregados.");
         metricsPeriodDays = 30; metricsRegion = ""; metricsSpecialty = ""; metricsFromText = ""; metricsToText = ""; metricsRangeError = "";
         knownSpecialties.Clear();
         Replace(OverviewCards, BuildOverviewCards()); Replace(UnitPerformance, Array.Empty<PerformanceRow>()); Replace(RegionPerformance, Array.Empty<PerformanceRow>());
-        Replace(SpecialtyPerformance, Array.Empty<PerformanceRow>()); Replace(DailyRows, Array.Empty<DailyPoint>());
+        Replace(SpecialtyPerformance, Array.Empty<PerformanceRow>());
         Replace(SpecialtyOptions, new[] { new FilterOption("", "Todas as especialidades") });
         foreach (var name in new[] { nameof(MetricsPeriodDays), nameof(IsCustomPeriod), nameof(MetricsRegion), nameof(MetricsSpecialty), nameof(MetricsFromText), nameof(MetricsToText), nameof(MetricsRangeError), nameof(HasMetricsRangeError), nameof(CanFilterNetwork) }) Notify(name);
         NotifyMetrics();

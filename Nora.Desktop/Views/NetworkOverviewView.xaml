@@ -12,7 +12,7 @@
       <StackPanel>
         <TextBlock Text="Evolução" FontSize="18" FontWeight="SemiBold" />
         <TextBlock Text="Consultas por dia, pela data marcada: concluídas, faltas e canceladas." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
-        <views:EvolutionChartView />
+        <views:EvolutionChartView Data="{Binding NetworkChart}" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">

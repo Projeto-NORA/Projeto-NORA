@@ -8,6 +8,10 @@ namespace Nora.Desktop.ViewModels;
 public enum UnitScope
 {
     None = 0, Registry = 1, Queue = 2, Slots = 4, Today = 8, Agenda = 16,
+    /// <summary>Últimos 30 dias e série de 7 dias do Painel; nunca faz parte do ciclo de 20 s fora da regra dos 5 minutos.</summary>
+    PanelMetrics = 32,
+    /// <summary>Indicadores com o filtro de período da aba Indicadores.</summary>
+    Metrics = 64,
     Everything = Registry | Queue | Slots | Today
 }
 
@@ -23,6 +27,11 @@ public sealed partial class WorkspaceViewModel
         public DateTime TodayDate { get; init; }
         public AppointmentInfo[]? Month { get; init; }
         public (int Year, int Month) MonthKey { get; init; }
+        public UnitMetricsRead? Metrics { get; init; }
+        public UnitMetricsRead? Panel { get; init; }
+        /// <summary>Quando cada leitura de indicadores foi pedida; a troca de UBS limpa o estado depois da leitura, então a hora é regravada ao aplicar.</summary>
+        public DateTimeOffset MetricsAt { get; init; }
+        public DateTimeOffset PanelAt { get; init; }
     }
 
     private static UnitScope ScopeFor(string section) => section switch
@@ -32,6 +41,7 @@ public sealed partial class WorkspaceViewModel
         "queue" => UnitScope.Queue,
         "slots" => UnitScope.Slots,
         "agenda" => UnitScope.Agenda,
+        "indicators" => UnitScope.Metrics,
         _ => UnitScope.None
     };
 
@@ -46,7 +56,20 @@ public sealed partial class WorkspaceViewModel
         var todayList = scope.HasFlag(UnitScope.Today) ? api.AppointmentsAsync(unit.Id, new DateTimeOffset(today), new DateTimeOffset(today.AddDays(1))) : null;
         // Uma única requisição cobre o mês inteiro do calendário; dia, semana e marcações saem dela.
         var month = scope.HasFlag(UnitScope.Agenda) ? api.AppointmentsAsync(unit.Id, gridStart, gridEnd) : null;
-        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month }.OfType<Task>());
+        // Indicadores: o do filtro e o do Painel viram uma só requisição quando pedem a mesma janela.
+        Task<UnitMetricsRead>? metricsRead = null, panelRead = null;
+        if (scope.HasFlag(UnitScope.Metrics) && TryBuildUnitRequest(out var filterRequest))
+        {
+            unitMetricsAttemptedAt = DateTimeOffset.Now;
+            metricsRead = ShareAsync(api.UnitMetricsAsync(unit.Id, filterRequest.From, filterRequest.To), filterRequest);
+        }
+        if (scope.HasFlag(UnitScope.PanelMetrics))
+        {
+            var panelRequestNow = BuildPanelRequest(); panelAttemptedAt = DateTimeOffset.Now;
+            panelRead = metricsRead is not null && TryBuildUnitRequest(out var sameRequest) && sameRequest == panelRequestNow
+                ? SharePanelAsync(metricsRead, panelRequestNow) : ReadPanelMetricsAsync(unit, panelRequestNow);
+        }
+        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead }.OfType<Task>());
         return new UnitSnapshot
         {
             Registry = registry is null ? null : await registry,
@@ -55,7 +78,11 @@ public sealed partial class WorkspaceViewModel
             Today = todayList is null ? null : await todayList,
             TodayDate = today,
             Month = month is null ? null : await month,
-            MonthKey = monthKey
+            MonthKey = monthKey,
+            Metrics = metricsRead is null ? null : await metricsRead,
+            Panel = panelRead is null ? null : await panelRead,
+            MetricsAt = unitMetricsAttemptedAt ?? DateTimeOffset.Now,
+            PanelAt = panelAttemptedAt ?? DateTimeOffset.Now
         };
     }
 
@@ -74,6 +101,9 @@ public sealed partial class WorkspaceViewModel
         if (data.Slots is { } slots) { Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); }
         if (data.Today is { } today) SetTodayOverview(data.TodayDate, today);
         if (data.Month is { } month && data.MonthKey == (selectedAgendaDate.Year, selectedAgendaDate.Month)) SetMonthCache(data.MonthKey, month);
+        // Uma resposta de um filtro que já mudou não altera a tela.
+        if (data.Metrics is { Data: { } read } && TryBuildUnitRequest(out var current) && current == data.Metrics.Request) { unitMetricsAttemptedAt = data.MetricsAt; ApplyUnitMetrics(read, current); }
+        if (data.Panel is { } panel) { panelAttemptedAt = data.PanelAt; ApplyPanelMetrics(panel); }
         NotifyUnitCounts();
     }
 

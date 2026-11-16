@@ -25,8 +25,8 @@
           <ItemsControl.ItemTemplate><DataTemplate>
             <Grid Margin="0,4">
               <Grid.ColumnDefinitions><ColumnDefinition Width="105" /><ColumnDefinition Width="*" /><ColumnDefinition Width="42" /></Grid.ColumnDefinitions>
-              <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
-              <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding Value}" />
+              <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap" />
+              <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap" ToolTip="{Binding Value}" />
               <Button Grid.Column="2" Command="{Binding DataContext.CopyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Visibility="{Binding CanCopy, Converter={StaticResource BoolVisibility}}" Padding="6" MinHeight="34" Height="34" Width="34" VerticalAlignment="Center" ToolTip="{Binding Label, StringFormat='Copiar {0}'}" AutomationProperties.Name="{Binding Label, StringFormat='Copiar {0}'}"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" FontSize="15" /></Button>
             </Grid>
           </DataTemplate></ItemsControl.ItemTemplate>

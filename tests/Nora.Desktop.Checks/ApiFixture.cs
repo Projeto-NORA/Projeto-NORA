@@ -46,6 +46,16 @@ internal static partial class Program
         public List<Guid>? Granted { get; set; }
         /// <summary>UBS cujo banco "está fora do ar": qualquer rota dela responde 503 com problem+json.</summary>
         public HashSet<Guid> UnavailableUnits { get; } = [];
+        /// <summary>UBS cuja base "está desatualizada": qualquer rota dela responde 503 com o código unit-database-outdated.</summary>
+        public HashSet<Guid> OutdatedUnits { get; } = [];
+        /// <summary>Só a rota de indicadores da UBS falha (500), como uma base sem a migração mais nova; o resto da UBS continua respondendo.</summary>
+        public HashSet<Guid> FailingUnitMetrics { get; } = [];
+        /// <summary>Cada requisição de indicadores da UBS fica retida até o teste liberá-la (ignora o cancelamento, como um servidor lento).</summary>
+        public bool HoldUnitMetrics { get; set; }
+        public List<TaskCompletionSource<bool>> HeldUnitMetrics { get; } = [];
+        public List<(Guid Unit, System.Collections.Specialized.NameValueCollection Query)> UnitMetricsQueries { get; } = [];
+        /// <summary>Ofertas por vaga, na ordem devolvida pelo servidor (cronológica).</summary>
+        public Dictionary<Guid, List<UnitSlotOffer>> Offers { get; } = [];
         /// <summary>A conta entra com senha provisória: toda rota (exceto me, logout e troca de senha) responde 403 password-change-required até a troca.</summary>
         public bool MustChangePassword { get; set; }
         public string CurrentPassword { get; set; } = "isolated-test-password";
@@ -140,6 +150,7 @@ internal static partial class Program
             Require(units.Any(unit => unit.Id == unitId), "OBS usou UBS inexistente.");
             Require(Granted is null || Granted.Contains(unitId), "OBS usou UBS sem concessão.");
             if (UnavailableUnits.Contains(unitId)) return Problem(HttpStatusCode.ServiceUnavailable, "service-unavailable");
+            if (OutdatedUnits.Contains(unitId)) return Problem(HttpStatusCode.ServiceUnavailable, "unit-database-outdated");
             var state = State(unitId);
             var route = string.Join('/', rest);
             JsonDocument? payload = null;
@@ -199,6 +210,20 @@ internal static partial class Program
                     Require(index >= 0, "Entrada de fila inexistente.");
                     if (!state.Waiting[index].IsActive) return Problem(HttpStatusCode.Conflict, "conflict");
                     state.Waiting[index] = state.Waiting[index] with { Status = "cancelled" }; return new(HttpStatusCode.NoContent);
+                }
+                if (route == "metrics" && method == HttpMethod.Get)
+                {
+                    var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+                    UnitMetricsQueries.Add((unitId, query));
+                    if (FailingUnitMetrics.Contains(unitId)) return Problem(HttpStatusCode.InternalServerError, "internal-error");
+                    if (HoldUnitMetrics) { var held = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldUnitMetrics.Add(held); await held.Task; }
+                    return Reply(BuildUnitMetrics(state, DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture), DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture)));
+                }
+                if (rest is ["lightning-slots", var slotText, "offers"] && method == HttpMethod.Get)
+                {
+                    var slotId = Guid.Parse(slotText);
+                    if (state.Slots.All(slot => slot.Id != slotId)) return Problem(HttpStatusCode.NotFound, "not-found");
+                    return Reply(Offers.TryGetValue(slotId, out var offers) ? offers.ToArray() : Array.Empty<UnitSlotOffer>());
                 }
                 if (route == "lightning-slots")
                 {
@@ -340,6 +365,25 @@ internal static partial class Program
                 return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending));
             }
             throw new InvalidOperationException("Rota inesperada da fixture: " + request.Method + " " + path);
+        }
+
+        /// <summary>
+        /// Indicadores de uma UBS, determinísticos: 12 concluídas, 3 faltas, 2 cancelamentos (1 do paciente, peso 0,4), fila e vagas reais da fixture,
+        /// espera média de 95 min e série esparsa com só dois dias (o último da janela e quatro dias antes), como a API.
+        /// </summary>
+        private UnitMetrics BuildUnitMetrics(UnitState state, DateTimeOffset from, DateTimeOffset to)
+        {
+            var empty = NoClosedAppointments;
+            var completed = empty ? 0 : 12; var missed = empty ? 0 : 3; var weight = empty ? 0 : 0.4;
+            var appointments = new AppointmentMetrics(1, 0, completed, missed, empty ? 0 : 2, empty ? 0 : 1, weight, empty ? null : Math.Round(completed / (completed + missed + weight), 4));
+            var active = state.Waiting.Count(entry => entry.IsActive);
+            var waiting = new WaitingMetrics(active, active, empty ? 0 : 4, empty ? null : 95, active == 0 ? null : 1500);
+            var lightning = new LightningMetrics(state.Slots.Count, empty ? 0 : 1, empty ? 0 : 2, empty ? 0 : 1);
+            var specialties = empty ? Array.Empty<SpecialtyMetrics>() : new[] { new SpecialtyMetrics("Clínica geral", 9, 2, 1, 0.4, 0.8257, active, 120), new SpecialtyMetrics("Pediatria", 3, 1, 1, 0, 0.75, 0, null) };
+            var last = DateOnly.FromDateTime(to.LocalDateTime.AddDays(-1)); var first = DateOnly.FromDateTime(from.LocalDateTime);
+            var daily = empty ? Array.Empty<DailyMetrics>() : new[] { new DailyMetrics(last.AddDays(-4).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 0, 3, 1, 0), new DailyMetrics(last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 1, 2, 0, 1) }
+                .Where(day => DateOnly.ParseExact(day.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture) >= first).ToArray();
+            return new(from, to, appointments, waiting, lightning, specialties, daily);
         }
 
         /// <summary>Indicadores sintéticos e determinísticos: cada UBS da fixture tem números próprios e os filtros restringem o resultado como no servidor.</summary>

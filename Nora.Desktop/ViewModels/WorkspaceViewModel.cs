@@ -55,7 +55,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         endpoint = Environment.GetEnvironmentVariable("NORA_API_URL") ?? "";
         RefreshCommand = new RelayCommand(async _ => await RunAsync(async () =>
         {
-            await RefreshAsync(ScopeFor(Section) | UnitScope.Everything);
+            await RefreshAsync(ScopeFor(Section) | UnitScope.Everything | UnitScope.PanelMetrics);
             MarkFresh();
             Say(MessageKind.Success, "Dados atualizados pela API.");
         }), _ => CanOperate);
@@ -66,6 +66,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         SelectCalendarDayCommand = new RelayCommand(day => SelectCalendarDay(day as AgendaCalendarDay));
         BuildAgendaDays(); ResetAgendaRange();
         Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
+        Replace(UnitOverviewCards, BuildCards(null, null)); Replace(UnitLightningCards, BuildLightningCards(null));
     }
 
     public string Endpoint { get => endpoint; set { endpoint = value; Notify(); } }
@@ -73,7 +74,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Há trabalho em andamento: ação do usuário, ciclo automático ou carga de seção.</summary>
     public bool IsBusy => userBusy || backgroundOperations > 0;
     /// <summary>A barra de progresso acompanha ação pedida pelo usuário e a consulta disparada por filtro; a atualização automática é silenciosa.</summary>
-    public bool ShowProgress => userBusy || networkLoading > 0;
+    public bool ShowProgress => userBusy || networkLoading > 0 || unitMetricsLoading > 0;
     public bool IsAuthenticated => user != null;
     public bool IsSignedOut => !IsAuthenticated;
     /// <summary>Botões e formulários só ficam bloqueados por ação do usuário; a atualização automática não os desabilita.</summary>
@@ -147,8 +148,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public bool IsAlertsPage => ShowAlerts;
     public string PageTitle => Section == "alerts" ? "Central de alertas" : "Indicadores da UBS";
     public string PageSubtitle => Section == "alerts"
-        ? "Acompanhe alertas de fila, atrasos e disponibilidade da agenda."
-        : "Tempo de espera, produção, comparecimento e uso da agenda da sua unidade.";
+        ? "Veja quais dados já podem alimentar alertas de fila, espera, faltas e cancelamentos."
+        : "Espera, produção, comparecimento e Vaga Relâmpago da sua unidade, com os dados reais da UBS.";
     public string PatientTotalCount => HasActiveObsUnit ? ObsRegistry.Count.ToString() : "—";
     public string QueueWaitingCount => HasActiveObsUnit && unitQueueLoaded ? UnitWaitingList.Count(entry => entry.IsActive).ToString() : "—";
     public string SlotOpenCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(entry => entry.Status is "open" or "offered").ToString() : "—";
@@ -352,7 +353,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     }
 
     private async void OnRefreshTimer(object? sender, EventArgs args) => await RefreshAutomaticallyAsync();
-    public Task RefreshAutomaticallyAsync() => RunBackgroundAsync(() => RefreshAsync(ScopeFor(Section)), skipIfBusy: true);
+    public Task RefreshAutomaticallyAsync() => RunBackgroundAsync(() => RefreshAsync(AutoScopeFor(Section)), skipIfBusy: true);
 
     private bool sectionLoadPending;
     private void OnSectionEntered()
@@ -365,7 +366,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         {
             if (!sectionLoadPending) return Task.CompletedTask;
             sectionLoadPending = false;
-            return RefreshAsync(ScopeFor(Section));
+            return RefreshAsync(AutoScopeFor(Section));
         });
     }
 

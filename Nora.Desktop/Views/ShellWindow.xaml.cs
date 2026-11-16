@@ -52,9 +52,10 @@ public partial class ShellWindow : Window
         menu.Placement = PlacementMode.Top;
         menu.IsOpen = true;
     }
-    public void OpenItemDetails(object item)
+    /// <summary>Abre a ficha do item. A da Vaga Relâmpago espera a leitura das ofertas, por isso o método é assíncrono (chamado só por eventos da tela).</summary>
+    public async void OpenItemDetails(object item)
     {
-        var details = ViewModel.Workspace.BuildDetails(item);
+        var details = item is UnitLightningSlot ? await ViewModel.Workspace.BuildDetailsAsync(item) : ViewModel.Workspace.BuildDetails(item);
         if (details == null) return;
         var dialog = new ItemDetailsWindow(details)
         {

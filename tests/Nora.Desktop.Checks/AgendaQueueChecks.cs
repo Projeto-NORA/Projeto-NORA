@@ -199,7 +199,8 @@ internal static partial class Program
                     var grid = Descendants<DataGrid>(content).Single(item => AutomationProperties.GetName(item) == name);
                     Require(grid.IsReadOnly && grid.Items.Count == 1, "Listagem sem o item semeado: " + route);
                     var item = grid.Items[0];
-                    var expected = vm.BuildDetails(item) ?? throw new InvalidOperationException("Item sem ficha: " + route);
+                    var expectedTask = vm.BuildDetailsAsync(item); Pump(expectedTask);
+                    var expected = expectedTask.Result ?? throw new InvalidOperationException("Item sem ficha: " + route);
                     grid.SelectedItem = item; Layout(window, 1280, 740);
                     var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
                     AssertModalDetails(window, expected, () => grid.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = Control.MouseDoubleClickEvent, Source = row }), useEscape: false);

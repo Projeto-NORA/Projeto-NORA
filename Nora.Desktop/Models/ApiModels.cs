@@ -52,13 +52,22 @@ public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string
     [JsonIgnore] public string UnitDisplay => string.IsNullOrWhiteSpace(UnitName) ? "—" : UnitName;
 }
 
-public sealed record UnitPatientRecord(string Cpf, string FullName, string Email, string? Phone = null, AddressInfo? Address = null, bool IsActive = true, bool IsOnline = false, DateTimeOffset? CreatedAt = null)
+/// <summary>Participação do paciente na UBS nos últimos 12 meses (só vem na listagem do OBS): concluídas, faltas e cancelamentos feitos por ele, com o peso somado dos cancelamentos.</summary>
+public sealed record UnitAttendance(long Completed, long Missed, long CancelledByPatient, double CancellationWeight, double? Score)
+{
+    public string ScoreDisplay => DisplayFormat.Percent(Score);
+    public string CancelledDisplay => CancelledByPatient == 0 ? "Nenhum feito pelo paciente" : $"{(CancelledByPatient == 1 ? "1 feito" : CancelledByPatient + " feitos")} pelo paciente (peso somado {CancellationWeight.ToString("0.##", DisplayFormat.Culture)})";
+}
+
+public sealed record UnitPatientRecord(string Cpf, string FullName, string Email, string? Phone = null, AddressInfo? Address = null, bool IsActive = true, bool IsOnline = false, DateTimeOffset? CreatedAt = null, UnitAttendance? Attendance = null)
 {
     public string ActiveDisplay => IsActive ? "Ativo nesta UBS" : "Desativado nesta UBS";
     public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string PhoneDisplay => string.IsNullOrWhiteSpace(Phone) ? "Telefone não informado" : Phone;
     public string PresenceDisplay => IsOnline ? "Online no aplicativo" : "Offline no aplicativo";
     public string CreatedAtDisplay => CreatedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Data não informada";
+    /// <summary>"—" quando a API não trouxe o dado ou o paciente não tem consulta encerrada nos últimos 12 meses.</summary>
+    public string ParticipationDisplay => DisplayFormat.Percent(Attendance?.Score);
 }
 
 public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status)
@@ -86,4 +95,10 @@ public sealed record UnitLightningSlot(Guid Id, Guid AppointmentId, string Speci
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string CreatedAtDisplay => CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     public string StatusDisplay => Status switch { "open" => "Aberta", "offered" => "Ofertada", "accepted" => "Aceita", "closed" => "Encerrada", _ => Status };
+}
+/// <summary>Uma oferta de uma Vaga Relâmpago (GET .../lightning-slots/{id}/offers): sem CPF, na ordem em que foram feitas.</summary>
+public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, DateTimeOffset ExpiresAt)
+{
+    public string StatusDisplay => Status switch { "pending" => "Aguardando resposta", "accepted" => "Aceita", "declined" => "Recusada", "expired" => "Expirada", "cancelled" => "Cancelada", _ => Status };
+    public string ExpiresAtDisplay => ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 }

@@ -242,10 +242,17 @@ internal static partial class Program
     {
         var observed = false;
         string? error = null;
-        window.Dispatcher.BeginInvoke(() =>
+        // A ficha da Vaga Relâmpago abre depois de ler as ofertas: o inspetor tenta de novo até a janela existir (ou desiste).
+        var attempts = 0;
+        void Inspect()
         {
             var popup = window.OwnedWindows.OfType<ItemDetailsWindow>().SingleOrDefault();
-            if (popup == null) { error = "Duplo clique/Enter não abriu popup de detalhes."; return; }
+            if (popup == null)
+            {
+                if (++attempts < 3000) window.Dispatcher.BeginInvoke(Inspect, DispatcherPriority.ApplicationIdle);
+                else error = "Duplo clique/Enter não abriu popup de detalhes.";
+                return;
+            }
             observed = true;
             try
             {
@@ -259,9 +266,11 @@ internal static partial class Program
             }
             catch (Exception failure) { error = failure.Message; }
             finally { if (popup.IsVisible) popup.Close(); }
-        }, DispatcherPriority.ApplicationIdle);
+        }
+        window.Dispatcher.BeginInvoke(Inspect, DispatcherPriority.ApplicationIdle);
         open();
         window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        if (!observed && error == null) PumpUntil(() => observed || error != null);
         Require(observed && error == null, error ?? "Nenhuma ficha foi aberta para o item selecionado.");
     }
     private sealed class ClipboardFixture : IClipboardService

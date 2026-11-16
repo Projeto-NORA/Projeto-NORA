@@ -5,6 +5,8 @@
   <SolidColorBrush x:Key="BackgroundBrush" Color="#071B33" />
   <SolidColorBrush x:Key="SuccessBrush" Color="#7DDBAC" />
   <SolidColorBrush x:Key="BrandBrush" Color="#1264A3" />
+  <!-- Números e destaques em texto sobre as superfícies: contraste de pelo menos 4,5:1 nos dois temas. -->
+  <SolidColorBrush x:Key="AccentTextBrush" Color="#6CB6F2" />
   <SolidColorBrush x:Key="BorderBrush" Color="#274966" />
   <SolidColorBrush x:Key="TextBrush" Color="#F4F8FC" />
   <SolidColorBrush x:Key="BrandSoftBrush" Color="#123A5D" />

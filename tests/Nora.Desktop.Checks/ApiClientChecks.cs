@@ -323,6 +323,7 @@ internal static partial class Program
         });
         RunUnitSelectionChecks(application, storageRoot, args);
         RunUnitFlowChecks(application, storageRoot, args);
+        RunUnitIndicatorsChecks(application, storageRoot, args);
         RunAgendaAndQueueChecks(application, storageRoot, args);
         RunMessageChecks(application, storageRoot, args);
         RunSecretariaChecks(application, storageRoot, args);

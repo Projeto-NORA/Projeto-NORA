@@ -24,20 +24,23 @@ public partial class EvolutionChartView : UserControl
         ("Faltas", "ErrorBrush", point => point.Missed, new DoubleCollection { 5, 3 }),
         ("Canceladas", "WarningBrush", point => point.Cancelled, new DoubleCollection { 1.5, 3 })
     ];
-    private WorkspaceViewModel? workspace;
+    private ChartSeries? series;
+
+    /// <summary>Série que o gráfico desenha: cada tela (rede, UBS, Painel) entrega a sua; o componente é o mesmo.</summary>
+    public static readonly DependencyProperty DataProperty = DependencyProperty.Register(nameof(Data), typeof(ChartSeries), typeof(EvolutionChartView), new PropertyMetadata(null, (owner, _) => ((EvolutionChartView)owner).Attach()));
+    public ChartSeries? Data { get => (ChartSeries?)GetValue(DataProperty); set => SetValue(DataProperty, value); }
 
     public EvolutionChartView()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) => Attach();
         Loaded += (_, _) => Attach();
         Unloaded += (_, _) => Detach();
         SizeChanged += (_, _) => Redraw();
     }
 
-    private void Attach() { Detach(); workspace = DataContext as WorkspaceViewModel; if (workspace != null) workspace.PropertyChanged += OnChanged; Redraw(); }
-    private void Detach() { if (workspace != null) workspace.PropertyChanged -= OnChanged; workspace = null; }
-    private void OnChanged(object? sender, PropertyChangedEventArgs args) { if (args.PropertyName == nameof(WorkspaceViewModel.ChartDays)) Redraw(); }
+    private void Attach() { Detach(); series = Data; if (series != null) series.PropertyChanged += OnChanged; Redraw(); }
+    private void Detach() { if (series != null) series.PropertyChanged -= OnChanged; series = null; }
+    private void OnChanged(object? sender, PropertyChangedEventArgs args) { if (args.PropertyName == nameof(ChartSeries.Days)) Redraw(); }
 
     private static void Fill(Shape shape, string key) => shape.SetResourceReference(Shape.FillProperty, key);
     private static void Stroke(Shape shape, string key) => shape.SetResourceReference(Shape.StrokeProperty, key);
@@ -80,9 +83,9 @@ public partial class EvolutionChartView : UserControl
     private void Redraw()
     {
         Plot.Children.Clear();
-        var days = workspace?.ChartDays ?? [];
-        var hasData = workspace?.HasChartData == true && days.Count > 0;
-        EmptyText.Text = workspace?.ChartState ?? "";
+        var days = series?.Days ?? [];
+        var hasData = series?.HasData == true && days.Count > 0;
+        EmptyText.Text = series?.State ?? "";
         EmptyText.Visibility = hasData ? Visibility.Collapsed : Visibility.Visible;
         var lines = days.Count > BarLimit;
         BuildLegend(lines);

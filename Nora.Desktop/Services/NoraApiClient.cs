@@ -19,7 +19,7 @@ public sealed class NoraApiException(string message, bool unauthorized = false, 
 public sealed class NoraApiClient : IDisposable
 {
     // Valores fixos do campo "code" do problem+json; qualquer outro texto do servidor é ignorado.
-    private static readonly HashSet<string> ErrorCodes = ["invalid-input", "unauthorized", "forbidden", "not-found", "conflict", "too-many-requests", "internal-error", "service-unavailable", "invalid-current-password", "password-change-required", "database-provisioning-failed"];
+    private static readonly HashSet<string> ErrorCodes = ["invalid-input", "unauthorized", "forbidden", "not-found", "conflict", "too-many-requests", "internal-error", "service-unavailable", "invalid-current-password", "password-change-required", "database-provisioning-failed", "unit-database-outdated"];
     private readonly HttpClient http;
     private Uri? endpoint;
     private string? token;
@@ -76,6 +76,9 @@ public sealed class NoraApiClient : IDisposable
     public Task<object> CancelUnitWaitingEntryAsync(Guid unitId, long id) => SendAsync<object>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/{id}/cancel", new { confirmed = true });
     public Task<UnitLightningSlot[]> UnitLightningSlotsAsync(Guid unitId) => SendAsync<UnitLightningSlot[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots");
     public Task<UnitLightningSlot> CreateUnitLightningSlotAsync(Guid unitId, Guid appointmentId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots", new { appointmentId, confirmed = true });
+    public Task<UnitSlotOffer[]> UnitSlotOffersAsync(Guid unitId, Guid slotId) => SendAsync<UnitSlotOffer[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots/{slotId}/offers");
+    public Task<UnitMetrics> UnitMetricsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellation = default) =>
+        SendAsync<UnitMetrics>(HttpMethod.Get, $"api/obs/units/{unitId}/metrics?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}", cancellation: cancellation);
     public Task<UnitPatientRecord[]> UnitRegistryAsync(Guid unitId) => SendAsync<UnitPatientRecord[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/registry");
     public Task<AppointmentInfo[]> UnitAppointmentsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to) => SendAsync<AppointmentInfo[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/appointments?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
     public Task<StaffAccount[]> StaffAsync() => SendAsync<StaffAccount[]>(HttpMethod.Get, "api/municipal/staff");
@@ -177,6 +180,7 @@ public sealed class NoraApiClient : IDisposable
                 : "Esta conta não tem acesso a este aplicativo ou operação.",
             "password-change-required" => "Defina uma nova senha para continuar usando o sistema.",
             "invalid-current-password" => "A senha atual não confere.",
+            "unit-database-outdated" => UnitBaseMessage,
             "database-provisioning-failed" => "Não foi possível criar a base de dados da unidade. Confirme se o usuário PostgreSQL da API tem permissão para criar bancos e tente novamente.",
             "conflict" => ConflictMessage(method, path),
             "not-found" => NotFoundMessage(path),
@@ -204,8 +208,11 @@ public sealed class NoraApiClient : IDisposable
         return "Confira os dados informados e tente novamente.";
     }
 
+    private const string UnitBaseMessage = "A base de dados desta UBS está indisponível, não foi criada ou está desatualizada. Procure a Secretaria ou o suporte para prepará-la e tente novamente.";
+
     private static string UnavailableMessage(string path)
     {
+        if (path.StartsWith("api/obs/units/", StringComparison.Ordinal)) return UnitBaseMessage;
         if (path.StartsWith("api/municipal/summary", StringComparison.Ordinal) || path.StartsWith("api/municipal/metrics", StringComparison.Ordinal))
             return "Uma base de unidade está indisponível no momento, por isso a rede não pôde ser consolidada. Os números exibidos podem estar desatualizados.";
         if (path.StartsWith("api/municipal/units/", StringComparison.Ordinal))

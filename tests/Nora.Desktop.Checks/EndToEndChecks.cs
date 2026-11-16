@@ -28,7 +28,7 @@ internal static partial class Program
             Console.WriteLine("E2E WPF por UBS não solicitado: defina NORA_E2E_UNIT_REGISTRY=1 com a fixture que prepara UBS, bancos por UBS e concessões da conta OBS. O fluxo global antigo foi removido dos clientes.");
             return;
         }
-        Check("E2E OBS por UBS: login → UBS → cadastro de referência → agenda → fila → vaga → Secretaria agregada → menu logout", () =>
+        Check("E2E por UBS: OBS (login → UBS → cadastro de referência com participação → fila → agenda → vaga e ofertas → Painel e indicadores) e Secretaria (resumo → indicadores → histórico) → menu logout", () =>
         {
             var identifier = Environment.GetEnvironmentVariable("NORA_E2E_IDENTIFIER") ?? throw new InvalidOperationException("Falta identificador E2E.");
             var password = Environment.GetEnvironmentVariable("NORA_E2E_PASSWORD") ?? throw new InvalidOperationException("Falta senha E2E.");
@@ -77,6 +77,17 @@ internal static partial class Program
                     Require(vm.UnitLightningSlots.Any(item => item.AppointmentId == consultation!.Id && item.Status == "open"), "OBS não criou vaga a partir da consulta cancelada: " + vm.Message);
                     vm.RefreshCommand.Execute(null); PumpUntil(() => !vm.IsBusy);
                     Require(vm.TodayScheduledCount != "—" && vm.TodayCompletedCount != "—" && vm.QueueWaitingCount == "2" && vm.SlotOpenCount == "2", "Painel não atualizou os dados da UBS pela API real: " + vm.Message);
+                    // Painel: espera média e série de 7 dias vêm da API real (nenhuma oferta foi aceita, então a espera é —); participação vem junto do cadastro.
+                    Require(vm.HasActiveObsUnit && vm.PanelChart.Days.Count == 7 && vm.PanelWaitValue == "—" && vm.PanelWaitHint.Contains("Nenhuma entrada saiu da fila"), $"Painel não leu os indicadores da UBS pela API real: {vm.PanelWaitValue} / {vm.PanelWaitHint}");
+                    Require(vm.ObsRegistry.All(p => p.Attendance is not null) && vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").Attendance is { Completed: 0, Missed: 0, CancelledByPatient: 0, Score: null }, "O cadastro de referência não trouxe a participação de cada paciente (nula sem consulta encerrada).");
+                    Require(vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").ParticipationDisplay == "—", "Participação sem dado deveria aparecer como —.");
+                    // Ficha da vaga: as ofertas vêm da rota real.
+                    var offersTask = vm.BuildDetailsAsync(vm.UnitLightningSlots.First(item => item.AppointmentId == consultation!.Id)); Pump(offersTask);
+                    Require(offersTask.Result?.Fields.Any(field => field.Group == "Ofertas da vaga") == true, "A ficha da vaga não leu as ofertas pela API real: " + vm.Message);
+                    // Indicadores da UBS: janela personalizada de hoje a 120 dias (a consulta da agenda está no futuro).
+                    SetUnitPeriod(vm, DateTime.Today, DateTime.Today.AddDays(120));
+                    Require(vm.HasUnitMetrics && UnitCard(vm, "Cancelamentos").Value == "2" && UnitCard(vm, "Cancelamentos").Hint == "0 feitos pelo paciente" && UnitCard(vm, "Consultas concluídas").Value == "0" && UnitCard(vm, "Comparecimento").Value == "—", "Indicadores da UBS não refletiram as consultas reais: " + string.Join(" | ", vm.UnitOverviewCards.Select(card => card.Title + "=" + card.Value)) + " " + vm.Message);
+                    Require(vm.UnitLightningCards.Single(card => card.Title == "Vagas registradas").Value == "2" && vm.UnitSpecialtyPerformance.Any(row => row.Name == "Cardiologia") && vm.UnitChart.Rows.Count >= 2 && vm.UnitChart.Days.Count == 121, $"Vagas, especialidades ou série dos indicadores da UBS incorretas: {vm.UnitChart.Rows.Count} dias com dado, {vm.UnitChart.Days.Count} no eixo.");
                     LoginFromControls(municipal, address, identifier, password);
                     var network = municipal.ViewModel.Workspace;
                     Require(network.PatientCount == "3" && network.WaitingCount == "2", "Resumo da Secretaria não agregou a rede sem duplicar paciente: " + network.Message);
@@ -86,17 +97,31 @@ internal static partial class Program
                     network.SelectedUnit = network.Units.Single(u => u.Name == "UBS Cadastro E2E 1");
                     Pump(network.LoadMunicipalAppointmentsAsync());
                     Require(network.MunicipalAppointments.Any(a => a.PatientName == "Referência WPF " + suffix && a.Status == "cancelled"), "Secretaria não consultou a agenda real da UBS: " + network.Message);
+                    // Indicadores da rede com a mesma janela, e histórico com as ações que o próprio fluxo gerou.
+                    network.SummaryUnitFilter = Guid.Empty; PumpUntil(() => !network.IsBusy);
+                    network.MetricsPeriodDays = 0; network.MetricsFromText = DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today)); network.MetricsToText = DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today.AddDays(120)));
+                    network.ApplyCustomPeriod(); PumpUntil(() => !network.IsBusy);
+                    Require(network.HasMetrics && Card(network, "Cancelamentos").Value == "2" && Card(network, "Consultas concluídas").Value == "0" && network.UnitPerformance.Any(row => row.Name == "UBS Cadastro E2E 1") && network.UnitsWithoutDatabaseCount == 0, "Indicadores da rede não refletiram as consultas reais: " + network.MetricsScopeLabel + " | " + string.Join(" | ", network.OverviewCards.Select(card => card.Title + "=" + card.Value)) + " | UBS: " + string.Join(", ", network.UnitPerformance.Select(row => row.Name)) + " | sem base: " + network.UnitsWithoutDatabaseCount + " | " + network.MetricsStateText + " " + network.Message);
+                    Pump(network.LoadHistoryAsync());
+                    Require(network.HistoryEvents.Any(item => item.Kind == "appointment-read" && item.UnitName == "UBS Cadastro E2E 1") && network.HistoryEvents.Any(item => item.Kind == "staff-granted"), "O histórico não trouxe a consulta à agenda nem as concessões do fixture: " + network.Message);
                     network.SelectedUnit = null; Require(network.MunicipalAppointments.Count == 0, "Troca de UBS preservou consultas na Secretaria.");
                     foreach (var window in new[] { obs, municipal })
                     {
                         InvokeAccountAction(window, "Sair da conta"); PumpUntil(() => !window.ViewModel.Workspace.IsBusy);
                         Require(window.ViewModel.Workspace.IsSignedOut, "Logout real não limpou a janela.");
                     }
-                    Console.WriteLine("E2E UBS: cadastro, agenda, fila e vaga conferidos em API/PostgreSQL descartáveis.");
+                    Console.WriteLine("E2E UBS: cadastro, agenda, fila, vaga, ofertas, indicadores, resumo e histórico conferidos em API/PostgreSQL descartáveis.");
                 }
             }
             finally { obs.Close(); municipal.Close(); }
         });
+    }
+
+    /// <summary>Aplica um período personalizado (datas inclusivas) nos Indicadores da UBS e espera a leitura terminar.</summary>
+    private static void SetUnitPeriod(Nora.Desktop.ViewModels.WorkspaceViewModel vm, DateTime from, DateTime to)
+    {
+        vm.UnitPeriodDays = 0; vm.UnitFromText = DisplayFormat.Date(DateOnly.FromDateTime(from)); vm.UnitToText = DisplayFormat.Date(DateOnly.FromDateTime(to));
+        vm.ApplyUnitCustomPeriod(); PumpUntil(() => !vm.IsBusy);
     }
 
     private static void LoginFromControls(ShellWindow window, string address, string identifier, string password)

@@ -364,4 +364,5 @@
     </Border>
   </DataTemplate>
   <ItemsPanelTemplate x:Key="ThreeColumnPanel"><UniformGrid Columns="3" /></ItemsPanelTemplate>
+  <ItemsPanelTemplate x:Key="FourColumnPanel"><UniformGrid Columns="4" /></ItemsPanelTemplate>
 </ResourceDictionary>
