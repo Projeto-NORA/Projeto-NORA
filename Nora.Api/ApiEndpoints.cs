@@ -4,7 +4,7 @@ using Nora.Api.Models;
 using Nora.Api.Services;
 
 namespace Nora.Api;
-internal static class ApiEndpoints
+internal static partial class ApiEndpoints
 {
     public static void MapNoraEndpoints(this WebApplication app)
     {
@@ -252,6 +252,7 @@ internal static class ApiEndpoints
         municipal.MapGet("/metrics", async (DateTimeOffset from, DateTimeOffset to, Guid? unitId, string? region, string? specialty, MetricsService metrics, CancellationToken ct) =>
             Results.Ok(await metrics.ReadNetworkAsync(from, to, unitId, region, specialty, ct)));
         municipal.MapPut("/units/{id:guid}", async (Guid id, HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.UpdateAsync(id, request, ct)));
+        app.MapSchedulingEndpoints();
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }

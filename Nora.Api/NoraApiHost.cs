@@ -56,6 +56,16 @@ public static class NoraApiHost
             client.BaseAddress = new Uri("https://viacep.com.br/");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
+        // Fase 3 — agenda e metas
+        builder.Services.AddSingleton<SpecialtyDao>();
+        builder.Services.AddSingleton<GoalDao>();
+        builder.Services.AddSingleton<SchedulingDao>();
+        builder.Services.AddSingleton<SchedulingAccessService>();
+        builder.Services.AddSingleton<SchedulingRateLimiter>();
+        builder.Services.AddSingleton<SchedulingService>();
+        builder.Services.AddSingleton<GoalService>();
+        builder.Services.AddSingleton<AlertOptions>();
+        builder.Services.AddSingleton<AlertService>();
         builder.Services.AddSingleton<AccountService>();
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<PasswordResetService>();

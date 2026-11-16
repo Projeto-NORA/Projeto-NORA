@@ -10,7 +10,7 @@ internal sealed class MetricsAggregate
     public readonly MetricsCounters Counters = new();
     public readonly HashSet<string> WaitingCpfs = new(StringComparer.Ordinal);
     public double? LongestActiveWaitMinutes;
-    public long RegisteredSlots, AcceptedOffers, DeclinedOffers, ExpiredOffers;
+    public long RegisteredSlots, AcceptedOffers, DeclinedOffers, ExpiredOffers, OfferedSlots, BookedSlots;
     public void Add(UnitMetricsData unit)
     {
         Counters.Add(unit.Total); WaitingCpfs.UnionWith(unit.WaitingCpfs);
@@ -19,7 +19,7 @@ internal sealed class MetricsAggregate
     }
 }
 
-public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
+public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao, SchedulingService scheduling, GoalService goals)
 {
     private const int MaxConcurrentUnits = 4;
     public const int MaxWindowDays = 366;
@@ -30,8 +30,8 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
         ValidateWindow(from, to);
         var data = await dao.ReadAsync(unitId, from, to, "", ct);
         var all = new MetricsAggregate(); all.Add(data);
-        var summary = Summary(all);
-        return new(from, to, summary.Appointments, summary.Waiting, summary.Lightning, Specialties(data.Specialties), Daily(data.Daily));
+        var summary = Summary(all); var capacity = await scheduling.ReadCapacityAsync(unitId, from, to, null, ct); var goalList = await goals.ListAsync(ct);
+        return new(from, to, summary.Appointments, summary.Waiting, summary.Lightning, Specialties(data.Specialties), Daily(data.Daily), capacity, GoalStatuses(goalList, unitId, summary, all.Counters));
     }
 
     /// <summary>Rede: unidades "pending" ficam fora e são contadas em unitsWithoutDatabase; banco pronto e indisponível propaga 503 (sem total parcial).</summary>
@@ -39,15 +39,19 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
     {
         ValidateWindow(from, to);
         var filter = NormalizeSpecialty(specialty);
+        Guid[]? specialtyFilter = null;
+        if (filter.Length > 0) specialtyFilter = await scheduling.FindSpecialtyIdAsync(filter, ct) is { } specialtyId ? [specialtyId] : [];
+        var goalList = await goals.ListAsync(ct);
         var all = await units.ListAsync(ct);
         if (unitId is { } selected && all.All(unit => unit.Id != selected)) throw new ApiNotFoundException();
         var scoped = all.Where(unit => (unitId is null || unit.Id == unitId) && (string.IsNullOrWhiteSpace(region) || string.Equals(unit.Region, region.Trim(), StringComparison.OrdinalIgnoreCase))).ToList();
         var ready = scoped.Where(unit => unit.DatabaseState == "ready").ToList();
         using var gate = new SemaphoreSlim(MaxConcurrentUnits);
-        var data = await Task.WhenAll(ready.Select(async unit =>
+        var capacities = new CapacityMetrics[ready.Count];
+        var data = await Task.WhenAll(ready.Select(async (unit, index) =>
         {
             await gate.WaitAsync(ct);
-            try { return await dao.ReadAsync(unit.Id, from, to, filter, ct); }
+            try { var item = await dao.ReadAsync(unit.Id, from, to, filter, ct); capacities[index] = await scheduling.ReadCapacityAsync(unit.Id, from, to, specialtyFilter, ct); return item; }
             finally { gate.Release(); }
         }));
         var total = new MetricsAggregate(); var regions = new Dictionary<string, (string Name, MetricsAggregate Aggregate)>(StringComparer.OrdinalIgnoreCase);
@@ -56,9 +60,9 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
         for (var i = 0; i < ready.Count; i++)
         {
             var unit = ready[i]; var item = data[i];
-            total.Add(item);
+            total.Add(item); total.OfferedSlots += capacities[i].OfferedSlots; total.BookedSlots += capacities[i].BookedSlots;
             if (!regions.TryGetValue(unit.Region, out var entry)) regions[unit.Region] = entry = (unit.Region, new());
-            entry.Aggregate.Add(item);
+            entry.Aggregate.Add(item); entry.Aggregate.OfferedSlots += capacities[i].OfferedSlots; entry.Aggregate.BookedSlots += capacities[i].BookedSlots;
             foreach (var (key, group) in item.Specialties)
             {
                 if (!specialties.TryGetValue(key, out var merged)) specialties[key] = merged = new();
@@ -70,14 +74,14 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
                 merged.Add(counters);
             }
             var one = new MetricsAggregate(); one.Add(item); var summary = Summary(one);
-            byUnit.Add(new(unit.Id, unit.Name, unit.Region, summary.Appointments, summary.Waiting, summary.Lightning));
+            byUnit.Add(new(unit.Id, unit.Name, unit.Region, summary.Appointments, summary.Waiting, summary.Lightning, capacities[i], GoalStatuses(goalList, unit.Id, summary, one.Counters)));
         }
         var byRegion = regions.Values.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).Select(entry =>
         {
             var summary = Summary(entry.Aggregate);
-            return new RegionMetricsSummary(entry.Name, summary.Appointments, summary.Waiting, summary.Lightning);
+            return new RegionMetricsSummary(entry.Name, summary.Appointments, summary.Waiting, summary.Lightning, CapacityOf(entry.Aggregate));
         }).ToList();
-        return new(from, to, Summary(total), byUnit, byRegion, Specialties(specialties), Daily(daily), scoped.Count - ready.Count);
+        return new(from, to, Summary(total), byUnit, byRegion, Specialties(specialties), Daily(daily), scoped.Count - ready.Count, CapacityOf(total), GoalStatuses(goalList, null, Summary(total), total.Counters));
     }
 
     internal static void ValidateWindow(DateTimeOffset from, DateTimeOffset to)
@@ -92,13 +96,17 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao)
         return text;
     }
 
+    private static CapacityMetrics CapacityOf(MetricsAggregate aggregate) => new(aggregate.OfferedSlots, aggregate.BookedSlots, SchedulingService.Occupancy(aggregate.OfferedSlots, aggregate.BookedSlots));
+    private static List<GoalStatus> GoalStatuses(IReadOnlyList<Goal> goalList, Guid? unitId, MetricsSummary summary, MetricsCounters counters) =>
+        GoalService.Evaluate(goalList, unitId, summary.Appointments.AttendanceScore, GoalService.MissedRateOf(counters.Completed, counters.Missed), summary.Waiting.AverageWaitMinutes);
+
     private static MetricsSummary Summary(MetricsAggregate aggregate) => new(Appointments(aggregate.Counters),
         Waiting(aggregate.Counters, aggregate.WaitingCpfs.Count, aggregate.LongestActiveWaitMinutes),
         new(aggregate.RegisteredSlots, aggregate.AcceptedOffers, aggregate.DeclinedOffers, aggregate.ExpiredOffers));
 
     internal static AppointmentMetrics Appointments(MetricsCounters c) => new(c.Scheduled, c.Called, c.Completed, c.Missed, c.Cancelled, c.CancelledByPatient, Round(c.Weight), Score(c.Completed, c.Missed, c.Weight));
     private static WaitingMetrics Waiting(MetricsCounters c, int patients, double? longest) => new(c.ActiveEntries, patients, c.AcceptedEntries, AverageWait(c), longest is { } value ? Math.Round(value, 1) : null);
-    private static double? AverageWait(MetricsCounters c) => c.AcceptedEntries == 0 ? null : Math.Round(c.WaitMinutes / c.AcceptedEntries, 1);
+    internal static double? AverageWait(MetricsCounters c) => c.AcceptedEntries == 0 ? null : Math.Round(c.WaitMinutes / c.AcceptedEntries, 1);
 
     private static List<SpecialtyMetrics> Specialties(Dictionary<string, SpecialtyData> groups) => groups.Values
         .Select(group => new SpecialtyMetrics(group.Representative(), group.Counters.Completed, group.Counters.Missed, group.Counters.Cancelled, Round(group.Counters.Weight),

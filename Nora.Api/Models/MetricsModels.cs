@@ -6,7 +6,7 @@ public sealed record LightningMetrics(long RegisteredSlots, long AcceptedOffers,
 public sealed record MetricsSummary(AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
 public sealed record SpecialtyMetrics(string Specialty, long Completed, long Missed, long Cancelled, double CancellationWeight, double? AttendanceScore, long ActiveEntries, double? AverageWaitMinutes);
 public sealed record DailyMetrics(string Date, long Scheduled, long Completed, long Missed, long Cancelled);
-public sealed record UnitMetrics(DateTimeOffset From, DateTimeOffset To, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, List<SpecialtyMetrics> BySpecialty, List<DailyMetrics> Daily);
-public sealed record UnitMetricsSummary(Guid UnitId, string Name, string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
-public sealed record RegionMetricsSummary(string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
-public sealed record NetworkMetrics(DateTimeOffset From, DateTimeOffset To, MetricsSummary Totals, List<UnitMetricsSummary> ByUnit, List<RegionMetricsSummary> ByRegion, List<SpecialtyMetrics> BySpecialty, List<DailyMetrics> Daily, long UnitsWithoutDatabase);
+public sealed record UnitMetrics(DateTimeOffset From, DateTimeOffset To, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, List<SpecialtyMetrics> BySpecialty, List<DailyMetrics> Daily, CapacityMetrics? Capacity = null, List<GoalStatus>? Goals = null);
+public sealed record UnitMetricsSummary(Guid UnitId, string Name, string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, CapacityMetrics? Capacity = null, List<GoalStatus>? Goals = null);
+public sealed record RegionMetricsSummary(string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, CapacityMetrics? Capacity = null);
+public sealed record NetworkMetrics(DateTimeOffset From, DateTimeOffset To, MetricsSummary Totals, List<UnitMetricsSummary> ByUnit, List<RegionMetricsSummary> ByRegion, List<SpecialtyMetrics> BySpecialty, List<DailyMetrics> Daily, long UnitsWithoutDatabase, CapacityMetrics? Capacity = null, List<GoalStatus>? Goals = null);

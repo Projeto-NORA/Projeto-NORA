@@ -220,6 +220,104 @@ O pool central é o `Maximum Pool Size` da connection string `Nora` (padrão do 
 
 Alternativa: PgBouncer em modo `transaction`, com `default_pool_size` pequeno por banco; as conexões lógicas da API deixam de ser conexões do servidor. Os travamentos da API usam `pg_advisory_xact_lock` (por transação), compatíveis com esse modo, mas o provisionamento de bancos usa `pg_advisory_lock` de sessão e `CREATE DATABASE`, portanto a conexão central usada para criar bancos deve falar direto com o PostgreSQL, não pelo PgBouncer.
 
+## Capacidade, agendamento e metas
+
+Esta seção descreve a Fase 3 de agenda (rotas em `Nora.Api/ApiEndpoints.Scheduling.cs`). Ela **substitui** o que a seção "Agenda por UBS" ainda diz sobre o agendamento pelo próprio paciente (agora implementado) e sobre o profissional ser só um nome informado (agora existe cadastro).
+
+### Migrações e dados
+
+- Central `015_specialties_goals.sql`: `specialties` (`id`, `name`, `name_key`, `is_active`; `name_key` é o nome sem acentos, em minúsculas e com espaços colapsados, calculado pela API e **único**) e `goals` (`metric`, `unit_id` nulo = meta da rede, `target numeric(12,4)`; um índice único parcial para a meta da rede e outro para cada sobrescrita por UBS).
+- UBS `012_scheduling.sql`: `rooms`, `professionals` (nome único sem diferenciar maiúsculas, registro de conselho opcional: sigla, número e UF, todos ou nenhum), `professional_specialties`, `schedule_templates` (grade semanal), `schedule_blocks` e, em `appointments`, as colunas `professional_id`, `specialty_id`, `room_id`, `booked_by` (`staff`, `patient`, `lightning`; padrão `staff`) e `confirmed_at`. A versão esperada do schema da UBS passa a ser a do maior arquivo de migração (hoje 012 neste ramo): bancos de UBS existentes precisam de `--migrate-all-units` antes de receber tráfego (até lá respondem 503 `unit-database-outdated`) e o banco central de `--migrate`. As duas migrações são aditivas e reaplicáveis (conferido aplicando duas vezes).
+- As especialidades vivem só no banco central; a UBS guarda os `specialty_id` sem chave estrangeira (bancos separados). A consulta guarda também o texto (`specialty`, `professional`) do momento da marcação: consultas antigas continuam com o texto que tinham.
+- `Nora:TimeZone` (padrão `America/Sao_Paulo`) define o fuso dos horários da grade, do "hoje" dos consultórios e do dia dos indicadores. O fuso precisa existir no sistema operacional da API (`TimeZoneInfo`) além do PostgreSQL; senão a API não resolve o serviço de agenda.
+
+### Especialidades (lista única da rede, banco central)
+
+| Método e rota | Acesso | Resultado |
+| --- | --- | --- |
+| GET /api/municipal/specialties | Secretaria | 200 `{ specialties: [{ id, name, isActive }] }`, todas (inclusive inativas), ordenadas pelo nome sem acentos |
+| POST /api/municipal/specialties | Secretaria | corpo `{ name }` (2 a 120 caracteres, sem controles; espaços internos repetidos viram um); 201 com a especialidade; 409 se já existe outra com o mesmo nome sem diferenciar maiúsculas, acentos e espaços (`Cardiología` = `cardiologia`); 400 nome inválido |
+| PUT /api/municipal/specialties/{id} | Secretaria | corpo `{ name }`; 200; 404; 409 nome em uso por outra |
+| PATCH /api/municipal/specialties/{id}/active | Secretaria | corpo `{ isActive }` obrigatório; 200; 404. Não há exclusão (DELETE → 405). Desativar tira a especialidade da lista do paciente e de novos vínculos/horários; o que já existe é preservado |
+| GET /api/obs/specialties | OBS (qualquer perfil) | 200 `{ specialties }` com todas e `isActive` |
+| GET /api/patient/specialties | Paciente | 200 `{ specialties }` só as ativas |
+
+### Profissionais, consultórios, grade e bloqueios (banco da UBS)
+
+Escrita só do **administrador** da UBS (atendente → 403; a concessão da UBS segue valendo). O atendente lê; a Secretaria lê pelas rotas municipais, que revalidam conta e sessão como a leitura nominal, mas **não** gravam evento de acesso (não há dado de paciente). Corpos de listas são objetos (`{ professionals }`, `{ rooms }`, `{ schedule }`, `{ blocks }`).
+
+| Método e rota (`/api/obs/units/{unitId}`) | Acesso | Corpo e resultado |
+| --- | --- | --- |
+| GET /professionals · /rooms · /schedule?professionalId= | OBS | 200. Profissional: `id`, `fullName`, `councilAcronym`, `councilNumber`, `councilState`, `isActive`, `specialtyIds` |
+| POST /professionals | administrador | `{ fullName, specialtyIds[], councilAcronym?, councilNumber?, councilState? }`; 201. Nome 2 a 160 caracteres e único na UBS sem diferenciar maiúsculas (409); ao menos uma especialidade, todas existentes e ativas (400); conselho: sigla 2 a 10 letras, número 1 a 20 caracteres, UF válida, tudo ou nada (400); sigla e UF vão para maiúsculas |
+| PUT /professionals/{id} · PATCH /professionals/{id}/active | administrador | mesmo corpo do POST · `{ isActive }`; 200; 404. Tirar uma especialidade que ainda tem linha na grade → 409 (remova a grade antes). Desativar não cancela consultas existentes |
+| POST /rooms · PUT /rooms/{id} · PATCH /rooms/{id}/active | administrador | `{ name }` (1 a 80, único sem diferenciar maiúsculas → 409) · `{ isActive }`; 201/200/404 |
+| POST /schedule · PUT /schedule/{id} | administrador | `{ professionalId, weekday (0 = domingo a 6), startTime "HH:mm", endTime "HH:mm", slotMinutes (5 a 240), roomId, specialtyId, validFrom? "yyyy-MM-dd", validUntil? }`; 201/200. A duração cabe ao menos uma vez na faixa e o resto que não forma um atendimento é descartado. 400: campo inválido, profissional/consultório inexistente, especialidade que não é do profissional ou inativa. 409: profissional ou consultório inativo, ou **sobreposição** do mesmo profissional ou do mesmo consultório (mesmo dia da semana, horários e vigências que se cruzam; encostar não é sobrepor; vigência nula = ilimitada) |
+| DELETE /schedule/{id} | administrador | 204; 404. Consultas já marcadas não são afetadas |
+| GET /schedule-blocks?from=&to= | OBS | 200 bloqueios que cruzam a janela (máximo 366 dias) |
+| POST /schedule-blocks | administrador | `{ professionalId?, startsAt, endsAt, reason (1 a 120) }`; 201. `professionalId` nulo bloqueia a UBS inteira (feriado). Qualquer atendimento que cruze o intervalo sai da disponibilidade |
+| DELETE /schedule-blocks/{id} | administrador | 204; 404 |
+| GET /api/municipal/units/{unitId}/professionals · /rooms · /schedule?professionalId= · /schedule-blocks?from=&to= | Secretaria | mesmas respostas; 404 UBS inexistente |
+
+### Disponibilidade
+
+`GET /api/obs/units/{unitId}/availability?from=&to=&specialtyId=&professionalId=` (OBS com concessão) e `GET /api/patient/units/{unitId}/availability?...` (paciente vinculado) devolvem `{ slots: [{ startsAt, endsAt, professionalId, professionalName, specialtyId, specialtyName, roomId, roomName }] }` ordenados por início. `specialtyId` é obrigatório; `professionalId` é opcional; `to` deve ser posterior a `from` e o intervalo tem no máximo 92 dias (400 fora disso; especialidade inexistente → 400; inativa → lista vazia). Um atendimento é **livre** quando a grade o oferece (profissional e consultório ativos, dia da semana e vigência no fuso local) e nada o cobre: nenhum bloqueio (do profissional ou da UBS) cruza o horário, nenhuma consulta `scheduled`, `called`, `completed` ou `missed` do profissional o cruza e nenhuma vaga relâmpago `open`/`offered` do profissional o segura. O profissional das consultas antigas e das vagas é reconhecido pelo nome (`lower(btrim)`), por isso o nome é único na UBS. Início em [`from`, `to`). Para a equipe só entram atendimentos futuros; para o paciente só de **24 h até 90 dias** à frente, com os limites incluídos (a janela pedida é recortada, sem erro).
+
+### Agendamento pela equipe
+
+`POST /api/obs/units/{unitId}/appointments` ganhou `professionalId` e `specialtyId` (opcionais no contrato; aditivo). **Enquanto a UBS não tiver profissional ativo cadastrado** o comportamento é o de sempre (texto livre; os campos novos são ignorados). **Com ao menos um profissional ativo** a marcação só aceita o catálogo: sem `professionalId` e `specialtyId` → 400 `catalog-required` (texto livre é recusado); o horário precisa ser **exatamente** um atendimento livre da grade desse profissional e dessa especialidade (`startsAt` igual ao início; `endsAt` pode ser omitido, e, se vier, tem de ser o fim do atendimento → senão 400); atendimento ocupado, bloqueado, segurado por vaga relâmpago, fora da grade ou de profissional/especialidade que não combinam → 409 `slot-unavailable`; paciente com outra consulta que cruza o horário → 409 `patient-overlap`; especialidade inexistente ou inativa, ou profissional desconhecido → 400; CPF sem cadastro ativo na UBS → 404; início no passado → 400. A consulta guarda profissional, especialidade, consultório do atendimento e `booked_by = staff`; o evento tem origem `staff`. Usa os mesmos bloqueios de profissional e de paciente da agenda antiga, então os dois caminhos não ocupam o mesmo horário ao mesmo tempo. Consultas antigas continuam com o texto que tinham. Se o último profissional ativo for desativado, a UBS volta ao texto livre.
+
+As listagens de consultas (OBS, Secretaria e paciente) ganharam, em cada item, `confirmedAt` (nulo até a confirmação), `bookedBy` (`staff`, `patient` ou `lightning`; o aceite de Vaga Relâmpago grava `lightning`), `professionalId` e `specialtyId` (nulos nas consultas antigas).
+
+### Agendamento pelo paciente
+
+`POST /api/patient/units/{unitId}/appointments` com `{ professionalId, specialtyId, startsAt }` (os três obrigatórios → 400). Vale na hora, sem aprovação: 201 com a consulta (`bookedBy` `patient`; o evento `scheduled` tem origem `patient`). Limitado a 20 chamadas por 10 minutos por conta (429). Ordem das recusas, todas **409** com `code`:
+
+1. `booking-window` — o início está a menos de 24 h ou a mais de 90 dias (limites incluídos);
+2. `specialty-limit` — o paciente já tem **uma consulta futura `scheduled`/`called` marcada pelo app naquela especialidade em qualquer UBS vinculada a ele** (consultas da equipe ou de Vaga Relâmpago e as canceladas, concluídas ou passadas não contam; cancelar libera). A verificação percorre todas as UBS vinculadas com banco pronto, dentro de uma transação que segura o **lock de CPF `62419805`** (o mesmo da remoção de vínculo): dois pedidos em paralelo, mesmo em UBS diferentes, são serializados, e o segundo só começa depois de o primeiro confirmar a UBS e a central. UBS vinculada com banco desatualizado ou fora do ar faz o pedido falhar com 503 (o limite não pode ser conferido sem ela);
+3. `slot-unavailable` — o horário não é um atendimento livre da grade (inclui a disputa do mesmo horário por dois pacientes: o lock do profissional deixa só um vencer); `patient-overlap` se ele já tem consulta cruzando aquele horário na UBS.
+
+Outros códigos: 400 corpo/ids inválidos, especialidade inexistente ou inativa; 401/403 (sem sessão de paciente, UBS não vinculada, cadastro inativo na UBS); 429.
+
+### Confirmação de presença
+
+`POST /api/patient/units/{unitId}/appointments/{id}/confirm` (sem corpo; 40 por 10 minutos por conta). O paciente confirma a própria consulta `scheduled` de **48 h até 2 h** antes do início, limites incluídos; fora da janela → 409 `confirmation-window`. **Idempotente**: repetir devolve a consulta já confirmada com o `confirmedAt` original. Consulta de outra pessoa ou inexistente → 404; consulta em outra situação (cancelada, chamada…) → 409. 200 com a consulta. **Sem confirmação nada é cancelado**: o sistema não cancela nem altera consultas por falta de confirmação; a informação aparece em `confirmedAt` nas listagens para o OBS agir.
+
+### Capacidade e consultórios ativos
+
+`GET /api/obs/units/{unitId}/metrics` e `GET /api/municipal/metrics` ganharam (campos **aditivos**) `capacity` `{ offeredSlots, bookedSlots, occupancy }`: `offeredSlots` são os atendimentos da grade com início na janela `from`/`to` (profissionais e consultórios ativos hoje) menos os bloqueados; `bookedSlots`, quantos deles têm uma consulta `scheduled`/`called`/`completed`/`missed` do profissional cruzando o horário (vaga relâmpago aberta e consulta cancelada não ocupam); `occupancy` = `bookedSlots ÷ offeredSlots` com quatro casas, ou nulo sem atendimentos. Na resposta da rede há `capacity` na raiz (soma), em cada item de `byUnit` e de `byRegion`; o filtro `specialty` restringe a grade à especialidade (nome comparado sem acentos/maiúsculas; desconhecida → zero). Custo: a grade da janela é gerada em memória por UBS (até 366 dias × linhas da grade) com busca binária sobre os intervalos ocupados; as UBS da rede seguem o limite de quatro em paralelo dos indicadores.
+
+`GET /api/obs/units/{unitId}/active-rooms` (OBS) devolve `{ roomsInUse, roomsPlannedToday }`: consultórios com consulta `called` hoje (início no dia local; só consultas marcadas pelo catálogo sabem o consultório) e consultórios ativos com grade vigente para o dia da semana de hoje (profissional ativo; bloqueios não são descontados).
+
+### Metas e status
+
+A Secretaria define, no banco central, metas de `attendance_score` (mínimo, 0 a 1), `missed_rate` (máximo, 0 a 1; taxa de faltas = faltas ÷ (concluídas + faltas)) e `average_wait_minutes` (máximo, maior que 0), da rede e, opcionalmente, por UBS (a da UBS tem precedência). `GET /api/municipal/goals` → 200 `{ goals: [{ metric, unitId, target }] }` (`unitId` nulo = rede); `PUT /api/municipal/goals/{metric}` com `{ target, unitId? }` grava ou atualiza (200; 400 métrica/valor inválido; 404 UBS inexistente); `DELETE /api/municipal/goals/{metric}?unitId=` remove (204; 404 se não existe). Perfis que não são da Secretaria → 403.
+
+Os indicadores devolvem `goals: [{ metric, target, value, status }]` (aditivo) para cada meta aplicável: no OBS a da UBS ou, se não houver, a da rede; na rede, as metas da rede aplicadas aos totais; em cada `byUnit`, a sobrescrita da UBS ou a da rede. `value` vem do próprio indicador (`attendanceScore`, taxa de faltas da janela, `averageWaitMinutes`; nulo sem dado). `status`: `met`; `near` (**até 10% da meta**: mínimo com valor ≥ 90% da meta e < meta; máximo com valor > meta e ≤ 110% da meta, comparado em decimal para não errar por ponto flutuante); `off`; `no-data` (valor nulo).
+
+### Alertas
+
+`GET /api/obs/units/{unitId}/alerts` (OBS com concessão) e `GET /api/municipal/alerts?unitId=&region=` (Secretaria; 404 UBS inexistente; UBS `pending` ficam fora; banco pronto e indisponível → 503) devolvem `{ alerts: [{ kind, unitId, unitName, specialty, value, threshold, since, metric }] }` sem dado pessoal, ordenados por UBS, tipo e especialidade. Limites em `Nora:Alerts:*` (valor inválido impede a inicialização):
+
+| `kind` | Dispara quando | Configuração (padrão) | Campos |
+| --- | --- | --- | --- |
+| `high-queue` | **20 ou mais** pessoas aguardando (`waiting` ou `offered`) numa especialidade da UBS | `HighQueue` (20) | `specialty`, `value` = pessoas |
+| `long-wait` | alguém aguardando **há mais de 30 dias** (30 dias exatos não dispara) | `LongWaitDays` (30) | `specialty`, `value` = dias da entrada mais antiga, `since` = quando ela entrou |
+| `missed-rate` | taxa de faltas **acima de 20%** nos últimos 30 dias (20% exatos não dispara; sem consulta encerrada não há alerta) | `MissedRate` (0,20), `WindowDays` (30) | `value` = taxa |
+| `occupancy` | ocupação da grade **acima de 95%** nos próximos 7 dias (95% exatos não dispara) | `Occupancy` (0,95), `OccupancyDays` (7) | `value` = ocupação |
+| `goal-off` | alguma meta aplicável com status `off`, calculada nos últimos `WindowDays` dias | `WindowDays` (30) | `metric`, `value`, `threshold` = meta |
+
+### Códigos de erro novos
+
+Sempre com o mesmo status: 400 `catalog-required`; 409 `slot-unavailable`, `patient-overlap`, `specialty-limit`, `booking-window`, `confirmation-window`. Violação de unicidade (nome de especialidade, profissional ou consultório repetido) continua sendo 409 `conflict`.
+
+### Limites conhecidos
+
+- A sobreposição de uma pessoa entre UBS diferentes não é verificada (só dentro da UBS).
+- A grade é calculada em memória: janelas muito longas em redes grandes (capacidade e alertas por UBS) custam proporcionalmente ao número de linhas da grade × dias; os alertas da rede percorrem as UBS prontas com no máximo quatro em paralelo.
+- O limite de uma consulta por especialidade na rede depende de a consulta ter `specialty_id`: consultas marcadas antes desta versão ou em texto livre não entram na conta.
+- `confirmedAt` é informativo; o OBS decide o que fazer com consultas não confirmadas.
+
 ## Origem dos eventos de consulta e score de comparecimento
 
 A migração de UBS 010 acrescenta `appointment_events.source` (`staff`, `system` ou `patient`; padrão `staff`). A mudança de situação feita pelo paciente no aplicativo e a consulta criada pelo aceite de uma Vaga Relâmpago gravam `patient`; o OBS grava `staff`. Eventos anteriores à migração permanecem `staff` e, portanto, não pesam no score (limitação aceita).
