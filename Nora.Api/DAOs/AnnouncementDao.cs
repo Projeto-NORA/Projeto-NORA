@@ -16,11 +16,14 @@ public sealed class AnnouncementDao(DatabaseHelper central)
     private const string StaffUnits = "SELECT unit_id FROM nora.staff_units WHERE account_id=$1";
     private const string PatientUnits = "SELECT unit_id FROM nora.patient_units WHERE patient_id=$1";
 
-    /// <summary>Predicado de visibilidade sobre <c>nora.announcements a</c>; $1 conta, $2 agora, $3 público do leitor ('staff' ou 'patients').</summary>
+    /// <summary>
+    /// Predicado de visibilidade sobre <c>nora.announcements a</c>; $1 conta, $2 agora, $3 público do leitor ('staff' ou 'patients'). Toda a rede só
+    /// alcança quem tem ao menos uma UBS (concessão ou vínculo); região e UBS específicas, só quem tem UBS nelas.
+    /// </summary>
     private static string Visible(bool staff)
     {
         var units = staff ? StaffUnits : PatientUnits;
-        return $"a.closed_at IS NULL AND (a.expires_at IS NULL OR a.expires_at>$2) AND a.audience IN ('both',$3) AND (a.scope='all' " +
+        return $"a.closed_at IS NULL AND (a.expires_at IS NULL OR a.expires_at>$2) AND a.audience IN ('both',$3) AND ((a.scope='all' AND EXISTS({units})) " +
             $"OR (a.scope='units' AND EXISTS(SELECT 1 FROM nora.announcement_units au WHERE au.announcement_id=a.id AND au.unit_id IN ({units}))) " +
             $"OR (a.scope='region' AND EXISTS(SELECT 1 FROM nora.announcement_regions ar JOIN nora.health_units h ON lower(btrim(h.region))=ar.region_key WHERE ar.announcement_id=a.id AND h.id IN ({units}))))";
     }
