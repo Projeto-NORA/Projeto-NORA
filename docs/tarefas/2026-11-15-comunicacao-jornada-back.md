@@ -38,13 +38,21 @@ Nenhum. Tarefa delegada por outro agente (executor da Fase 3, módulo de comunic
 
 ## Checklist
 
-- [ ] Migração central 016 e de UBS 013
-- [ ] Modelos, DAOs, serviços, limitador por conta
-- [ ] Rotas (municipal, OBS, paciente) e DI
-- [ ] Checks novos (`CommunityChecks.cs`)
-- [ ] Documentação em `docs/api.md`
-- [ ] Build 0/0, checks HTTP, validação PostgreSQL descartável
+- [x] Migração central 016 e de UBS 013
+- [x] Modelos, DAOs, serviços, limitador por conta
+- [x] Rotas (municipal, OBS, paciente) e DI
+- [x] Checks novos (`CommunityChecks.cs`)
+- [x] Documentação em `docs/api.md`
+- [x] Build 0/0, checks HTTP, validação PostgreSQL descartável
 
 ## Estado
 
-Iniciado em 2026-11-15; ver commits do branch.
+Concluído em 2026-11-15, branch `worktree-agent-a246e4a3e82e3a6e9`.
+
+- Migrações: central `016_announcements.sql`; UBS `013_health_records.sql` (sem depender de 012).
+- Rotas em `Nora.Api/ApiEndpoints.Community.cs`; DI em `NoraApiHost.cs` (bloco "Fase 3 — comunicação e jornada").
+- Validação real: build Release 0 erros/0 avisos; checks HTTP 30/30; com PostgreSQL 18.6 descartável
+  (porta 55622, `-IncludeUnitDatabases`): fluxos 28/28, plataforma 19/19, revisão 17/17 e comunicação e
+  Jornada 16/16.
+- Decisões de mínimo seguro: ver o relatório do agente e a seção "Comunicação e Jornada" de `docs/api.md`.
+- Fora do escopo desta tarefa (outros agentes): clientes, `docs/PENDENCIAS.md`, demais docs.
