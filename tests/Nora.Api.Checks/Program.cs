@@ -20,6 +20,7 @@ if (args.Contains("--community-only")) return await CommunityChecks.RunAsync(dir
 if (args.Contains("--scheduling-only")) return await SchedulingChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--family-only")) return await FamilyChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--family-review-only")) return await FamilyChecks.RunReviewAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--family-decisions-only")) return await FamilyChecks.RunDecisionsAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -216,7 +217,8 @@ var communityFailures = await CommunityChecks.RunAsync(directory.FullName);
 var schedulingFailures = await SchedulingChecks.RunAsync(directory.FullName);
 var familyFailures = await FamilyChecks.RunAsync(directory.FullName);
 var familyReviewFailures = await FamilyChecks.RunReviewAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 ? 0 : 1;
+var familyDecisionFailures = await FamilyChecks.RunDecisionsAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

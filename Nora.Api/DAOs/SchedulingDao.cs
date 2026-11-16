@@ -74,13 +74,17 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         return result;
     }
 
-    public async Task<Professional> UpdateProfessionalAsync(Guid unitId, Guid id, ProfessionalRequest request, CancellationToken ct)
+    /// <param name="inactive">Especialidades do pedido que estão inativas na lista central: só valem se já estiverem vinculadas ao profissional (senão 400).</param>
+    public async Task<Professional> UpdateProfessionalAsync(Guid unitId, Guid id, ProfessionalRequest request, Guid[] inactive, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await LockAsync(connection, GridLockKey, ct);
         await using (var update = Cmd(connection, "UPDATE nora_unit.professionals SET full_name=$2,council_acronym=$3,council_number=$4,council_state=$5 WHERE id=$1", id, request.FullName, request.CouncilAcronym, request.CouncilNumber, request.CouncilState))
             if (await update.ExecuteNonQueryAsync(ct) == 0) throw new ApiNotFoundException();
+        if (inactive.Length > 0)
+            await using (var linked = Cmd(connection, "SELECT count(*) FROM nora_unit.professional_specialties WHERE professional_id=$1 AND specialty_id=ANY($2)", id, inactive))
+                if ((long)(await linked.ExecuteScalarAsync(ct))! != inactive.Length) throw new ApiInputException();
         // Tirar uma especialidade que ainda tem grade deixaria atendimentos fora do que o profissional faz: o OBS remove a grade antes.
         await using (var used = Cmd(connection, "SELECT EXISTS(SELECT 1 FROM nora_unit.schedule_templates WHERE professional_id=$1 AND NOT (specialty_id=ANY($2)))", id, request.SpecialtyIds!.Distinct().ToArray()))
             if (await used.ExecuteScalarAsync(ct) is true) throw new ApiConflictException();

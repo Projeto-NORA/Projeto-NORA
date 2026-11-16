@@ -17,11 +17,14 @@ public sealed class AccountRateLimiter : IDisposable
     private static int PermitLimit(string policy) => policy switch
     {
         PasswordChange or PatientUnlink => 10,
+        PatientUnlinkPreview => 60,
         _ => throw new ArgumentOutOfRangeException(nameof(policy))
     };
 
     public const string PasswordChange = "password-change";
     public const string PatientUnlink = "patient-unlink";
+    /// <summary>Prévia da remoção do vínculo (leitura que o app faz ao abrir a confirmação).</summary>
+    public const string PatientUnlinkPreview = "patient-unlink-preview";
 
     /// <summary>Consome uma permissão da conta na política; sem permissão disponível → 429.</summary>
     public void Require(string policy, Guid accountId)

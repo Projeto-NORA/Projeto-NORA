@@ -4,7 +4,7 @@ using Nora.Api.Models;
 
 namespace Nora.Api.DAOs;
 
-/// <summary>Parte da remoção de vínculo que acontece no banco da UBS. O chamador já autorizou o paciente e segura o vínculo central.</summary>
+/// <summary>Parte da remoção de vínculo (do paciente com a UBS, ou do responsável pela Família) que acontece no banco da UBS. O chamador já autorizou e segura o vínculo central.</summary>
 public sealed class UnitPatientUnlinkDao(UnitDatabaseRouter databases, TimeProvider time)
 {
     /// <summary>
@@ -35,5 +35,29 @@ public sealed class UnitPatientUnlinkDao(UnitDatabaseRouter databases, TimeProvi
         }
         await transaction.CommitAsync(ct);
         return new(appointments, entries);
+    }
+
+    /// <summary>Prévia de <see cref="CancelPendingAsync"/>: conta, com os mesmos critérios e sem limite de data, o que a remoção cancelaria agora. Não grava nada.</summary>
+    public async Task<UnlinkPreview> PreviewAsync(Guid unitId, string cpf, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT (SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status IN ('scheduled','called') AND starts_at>$2),(SELECT count(*) FROM nora_unit.waiting_list WHERE cpf=$1 AND status IN ('waiting','offered'))", connection);
+        query.Parameters.AddWithValue(cpf); query.Parameters.AddWithValue(time.GetUtcNow());
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
+        return new((int)reader.GetInt64(0), (int)reader.GetInt64(1));
+    }
+
+    /// <summary>
+    /// Fim do vínculo de Família que deixou o dependente sem ninguém que responda por ele na UBS: cancela as consultas futuras (<c>scheduled</c>/<c>called</c>, início depois de agora) do CPF
+    /// que foram marcadas por um responsável (evento <c>scheduled</c> com <c>guardian_id</c>), numa transação da UBS. O evento de cancelamento tem origem <c>system</c>, que não pesa no score,
+    /// autor <paramref name="actorId"/> (quem encerrou) e <paramref name="guardianId"/> quando foi o responsável. O horário volta à disponibilidade; a Vaga Relâmpago continua manual.
+    /// </summary>
+    public async Task<int> CancelGuardianBookingsAsync(Guid unitId, string cpf, Guid actorId, Guid? guardianId, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.appointments a SET status='cancelled' WHERE a.cpf=$1 AND a.status IN ('scheduled','called') AND a.starts_at>$3 AND EXISTS(SELECT 1 FROM nora_unit.appointment_events e WHERE e.appointment_id=a.id AND e.status='scheduled' AND e.guardian_id IS NOT NULL) RETURNING a.id), logged AS (INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source,guardian_id) SELECT id,$2,'cancelled',$3,'system',$4 FROM changed RETURNING 1) SELECT count(*) FROM logged", connection);
+        query.Parameters.AddWithValue(cpf); query.Parameters.AddWithValue(actorId); query.Parameters.AddWithValue(time.GetUtcNow()); query.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value });
+        return (int)(long)(await query.ExecuteScalarAsync(ct))!;
     }
 }

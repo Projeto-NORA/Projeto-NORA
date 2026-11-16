@@ -42,17 +42,6 @@ internal static partial class FamilyChecks
             await f.Exec("CREATE OR REPLACE FUNCTION nora.fail_suggestion() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''falha simulada do banco central''; END'");
             await f.Exec("CREATE TRIGGER fail_suggestion BEFORE INSERT ON nora.email_change_suggestions FOR EACH ROW EXECUTE FUNCTION nora.fail_suggestion()");
         }
-        // Tira o banco de uma UBS do ar para quem abre a conexão pela API: a identidade do banco deixa de ser a da UBS. Restaura no fim.
-        async Task WithUnitDown(Guid unit, Func<Task> action)
-        {
-            var router = f.App.Services.GetRequiredService<UnitDatabaseRouter>();
-            var direct = new NpgsqlConnectionStringBuilder(connectionString) { Database = router.DerivedDatabaseName(unit), Pooling = false }.ConnectionString;
-            async Task Set(Guid value) { await using var raw = new NpgsqlConnection(direct); await raw.OpenAsync(); await using var update = new NpgsqlCommand("UPDATE nora_unit.identity SET unit_id=$1", raw); update.Parameters.AddWithValue(value); await update.ExecuteNonQueryAsync(); }
-            await Set(Guid.NewGuid());
-            try { await action(); }
-            finally { await Set(unit); }
-        }
-
         await Check("Preparação: especialidades, profissionais e grade das duas UBS", async () =>
         {
             using (var c = await f.Municipal.PostAsJsonAsync("/api/municipal/specialties", new { name = "Cardiologia" })) { Expect(c, 201); cardiology = (await Read(c)).GetProperty("id").GetGuid(); }
@@ -81,12 +70,15 @@ internal static partial class FamilyChecks
             using (var other = await f.D2.PostAsJsonAsync($"/api/patient/units/{u1}/appointments", new { professionalId = ana, specialtyId = clinical, startsAt = "2026-11-19T13:30:00Z" })) Expect(other, 201); // outra especialidade segue livre
         });
 
-        // ======== Achados 2 e 5: o fim do vínculo não apaga a consulta marcada pelo app ========
-        await Check("Limite por especialidade: a consulta marcada por um vínculo que depois foi encerrado continua contando na rede", async () =>
+        // ======== Achados 2 e 5: o fim do vínculo não apaga a consulta de quem continua com alguém que responda por ele ========
+        // Decisão de 2026-11-16 (P-041): a consulta só é cancelada quando o dependente fica sem ninguém na UBS; aqui o G2 continua respondendo por ele na UBS 1.
+        await Check("Limite por especialidade: a consulta marcada por um vínculo que depois foi encerrado continua contando na rede enquanto outro responsável responde pelo dependente", async () =>
         {
             var first = await Linked(f.G1, 11, u1);
+            await Linked(f.G2, 11, u1);
             using (var booked = await Book(f.G1, first, u1, ana, cardiology, "2026-11-18T12:30:00Z")) Expect(booked, 201);
             using (var end = await f.G1.PostAsJsonAsync($"/api/patient/dependents/{first}/end", new { confirmed = true })) Expect(end, 200);
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status='scheduled'", Cpf(11)) == 1, "A consulta continua marcada.");
             var second = await Linked(f.G2, 11, u2, f.Admin);
             using (var again = await Book(f.G2, second, u2, carla, cardiology, "2026-11-18T12:30:00Z")) await ExpectProblem(again, 409, "specialty-limit");
             Require(await f.UnitScalar<long>(u2, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1", Cpf(11)) == 0, "A recusa não pode gravar consulta na UBS 2.");
@@ -135,11 +127,23 @@ internal static partial class FamilyChecks
             Require(await f.Scalar<long>("SELECT count(*) FROM nora.patient_password_reset_codes WHERE challenge_id=$1 AND consumed_at IS NULL", otherAccount) == 1, "O código de outra conta não pode ser tocado.");
         });
 
-        // ======== Achado 8: a decisão gravada não vira erro por causa do nome ========
-        await Check("Recusar ou encerrar um vínculo com o banco da UBS fora do ar responde 200 (a decisão já foi gravada) e o nome do dependente vem vazio", async () =>
+        // ======== Loop 2, achado 1: e-mail longo com conta vinculada ========
+        await Check("E-mail de referência com mais de 254 caracteres responde 400 também quando o paciente tem conta vinculada à UBS (PATCH do e-mail e PUT do cadastro), sem gravar sugestão", async () =>
         {
-            var toReject = await Request(f.G3, 13, u1); var toEnd = await Linked(f.G3, 14, u1);
-            await WithUnitDown(u1, async () =>
+            var longEmail = "p21@" + string.Join('.', Enumerable.Repeat(new string('d', 50), 5)) + ".test"; // 263 caracteres
+            var suggestions = await f.Scalar<long>("SELECT count(*) FROM nora.email_change_suggestions WHERE account_id=$1", f.PatientIds[21]);
+            using (var patch = await f.Admin.PatchAsJsonAsync($"/api/obs/units/{u1}/registry/email", new { cpf = Cpf(21), email = longEmail })) Expect(patch, 400);
+            using (var put = await f.Admin.PutAsJsonAsync($"/api/obs/units/{u1}/registry", new { cpf = Cpf(21), fullName = "Paciente Vinte e Um", email = longEmail })) Expect(put, 400);
+            Require(await f.Scalar<long>("SELECT count(*) FROM nora.email_change_suggestions WHERE account_id=$1", f.PatientIds[21]) == suggestions, "A entrada recusada não pode gravar sugestão.");
+            Require(await f.UnitScalar<string>(u1, "SELECT email FROM nora_unit.patient_registry WHERE cpf=$1", Cpf(21)) == "p21@example.test", "O e-mail de referência continua o mesmo.");
+        });
+
+        // ======== Achado 8: a decisão gravada não vira erro por causa do nome ========
+        // O encerramento que deixa o dependente sem ninguém precisa do banco da UBS (cancela as consultas marcadas pelos responsáveis) e responde 503 com ele fora do ar: ver FamilyChecks.Decisions.cs.
+        await Check("Recusar, ou encerrar o vínculo de um dependente que continua com acesso (conta própria vinculada), com o banco da UBS fora do ar responde 200 (a decisão já foi gravada) e o nome do dependente vem vazio", async () =>
+        {
+            var toReject = await Request(f.G3, 13, u1); var toEnd = await Linked(f.G3, 12, u1);
+            await f.WithUnitDownAsync(u1, async () =>
             {
                 using var reject = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/family-links/{toReject}/reject", new { confirmed = true, reason = "Documento ilegível" });
                 Expect(reject, 200); var body = await Read(reject);
@@ -187,6 +191,46 @@ internal static partial class FamilyChecks
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(12)) == 1, "Ele ainda responde pela própria conta: a oferta continua pendente.");
         });
 
+        // ======== Loop 2, achado 2: encerramentos simultâneos dos vínculos do mesmo dependente na mesma UBS ========
+        await Check("Encerramentos simultâneos (responsável pelo app e equipe pelo OBS) dos dois vínculos do mesmo dependente na mesma UBS cancelam a oferta pendente dele", async () =>
+        {
+            const int dependent = 71;
+            using (var register = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/registry", new { cpf = Cpf(dependent), fullName = "Dependente Setenta e Um", email = "sem-conta71@example.test" })) Expect(register, 201);
+            var byGuardian = await Linked(f.G1, dependent, u1); var byStaff = await Linked(f.G2, dependent, u1);
+            Guid source;
+            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(dependent), specialty = "Cardiologia" })) Expect(queue, 201);
+            using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-18T13:30:00Z" })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
+            using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
+            using (var slot = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = source, confirmed = true })) Expect(slot, 201);
+            const string pending = "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'";
+            Require(await f.UnitScalar<long>(u1, pending, Cpf(dependent)) == 1, "Pré-condição: o dependente recebe a oferta pelos vínculos.");
+            // Corrida reproduzida sempre, sem depender da temporização: um gatilho de teste, adiado para o commit, faz cada encerramento esperar um lock que o teste
+            // segura. Os dois fecham o próprio vínculo, decidem se o dependente perdeu o acesso e só então param, ainda sem confirmar; o teste solta os dois juntos.
+            const long commitGate = 62419899;
+            await f.Exec("CREATE OR REPLACE FUNCTION nora.hold_family_commit() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN PERFORM pg_advisory_xact_lock_shared(62419899); RETURN NULL; END'");
+            await f.Exec("CREATE CONSTRAINT TRIGGER hold_family_commit AFTER UPDATE ON nora.family_links DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION nora.hold_family_commit()");
+            try
+            {
+                await using var gate = await f.OpenCentral();
+                await using (var close = f.Command(gate, "SELECT pg_advisory_lock($1)", commitGate)) await close.ExecuteNonQueryAsync();
+                var guardianEnd = f.G1.PostAsJsonAsync($"/api/patient/dependents/{byGuardian}/end", new { confirmed = true });
+                var staffEnd = f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/family-links/{byStaff}/end", new { confirmed = true });
+                var deadline = DateTime.UtcNow.AddSeconds(20);
+                while (await f.Scalar<long>("SELECT count(*) FROM pg_locks WHERE NOT granted") < 2)
+                {
+                    Require(DateTime.UtcNow < deadline && !guardianEnd.IsCompleted && !staffEnd.IsCompleted, "Os dois encerramentos deviam ficar esperando o lock do teste.");
+                    await Task.Delay(25);
+                }
+                await using (var open = f.Command(gate, "SELECT pg_advisory_unlock($1)", commitGate)) await open.ExecuteNonQueryAsync();
+                using var guardianResponse = await guardianEnd; using var staffResponse = await staffEnd;
+                Expect(guardianResponse, 200); Expect(staffResponse, 200);
+            }
+            finally { await f.Exec("DROP TRIGGER IF EXISTS hold_family_commit ON nora.family_links"); }
+            Require(await f.Scalar<long>("SELECT count(*) FROM nora.family_links WHERE dependent_cpf=$1 AND unit_id=$2 AND status='approved'", Cpf(dependent), u1) == 0, "Os dois vínculos ficaram encerrados.");
+            Require(await f.UnitScalar<long>(u1, pending, Cpf(dependent)) == 0, "Sem ninguém que responda por ele, a oferta pendente do dependente devia ser cancelada na hora.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='cancelled'", Cpf(dependent)) == 1, "A oferta fica cancelada, não presa até vencer.");
+        });
+
         // ======== Achado 9: consulta periódica das ofertas dos dependentes ========
         await Check("Consulta agregada das ofertas: dois dependentes da mesma UBS vêm juntos, na ordem dos vínculos, só com ofertas pendentes e sem escrever nada", async () =>
         {
@@ -215,6 +259,51 @@ internal static partial class FamilyChecks
             // Cadastro do dependente inativo na UBS: some da consulta, sem derrubá-la.
             using (var off = await f.Admin.PatchAsJsonAsync($"/api/obs/units/{u1}/registry/active", new { cpf = Cpf(41), isActive = false, confirmed = true })) Expect(off, 204);
             using (var after = await f.G2.GetAsync("/api/patient/dependents/lightning-offers")) { Expect(after, 200); Require((await Read(after)).GetProperty("dependents").EnumerateArray().Select(i => i.GetProperty("dependentId").GetGuid()).SequenceEqual([secondLink]), "Só o dependente com cadastro ativo."); }
+        });
+
+        // ======== Loop 2, achado 3: lista da equipe paginada por cursor ========
+        await Check("Lista da equipe paginada: percorre todos os vínculos na ordem requested_at, id, sem repetir nem pular; hasMore e cursor; cursor inválido → 400", async () =>
+        {
+            await Linked(f.G4, 13, u1); await Linked(f.G1, 14, u1); await Linked(f.G4, 31, u1);
+            const string order = "SELECT string_agg(id::text, ',' ORDER BY requested_at, id) FROM nora.family_links WHERE unit_id=$1 AND status=$2";
+            var approved = (await f.Scalar<string>(order, u1, "approved")).Split(',');
+            Require(approved.Length >= 5, $"Pré-condição: vínculos aprovados suficientes na UBS 1 ({approved.Length}).");
+            // O relógio parado empata a maioria em requested_at (o id desempata); um vínculo vai para antes e outro ganha microssegundos, que o cursor não pode perder.
+            await f.Exec("UPDATE nora.family_links SET requested_at=requested_at - interval '1 minute' WHERE id=$1", Guid.Parse(approved[^1]));
+            await f.Exec("UPDATE nora.family_links SET requested_at=requested_at + interval '123 microseconds' WHERE id=$1", Guid.Parse(approved[0]));
+            using (var pendingRequest = await f.G3.PostAsJsonAsync("/api/patient/dependents", new { cpf = Cpf(71), unitId = u1 })) Expect(pendingRequest, 201);
+            foreach (var status in new[] { "approved", "pending" })
+            {
+                var expected = await f.Scalar<string>(order, u1, status);
+                foreach (var size in new[] { 1, 2, 200 })
+                {
+                    var walked = new List<string>(); string? after = null; var pages = 0;
+                    do
+                    {
+                        using var response = await f.Attendant.GetAsync($"/api/obs/units/{u1}/family-links?status={status}&limit={size}" + (after is null ? "" : "&after=" + Uri.EscapeDataString(after)));
+                        Expect(response, 200); var page = await Read(response);
+                        var ids = page.GetProperty("links").EnumerateArray().Select(link => link.GetProperty("id").GetGuid().ToString()).ToList();
+                        var hasMore = page.GetProperty("hasMore").GetBoolean(); var cursor = page.GetProperty("cursor");
+                        Require(hasMore ? ids.Count == size && cursor.ValueKind == JsonValueKind.String : ids.Count <= size && cursor.ValueKind == JsonValueKind.Null, $"Página de {status} com limit={size}: {page}");
+                        walked.AddRange(ids);
+                        after = hasMore ? cursor.GetString() : null;
+                        Require(++pages <= 50, "A paginação não terminou.");
+                    } while (after is not null);
+                    Require(string.Join(',', walked) == expected, $"{status} com limit={size}: esperado {expected}; percorrido {string.Join(',', walked)}.");
+                }
+            }
+            // Sem after nem limit: a primeira página (padrão 100) traz tudo, hasMore false e cursor nulo.
+            using (var whole = await f.Attendant.GetAsync($"/api/obs/units/{u1}/family-links?status=approved"))
+            {
+                Expect(whole, 200); var page = await Read(whole);
+                Require(page.GetProperty("links").GetArrayLength() == approved.Length && !page.GetProperty("hasMore").GetBoolean() && page.GetProperty("cursor").ValueKind == JsonValueKind.Null, "Primeira página completa.");
+            }
+            foreach (var bad in new[] { "after=abc", "after=" + new string('_', 32), "after=" + new string('A', 31), "limit=201" })
+            {
+                using var response = await f.Attendant.GetAsync($"/api/obs/units/{u1}/family-links?status=approved&{bad}");
+                Expect(response, 400);
+                Require(response.Content.Headers.ContentType?.MediaType == "application/problem+json", $"Cursor inválido ({bad}) sem o padrão de erro de entrada.");
+            }
         });
 
         Console.WriteLine($"{checks - failures}/{checks} verificações da revisão da Família passaram.");

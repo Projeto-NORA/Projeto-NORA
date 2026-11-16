@@ -5,7 +5,8 @@ using Nora.Api.Services;
 
 namespace Nora.Api.DAOs;
 
-public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider time, SchedulingService? scheduling = null)
+/// <param name="central">Banco central, só para o nome do responsável nas listas do paciente (<see cref="ListForPatientAsync"/>).</param>
+public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider time, SchedulingService? scheduling = null, DatabaseHelper? central = null)
 {
     public async Task<AppointmentInfo> CreateAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct)
     {
@@ -48,6 +49,40 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         await using var reader = await query.ExecuteReaderAsync(ct); var items = new List<AppointmentInfo>();
         while (await reader.ReadAsync(ct)) items.Add(Read(reader));
         return items;
+    }
+
+    /// <summary>
+    /// Consultas do CPF na janela, como <see cref="ListAsync"/>, com quem marcou cada uma pelo app (evento <c>scheduled</c> de origem <c>patient</c>): <c>BookedByYou</c> quando foi a conta
+    /// <paramref name="viewerId"/> (para si ou como responsável) e <c>BookedByGuardianName</c> quando foi um responsável pela Família (<c>guardian_id</c>), lido do banco central numa consulta só.
+    /// Consulta marcada pela equipe: false e nulo.
+    /// </summary>
+    public async Task<List<AppointmentInfo>> ListForPatientAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, string cpf, Guid viewerId, CancellationToken ct)
+    {
+        from = from.ToUniversalTime(); to = to.ToUniversalTime();
+        if (to <= from || to - from > TimeSpan.FromDays(366)) throw new ApiInputException();
+        var rows = new List<(AppointmentInfo Info, Guid? Guardian)>();
+        await using (var connection = await databases.OpenAsync(unitId, ct))
+        await using (var query = new NpgsqlCommand("SELECT " + Columns + ",b.actor_id,b.guardian_id FROM nora_unit.appointments a JOIN nora_unit.patient_registry p ON p.cpf=a.cpf LEFT JOIN LATERAL (SELECT e.actor_id,e.guardian_id FROM nora_unit.appointment_events e WHERE e.appointment_id=a.id AND e.status='scheduled' AND e.source='patient' ORDER BY e.id LIMIT 1) b ON true WHERE a.cpf=$3 AND a.starts_at >= $1 AND a.starts_at < $2 ORDER BY a.starts_at,a.id", connection))
+        {
+            query.Parameters.AddWithValue(from); query.Parameters.AddWithValue(to); query.Parameters.AddWithValue(cpf);
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                rows.Add((Read(reader) with { BookedByYou = !reader.IsDBNull(12) && reader.GetGuid(12) == viewerId }, reader.IsDBNull(13) ? null : reader.GetGuid(13)));
+        }
+        var guardians = rows.Where(row => row.Guardian is not null).Select(row => row.Guardian!.Value).Distinct().ToArray();
+        var names = guardians.Length == 0 ? null : await GuardianNamesAsync(guardians, ct);
+        return rows.Select(row => row.Guardian is { } guardian ? row.Info with { BookedByGuardianName = names!.GetValueOrDefault(guardian) } : row.Info).ToList();
+    }
+
+    private async Task<Dictionary<Guid, string>> GuardianNamesAsync(Guid[] ids, CancellationToken ct)
+    {
+        var database = central ?? throw new InvalidOperationException("Banco central não configurado para o AppointmentDao.");
+        await using var connection = await database.OpenAsync(ct);
+        await using var query = database.Command(connection, "SELECT id,full_name FROM nora.accounts WHERE id=ANY($1)", ids);
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        var names = new Dictionary<Guid, string>(ids.Length);
+        while (await reader.ReadAsync(ct)) names[reader.GetGuid(0)] = reader.GetString(1);
+        return names;
     }
 
     /// <param name="guardianId">Conta do responsável quando o paciente é um dependente (Família): vai para o evento, que continua com origem "patient".</param>

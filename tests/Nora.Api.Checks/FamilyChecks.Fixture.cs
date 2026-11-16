@@ -72,6 +72,7 @@ internal static partial class FamilyChecks
     {
         public required WebApplication App { get; init; }
         public required string Schema { get; init; }
+        public required string ConnectionString { get; init; }
         public required TestClock Clock { get; init; }
         public required MailBox Mail { get; init; }
         public required HttpClient Anonymous { get; init; }
@@ -125,7 +126,7 @@ internal static partial class FamilyChecks
             var attendant = await accounts.ProvisionAsync("obs", "attendant", new("Atendente Família", Cpf(903), "atendente@example.test", Password));
             var other = await accounts.ProvisionAsync("obs", "attendant", new("Outro Atendente", Cpf(904), "outro@example.test", Password));
             await app.StartAsync();
-            var f = new Fixture { App = app, Schema = schema, Clock = clock, Mail = mail, Anonymous = NewClient(app), Municipal = NewClient(app), Admin = NewClient(app), Attendant = NewClient(app), OtherAttendant = NewClient(app), AdminId = admin.Id, AttendantId = attendant.Id };
+            var f = new Fixture { App = app, Schema = schema, ConnectionString = connection, Clock = clock, Mail = mail, Anonymous = NewClient(app), Municipal = NewClient(app), Admin = NewClient(app), Attendant = NewClient(app), OtherAttendant = NewClient(app), AdminId = admin.Id, AttendantId = attendant.Id };
             f.clients.AddRange([f.Anonymous, f.Municipal, f.Admin, f.Attendant, f.OtherAttendant]);
             await Login(f.Municipal, "municipal", "gestora@example.test"); await Login(f.Admin, "obs", "admin@example.test"); await Login(f.Attendant, "obs", "atendente@example.test"); await Login(f.OtherAttendant, "obs", "outro@example.test");
             f.Unit1 = await f.CreateUnitAsync("UBS Família Um", "Centro"); f.Unit2 = await f.CreateUnitAsync("UBS Família Dois", "Norte");
@@ -184,6 +185,16 @@ internal static partial class FamilyChecks
         public async Task Exec(string sql, params object[] values) { await using var connection = await Database.OpenAsync(); await using var command = Database.Command(connection, sql, values.Select(Normalize).ToArray()); await command.ExecuteNonQueryAsync(); }
         public async Task<T> UnitScalar<T>(Guid unit, string sql, params object[] values) { await using var connection = await Router.OpenAsync(unit); await using var command = new NpgsqlCommand(sql, connection); foreach (var value in values) command.Parameters.AddWithValue(Normalize(value)); var result = await command.ExecuteScalarAsync(); return result is null or DBNull ? default! : (T)result; }
         public async Task UnitExec(Guid unit, string sql, params object[] values) { await using var connection = await Router.OpenAsync(unit); await using var command = new NpgsqlCommand(sql, connection); foreach (var value in values) command.Parameters.AddWithValue(Normalize(value)); await command.ExecuteNonQueryAsync(); }
+        /// <summary>Tira o banco de uma UBS do ar para quem abre a conexão pela API (a identidade do banco deixa de ser a da UBS) enquanto <paramref name="action"/> roda, e o restaura no fim.</summary>
+        public async Task WithUnitDownAsync(Guid unit, Func<Task> action)
+        {
+            var direct = new NpgsqlConnectionStringBuilder(ConnectionString) { Database = Router.DerivedDatabaseName(unit), Pooling = false }.ConnectionString;
+            async Task Set(Guid value) { await using var raw = new NpgsqlConnection(direct); await raw.OpenAsync(); await using var update = new NpgsqlCommand("UPDATE nora_unit.identity SET unit_id=$1", raw); update.Parameters.AddWithValue(value); await update.ExecuteNonQueryAsync(); }
+            await Set(Guid.NewGuid());
+            try { await action(); }
+            finally { await Set(unit); }
+        }
+
         private static object Normalize(object? value) => value is DateTimeOffset moment ? moment.ToUniversalTime() : value ?? DBNull.Value;
 
         private static HttpClient NewClient(WebApplication app) => new()

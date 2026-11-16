@@ -44,17 +44,23 @@ public sealed partial class SchedulingService
         return text;
     }
 
-    public async Task<ProfessionalRequest> ValidateProfessionalAsync(ProfessionalRequest request, CancellationToken ct)
+    /// <summary>
+    /// Valida o cadastro do profissional. Especialidade inexistente → 400. Especialidade inativa: no cadastro novo (<paramref name="keepInactive"/> falso) → 400; na edição ela volta em
+    /// <c>Inactive</c> para o DAO aceitar só se já estiver vinculada a esse profissional (<see cref="SchedulingDao.UpdateProfessionalAsync"/>), já que desativar a especialidade não desfaz o vínculo.
+    /// </summary>
+    public async Task<(ProfessionalRequest Professional, Guid[] Inactive)> ValidateProfessionalAsync(ProfessionalRequest request, bool keepInactive, CancellationToken ct)
     {
         var name = Name(request.FullName, 2, 160);
         var ids = request.SpecialtyIds?.Distinct().ToList() ?? [];
         if (ids.Count is < 1 or > 50 || ids.Contains(Guid.Empty)) throw new ApiInputException();
         var found = await specialties.FindAsync(ids, ct);
-        if (ids.Any(id => !found.TryGetValue(id, out var item) || !item.IsActive)) throw new ApiInputException();
+        if (ids.Any(id => !found.ContainsKey(id))) throw new ApiInputException();
+        var inactive = ids.Where(id => !found[id].IsActive).ToArray();
+        if (inactive.Length > 0 && !keepInactive) throw new ApiInputException();
         var acronym = request.CouncilAcronym?.Trim() ?? ""; var number = request.CouncilNumber?.Trim() ?? ""; var state = request.CouncilState?.Trim() ?? "";
-        if (acronym.Length + number.Length + state.Length == 0) return new(name, ids, null, null, null);
+        if (acronym.Length + number.Length + state.Length == 0) return (new(name, ids, null, null, null), inactive);
         if (!AcronymPattern().IsMatch(acronym) || !CouncilNumberPattern().IsMatch(number) || !States.Contains(state.ToUpperInvariant())) throw new ApiInputException();
-        return new(name, ids, acronym.ToUpperInvariant(), number, state.ToUpperInvariant());
+        return (new(name, ids, acronym.ToUpperInvariant(), number, state.ToUpperInvariant()), inactive);
     }
 
     public static string ValidateRoomName(RoomRequest request) => Name(request.Name, 1, 80);
@@ -168,7 +174,7 @@ public sealed partial class SchedulingService
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         var start = requested.ToUniversalTime();
         return await access.ExecutePatientNetworkAsync(session, unitId, async cpf =>
-            await BookForPatientAsync(session.User.Id, null, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct);
+            await BookForPatientAsync(session.User.Id, null, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true };
     }
 
     /// <summary>
@@ -183,7 +189,7 @@ public sealed partial class SchedulingService
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         var start = requested.ToUniversalTime();
         return await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, async cpf =>
-            await BookForPatientAsync(session.User.Id, session.User.Id, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct);
+            await BookForPatientAsync(session.User.Id, session.User.Id, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true, BookedByGuardianName = session.User.FullName };
     }
 
     /// <summary>Corpo comum da marcação pelo app (próprio paciente ou responsável): janela, limite por especialidade nas UBS informadas, horário livre. Chamado já sob o executor e o lock de CPF.</summary>

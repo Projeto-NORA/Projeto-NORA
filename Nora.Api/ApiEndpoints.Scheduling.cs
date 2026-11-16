@@ -14,9 +14,13 @@ internal static partial class ApiEndpoints
         obs.MapGet("/obs/units/{unitId:guid}/professionals", async (Guid unitId, HttpContext context, UnitAccessService access, SchedulingDao dao, CancellationToken ct) =>
             Results.Ok(new { professionals = await access.ExecuteAsync(Session(context), unitId, () => dao.ListProfessionalsAsync(unitId, ct), ct) }));
         obs.MapPost("/obs/units/{unitId:guid}/professionals", async (Guid unitId, ProfessionalRequest request, HttpContext context, SchedulingAccessService access, SchedulingService service, SchedulingDao dao, CancellationToken ct) =>
-            Results.Json(await access.ExecuteAdministratorAsync(Session(context), unitId, async () => await dao.CreateProfessionalAsync(unitId, await service.ValidateProfessionalAsync(request, ct), ct), ct), statusCode: StatusCodes.Status201Created));
+            Results.Json(await access.ExecuteAdministratorAsync(Session(context), unitId, async () => await dao.CreateProfessionalAsync(unitId, (await service.ValidateProfessionalAsync(request, false, ct)).Professional, ct), ct), statusCode: StatusCodes.Status201Created));
         obs.MapPut("/obs/units/{unitId:guid}/professionals/{id:guid}", async (Guid unitId, Guid id, ProfessionalRequest request, HttpContext context, SchedulingAccessService access, SchedulingService service, SchedulingDao dao, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAdministratorAsync(Session(context), unitId, async () => await dao.UpdateProfessionalAsync(unitId, id, await service.ValidateProfessionalAsync(request, ct), ct), ct)));
+            Results.Ok(await access.ExecuteAdministratorAsync(Session(context), unitId, async () =>
+            {
+                var (professional, inactive) = await service.ValidateProfessionalAsync(request, true, ct);
+                return await dao.UpdateProfessionalAsync(unitId, id, professional, inactive, ct);
+            }, ct)));
         obs.MapPatch("/obs/units/{unitId:guid}/professionals/{id:guid}/active", async (Guid unitId, Guid id, SetActiveRequest request, HttpContext context, SchedulingAccessService access, SchedulingDao dao, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAdministratorAsync(Session(context), unitId, () => dao.SetProfessionalActiveAsync(unitId, id, request.IsActive, ct), ct)));
 

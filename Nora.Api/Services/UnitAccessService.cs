@@ -26,7 +26,8 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         return reader.GetString(0);
     }
 
-    public async Task<T> ExecutePatientAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct)
+    /// <param name="requireActiveRegistry">Exige cadastro ativo do CPF na UBS (padrão). A prévia da remoção do vínculo passa falso, como a própria remoção, que funciona com o cadastro desativado.</param>
+    public async Task<T> ExecutePatientAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool requireActiveRegistry = true)
     {
         if (unitId == Guid.Empty || session.User.Scope != "patient" || session.User.Role != "patient") throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
@@ -34,7 +35,7 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         var cpf = await RevalidateAsync(connection, session, ct);
         await using (var link = central.Command(connection, "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await link.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
-        if (!await registry.IsActiveAsync(unitId, cpf, ct)) throw new ApiForbiddenException();
+        if (requireActiveRegistry && !await registry.IsActiveAsync(unitId, cpf, ct)) throw new ApiForbiddenException();
         var result = await action(cpf);
         await transaction.CommitAsync(ct);
         return result;

@@ -171,7 +171,10 @@ internal static partial class ApiEndpoints
         patient.MapPost("/patient/units/link", async (HttpContext context, PatientUnitLinkRequest request, PatientRegistrationService service, CancellationToken ct) =>
             Results.Ok(await service.LinkUnitsAsync(Session(context), request, ct))).RequireRateLimiting("patient-link-units");
         patient.MapGet("/patient/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
-            Results.Ok(new { appointments = await access.ExecutePatientAsync(Session(context), unitId, cpf => appointments.ListAsync(unitId, from, to, cpf, ct), ct) }));
+        {
+            var session = Session(context);
+            return Results.Ok(new { appointments = await access.ExecutePatientAsync(session, unitId, cpf => appointments.ListForPatientAsync(unitId, from, to, cpf, session.User.Id, ct), ct) });
+        });
         patient.MapPost("/patient/units/{unitId:guid}/appointments/{id:guid}/cancel", async (Guid unitId, Guid id, CancelAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -204,6 +207,10 @@ internal static partial class ApiEndpoints
             await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.Ok(result);
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PatientUnlink));
+        // Prévia da remoção: mesmo vínculo e mesmo critério da remoção (cadastro desativado também responde), sem gravar nada.
+        patient.MapGet("/patient/units/{unitId:guid}/unlink-preview", async (Guid unitId, HttpContext context, UnitAccessService access, UnitPatientUnlinkDao unlink, CancellationToken ct) =>
+            Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => unlink.PreviewAsync(unitId, cpf, ct), ct, requireActiveRegistry: false)))
+            .AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PatientUnlinkPreview));
         patient.MapGet("/patient/units/{unitId:guid}/attendance", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
             Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => registry.ReadOwnAttendanceAsync(unitId, cpf, ct), ct)));
         var legacyPatient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient")).AddEndpointFilter(new LegacyWorkflowFilter());

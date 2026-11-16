@@ -22,5 +22,7 @@ public sealed record SetStaffActiveRequest([property: JsonRequired] bool IsActiv
 public sealed record ResetStaffPasswordRequest(string? Password, [property: JsonRequired] bool Confirmed);
 public sealed record UnlinkUnitRequest([property: JsonRequired] bool Confirmed);
 public sealed record UnlinkUnitResult(int CancelledAppointments, int CancelledEntries);
+/// <summary>Prévia da remoção do vínculo com a UBS: o que a remoção cancelaria agora (consultas futuras scheduled/called e entradas de fila waiting/offered do CPF da conta, sem limite de data).</summary>
+public sealed record UnlinkPreview(int FutureAppointments, int ActiveWaitingEntries);
 /// <summary>Cursor é opaco: devolva-o em before para a próxima página (o instante ISO de occurredAt ainda é aceito, mas perde eventos empatados).</summary>
 public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName, Guid? UnitId, string? UnitName, string? AccountName, string Cursor);

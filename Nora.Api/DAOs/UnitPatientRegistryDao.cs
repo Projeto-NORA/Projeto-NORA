@@ -13,9 +13,8 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
     public async Task<string> UpdateEmailAsync(Guid unitId, Guid actorId, string value, string? newEmail, CancellationToken ct = default)
     {
         var cpf = AccountService.NormalizeCpf(value);
-        var email = newEmail?.Trim().ToLowerInvariant() ?? "";
-        if (unitId == Guid.Empty || actorId == Guid.Empty || !AccountService.ValidCpf(cpf) || email.Length > 254 ||
-            !MailAddress.TryCreate(email, out var address) || address.Address != email) throw new ApiInputException();
+        var email = ValidEmail(newEmail);
+        if (unitId == Guid.Empty || actorId == Guid.Empty || !AccountService.ValidCpf(cpf)) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         string previous;
@@ -71,12 +70,23 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
         return previous;
     }
 
-    private static UnitPatientRecord Normalize(Guid unitId, Guid actorId, UnitPatientRecord patient)
+    /// <summary>
+    /// E-mail de referência como é gravado (sem espaços nas pontas, em minúsculas), ou 400 se estiver fora do formato ou passar de 254 caracteres. Quem grava algo
+    /// derivado dele antes do cadastro (a sugestão de troca do e-mail da conta) valida por aqui primeiro, para a entrada inválida nunca chegar ao banco.
+    /// </summary>
+    internal static string ValidEmail(string? value)
     {
-        var cpf = AccountService.NormalizeCpf(patient.Cpf); var name = patient.FullName?.Trim() ?? ""; var email = patient.Email?.Trim().ToLowerInvariant() ?? "";
-        if (unitId == Guid.Empty || actorId == Guid.Empty || !AccountService.ValidCpf(cpf) || name.Length is < 2 or > 160 ||
-            name.Any(char.IsControl) || email.Length > 254 || !MailAddress.TryCreate(email, out var parsed) || parsed.Address != email) throw new ApiInputException();
-        return new(cpf, name, email, AccountService.NormalizePhone(patient.Phone), AccountService.NormalizeAddress(patient.Address));
+        var email = value?.Trim().ToLowerInvariant() ?? "";
+        if (email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email) throw new ApiInputException();
+        return email;
+    }
+
+    /// <summary>Cadastro normalizado e validado (CPF, nome de 2 a 160 caracteres, e-mail de <see cref="ValidEmail"/>, telefone e endereço), ou 400.</summary>
+    internal static UnitPatientRecord Normalize(Guid unitId, Guid actorId, UnitPatientRecord patient)
+    {
+        var cpf = AccountService.NormalizeCpf(patient.Cpf); var name = patient.FullName?.Trim() ?? "";
+        if (unitId == Guid.Empty || actorId == Guid.Empty || !AccountService.ValidCpf(cpf) || name.Length is < 2 or > 160 || name.Any(char.IsControl)) throw new ApiInputException();
+        return new(cpf, name, ValidEmail(patient.Email), AccountService.NormalizePhone(patient.Phone), AccountService.NormalizeAddress(patient.Address));
     }
 
     public async Task<List<UnitPatientRecord>> ListAsync(Guid unitId, CancellationToken ct = default)

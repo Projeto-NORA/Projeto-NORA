@@ -207,6 +207,24 @@ internal static class SchedulingChecks
             Require(await f.ScalarAsync<long>("SELECT count(*) FROM nora.unit_access_events") == accessEvents, "A leitura do catálogo pela Secretaria não deve gerar evento de acesso a dado pessoal.");
         });
 
+        await Check("Especialidade desativada já vinculada (C3): o PUT do profissional pode mantê-la e ela continua vinculada; vincular uma inativa nova no PUT ou qualquer inativa no POST → 400", async () =>
+        {
+            bool Has(JsonElement professional, Guid specialty) => professional.GetProperty("specialtyIds").EnumerateArray().Any(id => id.GetGuid() == specialty);
+            using (var on = await f.Municipal.PatchAsJsonAsync($"/api/municipal/specialties/{pediatrics}/active", new { isActive = true })) Expect(on, 200);
+            using (var linked = await f.Admin.PutAsJsonAsync($"/api/obs/units/{u1}/professionals/{bruno}", new { fullName = "Dr. Bruno Lima", specialtyIds = new[] { clinical, pediatrics } })) { Expect(linked, 200); Require(Has(await Read(linked), pediatrics), "Pré-condição: Pediatria vinculada enquanto ativa."); }
+            using (var off = await f.Municipal.PatchAsJsonAsync($"/api/municipal/specialties/{pediatrics}/active", new { isActive = false })) Expect(off, 200);
+            using (var keep = await f.Admin.PutAsJsonAsync($"/api/obs/units/{u1}/professionals/{bruno}", new { fullName = "Dr. Bruno Lima", specialtyIds = new[] { clinical, pediatrics } }))
+            { Expect(keep, 200); var body = await Read(keep); Require(Has(body, pediatrics) && Has(body, clinical), $"A especialidade inativa já vinculada continua vinculada: {body}."); }
+            using (var addInactive = await f.Admin.PutAsJsonAsync($"/api/obs/units/{u1}/professionals/{ana}", new { fullName = "Dra. Ana Souza", specialtyIds = new[] { cardiology, clinical, pediatrics }, councilAcronym = "CRM", councilNumber = "12345", councilState = "SC" })) Expect(addInactive, 400);
+            using (var postInactive = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/professionals", new { fullName = "Dra. Nova Pediatra", specialtyIds = new[] { clinical, pediatrics } })) Expect(postInactive, 400);
+            using (var list = await f.Admin.GetAsync($"/api/obs/units/{u1}/professionals"))
+            {
+                Expect(list, 200); var items = (await Read(list)).GetProperty("professionals").EnumerateArray().ToList();
+                Require(items.Count == 2 && !Has(items.Single(p => p.GetProperty("id").GetGuid() == ana), pediatrics), "As recusas não gravam nada.");
+            }
+            using (var remove = await f.Admin.PutAsJsonAsync($"/api/obs/units/{u1}/professionals/{bruno}", new { fullName = "Dr. Bruno Lima", specialtyIds = new[] { clinical } })) { Expect(remove, 200); Require(!Has(await Read(remove), pediatrics), "Tirar a inativa continua permitido."); }
+        });
+
         // ======== 3. Grade e bloqueios ========
         await Check("Grade semanal: criação, sobreposição do profissional e do consultório, vigência, duração, especialidade do profissional e perfis; bloqueios do profissional e da UBS", async () =>
         {

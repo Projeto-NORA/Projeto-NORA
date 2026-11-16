@@ -18,6 +18,9 @@ public sealed record DependentLink(Guid Id, string Status, Guid UnitId, string U
 public sealed record FamilyLinkForStaff(Guid Id, string Status, string GuardianName, string GuardianCpf, string DependentCpf, string? DependentName, DateTimeOffset RequestedAt,
     string? DecidedByName, DateTimeOffset? DecidedAt, string? DecisionReason);
 
+/// <summary>Página da lista da equipe: <c>cursor</c> (opaco) vai em <c>after</c> para pedir a próxima; é nulo quando <c>hasMore</c> é falso.</summary>
+public sealed record FamilyLinkPage(List<FamilyLinkForStaff> Links, string? Cursor, bool HasMore);
+
 /// <summary>Ofertas pendentes de um dependente, na rota agregada de consulta periódica.</summary>
 public sealed record DependentOffers(Guid DependentId, Guid UnitId, string UnitName, string DependentName, List<UnitLightningOffer> Offers);
 

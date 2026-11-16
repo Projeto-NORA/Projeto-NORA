@@ -24,6 +24,14 @@ public sealed class FamilyDao(DatabaseHelper database)
     internal Task LockGuardianAsync(NpgsqlConnection connection, Guid guardianId, CancellationToken ct) =>
         database.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419830))", ct, guardianId.ToString("N"));
 
+    /// <summary>
+    /// Lock de transação por dependente numa UBS (UBS + CPF): serializa o que muda ou decide quem responde por ele ali (encerrar pelo responsável ou pela equipe e aprovar), para que
+    /// <see cref="HasAccessAsync"/> nunca decida sobre um vínculo do mesmo CPF que outra transação está mudando. Tomado depois do lock da linha do próprio vínculo e antes de mudá-la; quem o segura
+    /// não espera nenhum outro lock de vínculo nem o lock de CPF 62419805, então não forma ciclo com o executor do responsável nem com o distribuidor de ofertas.
+    /// </summary>
+    internal Task LockDependentAsync(NpgsqlConnection connection, Guid unitId, string dependentCpf, CancellationToken ct) =>
+        database.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419813))", ct, unitId.ToString("N") + dependentCpf);
+
     internal async Task<(long Active, bool Duplicate)> CountActiveAsync(NpgsqlConnection connection, Guid guardianId, string dependentCpf, Guid unitId, CancellationToken ct)
     {
         await using var query = database.Command(connection, "SELECT count(*),COALESCE(bool_or(dependent_cpf=$2 AND unit_id=$3),false) FROM nora.family_links WHERE guardian_id=$1 AND status IN ('pending','approved')", guardianId, dependentCpf, unitId);
@@ -43,11 +51,16 @@ public sealed class FamilyDao(DatabaseHelper database)
         return await ReadAllAsync(query, ct);
     }
 
-    /// <summary>Pedidos de uma UBS por situação, do mais antigo ao mais novo (fila de conferência).</summary>
-    internal async Task<List<FamilyLinkRow>> ListForUnitAsync(Guid unitId, string status, int limit, CancellationToken ct)
+    /// <summary>
+    /// Pedidos de uma UBS por situação, do mais antigo ao mais novo (fila de conferência, ordem <c>requested_at, id</c>), a partir da posição <paramref name="after"/> (exclusiva) quando dada.
+    /// O <c>requested_at &gt;= $4</c> deixa o índice (unit_id, status, requested_at) achar o ponto de partida; a comparação de linha desempata pelo id.
+    /// </summary>
+    internal async Task<List<FamilyLinkRow>> ListForUnitAsync(Guid unitId, string status, int limit, (DateTimeOffset RequestedAt, Guid Id)? after, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        await using var query = database.Command(connection, $"SELECT {Columns} {From} WHERE l.unit_id=$1 AND l.status=$2 ORDER BY l.requested_at,l.id LIMIT $3", unitId, status, limit);
+        await using var query = after is { } position
+            ? database.Command(connection, $"SELECT {Columns} {From} WHERE l.unit_id=$1 AND l.status=$2 AND l.requested_at>=$4 AND (l.requested_at,l.id)>($4,$5) ORDER BY l.requested_at,l.id LIMIT $3", unitId, status, limit, position.RequestedAt, position.Id)
+            : database.Command(connection, $"SELECT {Columns} {From} WHERE l.unit_id=$1 AND l.status=$2 ORDER BY l.requested_at,l.id LIMIT $3", unitId, status, limit);
         return await ReadAllAsync(query, ct);
     }
 
@@ -75,7 +88,7 @@ public sealed class FamilyDao(DatabaseHelper database)
 
     /// <summary>
     /// UBS onde o CPF pode ter consultas marcadas pelo app, para o limite de uma consulta futura por especialidade na rede: UBS de vínculos de família aprovados ou já encerrados (de qualquer responsável; encerrar
-    /// o vínculo não cancela a consulta, que continua contando) e UBS vinculadas à conta de paciente do próprio CPF, se existir. Só entram as que existem; quem filtra as de banco pronto é o chamador.
+    /// o vínculo só cancela as consultas marcadas pelos responsáveis quando o dependente fica sem ninguém na UBS; nos demais casos elas continuam contando) e UBS vinculadas à conta de paciente do próprio CPF, se existir. Só entram as que existem; quem filtra as de banco pronto é o chamador.
     /// </summary>
     internal async Task<List<Guid>> NetworkUnitIdsAsync(string dependentCpf, CancellationToken ct)
     {

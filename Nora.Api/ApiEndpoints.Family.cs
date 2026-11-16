@@ -33,8 +33,10 @@ internal static partial class ApiEndpoints
         // ---- Responsável pelo dependente (rotas espelhadas das do paciente) ----
         const string d = "/dependents/{dependentId:guid}/units/{unitId:guid}";
         patient.MapGet(d + "/appointments", async (Guid dependentId, Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
-            Results.Ok(new { appointments = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, cpf => appointments.ListAsync(unitId, from, to, cpf, ct), ct) }))
-            .AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
+        {
+            var session = Session(context);
+            return Results.Ok(new { appointments = await access.ExecuteGuardianAsync(session, dependentId, unitId, cpf => appointments.ListForPatientAsync(unitId, from, to, cpf, session.User.Id, ct), ct) });
+        }).AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
         patient.MapPost(d + "/appointments", async (Guid dependentId, Guid unitId, PatientBookingRequest request, HttpContext context, SchedulingService service, CancellationToken ct) =>
             Results.Json(await service.GuardianBookAsync(Session(context), dependentId, unitId, request, ct), statusCode: StatusCodes.Status201Created))
             .AddEndpointFilter(new SchedulingRateLimitFilter(SchedulingRateLimiter.Booking));
@@ -81,8 +83,8 @@ internal static partial class ApiEndpoints
 
         // ---- Equipe da UBS: conferência dos pedidos ----
         var obs = app.MapGroup("/api/obs/units/{unitId:guid}/family-links").AddEndpointFilter(new SessionFilter("obs"));
-        obs.MapGet("", async (Guid unitId, string? status, int? limit, HttpContext context, UnitAccessService access, FamilyService family, CancellationToken ct) =>
-            Results.Ok(new { links = await access.ExecuteAsync(Session(context), unitId, () => family.ListForUnitAsync(unitId, status, limit, ct), ct) }));
+        obs.MapGet("", async (Guid unitId, string? status, int? limit, string? after, HttpContext context, UnitAccessService access, FamilyService family, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => family.ListForUnitAsync(unitId, status, limit, after, ct), ct)));
         obs.MapPost("/{id:guid}/approve", async (Guid unitId, Guid id, FamilyConfirmRequest request, HttpContext context, UnitAccessService access, FamilyService family, CancellationToken ct) =>
         {
             var session = Session(context);
