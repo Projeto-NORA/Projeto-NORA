@@ -268,17 +268,21 @@ public sealed partial class WorkspaceViewModel
     private int networkAlertsLoading, networkAlertsVersion;
     private CancellationTokenSource? networkAlertsCts;
     private DateTimeOffset? networkAlertsAttemptedAt, networkAlertsReadAt;
+    // UBS do filtro no momento da leitura: a API só avalia as de base pronta; as outras ficam de fora e não podem virar "nenhum critério passou".
+    private int networkAlertsEvaluatedUnits, networkAlertsSkippedUnits;
     public ObservableCollection<AlertRow> NetworkAlerts { get; } = [];
     public Guid AlertsUnitFilter { get => alertsUnitFilter; set { if (alertsUnitFilter == value) return; alertsUnitFilter = value; Notify(); ReloadNetworkAlerts(); } }
     public string AlertsRegion { get => alertsRegion; set { value ??= ""; if (alertsRegion == value) return; alertsRegion = value; Notify(); ReloadNetworkAlerts(); } }
     public bool CanFilterAlerts => IsAuthenticated && IsMunicipal;
     public string NetworkAlertsLoadingLabel => networkAlertsLoading > 0 ? "Avaliando os alertas…" : "";
     public string NetworkAlertsState => !IsAuthenticated ? "Entre na Secretaria para consultar os alertas."
-        : networkAlertsFailed && networkAlertsReadAt is null ? "Não foi possível avaliar os alertas da rede agora. Use Atualizar dados para tentar de novo."
+        : networkAlertsFailed && networkAlertsReadAt is null ? "Não foi possível avaliar os alertas da rede agora. Use Atualizar alertas para tentar de novo."
         : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "Avaliando os alertas…" : "Os alertas ainda não foram avaliados.")
-        : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. Use Atualizar dados para tentar de novo."
-        : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Nenhum critério passou do limite na leitura das {networkAlertsReadAt:HH:mm}."
+        : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. Use Atualizar alertas para tentar de novo."
+        : NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0 ? $"Os alertas deste filtro não foram avaliados: {(networkAlertsSkippedUnits == 1 ? "a UBS ainda não tem" : "nenhuma das UBS tem")} base pronta (leitura das {networkAlertsReadAt:HH:mm})."
+        : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Nenhum critério passou do limite na leitura das {networkAlertsReadAt:HH:mm}.{SkippedUnitsNote}"
         : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}." : "";
+    private string SkippedUnitsNote => networkAlertsSkippedUnits switch { 0 => "", 1 => " 1 UBS sem base pronta ficou de fora.", var count => $" {count} UBS sem base pronta ficaram de fora." };
     public string NetworkAlertsFootnote => NetworkAlerts.Count == 0 ? "" : $"{NetworkAlerts.Count} {(NetworkAlerts.Count == 1 ? "alerta" : "alertas")} · avaliado às {networkAlertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais mostram a situação atual. UBS sem base pronta ficam de fora.";
     private bool NetworkAlertsDue => networkAlertsAttemptedAt is null || DateTimeOffset.Now - networkAlertsAttemptedAt >= AlertsRefreshAge;
     private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(NetworkAlertsFootnote), nameof(CanFilterAlerts)];
@@ -295,9 +299,24 @@ public sealed partial class WorkspaceViewModel
         catch (NoraApiException) { networkAlertsFailed = true; NotifyNetworkAlerts(); throw; }
         if (disposed || !IsAuthenticated || cancellation.IsCancellationRequested || request.Unit != (alertsUnitFilter == Guid.Empty ? (Guid?)null : alertsUnitFilter) || request.Region != alertsRegion) return;
         networkAlertsFailed = false; networkAlertsLoaded = true; networkAlertsReadAt = DateTimeOffset.Now;
+        // Mesmo filtro da API (AlertService.ReadNetworkAsync): UBS escolhida e região sem diferenciar maiúsculas; só "ready" é avaliada.
+        var region = request.Region.Trim(); networkAlertsEvaluatedUnits = networkAlertsSkippedUnits = 0;
+        foreach (var unit in Units)
+        {
+            if ((request.Unit is { } only && unit.Id != only) || (region.Length > 0 && !string.Equals(unit.Region, region, StringComparison.OrdinalIgnoreCase))) continue;
+            if (unit.DatabaseState is null or "ready") networkAlertsEvaluatedUnits++; else networkAlertsSkippedUnits++;
+        }
         Replace(NetworkAlerts, alerts.Select(AlertRow.From).ToArray());
         NotifyNetworkAlerts();
     }
+
+    /// <summary>Avalia os alertas da rede de novo com o filtro atual (botão Atualizar alertas).</summary>
+    public Task RefreshNetworkAlertsAsync() => RunAsync(async () =>
+    {
+        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar os alertas.");
+        await LoadNetworkAlertsCoreAsync();
+        if (!networkAlertsFailed) Say(MessageKind.Success, NetworkAlerts.Count == 0 ? "Alertas avaliados: nenhum alerta neste filtro." : $"Alertas avaliados: {NetworkAlerts.Count}.");
+    });
 
     /// <summary>Uma requisição por mudança de filtro: a anterior é cancelada e só a mais nova altera a tela.</summary>
     private void ReloadNetworkAlerts()
@@ -368,10 +387,10 @@ public sealed partial class WorkspaceViewModel
     public string CapacityCatalogState => !IsAuthenticated ? ""
         : capacityUnit is null ? "Escolha uma UBS para ver os profissionais, os consultórios e a grade dela."
         : capacityUnit.DatabasePending ? "A base desta UBS ainda não foi criada: não há cadastro para ler."
-        : capacityCatalogFailed ? "Não foi possível ler o cadastro desta UBS agora. Use Atualizar dados para tentar de novo."
+        : capacityCatalogFailed ? "Não foi possível ler o cadastro desta UBS agora. Use Ler o cadastro de novo para tentar outra vez."
         : !capacityCatalogLoaded ? "Lendo o cadastro da UBS…"
         : CapacityProfessionals.Count + CapacityRooms.Count + CapacitySchedule.Count == 0 ? "Esta UBS ainda não cadastrou profissionais, consultórios nem grade." : "";
-    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState)];
+    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState), nameof(CanReloadCapacityCatalog)];
     private void NotifyCapacityCatalog() { foreach (var name in CapacityCatalogNames) Notify(name); }
 
     private async Task LoadCapacityCatalogCoreAsync(HealthUnit unit, CancellationToken cancellation = default)
@@ -401,6 +420,10 @@ public sealed partial class WorkspaceViewModel
             .Select(item => item with { ProfessionalName = capacityProfessionals.FirstOrDefault(p => p.Id == item.ProfessionalId)?.FullName ?? "—", RoomName = capacityRooms.FirstOrDefault(r => r.Id == item.RoomId)?.Name ?? "—", SpecialtyName = SpecialtyName(item.SpecialtyId) }).ToArray());
         NotifyCapacityCatalog();
     }
+
+    public bool CanReloadCapacityCatalog => IsAuthenticated && capacityUnit is { DatabasePending: false };
+    /// <summary>Botão "Ler o cadastro de novo": refaz a leitura da UBS escolhida, mantendo na tela o que já foi lido até a resposta.</summary>
+    public void RetryCapacityCatalog() { capacityCatalogFailed = false; ReloadCapacityCatalog(); }
 
     /// <summary>Uma leitura (três requisições em paralelo) por UBS escolhida; trocar de UBS cancela a anterior.</summary>
     private void ReloadCapacityCatalog()

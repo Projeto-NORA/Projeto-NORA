@@ -143,8 +143,24 @@ public sealed class NoraApiClient : IDisposable
     public Task<VaccineInfo> VoidVaccineAsync(Guid unitId, Guid id, string reason) => SendAsync<VaccineInfo>(HttpMethod.Post, $"api/obs/units/{unitId}/health-records/vaccines/{id}/void", new { reason, confirmed = true });
 
     // Família: pedidos de vínculo do responsável com um dependente, decididos pela equipe da UBS do dependente.
-    public async Task<FamilyLink[]> FamilyLinksAsync(Guid unitId, string status, CancellationToken cancellation = default) =>
-        (await SendAsync<FamilyLinkList>(HttpMethod.Get, $"api/obs/units/{unitId}/family-links?status={Uri.EscapeDataString(status)}&limit=200", cancellation: cancellation)).Links;
+    /// <summary>Teto de páginas de uma leitura da Família: protege a tela de uma lista sem fim; acima dele a leitura volta cortada e avisa.</summary>
+    public const int FamilyPageMax = 50;
+    /// <summary>Segue as páginas da lista da equipe pelo cursor (ordem requested_at, id) até a última ou até o teto de páginas.</summary>
+    public async Task<FamilyLinkPages> FamilyLinksAsync(Guid unitId, string status, CancellationToken cancellation = default)
+    {
+        var links = new List<FamilyLink>();
+        var path = $"api/obs/units/{unitId}/family-links?status={Uri.EscapeDataString(status)}&limit=200";
+        string? after = null;
+        for (var page = 0; page < FamilyPageMax; page++)
+        {
+            var result = await SendAsync<FamilyLinkList>(HttpMethod.Get, after is null ? path : $"{path}&after={Uri.EscapeDataString(after)}", cancellation: cancellation);
+            links.AddRange(result.Links);
+            if (!result.HasMore) return new([.. links], false);
+            if (string.IsNullOrEmpty(result.Cursor)) break;
+            after = result.Cursor;
+        }
+        return new([.. links], true);
+    }
     public Task<FamilyLink> ApproveFamilyLinkAsync(Guid unitId, Guid id) => SendAsync<FamilyLink>(HttpMethod.Post, $"api/obs/units/{unitId}/family-links/{id}/approve", new { confirmed = true });
     public Task<FamilyLink> RejectFamilyLinkAsync(Guid unitId, Guid id, string? reason) => SendAsync<FamilyLink>(HttpMethod.Post, $"api/obs/units/{unitId}/family-links/{id}/reject", new { confirmed = true, reason });
     public Task<FamilyLink> EndFamilyLinkAsync(Guid unitId, Guid id) => SendAsync<FamilyLink>(HttpMethod.Post, $"api/obs/units/{unitId}/family-links/{id}/end", new { confirmed = true });
@@ -356,7 +372,7 @@ public sealed class NoraApiClient : IDisposable
         if (path.Contains("/health-records/exams/", StringComparison.Ordinal) && path.EndsWith("/status", StringComparison.Ordinal)) return "Este exame já foi alterado por outra pessoa: só um exame solicitado pode virar realizado ou cancelado. Atualize a lista.";
         if (path.Contains("/health-records/", StringComparison.Ordinal) && path.EndsWith("/void", StringComparison.Ordinal)) return "Este registro já foi anulado. Atualize a lista.";
         if (path.EndsWith("/professionals", StringComparison.Ordinal)) return "Já existe um profissional com este nome nesta UBS.";
-        if (path.Contains("/professionals/", StringComparison.Ordinal)) return method == HttpMethod.Patch ? "A situação do profissional mudou. Atualize a lista." : "Não foi possível salvar: já existe um profissional com este nome ou uma especialidade retirada ainda tem horário na grade (remova a grade antes).";
+        if (path.Contains("/professionals/", StringComparison.Ordinal)) return method == HttpMethod.Patch ? "A situação do profissional mudou. Atualize a lista." : "Não foi possível salvar: já existe um profissional com este nome, ou uma especialidade desmarcada ainda tem horários deste profissional na grade. Deixe essa especialidade marcada; se ela foi desativada pela Secretaria, use Editar profissional selecionado para recuperá-la.";
         if (path.EndsWith("/rooms", StringComparison.Ordinal) || path.Contains("/rooms/", StringComparison.Ordinal)) return "Já existe um consultório com este nome nesta UBS.";
         if (path.EndsWith("/schedule", StringComparison.Ordinal) || path.Contains("/schedule/", StringComparison.Ordinal))
             return "Sobreposição: o profissional ou o consultório já tem horário neste dia da semana que cruza o intervalo informado (encostar não é sobrepor). Ajuste o horário, o dia ou a vigência. Se nada cruza, o profissional ou o consultório pode ter sido desativado por outra pessoa: atualize as configurações.";

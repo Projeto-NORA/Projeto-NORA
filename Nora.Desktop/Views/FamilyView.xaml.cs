@@ -16,7 +16,7 @@ public partial class FamilyView : UserControl
     {
         if (Workspace is not { SelectedPendingFamily: { } link, CanDecideFamily: true } vm) return;
         if (!Confirmation.Ask(Window.GetWindow(this), "Aprovar vínculo de família",
-            $"Aprovar o vínculo entre {link.GuardianName} (CPF {link.GuardianCpfDisplay}) e {link.DependentDisplay} (CPF {link.DependentCpfDisplay})?\n\nConfira antes os documentos do responsável e do dependente: o sistema não confere idade nem parentesco.\n\nDepois de aprovado, o responsável poderá agendar e cancelar consultas, confirmar presença, entrar na fila, responder ofertas e ver exames e vacinas do dependente pelo aplicativo."))
+            $"Aprovar o vínculo entre {link.GuardianName} (CPF {link.GuardianCpfDisplay}) e {link.DependentDisplay} (CPF {link.DependentCpfDisplay})?\n\nConfira antes os documentos do responsável e do dependente: o sistema não confere idade nem parentesco.\n\nDepois de aprovado, o responsável poderá agendar e cancelar consultas, confirmar presença, ver a fila e sair dela, responder ofertas e ver exames e vacinas do dependente pelo aplicativo."))
             return;
         await vm.ApproveFamilyAsync();
     }

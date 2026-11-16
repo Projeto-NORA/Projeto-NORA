@@ -218,8 +218,9 @@ public sealed partial class WorkspaceViewModel
         var patient = AppointmentPatient ?? throw new NoraApiException("Selecione o paciente cadastrado na UBS.");
         if (ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf) is not { IsActive: true }) throw new NoraApiException("O paciente precisa ter um cadastro ativo nesta UBS.");
         if (BookingSpecialty is null) throw new NoraApiException("Escolha a especialidade.");
-        if (BookingProfessional is null) throw new NoraApiException("Escolha o profissional.");
+        if (BookingProfessional is not { } professional) throw new NoraApiException("Escolha o profissional.");
         var slot = BookingSlot ?? throw new NoraApiException("Escolha um horário livre da lista.");
+        if (slot.ProfessionalId != professional.Id || slot.SpecialtyId != BookingSpecialty.Id) throw new NoraApiException("O horário escolhido é de outro profissional ou especialidade. Escolha um horário livre da lista atual.");
         try { await api.CreateAppointmentAsync(unit.Id, patient.Cpf, slot.SpecialtyName, slot.ProfessionalName, slot.StartsAt, slot.EndsAt, slot.ProfessionalId, slot.SpecialtyId); }
         catch (NoraApiException error) when (error.Code is "slot-unavailable" or "catalog-required" or "patient-overlap")
         {

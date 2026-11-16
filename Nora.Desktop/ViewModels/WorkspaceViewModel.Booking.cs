@@ -18,6 +18,8 @@ public sealed partial class WorkspaceViewModel
     private bool bookingSlotsLoaded, bookingSlotsFailed;
     private int bookingLoading, bookingVersion;
     private CancellationTokenSource? bookingCts;
+    /// <summary>Especialidade e profissional dos horários na lista: outra escolha zera a lista antes da leitura, para uma falha não deixar horários do anterior.</summary>
+    private (Guid Specialty, Guid Professional)? bookingSlotsFor;
     /// <summary>Especialidades ativas que ao menos um profissional ativo atende.</summary>
     public ObservableCollection<Specialty> BookingSpecialties { get; } = [];
     /// <summary>Profissionais ativos da especialidade escolhida.</summary>
@@ -108,7 +110,7 @@ public sealed partial class WorkspaceViewModel
     {
         Interlocked.Exchange(ref bookingCts, null)?.Cancel();
         bookingVersion++;
-        BookingSlots.Clear(); BookingSlot = null; bookingSlotsLoaded = bookingSlotsFailed = false;
+        BookingSlots.Clear(); BookingSlot = null; bookingSlotsLoaded = bookingSlotsFailed = false; bookingSlotsFor = null;
         NotifyBooking();
     }
 
@@ -122,6 +124,8 @@ public sealed partial class WorkspaceViewModel
         Interlocked.Exchange(ref bookingCts, cancellation)?.Cancel();
         var version = ++bookingVersion;
         bookingSlotsLoaded = bookingSlotsFailed = false;
+        // Só a troca de dia (mesmo par) mantém a lista e o horário escolhido até a resposta; trocar especialidade ou profissional começa vazio.
+        if (bookingSlotsFor != (specialty.Id, professional.Id)) { BookingSlots.Clear(); BookingSlot = null; bookingSlotsFor = (specialty.Id, professional.Id); }
         _ = RunBookingSlotsAsync(unit, specialty, professional, from, from.AddDays(BookingLookAheadDays), version, cancellation.Token);
     }
 

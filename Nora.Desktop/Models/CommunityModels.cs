@@ -116,7 +116,10 @@ public sealed record FamilyLink(Guid Id, string Status, string GuardianName, str
     [JsonIgnore] public string DecidedDisplay => DecidedAt is { } at ? $"{at.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture)}{(string.IsNullOrWhiteSpace(DecidedByName) ? "" : " por " + DecidedByName)}" : "—";
     [JsonIgnore] public string AutomationLabel => $"Responsável {GuardianName}, dependente {DependentDisplay}, pedido em {RequestedAtDisplay}.";
 }
-public sealed record FamilyLinkList(FamilyLink[] Links);
+/// <summary>Uma página da lista da equipe: <see cref="Cursor"/> é opaco e vai em <c>after</c> para a página seguinte; <see cref="HasMore"/> diz se ela existe (API antiga sem paginação: falso).</summary>
+public sealed record FamilyLinkList(FamilyLink[] Links, string? Cursor = null, bool HasMore = false);
+/// <summary>Todas as páginas lidas de uma situação; <see cref="Truncated"/> diz que a leitura parou no teto de páginas e ainda havia mais.</summary>
+public sealed record FamilyLinkPages(FamilyLink[] Links, bool Truncated);
 
 /// <summary>Quantas consultas futuras seriam canceladas e quantas entradas de fila seriam encerradas se o cadastro fosse desativado.</summary>
 public sealed record DeactivationPreview(int FutureAppointments, int ActiveWaitingEntries);

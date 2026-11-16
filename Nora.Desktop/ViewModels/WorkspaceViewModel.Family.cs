@@ -12,7 +12,8 @@ namespace Nora.Desktop.ViewModels;
 public sealed partial class WorkspaceViewModel
 {
     public const int FamilyReasonMax = 280;
-    private bool familyPendingLoaded, familyApprovedLoaded, familyFailed;
+    // Cada leitura tem o próprio indicador: a falha de uma não pode fazer a outra, lida agora, parecer da leitura anterior.
+    private bool familyPendingLoaded, familyApprovedLoaded, familyPendingFailed, familyApprovedFailed, familyPendingTruncated, familyApprovedTruncated;
     private bool familyLoaded => familyPendingLoaded && familyApprovedLoaded;
     private FamilyLink? selectedPendingFamily, selectedApprovedFamily;
     private string familyRejectReason = "";
@@ -29,35 +30,47 @@ public sealed partial class WorkspaceViewModel
     public string FamilyRejectReasonError => familyRejectReason.Trim().Length > FamilyReasonMax ? $"O motivo pode ter até {FamilyReasonMax} caracteres."
         : familyRejectReason.Any(char.IsControl) ? "O motivo não aceita quebra de linha nem caracteres de controle." : "";
     public string FamilyPendingState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os pedidos de família."
-        : !familyPendingLoaded ? (familyFailed ? "Não foi possível ler os pedidos agora. Use Atualizar para tentar de novo." : "Carregando os pedidos…")
-        : familyFailed ? "A última leitura não concluiu; estes são os pedidos da leitura anterior."
+        : !familyPendingLoaded ? (familyPendingFailed ? "Não foi possível ler os pedidos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os pedidos…")
+        : familyPendingFailed ? "A última leitura não concluiu; estes são os pedidos da leitura anterior."
+        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Decida estes e use Atualizar pedidos para ver os seguintes."
         : FamilyPending.Count == 0 ? "Nenhum pedido aguardando decisão nesta UBS." : "";
     public string FamilyApprovedState => !HasActiveObsUnit ? ""
-        : !familyApprovedLoaded ? (familyFailed ? "Não foi possível ler os vínculos agora. Use Atualizar para tentar de novo." : "Carregando os vínculos…")
-        : familyFailed ? "A última leitura não concluiu; estes são os vínculos da leitura anterior."
+        : !familyApprovedLoaded ? (familyApprovedFailed ? "Não foi possível ler os vínculos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os vínculos…")
+        : familyApprovedFailed ? "A última leitura não concluiu; estes são os vínculos da leitura anterior."
+        : familyApprovedTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyApproved.Count} mais antigos; os mais novos não aparecem."
         : FamilyApproved.Count == 0 ? "Nenhum vínculo aprovado nesta UBS." : "";
-    public string FamilySummary => !familyLoaded ? "" : $"{FamilyPending.Count} {(FamilyPending.Count == 1 ? "pedido aguardando" : "pedidos aguardando")} · {FamilyApproved.Count} {(FamilyApproved.Count == 1 ? "vínculo aprovado" : "vínculos aprovados")}";
+    /// <summary>Com a lista cortada no teto de páginas, o total não é conhecido: o resumo diz "ou mais".</summary>
+    public string FamilySummary => !familyLoaded ? ""
+        : $"{FamilyCount(FamilyPending.Count, familyPendingTruncated, "pedido aguardando", "pedidos aguardando")} · {FamilyCount(FamilyApproved.Count, familyApprovedTruncated, "vínculo aprovado", "vínculos aprovados")}";
+    private static string FamilyCount(int count, bool truncated, string one, string many) => truncated ? $"{count} ou mais {many}" : $"{count} {(count == 1 ? one : many)}";
     private static readonly string[] FamilyNames = [nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(FamilySummary), nameof(CanDecideFamily), nameof(CanEndFamily)];
     private void NotifyFamily() { foreach (var name in FamilyNames) Notify(name); }
 
     /// <summary>Aplica a leitura; mantém a seleção pelo id e não recria linhas que não mudaram.</summary>
-    private void ApplyFamily(Tolerant<FamilyLink[]>? pendingRead, Tolerant<FamilyLink[]>? approvedRead)
+    private void ApplyFamily(Tolerant<FamilyLinkPages>? pendingRead, Tolerant<FamilyLinkPages>? approvedRead)
     {
-        if (pendingRead?.Value is { } pending)
+        if (pendingRead is { } pendingResult)
         {
-            var selected = SelectedPendingFamily?.Id;
-            Replace(FamilyPending, pending.OrderBy(link => link.RequestedAt).ToArray());
-            SelectedPendingFamily = selected is null ? null : FamilyPending.FirstOrDefault(link => link.Id == selected);
-            familyPendingLoaded = true;
+            familyPendingFailed = pendingResult.Failed;
+            if (pendingResult.Value is { } pending)
+            {
+                var selected = SelectedPendingFamily?.Id;
+                Replace(FamilyPending, pending.Links.OrderBy(link => link.RequestedAt).ToArray());
+                SelectedPendingFamily = selected is null ? null : FamilyPending.FirstOrDefault(link => link.Id == selected);
+                familyPendingLoaded = true; familyPendingTruncated = pending.Truncated;
+            }
         }
-        if (approvedRead?.Value is { } approved)
+        if (approvedRead is { } approvedResult)
         {
-            var selected = SelectedApprovedFamily?.Id;
-            Replace(FamilyApproved, approved.OrderBy(link => link.GuardianName, StringComparer.CurrentCultureIgnoreCase).ThenBy(link => link.RequestedAt).ToArray());
-            SelectedApprovedFamily = selected is null ? null : FamilyApproved.FirstOrDefault(link => link.Id == selected);
-            familyApprovedLoaded = true;
+            familyApprovedFailed = approvedResult.Failed;
+            if (approvedResult.Value is { } approved)
+            {
+                var selected = SelectedApprovedFamily?.Id;
+                Replace(FamilyApproved, approved.Links.OrderBy(link => link.GuardianName, StringComparer.CurrentCultureIgnoreCase).ThenBy(link => link.RequestedAt).ToArray());
+                SelectedApprovedFamily = selected is null ? null : FamilyApproved.FirstOrDefault(link => link.Id == selected);
+                familyApprovedLoaded = true; familyApprovedTruncated = approved.Truncated;
+            }
         }
-        familyFailed = (pendingRead?.Failed ?? false) || (approvedRead?.Failed ?? false);
         NotifyFamily();
     }
 
@@ -65,7 +78,11 @@ public sealed partial class WorkspaceViewModel
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de ver os pedidos de família.");
         await LoadUnitScopeAsync(unit, UnitScope.Family);
-        if (ActiveObsUnit?.Id == unit.Id && familyFailed) { Say(MessageKind.Error, "Não foi possível ler os pedidos de família agora. O que já estava na tela foi mantido."); return; }
+        if (ActiveObsUnit?.Id == unit.Id && (familyPendingFailed || familyApprovedFailed))
+        {
+            var what = !familyApprovedFailed ? "os pedidos aguardando decisão" : !familyPendingFailed ? "os vínculos aprovados" : "os pedidos de família";
+            Say(MessageKind.Error, $"Não foi possível ler {what} agora. O que já estava na tela foi mantido."); return;
+        }
         if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, FamilyPending.Count == 0 ? "Lista atualizada: nenhum pedido aguardando." : $"Lista atualizada: {FamilySummary}.");
     });
 
@@ -109,7 +126,7 @@ public sealed partial class WorkspaceViewModel
 
     private void ClearFamily()
     {
-        familyPendingLoaded = familyApprovedLoaded = familyFailed = false; FamilyPending.Clear(); FamilyApproved.Clear(); selectedPendingFamily = selectedApprovedFamily = null; familyRejectReason = "";
+        familyPendingLoaded = familyApprovedLoaded = familyPendingFailed = familyApprovedFailed = familyPendingTruncated = familyApprovedTruncated = false; FamilyPending.Clear(); FamilyApproved.Clear(); selectedPendingFamily = selectedApprovedFamily = null; familyRejectReason = "";
         Notify(nameof(SelectedPendingFamily)); Notify(nameof(SelectedApprovedFamily)); Notify(nameof(FamilyRejectReason)); Notify(nameof(FamilyRejectReasonError)); NotifyFamily();
     }
 }

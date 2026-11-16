@@ -56,7 +56,7 @@
             <TextBlock Text="Especialidades (da lista da rede)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
             <ItemsControl ItemsSource="{Binding ProfessionalSpecialtyChoices}" AutomationProperties.Name="Especialidades do profissional">
               <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Name}" Margin="0,0,18,8" Checked="OnSpecialtyChoice" Unchecked="OnSpecialtyChoice" AutomationProperties.Name="{Binding Name}" /></DataTemplate></ItemsControl.ItemTemplate>
+              <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanCheck}" Content="{Binding Name}" Margin="0,0,18,8" Checked="OnSpecialtyChoice" Unchecked="OnSpecialtyChoice" AutomationProperties.Name="{Binding Name}" /></DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
             <TextBlock Text="A Secretaria ainda não cadastrou especialidades ativas. Peça a ela para cadastrá-las na seção Especialidades." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding NoSpecialtyChoices, Converter={StaticResource BoolVisibility}}" />
             <TextBlock Text="{Binding ProfessionalSpecialtyError}" Style="{StaticResource FieldError}" Margin="0,0,0,8" Visibility="{Binding ProfessionalSpecialtyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />

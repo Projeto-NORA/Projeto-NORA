@@ -329,6 +329,7 @@ internal static partial class Program
         RunSecretariaSchedulingChecks(application, storageRoot, args);
         RunCommunityChecks(application, storageRoot, args);
         RunReviewFixesChecks(application, storageRoot, args);
+        RunReviewLoop2Checks(storageRoot, args);
         RunAgendaAndQueueChecks(application, storageRoot, args);
         RunMessageChecks(application, storageRoot, args);
         RunSecretariaChecks(application, storageRoot, args);

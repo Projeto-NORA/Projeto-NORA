@@ -56,8 +56,8 @@ public sealed partial class WorkspaceViewModel
         public Tolerant<UnitMetrics>? Capacity { get; init; }
         public Tolerant<AlertItem[]>? Alerts { get; init; }
         public DateTimeOffset AlertsAt { get; init; }
-        public Tolerant<FamilyLink[]>? FamilyPending { get; init; }
-        public Tolerant<FamilyLink[]>? FamilyApproved { get; init; }
+        public Tolerant<FamilyLinkPages>? FamilyPending { get; init; }
+        public Tolerant<FamilyLinkPages>? FamilyApproved { get; init; }
     }
 
     private static async Task<Tolerant<T>> ReadTolerantAsync<T>(Func<Task<T>> read)

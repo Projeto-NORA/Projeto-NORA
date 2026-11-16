@@ -42,6 +42,14 @@ internal static partial class Program
         public bool FailHealthRecords { get; set; }
         /// <summary>Leituras dos pedidos de família respondem 500 (uma base sem a migração, por exemplo).</summary>
         public bool FailFamily { get; set; }
+        /// <summary>Só as leituras destas situações (pending, approved) respondem 500.</summary>
+        public HashSet<string> FailFamilyStatuses { get; } = [];
+        /// <summary>Teto de itens por página que esta fixture devolve, mesmo com limit maior (o contrato não promete página cheia).</summary>
+        public int? FamilyPageCap { get; set; }
+        /// <summary>Consulta (query string) de cada leitura da lista de família da equipe.</summary>
+        public List<System.Collections.Specialized.NameValueCollection> FamilyLinkQueries { get; } = [];
+        /// <summary>A lista de comunicados da própria conta (Secretaria) responde 500.</summary>
+        public bool FailMyAnnouncements { get; set; }
         public int HoldNextHealthQueries { get; set; }
         public int HoldNextHealthWrites { get; set; }
         public List<TaskCompletionSource<bool>> HeldHealthWrites { get; } = [];
@@ -104,6 +112,7 @@ internal static partial class Program
             }
             if (path == "/api/municipal/announcements" && method == HttpMethod.Get)
             {
+                if (FailMyAnnouncements) return Problem(HttpStatusCode.InternalServerError, "internal-error");
                 var before = query["before"] is { } beforeText ? long.Parse(beforeText, CultureInfo.InvariantCulture) : long.MaxValue;
                 var limit = query["limit"] is { } limitText ? int.Parse(limitText, CultureInfo.InvariantCulture) : 50;
                 var ordered = Announcements.Where(item => item.Sequence < before).OrderByDescending(item => item.Sequence).ToList();
@@ -190,6 +199,17 @@ internal static partial class Program
             FamilyLinks.Add((unitId, link)); return link;
         }
         public FamilyLink? FamilyLinkOf(Guid id) => FamilyLinks.Where(entry => entry.Link.Id == id).Select(entry => entry.Link).FirstOrDefault();
+        private static string FamilyCursor(FamilyLink link) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{link.RequestedAt.UtcTicks}:{link.Id:N}")).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        private static (DateTimeOffset At, Guid Id)? FamilyCursorPosition(string cursor)
+        {
+            try
+            {
+                var text = cursor.Replace('-', '+').Replace('_', '/'); text = text.PadRight(text.Length + (4 - text.Length % 4) % 4, '=');
+                var parts = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(text)).Split(':');
+                return parts.Length == 2 && long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var ticks) && Guid.TryParseExact(parts[1], "N", out var id) ? (new DateTimeOffset(ticks, TimeSpan.Zero), id) : null;
+            }
+            catch (FormatException) { return null; }
+        }
 
         /// <summary>Rotas por UBS da Jornada, da Família e da prévia da desativação; nulo para o que a fixture antiga já trata.</summary>
         private HttpResponseMessage? HandleUnitCommunity(HttpRequestMessage request, Guid unitId, string[] rest, JsonDocument? payload)
@@ -208,10 +228,25 @@ internal static partial class Program
             }
             if (rest is ["family-links"] && method == HttpMethod.Get)
             {
-                if (FailFamily) return Problem(HttpStatusCode.InternalServerError, "internal-error");
+                FamilyLinkQueries.Add(query);
                 var status = query["status"] ?? "pending";
+                if (FailFamily || FailFamilyStatuses.Contains(status)) return Problem(HttpStatusCode.InternalServerError, "internal-error");
                 if (status is not ("pending" or "approved")) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                return Reply(new FamilyLinkList([.. FamilyLinks.Where(entry => entry.Unit == unitId && entry.Link.Status == status).Select(entry => entry.Link).OrderBy(link => link.RequestedAt)]));
+                // Contrato de paginação: limit de 1 a 200 (padrão 100), ordem requested_at e id, cursor opaco do último item; after inválido = 400.
+                var limit = 100;
+                if (query["limit"] is { } limitText && (!int.TryParse(limitText, NumberStyles.None, CultureInfo.InvariantCulture, out limit) || limit is < 1 or > 200)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
+                (DateTimeOffset At, Guid Id)? after = null;
+                if (query["after"] is { } afterText)
+                {
+                    if (FamilyCursorPosition(afterText) is not { } position) return Problem(HttpStatusCode.BadRequest, "invalid-input");
+                    after = position;
+                }
+                var ordered = FamilyLinks.Where(entry => entry.Unit == unitId && entry.Link.Status == status).Select(entry => entry.Link)
+                    .Where(link => after is not { } start || link.RequestedAt > start.At || (link.RequestedAt == start.At && link.Id.CompareTo(start.Id) > 0))
+                    .OrderBy(link => link.RequestedAt).ThenBy(link => link.Id).ToList();
+                var page = ordered.Take(Math.Min(limit, FamilyPageCap ?? limit)).ToArray();
+                var hasMore = ordered.Count > page.Length;
+                return Reply(new FamilyLinkList(page, hasMore ? FamilyCursor(page[^1]) : null, hasMore));
             }
             if (rest is ["family-links", var linkText, var action] && method == HttpMethod.Post && Guid.TryParse(linkText, out var linkId) && action is "approve" or "reject" or "end")
             {

@@ -21,6 +21,8 @@ public sealed class HealthRecordsViewModel : ObservableObject
     private readonly string cpf;
     private readonly Func<NoraApiException, bool>? onApiError;
     private bool includeVoided, busy, loading, loaded, failed, submittedExam, submittedVaccine, submittedVoid, submittedDone;
+    /// <summary>Filtro "Mostrar anulados" com que a lista na tela foi lida: depois de uma leitura falha ele pode ser diferente do marcado.</summary>
+    private bool loadedWithVoided;
     private int loadVersion;
     private CancellationTokenSource? loadCts;
     private string message = "", examName = "", examNote = "", examDoneDate = "", vaccineName = "", vaccineDate = "", vaccineNote = "", voidReason = "";
@@ -64,7 +66,8 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public string RegisterNotice => CanRegister ? "" : "O cadastro deste paciente está desativado nesta UBS: a Jornada só pode ser consultada. Reative o cadastro para registrar exames e vacinas.";
     public bool HasRegisterNotice => !CanRegister;
     public string ListState => !loaded ? (failed ? "Não foi possível ler a Jornada agora. Use Atualizar para tentar de novo." : "Carregando a Jornada…")
-        : Exams.Count + Vaccines.Count == 0 ? (includeVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Os registros anulados ficam ocultos: marque \"Mostrar anulados\" para vê-los.") : "";
+        : failed && loadedWithVoided != includeVoided ? $"A leitura com o filtro novo não concluiu: a lista abaixo ainda é a da leitura anterior, que {(loadedWithVoided ? "inclui os anulados" : "não inclui os anulados")}. Use Atualizar para tentar de novo."
+        : Exams.Count + Vaccines.Count == 0 ? (loadedWithVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Os registros anulados ficam ocultos: marque \"Mostrar anulados\" para vê-los.") : "";
     public string ExamsState => loaded && Exams.Count == 0 ? "Nenhum exame." : "";
     public string VaccinesState => loaded && Vaccines.Count == 0 ? "Nenhuma vacina." : "";
 
@@ -88,9 +91,10 @@ public sealed class HealthRecordsViewModel : ObservableObject
         SetLoading(true);
         try
         {
-            var records = await api.HealthRecordsAsync(unitId, cpf, includeVoided, cancellation.Token);
+            var withVoided = includeVoided;
+            var records = await api.HealthRecordsAsync(unitId, cpf, withVoided, cancellation.Token);
             if (version != loadVersion || cancellation.IsCancellationRequested) return;
-            Apply(records);
+            Apply(records, withVoided);
         }
         catch (OperationCanceledException) { return; }
         catch (NoraApiException error)
@@ -102,8 +106,9 @@ public sealed class HealthRecordsViewModel : ObservableObject
         finally { if (version == loadVersion) SetLoading(false); }
     }
 
-    private void Apply(HealthRecords records)
+    private void Apply(HealthRecords records, bool withVoided)
     {
+        loadedWithVoided = withVoided;
         var examId = selectedExam?.Id; var vaccineId = selectedVaccine?.Id;
         Exams.Clear(); foreach (var exam in records.Exams) Exams.Add(exam);
         Vaccines.Clear(); foreach (var vaccine in records.Vaccines) Vaccines.Add(vaccine);
@@ -274,7 +279,8 @@ public sealed class HealthRecordsViewModel : ObservableObject
         SetLoading(true);
         try
         {
-            Apply(await api.HealthRecordsAsync(unitId, cpf, includeVoided, cancellation.Token));
+            var withVoided = includeVoided;
+            Apply(await api.HealthRecordsAsync(unitId, cpf, withVoided, cancellation.Token), withVoided);
             Say(MessageKind.Success, success);
         }
         catch (NoraApiException error) when (!error.Unauthorized)

@@ -103,7 +103,9 @@ internal static partial class Program
                     var ids = body.TryGetProperty("specialtyIds", out var list) && list.ValueKind == JsonValueKind.Array ? list.EnumerateArray().Select(item => Guid.Parse(item.GetString()!)).ToArray() : [];
                     var council = new[] { Text(body, "councilAcronym"), Text(body, "councilNumber"), Text(body, "councilState") };
                     var editing = method == HttpMethod.Put ? Guid.Parse(rest[1]) : (Guid?)null;
-                    if (name.Length is < 2 or > 160 || ids.Length == 0 || ids.Any(id => Specialties.FirstOrDefault(s => s.Id == id) is not { IsActive: true }) || council.Any(item => item is null) != council.All(item => item is null)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
+                    // Especialidade desativada pela Secretaria só é aceita se já estava vinculada a este profissional (a edição a mantém); vínculo novo exige especialidade ativa.
+                    var linked = editing is { } editingId ? state.Professionals.FirstOrDefault(item => item.Id == editingId)?.SpecialtyIds ?? Array.Empty<Guid>() : Array.Empty<Guid>();
+                    if (name.Length is < 2 or > 160 || ids.Length == 0 || ids.Any(id => Specialties.FirstOrDefault(s => s.Id == id) is not { } specialty || (!specialty.IsActive && !linked.Contains(id))) || council.Any(item => item is null) != council.All(item => item is null)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
                     if (state.Professionals.Any(item => item.Id != editing && string.Equals(item.FullName, name, StringComparison.OrdinalIgnoreCase))) return Problem(HttpStatusCode.Conflict, "conflict");
                     if (editing is { } id1)
                     {
@@ -275,6 +277,7 @@ internal static partial class Program
                 case ["api", "municipal", "units", var unitText, "professionals" or "rooms" or "schedule"] when method == HttpMethod.Get:
                 {
                     var id = Guid.Parse(unitText); if (units.All(item => item.Id != id)) return Problem(HttpStatusCode.NotFound, "not-found");
+                    if (FailCatalogUnits.Contains(id)) return Problem(HttpStatusCode.InternalServerError, "internal-error");
                     var state = Sched(id);
                     return parts[4] switch { "professionals" => Reply(new { professionals = state.Professionals.ToArray() }), "rooms" => Reply(new { rooms = state.Rooms.ToArray() }), _ => Reply(new { schedule = state.Schedule.ToArray() }) };
                 }

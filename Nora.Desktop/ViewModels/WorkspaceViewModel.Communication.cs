@@ -206,7 +206,7 @@ public sealed partial class WorkspaceViewModel
         }
     }
     public string MyAnnouncementsState => !IsAuthenticated ? "Entre na Secretaria para ver seus comunicados."
-        : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. Use Atualizar para tentar de novo." : "Carregando seus comunicados…")
+        : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. Use Atualizar lista para tentar de novo." : "Carregando seus comunicados…")
         : MyAnnouncements.Count == 0 ? "Você ainda não publicou comunicados." : "";
     public string MyAnnouncementsFootnote => !myAnnouncementsLoaded || MyAnnouncements.Count == 0 ? ""
         : $"{MyAnnouncements.Count} {(MyAnnouncements.Count == 1 ? "comunicado" : "comunicados")} carregado(s){(myAnnouncementsNext is null ? "." : "; há mais antigos.")} A contagem de leituras é de contas que marcaram como lido; a de pacientes não mostra quem leu.";
@@ -273,7 +273,7 @@ public sealed partial class WorkspaceViewModel
         catch (NoraApiException error) when (!error.Unauthorized)
         {
             MarkStale();
-            Say(MessageKind.Success, success + " Não foi possível atualizar a lista; use Atualizar.");
+            Say(MessageKind.Success, success + " Não foi possível atualizar a lista; use Atualizar lista.");
         }
     }
 

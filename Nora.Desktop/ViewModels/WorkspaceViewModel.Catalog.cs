@@ -10,13 +10,17 @@ namespace Nora.Desktop.ViewModels;
 public sealed record GuidChoice(Guid Id, string Label);
 public sealed record WeekdayOption(int Day, string Label);
 
-/// <summary>Uma especialidade marcável no formulário do profissional.</summary>
+/// <summary>
+/// Uma especialidade marcável no formulário do profissional. Uma especialidade desativada pela Secretaria só aparece na edição de um profissional que já a tem:
+/// continua marcada (o PUT a mantém), mas, desmarcada, não pode ser marcada de novo (vínculo novo exige especialidade ativa).
+/// </summary>
 public sealed class SpecialtyChoice(Specialty specialty, bool isChecked) : ObservableObject
 {
     private bool selected = isChecked;
     public Specialty Specialty { get; } = specialty;
-    public string Name => Specialty.Name;
-    public bool IsChecked { get => selected; set { if (selected == value) return; selected = value; Notify(); } }
+    public string Name => Specialty.IsActive ? Specialty.Name : Specialty.Name + " (desativada pela Secretaria)";
+    public bool CanCheck => Specialty.IsActive || selected;
+    public bool IsChecked { get => selected; set { if (selected == value || (value && !CanCheck)) return; selected = value; Notify(); Notify(nameof(CanCheck)); } }
 }
 
 /// <summary>
@@ -132,9 +136,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Listas dos formulários e do agendamento derivadas da leitura: só entram especialidades, profissionais e consultórios ativos.</summary>
     private void RebuildCatalogChoices()
     {
-        var checkedIds = ProfessionalSpecialtyChoices.Where(choice => choice.IsChecked).Select(choice => choice.Specialty.Id).ToHashSet();
-        var active = ObsSpecialties.Where(item => item.IsActive).ToArray();
-        if (!ProfessionalSpecialtyChoices.Select(choice => choice.Specialty).SequenceEqual(active)) Replace(ProfessionalSpecialtyChoices, active.Select(item => new SpecialtyChoice(item, checkedIds.Contains(item.Id))).ToArray());
+        RebuildProfessionalChoices(ProfessionalSpecialtyChoices.Where(choice => choice.IsChecked).Select(choice => choice.Specialty.Id).ToHashSet());
         // Trocar a lista por baixo de um ComboBox faz ele gravar null na escolha (o item sumiu da lista); isso não é uma escolha da pessoa.
         // As escolhas do rascunho da grade são guardadas antes da troca e voltam depois, pelo id.
         var professionalId = scheduleProfessional?.Id; var roomId = scheduleRoom?.Id;
@@ -157,6 +159,8 @@ public sealed partial class WorkspaceViewModel
 
     private Professional? selectedProfessional;
     private Guid? editingProfessionalId;
+    /// <summary>Especialidades gravadas no profissional em edição: as desativadas entre elas continuam oferecidas no formulário.</summary>
+    private Guid[] editingSpecialtyIds = [];
     private bool professionalSubmitted;
     private string professionalName = "", councilAcronym = "", councilNumber = "", councilState = "", professionalNameServerError = "";
     public Professional? SelectedProfessional { get => selectedProfessional; set { selectedProfessional = value; Notify(); Notify(nameof(HasSelectedProfessional)); Notify(nameof(ProfessionalActiveLabel)); Notify(nameof(CanChangeProfessional)); } }
@@ -191,10 +195,18 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Chamado pela tela quando uma especialidade é marcada ou desmarcada.</summary>
     public void SpecialtyChoiceChanged() => Notify(nameof(ProfessionalSpecialtyError));
 
+    /// <summary>Oferece as especialidades ativas e, na edição, as desativadas que o profissional já tem; só recria as opções quando a lista muda.</summary>
+    private void RebuildProfessionalChoices(IReadOnlySet<Guid> checkedIds)
+    {
+        var offered = ObsSpecialties.Where(item => item.IsActive || editingSpecialtyIds.Contains(item.Id)).ToArray();
+        if (!ProfessionalSpecialtyChoices.Select(choice => choice.Specialty).SequenceEqual(offered)) Replace(ProfessionalSpecialtyChoices, offered.Select(item => new SpecialtyChoice(item, checkedIds.Contains(item.Id))).ToArray());
+    }
+
     public void NewProfessionalDraft()
     {
-        editingProfessionalId = null; professionalSubmitted = false; professionalName = councilAcronym = councilNumber = councilState = professionalNameServerError = "";
+        editingProfessionalId = null; editingSpecialtyIds = []; professionalSubmitted = false; professionalName = councilAcronym = councilNumber = councilState = professionalNameServerError = "";
         foreach (var choice in ProfessionalSpecialtyChoices) choice.IsChecked = false;
+        RebuildProfessionalChoices(new HashSet<Guid>());
         foreach (var name in new[] { nameof(ProfessionalName), nameof(CouncilAcronym), nameof(CouncilNumber), nameof(CouncilState), nameof(ProfessionalDraftTitle) }) Notify(name);
         NotifyProfessionalErrors();
     }
@@ -202,8 +214,10 @@ public sealed partial class WorkspaceViewModel
     {
         if (SelectedProfessional is not { } professional) return;
         NewProfessionalDraft();
-        editingProfessionalId = professional.Id; professionalName = professional.FullName; councilAcronym = professional.CouncilAcronym ?? ""; councilNumber = professional.CouncilNumber ?? ""; councilState = professional.CouncilState ?? "";
-        foreach (var choice in ProfessionalSpecialtyChoices) choice.IsChecked = professional.SpecialtyIds.Contains(choice.Specialty.Id);
+        editingProfessionalId = professional.Id; editingSpecialtyIds = professional.SpecialtyIds; professionalName = professional.FullName; councilAcronym = professional.CouncilAcronym ?? ""; councilNumber = professional.CouncilNumber ?? ""; councilState = professional.CouncilState ?? "";
+        var linked = professional.SpecialtyIds.ToHashSet();
+        RebuildProfessionalChoices(linked);
+        foreach (var choice in ProfessionalSpecialtyChoices) choice.IsChecked = linked.Contains(choice.Specialty.Id);
         foreach (var name in new[] { nameof(ProfessionalName), nameof(CouncilAcronym), nameof(CouncilNumber), nameof(CouncilState), nameof(ProfessionalDraftTitle) }) Notify(name);
         NotifyProfessionalErrors();
     }
