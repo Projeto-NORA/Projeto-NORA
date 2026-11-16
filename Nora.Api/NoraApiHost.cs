@@ -15,6 +15,7 @@ public static class NoraApiHost
     public static WebApplication Create(WebApplicationOptions options,Action<IServiceCollection>? configureServices=null)
     {
         var builder=WebApplication.CreateBuilder(options);
+        var behindProxy=ForwardedHeadersSetup.Configure(builder);
         builder.Services.AddProblemDetails();
         builder.WebHost.ConfigureKestrel(server=>server.AddServerHeader=false);
         builder.Services.AddSingleton(TimeProvider.System);
@@ -37,6 +38,7 @@ public static class NoraApiHost
         builder.Services.AddSingleton<StaffAccountService>();
         builder.Services.AddSingleton<MetricsService>();
         builder.Services.AddSingleton<UnitDatabaseProvisioner>();
+        builder.Services.AddSingleton<AccountRateLimiter>();
         builder.Services.AddSingleton<UnitAccessService>();
         builder.Services.AddSingleton<PatientRegistrationService>();
         builder.Services.AddSingleton<AccountDao>();
@@ -58,8 +60,10 @@ public static class NoraApiHost
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<PasswordResetService>();
         builder.Services.AddSingleton<WorkflowService>();
+        builder.Services.AddHostedService<TimeZoneStartupCheck>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
+        builder.Services.AddHostedService<UnitSchemaCheckService>();
         builder.Services.AddRateLimiter(options=>
         {
             options.RejectionStatusCode=429;
@@ -71,14 +75,13 @@ public static class NoraApiHost
             options.AddPolicy("registration-confirm",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("registration-units",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
             options.AddPolicy("patient-link-units",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
-            options.AddPolicy("password-change",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("staff-account",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("unit-database",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
-            options.AddPolicy("patient-unlink",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("cep",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
         });
         configureServices?.Invoke(builder.Services);
         var app=builder.Build();
+        if(behindProxy) app.UseForwardedHeaders();
         app.UseExceptionHandler(errors=>errors.Run(context=>
         {
             var exception=context.Features.Get<IExceptionHandlerFeature>()?.Error;

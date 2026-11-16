@@ -48,8 +48,9 @@ public sealed class AccountDao(DatabaseHelper database)
         return patients;
     }, ct);
 
-    public Task<int> RehashAsync(Guid id, string hash, CancellationToken ct) => database.UseAsync(connection =>
-        database.ExecuteAsync(connection, "UPDATE nora.accounts SET password_hash=$2 WHERE id=$1", ct, id, hash), ct);
+    /// <summary>Troca o hash só se ainda é o que foi lido no login: uma troca de senha concorrente não é desfeita pelo rehash (0 linhas → nada a fazer).</summary>
+    public Task<int> RehashAsync(Guid id, string expectedHash, string hash, CancellationToken ct) => database.UseAsync(connection =>
+        database.ExecuteAsync(connection, "UPDATE nora.accounts SET password_hash=$3 WHERE id=$1 AND password_hash=$2", ct, id, expectedHash, hash), ct);
 
     public Task<string?> FindPasswordHashAsync(Guid id, CancellationToken ct) => database.UseAsync(async connection =>
     {

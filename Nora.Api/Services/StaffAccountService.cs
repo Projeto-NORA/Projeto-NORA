@@ -16,7 +16,7 @@ public sealed class StaffAccountService(StaffAccountDao dao, IPasswordHasher<Acc
             email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || request.Password is null || request.Password.Length is < 8 or > 256)
             throw new ApiInputException();
         var account = new Account(new(Guid.Empty, fullName, request.Role, "obs"), cpf, email, "");
-        return dao.CreateAsync(actorId, request.Role, new(fullName, cpf, email, request.Password), passwords.HashPassword(account, request.Password), ct);
+        return dao.CreateAsync(actorId, request.Role, new(fullName, cpf, email), passwords.HashPassword(account, request.Password), ct);
     }
 
     public Task SetActiveAsync(Guid actorId, Guid id, SetStaffActiveRequest request, CancellationToken ct) =>

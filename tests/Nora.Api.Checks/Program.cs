@@ -13,6 +13,8 @@ while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.
     directory = directory.Parent;
 if (directory == null) throw new InvalidOperationException("Projeto Nora.Api não encontrado a partir do harness.");
 if (args.Contains("--client-fixture")) return await ClientFixture.RunAsync(directory.FullName);
+// Itera só nas regressões da revisão crítica (o conjunto completo continua sendo o padrão).
+if (args.Contains("--review-only")) return await ReviewChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -204,7 +206,8 @@ Console.WriteLine($"{checks - failures}/{checks} verificações HTTP passaram.")
 var workflowFailures = await WorkflowChecks.RunAsync(directory.FullName);
 var unitFailures = await UnitDatabaseChecks.RunAsync();
 var platformFailures = await PlatformChecks.RunAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 ? 0 : 1;
+var reviewFailures = await ReviewChecks.RunAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

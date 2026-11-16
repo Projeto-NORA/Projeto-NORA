@@ -56,7 +56,7 @@ internal static class ApiEndpoints
         {
             await service.ChangePasswordAsync(Session(context),request,ct);
             return Results.NoContent();
-        }).RequireRateLimiting("password-change");
+        }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PasswordChange));
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context).User.Id, ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
@@ -159,8 +159,12 @@ internal static class ApiEndpoints
             var session = Session(context); var visible = new List<HealthUnit>();
             foreach (var unit in await service.ListForPatientAsync(session.User.Id, ct))
             {
+                // UBS ainda sem banco não tem cadastro a conferir: fica fora da lista em vez de derrubar a lista inteira com 503.
+                // Banco pronto e fora do ar continua respondendo 503. Banco desatualizado também fica de fora (a equipe é avisada no log).
+                if (unit.DatabaseState != "ready") continue;
                 try { await access.ExecutePatientAsync(session, unit.Id, _ => Task.FromResult(true), ct); visible.Add(unit); }
                 catch (ApiForbiddenException) { }
+                catch (ApiCodedException outdated) when (outdated.Code == "unit-database-outdated") { }
             }
             return Results.Ok(new { units = visible });
         });
@@ -203,7 +207,7 @@ internal static class ApiEndpoints
             var result = await access.ExecutePatientUnlinkAsync(session, unitId, cpf => unlink.CancelPendingAsync(unitId, session.User.Id, cpf, ct), ct);
             await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.Ok(result);
-        }).RequireRateLimiting("patient-unlink");
+        }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PatientUnlink));
         patient.MapGet("/patient/units/{unitId:guid}/attendance", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
             Results.Ok(await access.ExecutePatientAsync(Session(context), unitId, cpf => registry.ReadOwnAttendanceAsync(unitId, cpf, ct), ct)));
         var legacyPatient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient")).AddEndpointFilter(new LegacyWorkflowFilter());
@@ -239,9 +243,10 @@ internal static class ApiEndpoints
             Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => registry.ListAsync(unitId, false, ct), ct)));
         municipal.MapGet("/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
             Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct, "appointment_read")));
-        municipal.MapPost("/units", async (HealthUnitRequest request, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, Session(context).User.Id, ct), statusCode: StatusCodes.Status201Created));
+        // Cada cadastro cria um banco: mesmo limitador da nova tentativa (compartilhado por IP).
+        municipal.MapPost("/units", async (HealthUnitRequest request, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Json(await service.CreateAsync(request, Session(context).User.Id, ct), statusCode: StatusCodes.Status201Created)).RequireRateLimiting("unit-database");
         municipal.MapPost("/units/{id:guid}/database", async (Guid id, HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ProvisionDatabaseAsync(id, Session(context).User.Id, ct))).RequireRateLimiting("unit-database");
-        municipal.MapGet("/history", async (DateTimeOffset? from, DateTimeOffset? to, Guid? unitId, int? limit, DateTimeOffset? before, HistoryDao history, CancellationToken ct) =>
+        municipal.MapGet("/history", async (DateTimeOffset? from, DateTimeOffset? to, Guid? unitId, int? limit, string? before, HistoryDao history, CancellationToken ct) =>
             Results.Ok(await history.ReadAsync(from, to, unitId, limit, before, ct)));
         municipal.MapGet("/metrics", async (DateTimeOffset from, DateTimeOffset to, Guid? unitId, string? region, string? specialty, MetricsService metrics, CancellationToken ct) =>
             Results.Ok(await metrics.ReadNetworkAsync(from, to, unitId, region, specialty, ct)));
@@ -256,6 +261,15 @@ internal static class ApiEndpoints
         public ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
             => LegacyEnabled(invocation.HttpContext.RequestServices.GetRequiredService<IConfiguration>(), invocation.HttpContext.RequestServices.GetRequiredService<IHostEnvironment>())
                 ? next(invocation) : ValueTask.FromResult<object?>(Results.StatusCode(StatusCodes.Status403Forbidden));
+    }
+    /// <summary>Limite por conta autenticada; precisa vir depois do SessionFilter (filtros do grupo rodam antes dos do endpoint).</summary>
+    private sealed class AccountRateLimitFilter(string policy):IEndpointFilter
+    {
+        public ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext invocation,EndpointFilterDelegate next)
+        {
+            invocation.HttpContext.RequestServices.GetRequiredService<AccountRateLimiter>().Require(policy,Session(invocation.HttpContext).User.Id);
+            return next(invocation);
+        }
     }
     private sealed class SessionFilter(string? scope,bool allowPasswordChangePending=false):IEndpointFilter
     {

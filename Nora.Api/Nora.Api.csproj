@@ -9,5 +9,6 @@
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <EmbeddedResource Include="Database/Migrations/*.sql" />
     <EmbeddedResource Include="Database/UnitMigrations/*.sql" />
+    <InternalsVisibleTo Include="Nora.Api.Checks" />
   </ItemGroup>
 </Project>

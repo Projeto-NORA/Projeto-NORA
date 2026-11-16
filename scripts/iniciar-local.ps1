@@ -39,6 +39,9 @@ try {
     $env:AllowedHosts = 'localhost;127.0.0.1;[::1];10.0.2.2'
     & dotnet $noraApi --migrate
     if ($LASTEXITCODE -ne 0) { throw 'Falha na migração aditiva. Não iniciar a API antes de investigar.' }
+    # Bancos de UBS com schema desatualizado respondem 503 unit-database-outdated; esta etapa os coloca na versão atual.
+    & dotnet $noraApi --migrate-all-units
+    if ($LASTEXITCODE -ne 0) { throw 'Falha na migração dos bancos das UBS. Não iniciar a API antes de investigar.' }
     if ($ProvisionAccounts) {
         Write-Host 'Cadastre primeiro OBS (obs), depois Municipal (municipal). Use o nome completo aprovado. O paciente será cadastrado pela interface OBS.'
         for ($noraAccountIndex = 0; $noraAccountIndex -lt 2; $noraAccountIndex++) {

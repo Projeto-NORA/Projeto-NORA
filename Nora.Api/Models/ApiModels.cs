@@ -22,4 +22,5 @@ public sealed record SetStaffActiveRequest([property: JsonRequired] bool IsActiv
 public sealed record ResetStaffPasswordRequest(string? Password, [property: JsonRequired] bool Confirmed);
 public sealed record UnlinkUnitRequest([property: JsonRequired] bool Confirmed);
 public sealed record UnlinkUnitResult(int CancelledAppointments, int CancelledEntries);
-public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName, Guid? UnitId, string? UnitName, string? AccountName);
+/// <summary>Cursor é opaco: devolva-o em before para a próxima página (o instante ISO de occurredAt ainda é aceito, mas perde eventos empatados).</summary>
+public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName, Guid? UnitId, string? UnitName, string? AccountName, string Cursor);

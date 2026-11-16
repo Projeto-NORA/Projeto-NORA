@@ -60,14 +60,32 @@ public sealed partial class UnitMetricsDao
     private const string CancelledByPatientJoin = "LEFT JOIN nora_unit.appointment_events e ON e.appointment_id=a.id AND a.status='cancelled' AND e.status='cancelled' AND e.source='patient'";
     private const string LeadMicros = "(EXTRACT(EPOCH FROM (a.starts_at - e.occurred_at)) * 1000000)::bigint";
 
+    /// <summary>
+    /// Espera média: entradas cuja saída por oferta aceita ocorreu na janela ($1 ≤ saída &lt; $2); $3 = especialidade ('' = todas).
+    /// Parte dos eventos 'completed' da janela (índice waiting_list_events_status_time_idx, migração 011) e só então junta a fila; antes
+    /// varria a fila inteira e buscava o último evento de cada entrada. Uma entrada só conclui uma vez, então o instante de saída
+    /// dentro da janela é o próprio instante de saída da entrada.
+    /// </summary>
+    internal const string WaitSql = """
+        SELECT lower(btrim(q.specialty)), btrim(q.specialty), count(*), COALESCE(sum(EXTRACT(EPOCH FROM (x.at - q.entered_at)) / 60.0), 0)::float8
+        FROM (SELECT ev.entry_id, max(ev.occurred_at) AS at FROM nora_unit.waiting_list_events ev WHERE ev.status='completed' AND ev.occurred_at >= $1 AND ev.occurred_at < $2 GROUP BY ev.entry_id) x
+        JOIN nora_unit.waiting_list q ON q.id=x.entry_id
+        WHERE EXISTS (SELECT 1 FROM nora_unit.lightning_offers o WHERE o.entry_id=q.id AND o.status='accepted')
+          AND ($3 = '' OR lower(btrim(q.specialty))=lower(btrim($3)))
+        GROUP BY 1,2
+        """;
+
     private readonly UnitDatabaseRouter databases;
     private readonly TimeProvider time;
     private readonly string zone;
 
+    /// <summary>Fuso do dia da série diária: <c>Nora:TimeZone</c> (padrão America/Sao_Paulo). A existência no PostgreSQL é conferida na subida (TimeZoneStartupCheck).</summary>
+    public static string ConfiguredZone(IConfiguration configuration) => configuration["Nora:TimeZone"] is { Length: > 0 } configured ? configured : "America/Sao_Paulo";
+
     public UnitMetricsDao(UnitDatabaseRouter databases, TimeProvider time, IConfiguration configuration)
     {
         this.databases = databases; this.time = time;
-        zone = configuration["Nora:TimeZone"] is { Length: > 0 } configured ? configured : "America/Sao_Paulo";
+        zone = ConfiguredZone(configuration);
         if (!ZonePattern().IsMatch(zone)) throw new InvalidOperationException("Fuso horário configurado inválido.");
     }
 
@@ -91,14 +109,7 @@ public sealed partial class UnitMetricsDao
             FROM nora_unit.waiting_list q
             WHERE q.status IN ('waiting','offered') AND ($1 = '' OR lower(btrim(q.specialty))=lower(btrim($1)))
             """, specialty));
-        batch.BatchCommands.Add(Statement("""
-            SELECT lower(btrim(q.specialty)), btrim(q.specialty), count(*), COALESCE(sum(EXTRACT(EPOCH FROM (x.at - q.entered_at)) / 60.0), 0)::float8
-            FROM nora_unit.waiting_list q
-            JOIN LATERAL (SELECT max(ev.occurred_at) AS at FROM nora_unit.waiting_list_events ev WHERE ev.entry_id=q.id AND ev.status='completed') x ON true
-            WHERE EXISTS (SELECT 1 FROM nora_unit.lightning_offers o WHERE o.entry_id=q.id AND o.status='accepted')
-              AND x.at >= $1 AND x.at < $2 AND ($3 = '' OR lower(btrim(q.specialty))=lower(btrim($3)))
-            GROUP BY 1,2
-            """, start, end, specialty));
+        batch.BatchCommands.Add(Statement(WaitSql, start, end, specialty));
         batch.BatchCommands.Add(Statement("""
             SELECT count(DISTINCT s.id), count(o.id) FILTER (WHERE o.status='accepted'), count(o.id) FILTER (WHERE o.status='declined'), count(o.id) FILTER (WHERE o.status='expired')
             FROM nora_unit.lightning_slots s
