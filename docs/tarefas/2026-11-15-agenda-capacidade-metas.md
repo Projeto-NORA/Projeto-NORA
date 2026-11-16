@@ -31,15 +31,17 @@ Módulo de agenda completo no back-end, com contrato documentado em `docs/api.md
 
 ## Checklist
 
-- [ ] Migrações 015 central e 012 de UBS, reaplicáveis.
-- [ ] Especialidades (central) e rotas da Secretaria.
-- [ ] Profissionais, consultórios, grade e bloqueios (OBS escreve admin, lê attendant, Secretaria lê).
-- [ ] Disponibilidade (motor de horários) e agendamento pela equipe com catálogo.
-- [ ] Agendamento pelo paciente, limite por especialidade na rede, confirmação.
-- [ ] Capacidade, consultórios ativos, metas e alertas.
-- [ ] Documentação em `docs/api.md`.
-- [ ] Build 0/0; HTTP; PostgreSQL descartável (`-Port 55611 -IncludeUnitDatabases`).
+- [x] Migrações 015 central e 012 de UBS, reaplicáveis.
+- [x] Especialidades (central) e rotas da Secretaria.
+- [x] Profissionais, consultórios, grade e bloqueios (OBS escreve admin, lê attendant, Secretaria lê).
+- [x] Disponibilidade (motor de horários) e agendamento pela equipe com catálogo.
+- [x] Agendamento pelo paciente, limite por especialidade na rede, confirmação.
+- [x] Capacidade, consultórios ativos, metas e alertas.
+- [x] Documentação em `docs/api.md`.
+- [x] Build 0/0; HTTP; PostgreSQL descartável (`-Port 55611 -IncludeUnitDatabases`).
 
 ## Estado
 
-- Iniciado. Base conferida (`3d46a78`).
+- Base conferida (`3d46a78`). Implementado: migrações central 015 e de UBS 012; especialidades, profissionais, consultórios, grade, bloqueios, disponibilidade, marcação pela equipe (catálogo) e pelo paciente, confirmação, capacidade, consultórios ativos, metas e alertas. Contrato em `docs/api.md` (seção "Capacidade, agendamento e metas").
+- Validação (cluster descartável, porta 55611): build Release 0 avisos/0 erros; HTTP 30/30; fluxos 28/28; plataforma 19/19; revisão 17/17; agenda 20/20 (`tests/Nora.Api.Checks/SchedulingChecks.cs`, também isolável com `--scheduling-only`).
+- Pendente para a integração: unir `Program.cs` dos checks, `ApiEndpoints.cs` (linha `MapSchedulingEndpoints`), `NoraApiHost.cs` (bloco Fase 3) e `docs/api.md` com o outro agente; registrar em `docs/PENDENCIAS.md` (não tocado aqui): clientes ainda não consomem as rotas novas; dúvidas de regra resolvidas com o mínimo seguro (ver relatório do agente).
