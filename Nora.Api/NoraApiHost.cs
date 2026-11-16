@@ -60,6 +60,12 @@ public static class NoraApiHost
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<PasswordResetService>();
         builder.Services.AddSingleton<WorkflowService>();
+        // Fase 3 — comunicação e jornada
+        builder.Services.AddSingleton<CommunityRateLimiter>();
+        builder.Services.AddSingleton<AnnouncementDao>();
+        builder.Services.AddSingleton<AnnouncementService>();
+        builder.Services.AddSingleton<HealthRecordDao>();
+        builder.Services.AddSingleton<HealthRecordService>();
         builder.Services.AddHostedService<TimeZoneStartupCheck>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
