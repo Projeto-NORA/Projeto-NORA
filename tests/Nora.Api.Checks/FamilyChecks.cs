@@ -21,12 +21,12 @@ using Nora.Api.Services;
 /// </summary>
 internal static partial class FamilyChecks
 {
-    private const string Password = "Disposable-test-Account!29";
-    private static readonly DateTimeOffset T0 = new(2026, 11, 16, 12, 0, 0, TimeSpan.Zero);
+    internal const string Password = "Disposable-test-Account!29";
+    internal static readonly DateTimeOffset T0 = new(2026, 11, 16, 12, 0, 0, TimeSpan.Zero);
     private static int checks;
     private static int failures;
 
-    private static string Cpf(int number) => SchedulingChecks.Cpf(number);
+    internal static string Cpf(int number) => SchedulingChecks.Cpf(number);
     private static string Masked(string cpf) => $"***.{cpf[3..6]}.{cpf[6..9]}-**";
 
     public static async Task<int> RunAsync(string root)

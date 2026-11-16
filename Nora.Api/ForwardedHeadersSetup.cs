@@ -32,7 +32,7 @@ internal static class ForwardedHeadersSetup
         return true;
     }
 
-    private static List<string> ReadList(IConfiguration configuration, string key)
+    internal static List<string> ReadList(IConfiguration configuration, string key)
     {
         var values = new List<string>();
         if (configuration[key] is { Length: > 0 } single) values.AddRange(single.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));

@@ -11,6 +11,8 @@ internal static class ApiProblems
             "invalid-current-password" => ("invalid-current-password", "Senha atual incorreta", "A senha atual informada não confere."),
             "password-change-required" => ("password-change-required", "Troca de senha obrigatória", "Defina uma nova senha antes de continuar."),
             "unit-database-outdated" => ("unit-database-outdated", "Banco da UBS desatualizado", "O banco desta unidade ainda não recebeu a versão atual do schema. A equipe técnica precisa executar a migração das UBS."),
+            "google-disabled" => ("google-disabled", "Entrar com Google indisponível", "O servidor ainda não está configurado para entrar com Google. Use CPF ou e-mail e senha."),
+            "google-already-linked" => ("google-already-linked", "Conta Google já vinculada", "Esta conta Google já está vinculada a outra conta do NORA."),
             "database-provisioning-failed" => ("database-provisioning-failed", "Banco da UBS indisponível", "Não foi possível criar ou preparar o banco da unidade. Tente novamente mais tarde."),
             _ => DefaultFor(status)
         };

@@ -42,7 +42,7 @@ Quando a API confirma uma resposta de oferta e a atualização posterior falha, 
 
 ## Servidor (`Nora.Api`)
 
-A API não tem tela de preferências: tudo vem da configuração do processo (`appsettings.json` ao lado da DLL, user-secrets ou variáveis de ambiente, com `__` no lugar de `:`, como `Nora__Maintenance__Enabled`). Segredos (conexão com senha, chaves HMAC, senha do SMTP) ficam fora do Git. Os contratos e os efeitos de cada chave estão em [API](api.md).
+A API não tem tela de preferências: tudo vem da configuração do processo (`appsettings.json` ao lado da DLL, user-secrets ou variáveis de ambiente, com `__` no lugar de `:`, como `Nora__Maintenance__Enabled`). Segredos (conexão com senha, chaves HMAC, senha do SMTP, credencial da conta de serviço do Firebase) ficam fora do Git. Os contratos e os efeitos de cada chave estão em [API](api.md).
 
 | Chave | Padrão | Uso |
 | --- | --- | --- |
@@ -63,6 +63,35 @@ A API não tem tela de preferências: tudo vem da configuração do processo (`a
 | `Nora:Maintenance:IntervalHours` | `6` | intervalo da limpeza, de 1 a 168 horas; o primeiro passe roda um minuto após a subida, e valor inválido impede a inicialização |
 | `Nora:UnitLightningWorker:Enabled` | `true` | verificação de 15 s que expira e redistribui as ofertas de Vaga Relâmpago das UBS |
 | `Nora:LegacyGlobalWorkflow:Enabled` | `false` | rotas globais antigas; só valem em `Development`, para fixtures de teste, e não são opção de implantação |
+| `Nora:Google:ClientIds` | vazio (desligado) | client IDs OAuth aceitos no `aud` do ID token do Google (lista com índices ou separada por vírgula); vazio desliga o Entrar com Google (503 `google-disabled`) |
+| `Nora:Google:JwksUrl` | `https://www.googleapis.com/oauth2/v3/certs` | chaves públicas do Google; só https (http só em loopback); inválida impede a inicialização |
+| `Nora:Google:Issuers` | `accounts.google.com` e `https://accounts.google.com` | emissores aceitos; só para testes |
+| `Nora:Push:ProjectId` | o `project_id` da credencial | projeto do Firebase; com projeto e sem credencial, a inicialização é impedida |
+| `Nora:Push:ServiceAccountJson` | nenhum | JSON da conta de serviço do Firebase (segredo; tem precedência sobre o caminho) |
+| `Nora:Push:ServiceAccountPath` | nenhum | caminho do arquivo JSON da conta de serviço (segredo); arquivo inexistente ou JSON/chave inválidos impedem a inicialização |
+| `Nora:Push:Enabled` | `true` | liga o worker do push (só trabalha com projeto e credencial) |
+| `Nora:Push:IntervalSeconds` | `30` | intervalo do worker, de 5 a 3600; o primeiro passe roda 30 s após a subida |
+| `Nora:Push:MaxAttempts` | `5` | tentativas por aviso em falha transitória, de 1 a 20 |
+| `Nora:Push:LookbackHours` | `24` | de 1 a 168: quanto para trás o worker procura decisões de família e, na primeira vez, comunicados |
+| `Nora:Push:PresenceScanMinutes` | `5` | de 0 a 1440: intervalo da varredura da janela de confirmação de presença (0 = a cada passe) |
+
+### Entrar com Google e push — como ligar (P-042)
+
+Os dois ficam desligados e inofensivos sem configuração: o app não mostra os botões do Google, o login pelo Google responde 503 `google-disabled`, os aparelhos são aceitos e guardados, e o worker do push não enfileira nem envia nada. Nenhum valor real vai para o Git; os exemplos abaixo são nomes de chave com valores vazios ou fictícios. Valor inválido impede a subida da API com uma mensagem clara.
+
+1. **Google Cloud (OAuth).** No projeto do Google Cloud ligado ao Firebase, configure a tela de consentimento OAuth e crie dois client IDs: um do tipo **Aplicativo da Web** (o "web client ID", que o app usa para pedir o ID token e que vira o `aud` do token) e um do tipo **Android** (nome do pacote `com.example.app_nora` e a impressão digital SHA-1 do certificado de assinatura, de debug e de release). O client ID web vai para a API em `Nora:Google:ClientIds` e para o app em `NORA_GOOGLE_WEB_CLIENT_ID` (`local.properties` ou propriedade Gradle); o client ID Android não vai para lugar nenhum, só precisa existir.
+2. **Firebase (push).** No console do Firebase, adicione o app Android (mesmo pacote) e baixe o `google-services.json` para `APPNORA/app/` (fora do Git). Em "Configurações do projeto → Contas de serviço", gere uma chave privada da conta de serviço do Firebase Admin SDK (arquivo JSON). Ela é segredo: guarde fora do repositório.
+3. **API.** Defina no ambiente do servidor ou no user-secrets da API:
+
+```powershell
+# Exemplos sem valores reais
+$env:Nora__Google__ClientIds = "<web-client-id>.apps.googleusercontent.com"
+$env:Nora__Push__ProjectId = "<id-do-projeto-firebase>"
+$env:Nora__Push__ServiceAccountPath = "C:\segredos\nora-firebase-adminsdk.json"   # ou Nora__Push__ServiceAccountJson com o conteúdo
+dotnet .build/Nora.Api/bin/Release/net10.0/Nora.Api.dll --migrate   # aplica a migração central 018
+```
+
+Depois de subir, `GET /api/patient/google` e `GET /api/patient/devices/push` respondem `enabled: true`. O worker faz o primeiro passe 30 s após a subida.
 
 ## Navegação e atualização desktop — 2026-10-11
 

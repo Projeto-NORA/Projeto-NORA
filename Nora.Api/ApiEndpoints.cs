@@ -257,6 +257,7 @@ internal static partial class ApiEndpoints
         municipal.MapPut("/units/{id:guid}", async (Guid id, HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.UpdateAsync(id, request, ct)));
         app.MapSchedulingEndpoints();
         app.MapFamilyEndpoints(); // Fase 3 — Família e troca do e-mail da conta (ApiEndpoints.Family.cs)
+        app.MapIdentityEndpoints(); // P-042 — Entrar com Google e push (ApiEndpoints.Identity.cs)
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }

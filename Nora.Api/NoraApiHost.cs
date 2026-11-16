@@ -84,6 +84,19 @@ public static class NoraApiHost
         builder.Services.AddSingleton<EmailChangeService>();
         builder.Services.AddSingleton<MaintenanceService>();
         builder.Services.AddHostedService<MaintenanceWorker>();
+        // P-042 — Entrar com Google e push pelo servidor (desligados sem configuração)
+        builder.Services.AddSingleton<GoogleSignInOptions>();
+        builder.Services.AddSingleton<GoogleIdTokenValidator>();
+        builder.Services.AddSingleton<GoogleIdentityDao>();
+        builder.Services.AddSingleton<GoogleAccountService>();
+        builder.Services.AddSingleton<PushOptions>();
+        builder.Services.AddSingleton<PushSender>();
+        builder.Services.AddSingleton<PushDao>();
+        builder.Services.AddSingleton<PushService>();
+        builder.Services.AddHostedService<PushWorker>();
+        // Sem redirecionamento automático: o token de acesso e o ID token nunca seguem para outro endereço.
+        builder.Services.AddHttpClient(NoraHttpClients.Google, client => client.Timeout = TimeSpan.FromSeconds(5)).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        builder.Services.AddHttpClient(NoraHttpClients.Push, client => client.Timeout = TimeSpan.FromSeconds(10)).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         builder.Services.AddHostedService<TimeZoneStartupCheck>();
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
@@ -105,6 +118,9 @@ public static class NoraApiHost
         });
         configureServices?.Invoke(builder.Services);
         var app=builder.Build();
+        // Configuração inválida do Google ou do push impede a subida com mensagem clara (ausência é válida: fica desligado).
+        _=app.Services.GetRequiredService<GoogleSignInOptions>();
+        _=app.Services.GetRequiredService<PushOptions>();
         if(behindProxy) app.UseForwardedHeaders();
         app.UseExceptionHandler(errors=>errors.Run(context=>
         {

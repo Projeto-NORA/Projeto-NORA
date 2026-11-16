@@ -18,6 +18,8 @@ public sealed class AccountRateLimiter : IDisposable
     {
         PasswordChange or PatientUnlink => 10,
         PatientUnlinkPreview => 60,
+        GoogleLink => 20,
+        PushDevice => 30,
         _ => throw new ArgumentOutOfRangeException(nameof(policy))
     };
 
@@ -25,6 +27,10 @@ public sealed class AccountRateLimiter : IDisposable
     public const string PatientUnlink = "patient-unlink";
     /// <summary>Prévia da remoção do vínculo (leitura que o app faz ao abrir a confirmação).</summary>
     public const string PatientUnlinkPreview = "patient-unlink-preview";
+    /// <summary>Vincular ou desvincular a conta Google (cada vínculo valida um ID token).</summary>
+    public const string GoogleLink = "google-link";
+    /// <summary>Registrar ou remover o token de push de um aparelho.</summary>
+    public const string PushDevice = "push-device";
 
     /// <summary>Consome uma permissão da conta na política; sem permissão disponível → 429.</summary>
     public void Require(string policy, Guid accountId)

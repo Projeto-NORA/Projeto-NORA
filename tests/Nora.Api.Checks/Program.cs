@@ -21,6 +21,8 @@ if (args.Contains("--scheduling-only")) return await SchedulingChecks.RunAsync(d
 if (args.Contains("--family-only")) return await FamilyChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--family-review-only")) return await FamilyChecks.RunReviewAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--family-decisions-only")) return await FamilyChecks.RunDecisionsAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--family-gaps-only")) return await FamilyChecks.RunGapsAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--google-push-only")) return await GooglePushChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -157,6 +159,11 @@ foreach (var environment in new[] { "Development", "Production" })
             var body = await response.Content.ReadAsStringAsync();
             Require(!body.Contains("private-exception") && !body.Contains("InvalidOperationException") && !body.Contains("stack"), "Diagnóstico interno exposto.");
         });
+        await Check("Entrar com Google sem configuração responde 503 google-disabled antes de olhar o token ou o banco", async () =>
+        {
+            using var response = await client.PostAsync("/api/auth/google", new StringContent("{\"idToken\":\"a.b.c\"}", System.Text.Encoding.UTF8, "application/json"));
+            await RequireProblem(response, 503, "google-disabled");
+        });
         await Check("Readiness informa banco ausente e rotas clínicas exigem sessão", async () =>
         {
             using (var readiness = await client.GetAsync("/health/ready"))
@@ -218,7 +225,9 @@ var schedulingFailures = await SchedulingChecks.RunAsync(directory.FullName);
 var familyFailures = await FamilyChecks.RunAsync(directory.FullName);
 var familyReviewFailures = await FamilyChecks.RunReviewAsync(directory.FullName);
 var familyDecisionFailures = await FamilyChecks.RunDecisionsAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 ? 0 : 1;
+var familyGapFailures = await FamilyChecks.RunGapsAsync(directory.FullName);
+var googlePushFailures = await GooglePushChecks.RunAsync(directory.FullName);
+return googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

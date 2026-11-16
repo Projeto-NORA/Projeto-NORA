@@ -7,15 +7,18 @@ Números da Fase 3 (agenda pelo catálogo, capacidade, metas, alertas, comunica�
 | Verificação | Resultado |
 | --- | --- |
 | Build Release da solução `NORA.slnx` (`Nora.Api`, `Nora.Api.Checks`, `Nora.Desktop`, `Nora.Desktop.Checks`, `OBS-NORA` e `Painel-Municipal`) | 0 erros, 0 avisos |
-| API HTTP (`Nora.Api.Checks`) | 30/30 |
+| API HTTP (`Nora.Api.Checks`) | 32/32 (inclui o 503 `google-disabled` do login pelo Google sem configuração) |
 | PostgreSQL 18: fluxos | 28/28 |
 | PostgreSQL 18: bancos separados por UBS | PASS |
 | PostgreSQL 18: plataforma (banco da UBS, contas, score, indicadores, histórico, ações do paciente) | 19/19 |
 | PostgreSQL 18: revisão crítica do back | 17/17 |
 | PostgreSQL 18: comunicação e Jornada (`CommunityChecks`) | 16/16 |
-| PostgreSQL 18: agenda, capacidade, metas e alertas (`SchedulingChecks`) | 20/20 |
+| PostgreSQL 18: agenda, capacidade, metas e alertas (`SchedulingChecks`) | 21/21 |
 | PostgreSQL 18: Família, e-mail da conta e manutenção (`FamilyChecks`) | 21/21 |
-| PostgreSQL 18: correções da revisão da Família (`FamilyChecks.RunReviewAsync`) | 11/11 |
+| PostgreSQL 18: correções da revisão da Família (`FamilyChecks.RunReviewAsync`) | 14/14 |
+| PostgreSQL 18: decisões da Família (`FamilyChecks.RunDecisionsAsync`) | 7/7 |
+| PostgreSQL 18: lacunas da Família, P-043 (`FamilyChecks.RunGapsAsync`: 429 das escritas delegadas, corrida encerrar × operação delegada, recusa de oferta pelo responsável) | 5/5 |
+| PostgreSQL 18: Entrar com Google e push, P-042 (`GooglePushChecks`) | 15/15 |
 | Suíte desktop (`Nora.Desktop.Checks`) | 140/140 |
 | Abertura dos executáveis (`tests/desktop-startup.ps1`) | 2/2 |
 | E2E desktop com banco, por UBS (`tests/validar-clientes-descartavel.ps1`) | 141/141 em 2026-11-16, depois de todas as correções da revisão (inclui Secretaria, OBS, cadastro, fila, agenda, vaga e ofertas, indicadores, profissional, grade, bloqueio e agenda pelo catálogo) |
@@ -24,6 +27,8 @@ Números da Fase 3 (agenda pelo catálogo, capacidade, metas, alertas, comunica�
 | Android: lint | 0 erros, 6 avisos antigos (versões disponíveis e `UnitsMap.kt`) |
 | Android: testes instrumentados | só compilam (`assembleDebugAndroidTest`); sem emulador acelerado nesta máquina (P-040, P-003) |
 
+**API em 2026-11-16 (P-042 e P-043).** As linhas da API acima são da rodada desta data no HEAD `c3c2bcc` com as alterações da tarefa `docs/tarefas/2026-11-16-api-google-push.md`: `dotnet build` Release com `-m:1` de `Nora.Api` e de `tests/Nora.Api.Checks` com 0 erros e 0 avisos, e `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` verde nas portas 55750 e 55751, com os mesmos números nas duas (evidências em `.build/postgres-validation-25b7c4f534ae494c8255d1871f293826` e `.build/postgres-validation-497f5e9d02cb4d0c97e82555b606f93f`).
+
 **PostgreSQL 18 portátil.** A máquina Pichau só tinha o PostgreSQL 17; o 18.6 foi instalado como binários oficiais (EDB, `postgresql-18.6-5-windows-x64-binaries.zip`) em `%LOCALAPPDATA%\Programs\PostgreSQL\18`, sem serviço do Windows nem senha, e o 17 não foi tocado. Os scripts `tests/validar-postgres-descartavel.ps1`, `tests/validar-clientes-descartavel.ps1` e `scripts/iniciar-local.ps1` aceitam `-PostgreSqlBin <pasta>\bin` (padrão `C:\Program Files\PostgreSQL\18\bin`) e `-Port` (padrões 55439, 55440 e 5433). O cluster descartável de `validar-postgres-descartavel.ps1` sobe com `max_connections=16`, o que obriga o pool de cada UBS a ser enxuto.
 
 ```powershell
@@ -31,11 +36,11 @@ pwsh -NoProfile -File tests/validar-postgres-descartavel.ps1 -PostgreSqlBin "$en
 pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -PostgreSqlBin "$env:LOCALAPPDATA\Programs\PostgreSQL\18\bin"
 ```
 
-**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família e as correções da revisão da Família; sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only` ou `--family-review-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes.
+**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família, as correções da revisão da Família, as decisões e as lacunas da Família e o Entrar com Google e push (com um Google falso, sem rede); sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only`, `--family-review-only`, `--family-decisions-only`, `--family-gaps-only` ou `--google-push-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes.
 
 **E2E por UBS.** `validar-clientes-descartavel.ps1` sobe a fixture por UBS (`NORA_TEST_REGISTRATION=1` e `NORA_E2E_UNIT_REGISTRY=1`, com bancos de UBS descartáveis) e o desktop exercita OBS e Secretaria contra a API real. Com `-Android` o script também instala e roda os testes instrumentados, o que exige emulador.
 
-**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 017 e as UBS até a 014, e uma UBS sem a 014 responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
+**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 018 e as UBS até a 014, e uma UBS sem a 014 responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
 
 ## Integração por UBS — 2026-11-09
 

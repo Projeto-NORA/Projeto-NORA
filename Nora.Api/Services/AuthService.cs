@@ -25,10 +25,15 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
         var result = passwords.VerifyHashedPassword(account ?? _dummy, account?.PasswordHash ?? (_dummyHash ??= passwords.HashPassword(_dummy, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)))), request.Password);
         if (account is null || result == PasswordVerificationResult.Failed) return null;
         if (result == PasswordVerificationResult.SuccessRehashNeeded) await accounts.RehashAsync(account.User.Id, account.PasswordHash, passwords.HashPassword(account, request.Password), ct);
+        return await StartSessionAsync(account.User, ct);
+    }
+    /// <summary>Abre uma sessão de 8 h para a conta já identificada (senha ou Google); nulo se a conta deixou de estar ativa (conferido sob lock).</summary>
+    public async Task<LoginResponse?> StartSessionAsync(UserInfo user, CancellationToken ct)
+    {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var expiresAt = time.GetUtcNow().AddHours(8);
-        if (await sessions.CreateAsync(account.User.Id, HashToken(token), expiresAt, ct) == 0) return null;
-        return new(token, expiresAt, account.User);
+        if (await sessions.CreateAsync(user.Id, HashToken(token), expiresAt, ct) == 0) return null;
+        return new(token, expiresAt, user);
     }
     public Task<SessionInfo?> AuthenticateAsync(string token, CancellationToken ct) => token.Length == 64 && token.All(Uri.IsHexDigit)
         ? sessions.FindAsync(HashToken(token), time.GetUtcNow(), ct) : Task.FromResult<SessionInfo?>(null);

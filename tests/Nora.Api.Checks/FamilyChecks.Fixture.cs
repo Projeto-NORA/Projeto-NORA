@@ -42,7 +42,7 @@ internal static partial class FamilyChecks
             $"Código de erro esperado '{code}', recebido '{body.GetProperty("code").GetString()}'.");
     }
 
-    private sealed class TestClock : TimeProvider
+    internal sealed class TestClock : TimeProvider
     {
         private long ticks = T0.UtcTicks;
         public override DateTimeOffset GetUtcNow() => new(Interlocked.Read(ref ticks), TimeSpan.Zero);
@@ -50,7 +50,7 @@ internal static partial class FamilyChecks
     }
 
     /// <summary>Caixa de saída de e-mail do teste: nada é enviado de verdade; guarda destino e texto, e pode simular SMTP desligado ou falha de entrega.</summary>
-    private sealed class MailBox : IEmailSender
+    internal sealed class MailBox : IEmailSender
     {
         public bool Configured { get; set; } = true;
         public bool Fail { get; set; }
@@ -68,7 +68,7 @@ internal static partial class FamilyChecks
     /// API de teste num schema próprio com relógio fixo, duas UBS (bancos criados pela API), Secretaria, administrador e atendentes OBS (um só da UBS 1, outro só da UBS 2) e pacientes já logados:
     /// quatro responsáveis (G1 a G4), um dependente com conta própria (D2), pacientes da troca de e-mail (P21, P24, P51) e dependentes sem conta, que só têm cadastro de referência.
     /// </summary>
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         public required WebApplication App { get; init; }
         public required string Schema { get; init; }
@@ -101,7 +101,9 @@ internal static partial class FamilyChecks
         private DatabaseHelper Database => App.Services.GetRequiredService<DatabaseHelper>();
         private UnitDatabaseRouter Router => App.Services.GetRequiredService<UnitDatabaseRouter>();
 
-        public static async Task<Fixture> StartAsync(string connection)
+        /// <param name="extraArgs">Configuração adicional da API de teste (ex.: Google e push com credenciais sintéticas).</param>
+        /// <param name="configure">Serviços adicionais (ex.: o HttpMessageHandler falso dos clientes HTTP externos).</param>
+        public static async Task<Fixture> StartAsync(string connection, string[]? extraArgs = null, Action<IServiceCollection>? configure = null)
         {
             var schema = "nora_familia_" + Guid.NewGuid().ToString("N");
             var clock = new TestClock(); var mail = new MailBox();
@@ -112,12 +114,13 @@ internal static partial class FamilyChecks
             var app = NoraApiHost.Create(new()
             {
                 Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", small, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:Maintenance:Enabled", "false", "--Nora:UnitDatabases:MaxPoolSize", "2",
-                    "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-family-registration-key-32-bytes"],
+                    "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-family-registration-key-32-bytes", .. (extraArgs ?? Array.Empty<string>())],
                 EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name, ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
             }, services =>
             {
                 services.Replace(ServiceDescriptor.Singleton<TimeProvider>(clock));
                 services.Replace(ServiceDescriptor.Singleton<IEmailSender>(mail));
+                configure?.Invoke(services);
             });
             await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
             var accounts = app.Services.GetRequiredService<AccountService>();
