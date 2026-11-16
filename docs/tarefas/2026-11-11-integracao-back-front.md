@@ -82,6 +82,8 @@ dias; documentação, commits e pendências não decidiam estes pontos.
 | Alertas (Fase 3) | Limites sugeridos aceitos: fila alta com 20 ou mais pessoas numa especialidade (por UBS); alguém aguardando há mais de 30 dias; faltas acima de 20% nos últimos 30 dias; ocupação acima de 95% da grade nos próximos 7 dias; qualquer meta "fora". Decidido em 2026-11-15. |
 | Profissional (Fase 3) | Guarda registro de conselho opcional (sigla, número, UF), sem validação externa. Decidido em 2026-11-15. |
 | Exames e vacinas (Fase 3) | Exame: solicitado → realizado (com data) ou cancelado. Vacina: aplicada, com dose (1ª, 2ª, 3ª, reforço ou única). Decidido em 2026-11-15. |
+| Desativação na UBS e consultas | Desativar o paciente numa UBS cancela também as consultas futuras daquela UBS, como cancelamento da unidade (não pesa no score); o horário pode virar Vaga Relâmpago; a confirmação no OBS avisa quantas serão canceladas. Decidido em 2026-11-16. |
+| E-mail de referência x conta | Quando a UBS corrige o e-mail de referência, o app avisa o paciente e oferece trocar o e-mail da conta, com código enviado ao endereço novo; só troca depois do código confirmado. Decidido em 2026-11-16. |
 
 Decisões técnicas minhas, sem regra de negócio envolvida: conta OBS com uma
 única UBS concedida entra direto nela; com várias, a pessoa escolhe a cada
