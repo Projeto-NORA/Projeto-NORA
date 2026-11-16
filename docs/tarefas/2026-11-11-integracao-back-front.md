@@ -142,6 +142,20 @@ instrumentados em emulador não rodam nesta máquina (sem aceleração).
 
 ## Estado
 
+### Estado em 2026-11-16
+
+- Fase 3 do back integrada e verde com PostgreSQL 18 (merge `69dc3ef` comunicação e Jornada; merge `c440585`
+  especialidades, grade, agendamento do paciente, presença, capacidade, metas e alertas): HTTP 30/30, fluxos 28/28,
+  bancos separados por UBS, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 20/20.
+- Em andamento: workflow `wf_f10ad86b-7d5` (script em `~/.claude/projects/.../workflows/scripts/nora-fase3-integracao-wf_f10ad86b-7d5.js`;
+  para retomar após queda, relançar com `resumeFromRunId`). Fases: (1) back da Família, cancelamento na
+  desativação, sugestão de e-mail e manutenção (P-036) ∥ desktop agenda/capacidade/metas/alertas ∥ app
+  agendamento e presença; (2) desktop e app comunicação, Jornada, Família e e-mail; (3) revisão adversarial
+  em 3 lentes por área (regras, segurança, estados/UX) com refutação; (4) correções; (5) validação completa.
+  Os agentes do workflow não commitam: o coordenador commita depois de conferir.
+- Falta depois do workflow: conferir, commitar por área, documentação da Fase 3 (telas e PENDENCIAS P-030,
+  P-036, P-037), loop final de verificação, propostas de melhoria, merge e push na `main`.
+
 ### Retomada de 2026-11-13 e 2026-11-15 (sessões caíram por falta de bateria)
 
 - Commits desde a última atualização: `2171794` (Android Fase 2: score na Jornada, sair da fila, remover UBS,
