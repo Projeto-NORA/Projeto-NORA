@@ -15,6 +15,7 @@ if (directory == null) throw new InvalidOperationException("Projeto Nora.Api nã
 if (args.Contains("--client-fixture")) return await ClientFixture.RunAsync(directory.FullName);
 // Itera só nas regressões da revisão crítica (o conjunto completo continua sendo o padrão).
 if (args.Contains("--review-only")) return await ReviewChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--scheduling-only")) return await SchedulingChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -207,7 +208,8 @@ var workflowFailures = await WorkflowChecks.RunAsync(directory.FullName);
 var unitFailures = await UnitDatabaseChecks.RunAsync();
 var platformFailures = await PlatformChecks.RunAsync(directory.FullName);
 var reviewFailures = await ReviewChecks.RunAsync(directory.FullName);
-return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 ? 0 : 1;
+var schedulingFailures = await SchedulingChecks.RunAsync(directory.FullName);
+return failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && schedulingFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

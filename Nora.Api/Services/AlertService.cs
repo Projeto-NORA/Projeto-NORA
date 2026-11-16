@@ -94,7 +94,7 @@ public sealed class AlertService(HealthUnitDao units, UnitMetricsDao metrics, Sc
         var data = await metrics.ReadAsync(unit.Id, now.AddDays(-options.WindowDays), now, "", ct);
         var counters = data.Total;
         if (GoalService.MissedRateOf(counters.Completed, counters.Missed) is { } missedRate && missedRate > options.MissedRate)
-            alerts.Add(new(MissedRate, unit.Id, unit.Name, null, missedRate, options.MissedRate, now.AddDays(-options.WindowDays), null));
+            alerts.Add(new(MissedRate, unit.Id, unit.Name, null, missedRate, options.MissedRate, null, null));
         var capacity = await scheduling.ReadCapacityAsync(unit.Id, now, now.AddDays(options.OccupancyDays), null, ct);
         if (capacity.Occupancy is { } occupancy && occupancy > options.Occupancy) alerts.Add(new(Occupancy, unit.Id, unit.Name, null, occupancy, options.Occupancy, null, null));
         var score = MetricsService.Appointments(counters).AttendanceScore;
