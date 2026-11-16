@@ -1,0 +1,187 @@
+<UserControl x:Class="Nora.Desktop.Views.UnitSettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
+  <!-- Configurações da UBS (OBS): profissionais, consultórios, grade semanal e bloqueios. Todos consultam; só o administrador da UBS grava. -->
+  <UserControl.Resources>
+    <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
+    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style>
+    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontSize" Value="12" /></Style>
+  </UserControl.Resources>
+  <StackPanel>
+    <TextBlock Text="Configurações da UBS" FontSize="28" FontWeight="SemiBold" />
+    <TextBlock Text="Cadastro de profissionais, consultórios, grade semanal de horários e bloqueios da unidade ativa. A grade alimenta os horários livres da Agenda e do aplicativo do paciente." Style="{StaticResource Muted}" FontSize="14" Margin="0,8,0,20" />
+    <views:ObsUnitNoticeView />
+    <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,18" AutomationProperties.Name="Somente leitura para atendente" Visibility="{Binding ShowCatalogReadOnlyNotice, Converter={StaticResource BoolVisibility}}">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Top" />
+        <TextBlock Grid.Column="1" Text="{Binding CatalogReadOnlyNotice}" TextWrapping="Wrap" />
+      </Grid>
+    </Border>
+    <DockPanel Margin="0,0,0,14"><Button DockPanel.Dock="Right" Content="Atualizar configurações" Click="OnRefresh" IsEnabled="{Binding HasActiveObsUnit}" />
+      <StackPanel><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel></DockPanel>
+
+    <!-- Profissionais -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Profissionais">
+      <StackPanel>
+        <TextBlock Text="Profissionais" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="As especialidades vêm da lista única da rede, mantida pela Secretaria. O registro de conselho é opcional e não é conferido em nenhum órgão. Desativar um profissional não cancela consultas já marcadas." />
+        <DataGrid ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Nome" Binding="{Binding FullName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Especialidades" Binding="{Binding SpecialtiesDisplay}" Width="1.4*" MinWidth="160" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Conselho" Binding="{Binding CouncilDisplay}" Width="150" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="110" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="{Binding ProfessionalsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding ProfessionalsState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Content="Editar profissional selecionado" Click="OnEditProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" />
+          <Button Content="{Binding ProfessionalActiveLabel}" Click="OnToggleProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" />
+          <Button Content="Novo profissional" Click="OnNewProfessional" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+        </WrapPanel>
+        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
+          <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding ProfessionalDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <TextBlock Text="Nome completo" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding ProfessionalName, UpdateSourceTrigger=PropertyChanged}" MaxLength="160" AutomationProperties.Name="Nome do profissional" />
+            <TextBlock Text="{Binding ProfessionalNameError}" Style="{StaticResource FieldError}" Visibility="{Binding ProfessionalNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="Conselho profissional (opcional: sigla, número e UF juntos)" Style="{StaticResource FieldLabel}" />
+            <Grid Margin="0,6,0,12">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+              <TextBox Text="{Binding CouncilAcronym, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" Margin="0,0,8,0" AutomationProperties.Name="Sigla do conselho" ToolTip="Sigla, por exemplo CRM" />
+              <TextBox Grid.Column="1" Text="{Binding CouncilNumber, UpdateSourceTrigger=PropertyChanged}" MaxLength="20" Margin="0,0,8,0" AutomationProperties.Name="Número do conselho" ToolTip="Número do registro" />
+              <TextBox Grid.Column="2" Text="{Binding CouncilState, UpdateSourceTrigger=PropertyChanged}" MaxLength="2" CharacterCasing="Upper" Margin="0" AutomationProperties.Name="UF do conselho" ToolTip="UF do registro" />
+            </Grid>
+            <TextBlock Text="{Binding CouncilError}" Style="{StaticResource FieldError}" Visibility="{Binding CouncilError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="Especialidades (da lista da rede)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding ProfessionalSpecialtyChoices}" AutomationProperties.Name="Especialidades do profissional">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Name}" Margin="0,0,18,8" Checked="OnSpecialtyChoice" Unchecked="OnSpecialtyChoice" AutomationProperties.Name="{Binding Name}" /></DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="A Secretaria ainda não cadastrou especialidades ativas. Peça a ela para cadastrá-las na seção Especialidades." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding NoSpecialtyChoices, Converter={StaticResource BoolVisibility}}" />
+            <TextBlock Text="{Binding ProfessionalSpecialtyError}" Style="{StaticResource FieldError}" Margin="0,0,0,8" Visibility="{Binding ProfessionalSpecialtyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Salvar profissional" Click="OnSaveProfessional" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <!-- Consultórios -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Consultórios">
+      <StackPanel>
+        <TextBlock Text="Consultórios" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Um consultório desativado sai dos horários livres; a grade que já aponta para ele continua cadastrada." />
+        <DataGrid ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="130" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="{Binding RoomsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding RoomsState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Content="Renomear selecionado" Click="OnEditRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" />
+          <Button Content="{Binding RoomActiveLabel}" Click="OnToggleRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" />
+          <Button Content="Novo consultório" Click="OnNewRoom" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+        </WrapPanel>
+        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
+          <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="420" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding RoomDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <TextBlock Text="Nome do consultório" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding RoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="Nome do consultório" />
+            <TextBlock Text="{Binding RoomNameError}" Style="{StaticResource FieldError}" Visibility="{Binding RoomNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Salvar consultório" Click="OnSaveRoom" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <!-- Grade semanal -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Grade semanal">
+      <StackPanel>
+        <TextBlock Text="Grade semanal de horários" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Cada linha oferece atendimentos de uma duração fixa, num dia da semana, de um profissional num consultório. O resto que não forma um atendimento inteiro é descartado. Horários que encostam não se sobrepõem; o mesmo profissional ou o mesmo consultório não pode ter linhas que se cruzam." />
+        <DataGrid ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Dia" Binding="{Binding WeekdayDisplay}" SortMemberPath="Weekday" Width="130" />
+            <DataGridTextColumn Header="Horário" Binding="{Binding RangeDisplay}" Width="110" />
+            <DataGridTextColumn Header="Duração" Binding="{Binding SlotDisplay}" SortMemberPath="SlotMinutes" Width="90" />
+            <DataGridTextColumn Header="Profissional" Binding="{Binding ProfessionalName}" Width="*" MinWidth="130" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Consultório" Binding="{Binding RoomName}" Width="*" MinWidth="110" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Especialidade" Binding="{Binding SpecialtyName}" Width="*" MinWidth="110" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Vigência" Binding="{Binding ValidityDisplay}" Width="190" ElementStyle="{StaticResource CellText}" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="{Binding ScheduleState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding ScheduleState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Content="Editar horário selecionado" Click="OnEditSchedule" IsEnabled="{Binding CanChangeSchedule}" Margin="0,0,8,8" />
+          <Button Content="Remover horário selecionado" Click="OnDeleteSchedule" IsEnabled="{Binding CanChangeSchedule}" Margin="0,0,8,8" ToolTip="Consultas já marcadas não são afetadas." ToolTipService.ShowOnDisabled="True" />
+          <Button Content="Novo horário" Click="OnNewSchedule" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+        </WrapPanel>
+        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
+          <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding ScheduleDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <WrapPanel>
+              <StackPanel Width="240" Margin="0,0,12,0"><TextBlock Text="Profissional" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding ActiveProfessionalOptions}" SelectedItem="{Binding ScheduleProfessional}" DisplayMemberPath="FullName" AutomationProperties.Name="Profissional da grade" /></StackPanel>
+              <StackPanel Width="220" Margin="0,0,12,0"><TextBlock Text="Especialidade do atendimento" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding ScheduleSpecialtyOptions}" SelectedItem="{Binding ScheduleSpecialty}" DisplayMemberPath="Name" AutomationProperties.Name="Especialidade da grade" /></StackPanel>
+              <StackPanel Width="200" Margin="0,0,12,0"><TextBlock Text="Consultório" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding ActiveRoomOptions}" SelectedItem="{Binding ScheduleRoom}" DisplayMemberPath="Name" AutomationProperties.Name="Consultório da grade" /></StackPanel>
+              <StackPanel Width="180" Margin="0,0,12,0"><TextBlock Text="Dia da semana" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.WeekdayOptions}" DisplayMemberPath="Label" SelectedValuePath="Day" SelectedValue="{Binding ScheduleWeekday}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Dia da semana da grade" /></StackPanel>
+              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleStart, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da grade" /></StackPanel>
+              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleEnd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da grade" /></StackPanel>
+              <StackPanel Width="140" Margin="0,0,12,0"><TextBlock Text="Duração (minutos)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleSlotMinutes, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Duração do atendimento da grade" ToolTip="De 5 a 240 minutos" /></StackPanel>
+              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência de (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidFrom, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite" /></StackPanel>
+              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidUntil, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite" /></StackPanel>
+            </WrapPanel>
+            <Border BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,12" Visibility="{Binding ScheduleOverlapError, Converter={StaticResource TextVisibility}}" AutomationProperties.Name="Aviso de sobreposição na grade">
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Top" /><TextBlock Grid.Column="1" Text="{Binding ScheduleOverlapError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></Grid>
+            </Border>
+            <TextBlock Text="{Binding ScheduleError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding ScheduleError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Salvar horário na grade" Click="OnSaveSchedule" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <!-- Bloqueios -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Bloqueios">
+      <StackPanel>
+        <TextBlock Text="Bloqueios (folgas e feriados)" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Um bloqueio tira dos horários livres qualquer atendimento que cruze o intervalo. Sem escolher profissional, ele vale para a UBS inteira (feriado). Dia inteiro vai da meia-noite à meia-noite, no horário local." />
+        <DataGrid ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Vale para" Binding="{Binding ScopeDisplay}" Width="*" MinWidth="140" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Período" Binding="{Binding PeriodDisplay}" SortMemberPath="StartsAt" Width="1.2*" MinWidth="200" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Motivo" Binding="{Binding Reason}" Width="*" MinWidth="140" ElementStyle="{StaticResource CellText}" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="{Binding BlocksState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding BlocksState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Content="Remover bloqueio selecionado" Click="OnDeleteBlock" IsEnabled="{Binding CanChangeBlock}" Margin="0,0,8,8" />
+        </WrapPanel>
+        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
+          <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Novo bloqueio" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <WrapPanel>
+              <StackPanel Width="240" Margin="0,0,12,0"><TextBlock Text="Vale para" Style="{StaticResource FieldLabel}" />
+                <ComboBox ItemsSource="{Binding BlockScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding BlockScope}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Quem o bloqueio atinge" /></StackPanel>
+              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="De (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockFromText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data inicial do bloqueio" /></StackPanel>
+              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="Até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockToText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data final do bloqueio" ToolTip="Em branco, o bloqueio vale só para o dia inicial." /></StackPanel>
+            </WrapPanel>
+            <CheckBox Content="Dia inteiro (feriado ou folga)" IsChecked="{Binding BlockFullDay}" Margin="0,0,0,12" AutomationProperties.Name="Bloquear dias inteiros" />
+            <WrapPanel IsEnabled="{Binding BlockTimesEnabled}">
+              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockStartTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário inicial do bloqueio" /></StackPanel>
+              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockEndTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário final do bloqueio" /></StackPanel>
+            </WrapPanel>
+            <TextBlock Text="Motivo" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding BlockReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Motivo do bloqueio" />
+            <TextBlock Text="{Binding BlockError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding BlockError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <Button Content="Criar bloqueio" Click="OnSaveBlock" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

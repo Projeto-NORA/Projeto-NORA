@@ -18,7 +18,7 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
         <TextBlock Text="Ainda sem dados" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="Ocupação das UBS (depende de capacidade e agendas ofertadas), vagas reaproveitadas com confirmação clínica e metas ainda não têm dados na API e aguardam definição. Nada disso é calculado ou simulado." />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="Vagas reaproveitadas com confirmação clínica continuam sem dado na API: o aceite da oferta não confirma o atendimento, e nada disso é calculado ou simulado. A capacidade das agendas está na aba Capacidade e as metas em Relatórios e metas." />
       </StackPanel>
     </Border>
   </StackPanel>

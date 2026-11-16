@@ -180,7 +180,7 @@ internal static partial class Program
                 }
                 Settle(vm); events = 0; changed.Clear();
                 Cycle("home", (1, 1, 0)); Cycle("units", (1, 1, 1)); Cycle("specialties", (1, 1, 0)); Cycle("indicators", (1, 1, 0));
-                Cycle("slots", (1, 0, 0)); Cycle("capacity", (1, 0, 0)); Cycle("alerts", (1, 0, 0)); Cycle("users", (1, 0, 0));
+                Cycle("slots", (1, 0, 0)); Cycle("capacity", (1, 1, 0)); Cycle("alerts", (1, 0, 0)); Cycle("users", (1, 0, 0));
                 Require(events == 0 && changed.Count == 0, $"Ciclos sem mudança recriaram listas ({events} eventos) ou recalcularam {string.Join(", ", changed)}.");
             }
             finally { CloseWindow(window); }

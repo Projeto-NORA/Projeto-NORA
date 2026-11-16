@@ -211,6 +211,7 @@ public sealed partial class WorkspaceViewModel
         var sparse = SparseDays(result.Daily);
         NetworkChart.Apply(BuildChartDays(sparse, request.From, request.To), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
         if (request.Specialty.Length == 0) CollectSpecialties(result);
+        ApplyNetworkScheduling(result);
         NotifyMetrics();
     }
 
@@ -261,6 +262,7 @@ public sealed partial class WorkspaceViewModel
         Replace(OverviewCards, BuildOverviewCards()); Replace(UnitPerformance, Array.Empty<PerformanceRow>()); Replace(RegionPerformance, Array.Empty<PerformanceRow>());
         Replace(SpecialtyPerformance, Array.Empty<PerformanceRow>());
         Replace(SpecialtyOptions, new[] { new FilterOption("", "Todas as especialidades") });
+        ClearNetworkScheduling();
         foreach (var name in new[] { nameof(MetricsPeriodDays), nameof(IsCustomPeriod), nameof(MetricsRegion), nameof(MetricsSpecialty), nameof(MetricsFromText), nameof(MetricsToText), nameof(MetricsRangeError), nameof(HasMetricsRangeError), nameof(CanFilterNetwork) }) Notify(name);
         NotifyMetrics();
     }

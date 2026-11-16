@@ -6,6 +6,9 @@
     <DataTemplate x:Key="AgendaPage"><views:AgendaView /></DataTemplate>
     <DataTemplate x:Key="InsightsPage"><views:OperationalInsightsView /></DataTemplate>
     <DataTemplate x:Key="AccessRequiredPage"><views:OperationalAccessView /></DataTemplate>
+    <DataTemplate x:Key="UnitSettingsPage"><views:UnitSettingsView /></DataTemplate>
+    <DataTemplate x:Key="AnnouncementsPage"><views:AnnouncementsView /></DataTemplate>
+    <DataTemplate x:Key="FamilyPage"><views:FamilyView /></DataTemplate>
   </UserControl.Resources>
   <!-- A única ContentControl garante que uma aba não possa deixar a tela anterior visível. -->
   <ContentControl Content="{Binding Workspace}">
@@ -18,6 +21,9 @@
           <DataTrigger Binding="{Binding Workspace.ShowAgenda}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AgendaPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowIndicators}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource InsightsPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowAlerts}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource InsightsPage}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Workspace.ShowUnitSettings}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource UnitSettingsPage}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Workspace.ShowAnnouncements}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AnnouncementsPage}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Workspace.ShowFamily}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource FamilyPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.RequiresSignInForCurrentSection}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AccessRequiredPage}" /></DataTrigger>
         </Style.Triggers>
       </Style>

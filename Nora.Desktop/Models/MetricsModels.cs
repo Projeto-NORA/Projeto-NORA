@@ -10,10 +10,10 @@ public sealed record LightningMetrics(long RegisteredSlots, long AcceptedOffers,
 public sealed record MetricsSummary(AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
 public sealed record SpecialtyMetrics(string Specialty, long Completed, long Missed, long Cancelled, double CancellationWeight, double? AttendanceScore, long ActiveEntries, double? AverageWaitMinutes);
 public sealed record DailyMetrics(string Date, long Scheduled, long Completed, long Missed, long Cancelled);
-public sealed record UnitMetricsSummary(Guid UnitId, string Name, string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
-public sealed record RegionMetricsSummary(string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning);
-public sealed record UnitMetrics(DateTimeOffset From, DateTimeOffset To, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, SpecialtyMetrics[] BySpecialty, DailyMetrics[] Daily);
-public sealed record NetworkMetrics(DateTimeOffset From, DateTimeOffset To, MetricsSummary Totals, UnitMetricsSummary[] ByUnit, RegionMetricsSummary[] ByRegion, SpecialtyMetrics[] BySpecialty, DailyMetrics[] Daily, long UnitsWithoutDatabase);
+public sealed record UnitMetricsSummary(Guid UnitId, string Name, string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, CapacityMetrics? Capacity = null, GoalStatus[]? Goals = null);
+public sealed record RegionMetricsSummary(string Region, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, CapacityMetrics? Capacity = null);
+public sealed record UnitMetrics(DateTimeOffset From, DateTimeOffset To, AppointmentMetrics Appointments, WaitingMetrics Waiting, LightningMetrics Lightning, SpecialtyMetrics[] BySpecialty, DailyMetrics[] Daily, CapacityMetrics? Capacity = null, GoalStatus[]? Goals = null);
+public sealed record NetworkMetrics(DateTimeOffset From, DateTimeOffset To, MetricsSummary Totals, UnitMetricsSummary[] ByUnit, RegionMetricsSummary[] ByRegion, SpecialtyMetrics[] BySpecialty, DailyMetrics[] Daily, long UnitsWithoutDatabase, CapacityMetrics? Capacity = null, GoalStatus[]? Goals = null);
 
 /// <summary>Opção de um filtro: valor enviado à API (vazio = sem filtro) e rótulo mostrado.</summary>
 public sealed record FilterOption(string Value, string Label);

@@ -32,16 +32,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(CanReadUnitRegistry),
         nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment), nameof(CanCreateLightning),
         nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
-        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanQueryHistory), nameof(MetricsLoading)
+        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
+        nameof(CanEditCatalog), nameof(CanChangeProfessional), nameof(CanChangeRoom), nameof(CanChangeSchedule), nameof(CanChangeBlock), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
+        nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders)
     ];
     private static readonly string[] SessionDependents =
     [
         nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
-        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState)
+        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState),
+        nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
+        nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement)
     ];
     private static readonly string[] SectionDependents =
     [
-        nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowQueue), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts),
+        nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowQueue), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts), nameof(ShowUnitSettings), nameof(ShowAnnouncements), nameof(ShowFamily),
         nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredTitle), nameof(AccessRequiredDescription), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage),
         nameof(PageTitle), nameof(PageSubtitle)
     ];
@@ -55,7 +59,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         endpoint = Environment.GetEnvironmentVariable("NORA_API_URL") ?? "";
         RefreshCommand = new RelayCommand(async _ => await RunAsync(async () =>
         {
-            await RefreshAsync(ScopeFor(Section) | UnitScope.Everything | UnitScope.PanelMetrics);
+            await RefreshAsync(ScopeFor(Section) | UnitScope.Everything | UnitScope.PanelMetrics | UnitScope.Catalog, manual: true);
             MarkFresh();
             Say(MessageKind.Success, "Dados atualizados pela API.");
         }), _ => CanOperate);
@@ -67,6 +71,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         BuildAgendaDays(); ResetAgendaRange();
         Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
         Replace(UnitOverviewCards, BuildCards(null, null)); Replace(UnitLightningCards, BuildLightningCards(null));
+        Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(NetworkCapacityCards, BuildCapacityCards(null, ""));
     }
 
     public string Endpoint { get => endpoint; set { endpoint = value; Notify(); } }
@@ -74,7 +79,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Há trabalho em andamento: ação do usuário, ciclo automático ou carga de seção.</summary>
     public bool IsBusy => userBusy || backgroundOperations > 0;
     /// <summary>A barra de progresso acompanha ação pedida pelo usuário e a consulta disparada por filtro; a atualização automática é silenciosa.</summary>
-    public bool ShowProgress => userBusy || networkLoading > 0 || unitMetricsLoading > 0;
+    public bool ShowProgress => userBusy || networkLoading > 0 || unitMetricsLoading > 0 || bookingLoading > 0 || networkAlertsLoading > 0 || capacityCatalogLoading > 0;
     public bool IsAuthenticated => user != null;
     public bool IsSignedOut => !IsAuthenticated;
     /// <summary>Botões e formulários só ficam bloqueados por ação do usuário; a atualização automática não os desabilita.</summary>
@@ -122,12 +127,16 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public bool ShowSlots => IsAuthenticated && IsOperational && Section == "slots";
     public bool ShowIndicators => IsOperational && Section == "indicators";
     public bool ShowAlerts => IsOperational && Section == "alerts";
-    public bool RequiresSignInForCurrentSection => IsOperational && IsSignedOut && Section is "queue" or "patients" or "slots";
+    public bool ShowUnitSettings => IsAuthenticated && IsOperational && Section == "unit-settings";
+    public bool RequiresSignInForCurrentSection => IsOperational && IsSignedOut && Section is "queue" or "patients" or "slots" or "unit-settings" or "family" or "announcements";
     public string AccessRequiredTitle => Section switch
     {
         "queue" => "Fila da unidade",
         "patients" => "Pacientes da unidade",
         "slots" => "Vagas Relâmpago",
+        "unit-settings" => "Configurações da UBS",
+        "family" => "Família",
+        "announcements" => "Comunicados",
         _ => "Área da unidade"
     };
     public string AccessRequiredDescription => Section switch
@@ -135,6 +144,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         "queue" => "Acompanhe posição, tempo de espera e a situação de cada entrada da fila.",
         "patients" => "Pesquise e consulte apenas os dados necessários para o trabalho da sua UBS.",
         "slots" => "Acompanhe as oportunidades reaproveitadas como Vaga Relâmpago.",
+        "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios da sua UBS.",
+        "family" => "Pedidos de vínculo entre responsáveis e dependentes, decididos pela equipe da UBS.",
+        "announcements" => "Comunicados da Secretaria para a equipe das UBS desta conta.",
         _ => "Entre na unidade para acessar os dados protegidos."
     };
     public string AccessRequiredHint => Section switch
@@ -142,13 +154,16 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         "queue" => "Entre no Painel da UBS para carregar a fila protegida da sua unidade.",
         "patients" => "Entre no Painel da UBS para carregar os pacientes autorizados da sua unidade.",
         "slots" => "Entre no Painel da UBS para carregar as vagas e seus estados.",
+        "unit-settings" => "Entre no Painel da UBS para carregar o cadastro de profissionais, consultórios e grade.",
+        "family" => "Entre no Painel da UBS para carregar os pedidos de família da sua unidade.",
+        "announcements" => "Entre no Painel da UBS para ler os comunicados da Secretaria.",
         _ => "Entre no Painel da UBS para continuar."
     };
     public bool IsIndicatorsPage => ShowIndicators;
     public bool IsAlertsPage => ShowAlerts;
     public string PageTitle => Section == "alerts" ? "Central de alertas" : "Indicadores da UBS";
     public string PageSubtitle => Section == "alerts"
-        ? "Veja quais dados já podem alimentar alertas de fila, espera, faltas e cancelamentos."
+        ? "Fila alta, espera longa, faltas, ocupação da grade e metas fora, avaliados pela API com os limites da rede."
         : "Espera, produção, comparecimento e Vaga Relâmpago da sua unidade, com os dados reais da UBS.";
     public string PatientTotalCount => HasActiveObsUnit ? ObsRegistry.Count.ToString() : "—";
     public string QueueWaitingCount => HasActiveObsUnit && unitQueueLoaded ? UnitWaitingList.Count(entry => entry.IsActive).ToString() : "—";
@@ -243,7 +258,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Carga inicial depois do login (ou da troca obrigatória de senha): rede e UBS na Secretaria; UBS autorizadas no OBS.</summary>
     private async Task LoadAfterLoginAsync()
     {
-        if (IsMunicipal) await LoadMunicipalAsync(); else await InitializeObsUnitsAsync();
+        if (IsMunicipal) await LoadMunicipalAsync(); else await Task.WhenAll(InitializeObsUnitsAsync(), ReadAnnouncementsAsync(full: true));
         MarkFresh();
     }
 
@@ -276,19 +291,26 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Lê o que a seção atual precisa. Municipal: resumo da rede, indicadores (só nas seções que os mostram) e UBS (em Unidades). OBS: dados da UBS ativa, ou a lista de UBS quando ela ainda não veio.</summary>
-    private async Task RefreshAsync(UnitScope scope)
+    private async Task RefreshAsync(UnitScope scope, bool manual = false)
     {
         if (mustChangePassword) return;
         if (IsMunicipal)
         {
             var version = networkVersion;
-            await Task.WhenAll(LoadSummaryAsync(version), NetworkSections.Contains(Section) ? LoadMetricsAsync(version) : Task.CompletedTask, Section == "units" || !UnitsLoaded ? LoadUnitsCoreAsync() : Task.CompletedTask);
+            await Task.WhenAll(LoadSummaryAsync(version), NetworkSections.Contains(Section) ? LoadMetricsAsync(version) : Task.CompletedTask, Section == "units" || !UnitsLoaded ? LoadUnitsCoreAsync() : Task.CompletedTask, LoadMunicipalSectionExtrasAsync(manual));
             return;
         }
-        if (ActiveObsUnit is { } unit) { if (scope != UnitScope.None) await LoadUnitScopeAsync(unit, scope); return; }
-        if (!ObsUnitsLoaded) await InitializeObsUnitsAsync();
+        // Comunicados são da conta (não da UBS): uma chamada incremental por ciclo, em paralelo com a leitura da UBS; a falha dela não derruba o resto.
+        // Sem UBS ativa o ciclo não insiste: a leitura sai só do login, da abertura da aba e do Atualizar dados.
+        var announcements = ActiveObsUnit is not null || manual || announcementsFullDue ? RefreshAnnouncementsAsync(manual) : Task.CompletedTask;
+        try
+        {
+            if (ActiveObsUnit is { } unit) { if (scope != UnitScope.None) await LoadUnitScopeAsync(unit, scope); }
+            else if (!ObsUnitsLoaded) await InitializeObsUnitsAsync();
+        }
+        finally { await announcements; }
     }
-    private static readonly HashSet<string> NetworkSections = ["home", "units", "specialties", "indicators"];
+    private static readonly HashSet<string> NetworkSections = ["home", "units", "specialties", "indicators", "capacity", "reports"];
 
     /// <summary>Ação do usuário: uma por vez, aguarda o ciclo automático em andamento e depois executa; nunca é descartada em silêncio.</summary>
     private async Task RunAsync(Func<Task> operation)
@@ -360,7 +382,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         if (disposed || !IsAuthenticated || mustChangePassword) return;
         if (IsMunicipal) { EnterMunicipalSection(); return; }
-        if (ScopeFor(Section) == UnitScope.None) return;
+        // Abrir a aba de comunicados faz uma leitura completa (traz o que foi encerrado ou venceu desde a última).
+        if (Section == "announcements") announcementsFullDue = true;
+        if (ScopeFor(Section) == UnitScope.None && Section != "announcements") return;
         sectionLoadPending = true;
         StartBackground(() =>
         {
@@ -380,6 +404,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
                 if (!historyLoaded) await LoadHistoryPageAsync(reset: true);
             });
         else if (NetworkSections.Contains(Section) && metrics is null && networkLoading == 0) ReloadNetwork(includeSummary: false);
+        if (Section is "specialties" or "reports" or "alerts" or "capacity" or "communication") StartBackground(() => LoadMunicipalSectionExtrasAsync(manual: false));
     }
 
     /// <summary>Tira da memória tudo o que foi lido da API (a sessão continua): usado ao sair e ao exigir a troca da senha provisória.</summary>
@@ -388,7 +413,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         summary = null; summaryReceivedAt = null; LightningPeriodDays = 0;
         ClearRefreshState();
         NotifySummary();
-        ClearObsUnits(); ClearStaff(); ClearUnits();
+        ClearObsUnits(); ClearStaff(); ClearUnits(); ClearMunicipalScheduling(); ClearAnnouncements(); ClearFamily(); ClearCommunication();
     }
 
     private void SignOut()

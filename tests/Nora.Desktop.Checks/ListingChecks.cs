@@ -34,7 +34,8 @@ internal static partial class Program
                     ("queue", "Fila da UBS", "Pacientes aguardando"),
                     ("slots", "Vagas Relâmpago da UBS", "Fila da UBS"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
-                    ("alerts", "Central de alertas", "Indicadores da UBS")
+                    ("alerts", "Central de alertas", "Indicadores da UBS"),
+                    ("unit-settings", "Configurações da UBS", "Resumo do dia")
                 })
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
@@ -60,7 +61,8 @@ internal static partial class Program
                     ("alerts", "Central de alertas", false),
                     ("queue", "Fila da unidade", false),
                     ("patients", "Pacientes da unidade", false),
-                    ("slots", "Vagas Relâmpago", false)
+                    ("slots", "Vagas Relâmpago", false),
+                    ("unit-settings", "Configurações da UBS", false)
                 })
                 {
                     window.ViewModel.Navigate(route);

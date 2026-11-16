@@ -27,6 +27,24 @@ public sealed partial class WorkspaceViewModel
         return offers.Select((offer, index) => new DetailField($"{index + 1}ª oferta", $"{offer.PatientName} · {offer.StatusDisplay} · prazo {offer.ExpiresAtDisplay}", Group: OffersGroup));
     }
 
+    /// <summary>
+    /// Aba "Exames e vacinas" da ficha de um paciente da UBS ativa. Nulo fora de uma UBS ativa ou para um item que não está mais na lista. A ficha é uma janela própria: o retorno
+    /// das ações aparece nela, e uma sessão encerrada ou troca obrigatória de senha continua sendo tratada aqui.
+    /// </summary>
+    public HealthRecordsViewModel? CreateHealthRecords(UnitPatientRecord patient)
+    {
+        if (IsMunicipal || !IsAuthenticated || ActiveObsUnit is not { } unit || !ObsRegistry.Contains(patient)) return null;
+        return new HealthRecordsViewModel(api, unit.Id, patient.Cpf, patient.FullName, patient.IsActive, HandleHealthRecordsError);
+    }
+
+    private bool HandleHealthRecordsError(NoraApiException error)
+    {
+        if (disposed || !IsAuthenticated) return false;
+        if (error.Code == "password-change-required") { EnterPasswordChange(); return true; }
+        if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); return true; }
+        return false;
+    }
+
     public ItemDetails? BuildDetails(object item)
     {
         if (IsMunicipal || !IsAuthenticated || !HasActiveObsUnit) return null;
@@ -34,12 +52,18 @@ public sealed partial class WorkspaceViewModel
         {
             UnitPatientRecord patient when ObsRegistry.Contains(patient) => BuildUnitPatientDetails(patient),
             UnitWaitingEntry entry when UnitWaitingList.Contains(entry) => BuildWaitingDetails(entry),
+            AppointmentInfo appointment when Appointments.Contains(appointment) => BuildAppointmentDetails(appointment),
             UnitLightningSlot slot when UnitLightningSlots.Contains(slot) => new(slot.Specialty, "Vaga Relâmpago da UBS", [
                 new("Especialidade", slot.Specialty), new("Profissional", slot.Professional), new("Horário", slot.TimeDisplay),
                 new("Situação", slot.StatusDisplay), new("Criada em", slot.CreatedAtDisplay)]),
             _ => null
         };
     }
+
+    private static ItemDetails BuildAppointmentDetails(AppointmentInfo appointment) => new(appointment.PatientName, "Consulta da UBS", [
+        new("Paciente", appointment.PatientName, true), new("CPF", appointment.FormattedCpf, true), new("Especialidade", appointment.Specialty), new("Profissional", appointment.Professional),
+        new("Horário", appointment.TimeDisplay), new("Situação", appointment.StatusDisplay), new("Marcada por", appointment.BookedByDisplay),
+        new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação: a confirmação só vale para consulta agendada, de 48 h até 2 h antes.")]);
 
     private static ItemDetails BuildWaitingDetails(UnitWaitingEntry entry) => new(entry.PatientName, "Entrada na fila da UBS", [
         new("Paciente", entry.PatientName, true), new("CPF", entry.FormattedCpf, true), new("Especialidade", entry.Specialty),

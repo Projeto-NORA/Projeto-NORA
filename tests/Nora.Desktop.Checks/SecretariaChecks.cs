@@ -189,13 +189,13 @@ internal static partial class Program
                 Require(vm.UnitPerformance.Single().Name == "UBS Alfa" && vm.AppliedSummaryUnitLabel == "UBS Alfa", "Os números não refletiram a UBS escolhida.");
                 selector.SelectedValue = Guid.Empty; Settle(vm);
                 Require(fixture.SummaryQueries[^1]["unitId"] is null && vm.UnitPerformance.Count == 2, "Voltar para Toda a rede não removeu o filtro.");
-                foreach (var route in new[] { "units", "specialties", "indicators", "slots", "reports" })
+                foreach (var route in new[] { "units", "specialties", "indicators", "slots", "reports", "capacity" })
                 {
                     content = Show(window, route);
                     Require(Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS deveria aparecer em " + route);
                     Require(!Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string), "Combo 'Indisponível' ainda aparece em " + route);
                 }
-                foreach (var route in new[] { "capacity", "alerts", "communication", "network" })
+                foreach (var route in new[] { "alerts", "communication", "network" })
                 {
                     content = Show(window, route);
                     Require(!Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS" or "Filtrar por região" or "Filtrar por especialidade"), "Filtro sem efeito aparece em " + route);

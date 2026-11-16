@@ -4,7 +4,7 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-/// <summary>Histórico de ações da gestão (GET /api/municipal/history): páginas de 100, mais recentes primeiro, "carregar mais" por cursor de instante.</summary>
+/// <summary>Histórico de ações da gestão (GET /api/municipal/history): páginas de 100, mais recentes primeiro, "carregar mais" pelo cursor que a API devolve em cada evento.</summary>
 public sealed partial class WorkspaceViewModel
 {
     private const int HistoryPageSize = 100;
@@ -46,7 +46,8 @@ public sealed partial class WorkspaceViewModel
     {
         if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar o histórico.");
         if (reset) { if (!TryReadHistoryFilter(out var filter)) return; appliedHistory = filter; }
-        var before = reset || HistoryEvents.Count == 0 ? (DateTimeOffset?)null : HistoryEvents[^1].OccurredAt;
+        // A página seguinte parte do cursor opaco do último item: eventos que compartilham o mesmo instante não se perdem. Sem cursor (API antiga), cai no instante.
+        var before = reset || HistoryEvents.Count == 0 ? null : HistoryEvents[^1].Cursor ?? HistoryEvents[^1].OccurredAt.ToString("O");
         var version = ++historyVersion;
         historyLoading = true; Notify(nameof(HistoryState));
         try

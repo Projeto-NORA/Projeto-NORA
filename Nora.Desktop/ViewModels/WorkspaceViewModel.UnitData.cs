@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Nora.Desktop.Models;
+using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
@@ -12,8 +13,21 @@ public enum UnitScope
     PanelMetrics = 32,
     /// <summary>Indicadores com o filtro de período da aba Indicadores.</summary>
     Metrics = 64,
-    Everything = Registry | Queue | Slots | Today
+    /// <summary>Consultórios em atendimento agora e com grade hoje (leitura leve, junto do resto do Painel).</summary>
+    ActiveRooms = 128,
+    /// <summary>Especialidades da rede e profissionais: base do agendamento por catálogo. Lido na troca de UBS, na atualização manual e, nas abas que o usam, quando a última leitura tem mais de 5 minutos.</summary>
+    Catalog = 256,
+    /// <summary>Consultórios, grade semanal e bloqueios, só para a aba Configurações da UBS.</summary>
+    Setup = 512,
+    /// <summary>Alertas avaliados pela API (aba Alertas); o Painel os lê junto com PanelMetrics.</summary>
+    Alerts = 1024,
+    /// <summary>Pedidos de família pendentes e vínculos aprovados da UBS (aba Família); só ela os lê.</summary>
+    Family = 2048,
+    Everything = Registry | Queue | Slots | Today | ActiveRooms
 }
+
+/// <summary>Leitura que pode falhar sem impedir o resto da UBS (rotas novas, base sem a migração mais nova); sessão encerrada e troca de senha continuam subindo como erro.</summary>
+public readonly record struct Tolerant<T>(T? Value, bool Failed);
 
 /// <summary>Leitura por UBS: busca em paralelo, só o que a seção pede, e aplica sem recriar coleções que não mudaram.</summary>
 public sealed partial class WorkspaceViewModel
@@ -32,6 +46,24 @@ public sealed partial class WorkspaceViewModel
         /// <summary>Quando cada leitura de indicadores foi pedida; a troca de UBS limpa o estado depois da leitura, então a hora é regravada ao aplicar.</summary>
         public DateTimeOffset MetricsAt { get; init; }
         public DateTimeOffset PanelAt { get; init; }
+        public Tolerant<Specialty[]>? Specialties { get; init; }
+        public Tolerant<Professional[]>? Professionals { get; init; }
+        public DateTimeOffset CatalogAt { get; init; }
+        public Tolerant<Room[]>? Rooms { get; init; }
+        public Tolerant<ScheduleTemplate[]>? Schedule { get; init; }
+        public Tolerant<ScheduleBlock[]>? Blocks { get; init; }
+        public Tolerant<ActiveRooms>? ActiveRooms { get; init; }
+        public Tolerant<UnitMetrics>? Capacity { get; init; }
+        public Tolerant<AlertItem[]>? Alerts { get; init; }
+        public DateTimeOffset AlertsAt { get; init; }
+        public Tolerant<FamilyLink[]>? FamilyPending { get; init; }
+        public Tolerant<FamilyLink[]>? FamilyApproved { get; init; }
+    }
+
+    private static async Task<Tolerant<T>> ReadTolerantAsync<T>(Func<Task<T>> read)
+    {
+        try { return new(await read(), false); }
+        catch (NoraApiException error) when (!error.Unauthorized && error.Code != "password-change-required") { return new(default, true); }
     }
 
     private static UnitScope ScopeFor(string section) => section switch
@@ -42,6 +74,9 @@ public sealed partial class WorkspaceViewModel
         "slots" => UnitScope.Slots,
         "agenda" => UnitScope.Agenda,
         "indicators" => UnitScope.Metrics,
+        "alerts" => UnitScope.Alerts,
+        "unit-settings" => UnitScope.Catalog | UnitScope.Setup,
+        "family" => UnitScope.Family,
         _ => UnitScope.None
     };
 
@@ -69,7 +104,25 @@ public sealed partial class WorkspaceViewModel
             panelRead = metricsRead is not null && TryBuildUnitRequest(out var sameRequest) && sameRequest == panelRequestNow
                 ? SharePanelAsync(metricsRead, panelRequestNow) : ReadPanelMetricsAsync(unit, panelRequestNow);
         }
-        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead }.OfType<Task>());
+        // Leituras tolerantes (rotas da agenda por catálogo): cada uma falha sozinha, sem derrubar a abertura da UBS.
+        Task<Tolerant<Specialty[]>>? specialties = null; Task<Tolerant<Professional[]>>? professionals = null; Task<Tolerant<Room[]>>? rooms = null;
+        Task<Tolerant<ScheduleTemplate[]>>? schedule = null; Task<Tolerant<ScheduleBlock[]>>? blocks = null; Task<Tolerant<ActiveRooms>>? activeRooms = null;
+        Task<Tolerant<UnitMetrics>>? capacity = null; Task<Tolerant<AlertItem[]>>? alerts = null;
+        var catalogAt = DateTimeOffset.Now; var alertsAt = DateTimeOffset.Now;
+        if (scope.HasFlag(UnitScope.Catalog)) { specialties = ReadTolerantAsync(() => api.ObsSpecialtiesAsync()); professionals = ReadTolerantAsync(() => api.ProfessionalsAsync(unit.Id)); }
+        if (scope.HasFlag(UnitScope.Setup))
+        {
+            rooms = ReadTolerantAsync(() => api.RoomsAsync(unit.Id)); schedule = ReadTolerantAsync(() => api.ScheduleAsync(unit.Id));
+            var blocksFrom = new DateTimeOffset(today); blocks = ReadTolerantAsync(() => api.ScheduleBlocksAsync(unit.Id, blocksFrom, blocksFrom.AddDays(366)));
+        }
+        if (scope.HasFlag(UnitScope.ActiveRooms)) activeRooms = ReadTolerantAsync(() => api.ActiveRoomsAsync(unit.Id));
+        // O Painel e a aba Alertas leem a avaliação da API; a capacidade dos próximos 7 dias acompanha a leitura de indicadores do Painel (no máximo a cada 5 minutos).
+        if (scope.HasFlag(UnitScope.Alerts) || scope.HasFlag(UnitScope.PanelMetrics)) alerts = ReadTolerantAsync(() => api.UnitAlertsAsync(unit.Id));
+        if (scope.HasFlag(UnitScope.PanelMetrics)) { var capacityFrom = new DateTimeOffset(today); capacity = ReadTolerantAsync(() => api.UnitMetricsAsync(unit.Id, capacityFrom, capacityFrom.AddDays(CapacityDays))); }
+        // Leitura tolerante: se falhar, a aba diz que não conseguiu ler em vez de ficar em "Carregando…".
+        var familyPending = scope.HasFlag(UnitScope.Family) ? ReadTolerantAsync(() => api.FamilyLinksAsync(unit.Id, "pending")) : null;
+        var familyApproved = scope.HasFlag(UnitScope.Family) ? ReadTolerantAsync(() => api.FamilyLinksAsync(unit.Id, "approved")) : null;
+        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved }.OfType<Task>());
         return new UnitSnapshot
         {
             Registry = registry is null ? null : await registry,
@@ -82,7 +135,19 @@ public sealed partial class WorkspaceViewModel
             Metrics = metricsRead is null ? null : await metricsRead,
             Panel = panelRead is null ? null : await panelRead,
             MetricsAt = unitMetricsAttemptedAt ?? DateTimeOffset.Now,
-            PanelAt = panelAttemptedAt ?? DateTimeOffset.Now
+            PanelAt = panelAttemptedAt ?? DateTimeOffset.Now,
+            Specialties = specialties is null ? null : await specialties,
+            Professionals = professionals is null ? null : await professionals,
+            CatalogAt = catalogAt,
+            Rooms = rooms is null ? null : await rooms,
+            Schedule = schedule is null ? null : await schedule,
+            Blocks = blocks is null ? null : await blocks,
+            ActiveRooms = activeRooms is null ? null : await activeRooms,
+            Capacity = capacity is null ? null : await capacity,
+            Alerts = alerts is null ? null : await alerts,
+            AlertsAt = alertsAt,
+            FamilyPending = familyPending is null ? null : await familyPending,
+            FamilyApproved = familyApproved is null ? null : await familyApproved
         };
     }
 
@@ -104,6 +169,11 @@ public sealed partial class WorkspaceViewModel
         // Uma resposta de um filtro que já mudou não altera a tela.
         if (data.Metrics is { Data: { } read } && TryBuildUnitRequest(out var current) && current == data.Metrics.Request) { unitMetricsAttemptedAt = data.MetricsAt; ApplyUnitMetrics(read, current); }
         if (data.Panel is { } panel) { panelAttemptedAt = data.PanelAt; ApplyPanelMetrics(panel); }
+        if (data.Specialties is not null || data.Professionals is not null || data.Rooms is not null || data.Schedule is not null || data.Blocks is not null) ApplyCatalog(data);
+        if (data.ActiveRooms is { } activeRooms) ApplyActiveRooms(activeRooms);
+        if (data.Capacity is { } capacity) ApplyPanelCapacity(capacity);
+        if (data.Alerts is { } alerts) ApplyUnitAlerts(alerts, data.AlertsAt);
+        if (data.FamilyPending is not null || data.FamilyApproved is not null) ApplyFamily(data.FamilyPending, data.FamilyApproved);
         NotifyUnitCounts();
     }
 

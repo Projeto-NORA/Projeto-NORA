@@ -57,7 +57,8 @@ public partial class ShellWindow : Window
     {
         var details = item is UnitLightningSlot ? await ViewModel.Workspace.BuildDetailsAsync(item) : ViewModel.Workspace.BuildDetails(item);
         if (details == null) return;
-        var dialog = new ItemDetailsWindow(details)
+        var health = item is UnitPatientRecord patient ? ViewModel.Workspace.CreateHealthRecords(patient) : null;
+        var dialog = new ItemDetailsWindow(details, null, health)
         {
             Owner = this,
             Title = details.Title,

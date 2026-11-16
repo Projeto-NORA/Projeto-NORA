@@ -23,7 +23,7 @@ public sealed class PreferencesService
             if (!File.Exists(FilePath)) return new();
             var preferences = JsonSerializer.Deserialize<DesktopPreferences>(File.ReadAllText(FilePath)) ?? throw new JsonException("Arquivo vazio.");
             if (!Enum.IsDefined(preferences.Appearance)) preferences.Appearance = Appearance.System;
-            var allowedPages = applicationId == "municipal" ? new[] { "home", "settings", "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "home", "settings", "patients", "queue", "slots" };
+            var allowedPages = applicationId == "municipal" ? new[] { "home", "settings", "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "home", "settings", "patients", "queue", "slots", "unit-settings", "family", "announcements" };
             if (!allowedPages.Contains(preferences.LastPage)) preferences.LastPage = "home";
             return preferences;
         }

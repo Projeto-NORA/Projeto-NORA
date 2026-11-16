@@ -17,89 +17,7 @@
             </Grid>
           </Border>
           <TextBlock Text="{Binding NavigationHeading}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryBrush}" Margin="10,0,0,10" />
-          <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl ItemsSource="{Binding Navigation}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding Title}">
-                  <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                      <Setter Property="ToolTip" Value="{Binding Title}" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding Id}" Value="home"><Setter Property="ToolTip" Value="Abra a visão geral do seu espaço de trabalho." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="patients"><Setter Property="ToolTip" Value="Consulte e cadastre pacientes da unidade." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="queue"><Setter Property="ToolTip" Value="Acompanhe e organize a fila de Vaga Relâmpago." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="agenda"><Setter Property="ToolTip" Value="Consulte a agenda da unidade em formato de calendário." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="alerts"><Setter Property="ToolTip" Value="Acompanhe alertas operacionais da unidade." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="home" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="home" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="patients" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="patients" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="queue" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="queue" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="slots" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="slots" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="agenda" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="agenda" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="indicators" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="indicators" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding Id}" Value="alerts" />
-                            <Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="alerts" />
-                          </MultiDataTrigger.Conditions>
-                          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-                        </MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="units" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="units" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="specialties" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="specialties" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="network" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="network" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="capacity" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="capacity" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="reports" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="reports" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="communication" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="communication" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="users" /><Condition Binding="{Binding DataContext.Page, RelativeSource={RelativeSource AncestorType=Window}}" Value="users" /></MultiDataTrigger.Conditions><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiDataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Button.Style>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="18" Width="24" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" />
-                  </StackPanel>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl></ScrollViewer>
+
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
           <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,8" ToolTip="Abra as configurações do software." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
@@ -127,7 +45,38 @@
             </Grid>
           </Button>
         </StackPanel>
-        <Grid />
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl ItemsSource="{Binding Navigation}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding AutomationName}">
+                  <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                      <Setter Property="ToolTip" Value="{Binding Title}" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Id}" Value="home"><Setter Property="ToolTip" Value="Abra a visão geral do seu espaço de trabalho." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="patients"><Setter Property="ToolTip" Value="Consulte e cadastre pacientes da unidade." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="queue"><Setter Property="ToolTip" Value="Acompanhe e organize a fila de Vaga Relâmpago." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="agenda"><Setter Property="ToolTip" Value="Consulte a agenda da unidade em formato de calendário." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="alerts"><Setter Property="ToolTip" Value="Acompanhe alertas operacionais da unidade." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="unit-settings"><Setter Property="ToolTip" Value="Cadastre profissionais, consultórios, grade de horários e bloqueios da unidade." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="family"><Setter Property="ToolTip" Value="Aprove ou recuse pedidos de vínculo entre responsáveis e dependentes." /></DataTrigger>
+                        <DataTrigger Binding="{Binding Id}" Value="announcements"><Setter Property="ToolTip" Value="Leia os comunicados da Secretaria para a equipe." /></DataTrigger>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="18" Width="24" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" />
+                    <Border Visibility="{Binding HasBadge, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource BrandBrush}" CornerRadius="10" MinWidth="22" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource BrandTextBrush}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" /></Border>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl></ScrollViewer>
       </DockPanel>
     </Border>
     <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral.">

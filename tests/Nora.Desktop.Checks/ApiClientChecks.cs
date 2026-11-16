@@ -324,6 +324,11 @@ internal static partial class Program
         RunUnitSelectionChecks(application, storageRoot, args);
         RunUnitFlowChecks(application, storageRoot, args);
         RunUnitIndicatorsChecks(application, storageRoot, args);
+        RunSchedulingChecks(application, storageRoot, args);
+        RunSchedulingInsightsChecks(application, storageRoot, args);
+        RunSecretariaSchedulingChecks(application, storageRoot, args);
+        RunCommunityChecks(application, storageRoot, args);
+        RunReviewFixesChecks(application, storageRoot, args);
         RunAgendaAndQueueChecks(application, storageRoot, args);
         RunMessageChecks(application, storageRoot, args);
         RunSecretariaChecks(application, storageRoot, args);
@@ -335,7 +340,7 @@ internal static partial class Program
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
         {
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
-            foreach (var route in profile.IsMunicipal ? new[] { "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "patients", "queue", "slots" })
+            foreach (var route in profile.IsMunicipal ? new[] { "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "patients", "queue", "slots", "unit-settings", "family", "announcements" })
             {
                 var path = Path.Combine(storageRoot, "routes", profile.Id, route);
                 var storage = new PreferencesService(profile.Id, path);

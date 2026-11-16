@@ -22,4 +22,19 @@ public sealed record DesktopProfile(string Id, string Name, bool IsMunicipal)
     public static DesktopProfile Municipal { get; } = new("municipal", "NORA Municipal", true);
 }
 
-public sealed record NavigationItem(string Id, string Icon, string Title, bool Available = false);
+/// <summary>Item do menu lateral. <see cref="Badge"/> é o contador de não lidos (comunicados) e <see cref="IsSelected"/> marca a página aberta.</summary>
+public sealed class NavigationItem(string id, string icon, string title, bool available = false) : Nora.Desktop.Generics.ObservableObject
+{
+    private int badge;
+    private bool selected;
+    public string Id { get; } = id;
+    public string Icon { get; } = icon;
+    public string Title { get; } = title;
+    public bool Available { get; } = available;
+    public int Badge { get => badge; set { if (badge == value) return; badge = value; Notify(); Notify(nameof(HasBadge)); Notify(nameof(BadgeText)); Notify(nameof(AutomationName)); } }
+    public bool HasBadge => badge > 0;
+    public string BadgeText => badge > 99 ? "99+" : badge.ToString();
+    /// <summary>O contador também vai no nome acessível: o número é texto, não só cor.</summary>
+    public string AutomationName => badge > 0 ? $"{Title}, {badge} {(badge == 1 ? "não lido" : "não lidos")}" : Title;
+    public bool IsSelected { get => selected; set { if (selected == value) return; selected = value; Notify(); } }
+}

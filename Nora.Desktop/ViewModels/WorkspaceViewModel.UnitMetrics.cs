@@ -117,6 +117,14 @@ public sealed partial class WorkspaceViewModel
         var scope = ScopeFor(name);
         if (scope.HasFlag(UnitScope.Metrics) && !UnitMetricsDue) scope &= ~UnitScope.Metrics;
         if (name == "home" && PanelMetricsDue) scope |= UnitScope.PanelMetrics;
+        // Catálogo (profissionais e especialidades): lido na troca de UBS; as abas que o usam só o repetem depois de 5 minutos.
+        if (name == "agenda" && CatalogDue) scope |= UnitScope.Catalog;
+        if (name == "unit-settings")
+        {
+            if (!CatalogDue) scope &= ~UnitScope.Catalog;
+            if (setupLoaded && !CatalogDue) scope &= ~UnitScope.Setup;
+        }
+        if (scope.HasFlag(UnitScope.Alerts) && !AlertsDue) scope &= ~UnitScope.Alerts;
         return scope;
     }
 
@@ -215,6 +223,7 @@ public sealed partial class WorkspaceViewModel
             .OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         var sparse = SparseDays(result.Daily);
         UnitChart.Apply(BuildChartDays(sparse, request.From, request.To), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
+        ApplyUnitCapacityAndGoals(result);
         NotifyUnitMetrics();
     }
 

@@ -31,7 +31,7 @@ public sealed record StaffAccount(Guid Id, string FullName, string Role, string?
 }
 
 /// <summary>Ação registrada no histórico da gestão; sem CPF nem e-mail.</summary>
-public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName = null, Guid? UnitId = null, string? UnitName = null, string? AccountName = null)
+public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string? ActorName = null, Guid? UnitId = null, string? UnitName = null, string? AccountName = null, string? Cursor = null)
 {
     [JsonIgnore] public string OccurredAtDisplay => OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
     [JsonIgnore] public string ActionDisplay => Kind switch
@@ -70,12 +70,31 @@ public sealed record UnitPatientRecord(string Cpf, string FullName, string Email
     public string ParticipationDisplay => DisplayFormat.Percent(Attendance?.Score);
 }
 
-public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status)
+public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status,
+    DateTimeOffset? ConfirmedAt = null, string BookedBy = "staff", Guid? ProfessionalId = null, Guid? SpecialtyId = null)
 {
+    /// <summary>A presença pode ser confirmada de 48 h até 2 h antes; só nas próximas 48 h falta de confirmação vale como informação.</summary>
+    private static readonly TimeSpan ConfirmationHorizon = TimeSpan.FromHours(48);
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string PatientDisplay => $"{PatientName} · CPF {FormattedCpf}";
     public string StatusDisplay => Status switch { "scheduled" => "Agendada", "called" => "Chamada", "completed" => "Concluída", "missed" => "Falta", "cancelled" => "Cancelada", _ => Status };
+    /// <summary>Quem marcou: a equipe da UBS, o paciente pelo aplicativo ou o aceite de uma Vaga Relâmpago.</summary>
+    public string BookedByDisplay => BookedBy switch { "patient" => "Paciente pelo aplicativo", "lightning" => "Vaga Relâmpago", _ => "Equipe da UBS" };
+    /// <summary>"Presença confirmada às HH:mm" ou "Sem confirmação" (consulta agendada nas próximas 48 h); vazio quando não há o que informar.</summary>
+    public string ConfirmationDisplay => ConfirmationAt(DateTimeOffset.Now);
+    public bool HasConfirmationInfo => ConfirmationDisplay.Length > 0;
+    public bool IsConfirmed => Status == "scheduled" && ConfirmedAt is not null;
+    public string ConfirmationAt(DateTimeOffset now)
+    {
+        if (Status != "scheduled") return "";
+        if (ConfirmedAt is { } confirmed)
+        {
+            var local = confirmed.ToLocalTime();
+            return local.Date == now.ToLocalTime().Date ? $"Presença confirmada às {local:HH:mm}" : $"Presença confirmada em {local:dd/MM} às {local:HH:mm}";
+        }
+        return StartsAt > now && StartsAt - now <= ConfirmationHorizon ? "Sem confirmação" : "";
+    }
 }
 
 public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, string Specialty, DateTimeOffset EnteredAt, string Status)

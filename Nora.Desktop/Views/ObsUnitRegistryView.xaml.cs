@@ -35,10 +35,18 @@ public partial class ObsUnitRegistryView : UserControl
     private async void OnSetActive(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel vm || vm.SelectedObsRegistry is not { } patient) return;
-        var description = patient.IsActive
-            ? $"Desativar {patient.FullName} somente nesta UBS? As entradas e ofertas pendentes da unidade serão canceladas; consultas já agendadas serão mantidas."
-            : $"Reativar {patient.FullName} nesta UBS? Entradas canceladas não serão restauradas.";
-        if (MessageBox.Show(description, "Confirmar situação na UBS", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-            await vm.SetObsRegistryActiveAsync();
+        string description;
+        // O que a pessoa vai confirmar é fixado antes da pergunta: a lista pode ser relida enquanto ela está aberta, e o botão não pode virar o contrário.
+        var activate = !patient.IsActive;
+        if (patient.IsActive)
+        {
+            // Desativar cancela as consultas futuras da UBS: a API diz quantas antes da pergunta. Sem esse número a confirmação não é feita.
+            var preview = await vm.PreviewObsDeactivationAsync();
+            if (preview is null || vm.SelectedObsRegistry?.Cpf != patient.Cpf) return;
+            description = WorkspaceViewModel.DeactivationConfirmationText(patient.FullName, preview);
+        }
+        else description = $"Reativar {patient.FullName} nesta UBS? Entradas e consultas canceladas não serão restauradas.";
+        if (Services.Confirmation.Ask(Window.GetWindow(this), "Confirmar situação na UBS", description) && vm.SelectedObsRegistry?.Cpf == patient.Cpf)
+            await vm.SetObsRegistryActiveAsync(patient.Cpf, activate);
     }
 }

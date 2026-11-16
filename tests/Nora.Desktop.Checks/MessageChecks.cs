@@ -27,7 +27,7 @@ internal static partial class Program
                 Pump(vm.LoginAsync("isolated-test-password"));
                 var routes = profile.IsMunicipal
                     ? new[] { "home", "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users", "settings" }
-                    : new[] { "home", "agenda", "indicators", "alerts", "patients", "queue", "slots", "settings" };
+                    : new[] { "home", "agenda", "indicators", "alerts", "patients", "queue", "slots", "unit-settings", "settings" };
                 foreach (var route in routes)
                 {
                     window.ViewModel.Navigate(route);

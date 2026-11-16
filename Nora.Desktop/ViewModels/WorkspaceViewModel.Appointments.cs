@@ -136,6 +136,7 @@ public sealed partial class WorkspaceViewModel
     private void ChangeAgendaDate(DateTime date, string? mode)
     {
         var monthChanged = date.Year != selectedAgendaDate.Year || date.Month != selectedAgendaDate.Month;
+        var dayChanged = date.Date != selectedAgendaDate;
         selectedAgendaDate = date.Date;
         if (mode is not null) agendaViewMode = mode;
         if (monthChanged) BuildAgendaDays();
@@ -145,6 +146,8 @@ public sealed partial class WorkspaceViewModel
         Notify(nameof(AgendaRangeLabel)); Notify(nameof(SelectedAgendaDateLabel));
         // Só um mês novo exige leitura; trocar dia, semana ou modo dentro do mês usa o que já está na memória.
         if (monthChanged && HasActiveObsUnit) RequestAgendaLoad();
+        // Os horários livres partem do dia escolhido: uma leitura por mudança de dia, só com especialidade e profissional escolhidos.
+        if (dayChanged && UsesCatalogBooking) { Notify(nameof(BookingWindowLabel)); ReloadBookingSlots(); }
     }
 
     private void RequestAgendaLoad()
@@ -161,8 +164,13 @@ public sealed partial class WorkspaceViewModel
     public Task LoadAppointmentsAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar a agenda.");
-        await LoadUnitScopeAsync(unit, UnitScope.Agenda);
-        if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, "Agenda atualizada.");
+        // As mensagens do agendamento mandam usar "Atualizar agenda": ela também relê o cadastro (profissionais e especialidades) e os horários livres, senão o botão não resolveria
+        // um cadastro que falhou, um profissional novo cadastrado em outro computador nem uma busca de horários que falhou.
+        await LoadUnitScopeAsync(unit, UnitScope.Agenda | UnitScope.Catalog);
+        if (ActiveObsUnit?.Id != unit.Id) return;
+        ReloadBookingSlots();
+        if (catalogFailed) Say(MessageKind.Error, "A agenda foi atualizada, mas o cadastro de profissionais não pôde ser lido agora: o agendamento segue indisponível. Tente de novo.");
+        else Say(MessageKind.Success, "Agenda atualizada.");
     });
 
     /// <summary>Confere o agendamento antes de enviar; a API repete as mesmas regras.</summary>
@@ -188,12 +196,41 @@ public sealed partial class WorkspaceViewModel
     public Task CreateAppointmentAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de agendar.");
+        if (catalogFailed) throw new NoraApiException("Não foi possível ler o cadastro de profissionais desta UBS, por isso o agendamento está indisponível. Atualize a agenda e tente de novo.");
+        if (UsesCatalogBooking) { await CreateCatalogAppointmentAsync(unit); return; }
         var (startsAt, endsAt, patient) = ValidateAppointmentDraft();
-        await api.CreateAppointmentAsync(unit.Id, patient.Cpf, AppointmentSpecialty.Trim(), AppointmentProfessional.Trim(), startsAt, endsAt);
+        // Outro computador cadastrou o primeiro profissional ativo: a API passa a exigir o catálogo (400 catalog-required) e a tela ainda mostra o texto livre.
+        // O cadastro é relido para a lista aparecer e a mensagem do erro continua.
+        try { await api.CreateAppointmentAsync(unit.Id, patient.Cpf, AppointmentSpecialty.Trim(), AppointmentProfessional.Trim(), startsAt, endsAt); }
+        catch (NoraApiException error) when (error.Code == "catalog-required")
+        {
+            await RecoverBookingAsync(unit, error.Code);
+            throw;
+        }
         SetTodayOverview(default, null);
         AppointmentPatient = null;
         await ReloadAfterChangeAsync(unit, UnitScope.Agenda, "Consulta agendada.");
     });
+
+    /// <summary>Marcação pelo catálogo: só um horário livre da lista. Se o horário foi ocupado no meio do caminho ou o catálogo mudou, a leitura é refeita e a mensagem diz o que aconteceu.</summary>
+    private async Task CreateCatalogAppointmentAsync(HealthUnit unit)
+    {
+        var patient = AppointmentPatient ?? throw new NoraApiException("Selecione o paciente cadastrado na UBS.");
+        if (ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf) is not { IsActive: true }) throw new NoraApiException("O paciente precisa ter um cadastro ativo nesta UBS.");
+        if (BookingSpecialty is null) throw new NoraApiException("Escolha a especialidade.");
+        if (BookingProfessional is null) throw new NoraApiException("Escolha o profissional.");
+        var slot = BookingSlot ?? throw new NoraApiException("Escolha um horário livre da lista.");
+        try { await api.CreateAppointmentAsync(unit.Id, patient.Cpf, slot.SpecialtyName, slot.ProfessionalName, slot.StartsAt, slot.EndsAt, slot.ProfessionalId, slot.SpecialtyId); }
+        catch (NoraApiException error) when (error.Code is "slot-unavailable" or "catalog-required" or "patient-overlap")
+        {
+            await RecoverBookingAsync(unit, error.Code);
+            throw;
+        }
+        SetTodayOverview(default, null);
+        AppointmentPatient = null; BookingSlot = null;
+        ReloadBookingSlots();
+        await ReloadAfterChangeAsync(unit, UnitScope.Agenda, $"Consulta agendada para {slot.Display}.");
+    }
 
     public Task ChangeAppointmentStatusAsync(string status, bool confirmed) => RunAsync(async () =>
     {
@@ -212,5 +249,6 @@ public sealed partial class WorkspaceViewModel
         monthAppointments = null; monthKey = null; agendaLoadPending = false;
         Appointments.Clear(); SelectedAppointment = null; ApplyCalendarMarks(); Notify(nameof(AgendaStateText));
         SetTodayOverview(default, null); AppointmentPatient = null; AppointmentSpecialty = ""; AppointmentProfessional = "";
+        ClearBooking();
     }
 }

@@ -59,10 +59,19 @@
         <views:EvolutionChartView Data="{Binding UnitChart}" />
       </StackPanel>
     </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Capacidade da UBS no período">
       <StackPanel>
-        <TextBlock Text="Ainda sem dados" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="Ocupação da agenda e uso dos consultórios dependem do cadastro de profissionais, consultórios e horários, previsto para uma próxima etapa. Nada disso é calculado ou simulado." />
+        <TextBlock Text="Capacidade da agenda no período" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="Horários ofertados pela grade da UBS com início no período, menos os bloqueados, e quantos deles têm consulta marcada. Vaga Relâmpago aberta e consulta cancelada não ocupam o horário." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding UnitCapacityCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0" AutomationProperties.Name="Capacidade da UBS" />
+      </StackPanel>
+    </Border>
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Metas da UBS no período">
+      <StackPanel>
+        <TextBlock Text="Metas da Secretaria" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="Situação de cada meta no período escolhido: atingida, perto (até 10% da meta), fora ou sem dado. Vale a meta própria da UBS ou, se ela não tiver, a da rede." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding UnitGoalCells}" ItemTemplate="{StaticResource GoalCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0" AutomationProperties.Name="Situação das metas da UBS" />
+        <TextBlock Text="{Binding UnitGoalsState}" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="{Binding UnitGoalsState, Converter={StaticResource TextVisibility}}" />
       </StackPanel>
     </Border>
   </StackPanel>

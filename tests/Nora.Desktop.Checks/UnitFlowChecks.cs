@@ -211,14 +211,14 @@ internal static partial class Program
                 Require(vm.SelectedAppointment?.Status == "cancelled" && vm.CanCreateLightning && !vm.CanCancelAppointment, "Cancelar não atualizou a consulta e os botões.");
                 Pump(vm.CreateUnitLightningSlotAsync());
                 Require(vm.UnitLightningSlots.Single().AppointmentId == appointment.Id && vm.UnitLightningSlots.Single().Status == "open", "Vaga não foi criada para a consulta selecionada.");
-                vm.SelectedObsRegistry = vm.ObsRegistry.Single(); Pump(vm.SetObsRegistryActiveAsync());
+                vm.SelectedObsRegistry = vm.ObsRegistry.Single(); Pump(vm.SetObsRegistryActiveAsync(vm.SelectedObsRegistry.Cpf, false));
                 Require(vm.SelectedObsRegistry?.IsActive == false && !vm.ActiveObsRegistry.Any(), "Desativação não foi refletida na UBS.");
                 vm.ObsRegistryStatusFilter = "Ativos"; Require(!vm.FilteredObsRegistry.Any(), "Filtro exibiu paciente desativado.");
                 vm.ObsRegistryStatusFilter = "Desativados"; Require(vm.FilteredObsRegistry.Count() == 1, "Filtro não exibiu paciente desativado.");
                 vm.ObsRegistryPresenceFilter = "Online"; Require(!vm.FilteredObsRegistry.Any(), "Filtro de presença mostrou paciente offline.");
                 vm.ObsRegistryPresenceFilter = "Offline"; Require(vm.FilteredObsRegistry.Count() == 1, "Filtro não mostrou paciente offline.");
                 vm.ObsRegistryPresenceFilter = "Todos";
-                Pump(vm.SetObsRegistryActiveAsync()); vm.ObsRegistryStatusFilter = "Todos";
+                Pump(vm.SetObsRegistryActiveAsync(vm.SelectedObsRegistry!.Cpf, true)); vm.ObsRegistryStatusFilter = "Todos";
                 Require(vm.SelectedObsRegistry?.IsActive == true && vm.ActiveObsRegistry.Count() == 1, "Reativação não foi refletida na UBS.");
                 Require(vm.BuildDetails(vm.SelectedObsRegistry!)?.Fields.Any(field => field.Label == "CPF" && field.CanCopy) == true, "Ficha da UBS não oferece CPF para cópia explícita.");
                 window.ViewModel.Navigate("patients"); Settle(vm); var content = Layout(window, 980, 640);

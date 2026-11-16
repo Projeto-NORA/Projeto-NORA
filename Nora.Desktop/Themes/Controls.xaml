@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:g="clr-namespace:Nora.Desktop.Generics">
   <BooleanToVisibilityConverter x:Key="BoolVisibility" />
   <g:TextVisibilityConverter x:Key="TextVisibility" />
+  <g:InverseBoolVisibilityConverter x:Key="InverseBoolVisibility" />
   <Style TargetType="TextBlock">
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
@@ -361,6 +362,29 @@
         <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,10,0,4" />
         <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="11" LineHeight="16" />
       </StackPanel>
+    </Border>
+  </DataTemplate>
+  <!-- Situação de uma meta: ícone + palavra + detalhe (valor e meta). O estado nunca depende só da cor. -->
+  <DataTemplate x:Key="GoalCellTemplate">
+    <StackPanel AutomationProperties.Name="{Binding AutomationLabel}">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Glyph}" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0">
+          <TextBlock.Style><Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Status}" Value="met"><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
+              <DataTrigger Binding="{Binding Status}" Value="near"><Setter Property="Foreground" Value="{DynamicResource WarningBrush}" /></DataTrigger>
+              <DataTrigger Binding="{Binding Status}" Value="off"><Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" /></DataTrigger>
+            </Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
+        <TextBlock Text="{Binding StatusDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" FontSize="11" LineHeight="15" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Detail}" />
+    </StackPanel>
+  </DataTemplate>
+  <DataTemplate x:Key="GoalCardTemplate">
+    <Border Style="{StaticResource Card}" Margin="6" Padding="20" AutomationProperties.Name="{Binding AutomationLabel}">
+      <StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" /><ContentControl Content="{Binding}" ContentTemplate="{StaticResource GoalCellTemplate}" Margin="0,10,0,0" /></StackPanel>
     </Border>
   </DataTemplate>
   <ItemsPanelTemplate x:Key="ThreeColumnPanel"><UniformGrid Columns="3" /></ItemsPanelTemplate>

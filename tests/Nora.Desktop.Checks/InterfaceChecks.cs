@@ -97,7 +97,7 @@ internal static partial class Program
                     window.ViewModel.Navigate("settings");
                     PrepareWindow(window);
                     var content = Layout(window, 980, 640);
-                    var scrolling = Descendants<ScrollViewer>(content).First();
+                    var scrolling = (ScrollViewer)window.FindName("PageScroll"); // a rolagem da página (a primeira da árvore era a do menu, que já não estoura com a lista maior)
                     Require(scrolling.ScrollableHeight > 0, "Conteúdo excedente não possui rolagem.");
                     scrolling.ScrollToEnd();
                     Layout(window, 980, 640);

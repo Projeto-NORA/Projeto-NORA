@@ -162,7 +162,7 @@ internal static partial class Program
         {
             using var fixture = new ApiFixture();
             var first = fixture.AddUnit("UBS Painel A", "Centro"); var second = fixture.AddUnit("UBS Painel B", "Sul");
-            fixture.AddRegistry(first.Id, "Ana Souza");
+            fixture.AddRegistry(first.Id, "Ana Souza"); fixture.SetActiveRooms(first.Id, 2, 5);
             var window = OpenOperational(fixture, storageRoot, "unit-panel", Appearance.Light);
             try
             {
@@ -176,7 +176,7 @@ internal static partial class Program
                 var content = Layout(window, 1280, 1500);
                 var texts = VisibleTexts(content);
                 Require(texts.Contains("1 h 35 min") && texts.Contains("Consultas dos últimos 7 dias") && !texts.Contains("Visão da agenda") && !texts.Contains("Aguardando série de atendimentos"), "O Painel ainda mostra o gráfico decorativo ou não mostra a espera média.");
-                Require(texts.Contains("Consultórios ativos") && texts.Any(text => text.StartsWith("Indisponível: depende do cadastro de consultórios", StringComparison.Ordinal)), "Consultórios ativos deveria continuar indisponível, com o aviso honesto.");
+                Require(texts.Contains("Consultórios ativos") && texts.Contains("em atendimento agora") && texts.Contains("com grade hoje") && vm.ActiveRoomsInUseValue == "2" && vm.ActiveRoomsPlannedValue == "5" && texts.Contains("2") && texts.Contains("5"), "Consultórios ativos deveria mostrar os dois números reais (em atendimento agora e com grade hoje).");
                 var chart = Descendants<EvolutionChartView>(content).Single();
                 Require(Descendants<System.Windows.Shapes.Rectangle>(chart).Count(rectangle => rectangle.ToolTip is string) == 7, "O gráfico do Painel deveria ter uma dica por dia da semana.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-painel-light.png"), 1280, 900);
@@ -368,31 +368,6 @@ internal static partial class Program
                 SavePreview(Layout(shell, 1280, 900), Path.Combine(previewRoot, "obs-base-indisponivel-dark.png"));
             }
             finally { CloseWindow(shell); }
-        });
-        Check("Alertas OBS e Secretaria: listam o dado disponível e a decisão que falta, sem inventar limite", () =>
-        {
-            using var fixture = new ApiFixture();
-            fixture.AddUnit("UBS Alertas");
-            var obs = OpenOperational(fixture, storageRoot, "unit-alerts", Appearance.Light);
-            var municipal = OpenMunicipal(fixture, storageRoot, "sec-alerts", Appearance.Dark);
-            try
-            {
-                foreach (var (shell, profile) in new[] { (obs, "obs"), (municipal, "municipal") })
-                {
-                    var vm = LoginObs(shell);
-                    var content = Show(shell, "alerts", 1280, 1500);
-                    var criteria = Descendants<AlertCriteriaView>(content).Single(view => view.IsVisible);
-                    var texts = FullTexts(criteria);
-                    Require(texts.Contains("Nenhum alerta é avaliado ainda") && new[] { "Fila por especialidade", "Tempo de espera", "Cancelamentos" }.All(texts.Contains), $"{profile}: critérios de alerta ausentes.");
-                    Require(texts.Count(text => text == "Dado disponível") == 4 && texts.Count(text => text == "Dado ainda indisponível") == 1, $"{profile}: o estado de cada dado deve vir escrito, não só em cor.");
-                    Require(texts.Count(text => text.StartsWith("Falta decidir: ", StringComparison.Ordinal)) == 5 && texts.Count(text => text.StartsWith("O que mediria: ", StringComparison.Ordinal)) == 5, $"{profile}: faltou 'o que mediria' ou 'falta decidir' em algum critério.");
-                    Require(!texts.Any(text => Regex.IsMatch(text, "[0-9]")), $"{profile}: um número (limite) apareceu na lista de critérios: " + string.Join(" | ", texts.Where(text => Regex.IsMatch(text, "[0-9]"))));
-                    Require(!FullTexts(content).Any(text => text is "Fila alta" or "Atrasos"), $"{profile}: sobraram os rótulos fixos antigos.");
-                    SaveScrolled(shell, Path.Combine(previewRoot, $"{profile}-alerts-{(profile == "obs" ? "light" : "dark")}.png"), 1280, 900);
-                    _ = vm;
-                }
-            }
-            finally { CloseWindow(obs); CloseWindow(municipal); }
         });
     }
 }

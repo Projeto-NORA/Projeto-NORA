@@ -157,6 +157,8 @@ public sealed partial class WorkspaceViewModel
     {
         if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para consultar suas UBS.");
         var hadActive = ActiveObsUnit?.Id;
+        // A lista de UBS mudou (ou pode ter mudado): os comunicados são relidos por inteiro no próximo ciclo, porque o alcance depende das concessões da conta.
+        announcementsFullDue = true;
         await InitializeObsUnitsAsync();
         if (disposed || !IsAuthenticated) return;
         if (hadActive is not null && ActiveObsUnit is null) Say(MessageKind.Error, "A UBS ativa deixou de estar autorizada para esta conta. Escolha outra UBS.");
@@ -166,7 +168,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
     private async Task ActivateUnitAsync(HealthUnit unit)
     {
-        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics);
+        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics | UnitScope.Catalog);
         if (disposed || !IsAuthenticated) return;
         if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
         ActiveObsUnit = unit;
@@ -224,15 +226,63 @@ public sealed partial class WorkspaceViewModel
         await ReloadAfterChangeAsync(unit, UnitScope.Registry, "E-mail atualizado no cadastro da UBS.");
     });
 
-    public Task SetObsRegistryActiveAsync() => RunAsync(async () =>
+    private (string Cpf, DeactivationPreview Preview)? deactivationPreview;
+
+    /// <summary>
+    /// Antes de desativar o cadastro selecionado: pergunta à API quantas consultas futuras seriam canceladas e quantas entradas de fila encerradas (nada é gravado).
+    /// Devolve nulo se a leitura falhar (a faixa já mostra o motivo): sem o número a confirmação não pode ser feita.
+    /// </summary>
+    public async Task<DeactivationPreview?> PreviewObsDeactivationAsync()
+    {
+        DeactivationPreview? result = null;
+        await RunAsync(async () =>
+        {
+            var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar o cadastro.");
+            var patient = SelectedObsRegistry ?? throw new NoraApiException("Selecione um paciente.");
+            result = await api.DeactivationPreviewAsync(unit.Id, patient.Cpf);
+            deactivationPreview = (patient.Cpf, result);
+        });
+        return result;
+    }
+
+    private static string CountText(long value, string singular, string plural) => $"{DisplayFormat.Count(value)} {(value == 1 ? singular : plural)}";
+
+    /// <summary>Texto da confirmação de desativar: o que será cancelado (com o número da prévia), que o cancelamento é da unidade e não pesa na participação, e que reativar não restaura nada.</summary>
+    public static string DeactivationConfirmationText(string patientName, DeactivationPreview preview)
+    {
+        var appointments = preview.FutureAppointments == 0 ? "Este paciente não tem consultas futuras nesta UBS para cancelar."
+            : $"{(preview.FutureAppointments == 1 ? "1 consulta futura será cancelada" : $"{DisplayFormat.Count(preview.FutureAppointments)} consultas futuras serão canceladas")}, e o horário volta a ficar livre.";
+        var cancellation = preview.FutureAppointments == 0 ? "" : "\n\nEsses cancelamentos contam como da unidade: não pesam na participação do paciente.";
+        var queue = preview.ActiveWaitingEntries == 0 ? "Ele não tem entrada ativa na fila."
+            : $"{CountText(preview.ActiveWaitingEntries, "entrada ativa na fila será encerrada", "entradas ativas na fila serão encerradas")}, junto com as ofertas pendentes.";
+        return $"Desativar {patientName} somente nesta UBS?\n\n{appointments}{cancellation}\n\n{queue}\n\nReativar depois não restaura nada do que foi cancelado.";
+    }
+
+    /// <summary>
+    /// Desativa ou reativa o cadastro do paciente <paramref name="cpf"/> nesta UBS. O estado pretendido (<paramref name="active"/>) é o que a pessoa confirmou na tela:
+    /// se outra pessoa já mudou o cadastro enquanto a pergunta estava aberta, nada é enviado, porque alternar a partir da leitura nova faria o contrário do que foi confirmado.
+    /// </summary>
+    public Task SetObsRegistryActiveAsync(string cpf, bool active) => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar o cadastro.");
-        var patient = SelectedObsRegistry ?? throw new NoraApiException("Selecione um paciente.");
-        var active = !patient.IsActive;
+        var patient = ObsRegistry.FirstOrDefault(item => item.Cpf == cpf) ?? throw new NoraApiException("O paciente não está mais na lista desta UBS. Atualize o cadastro.");
+        if (patient.IsActive == active)
+        {
+            deactivationPreview = null;
+            Say(MessageKind.Info, active ? $"{patient.FullName} já está ativo nesta UBS: outra pessoa reativou o cadastro. Nada foi alterado." : $"{patient.FullName} já está desativado nesta UBS: outra pessoa desativou o cadastro. Nada foi alterado.");
+            return;
+        }
+        // O número da prévia (se foi pedida para este paciente) entra na mensagem de retorno.
+        var preview = !active && deactivationPreview is { } saved && saved.Cpf == patient.Cpf ? saved.Preview : null;
+        deactivationPreview = null;
         await api.SetObsRegistryActiveAsync(unit.Id, patient.Cpf, active);
-        // Desativar cancela fila e ofertas da UBS: o cadastro, a fila e as vagas voltam juntos.
-        await ReloadAfterChangeAsync(unit, UnitScope.Registry | UnitScope.Queue | UnitScope.Slots,
-            active ? "Paciente reativado nesta UBS. Entradas canceladas não são restauradas." : "Paciente desativado nesta UBS; entradas e ofertas pendentes foram canceladas.");
+        // Desativar cancela fila, ofertas e consultas futuras da UBS: cadastro, fila, vagas e agenda voltam juntos.
+        var scope = UnitScope.Registry | UnitScope.Queue | UnitScope.Slots;
+        if (!active) scope |= UnitScope.Agenda | UnitScope.Today;
+        var cancelled = preview is null ? "entradas, ofertas pendentes e consultas futuras foram canceladas"
+            : preview.FutureAppointments == 0 ? "entradas e ofertas pendentes foram canceladas; não havia consultas futuras"
+            : $"{CountText(preview.FutureAppointments, "consulta futura foi cancelada", "consultas futuras foram canceladas")} (não pesam na participação), além das entradas e ofertas pendentes";
+        await ReloadAfterChangeAsync(unit, scope, active ? "Paciente reativado nesta UBS. Entradas e consultas canceladas não são restauradas." : $"Paciente desativado nesta UBS; {cancelled}.");
         if (ActiveObsUnit?.Id == unit.Id) SelectedObsRegistry = ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf);
     });
 
@@ -255,7 +305,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda, fila e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics();
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily();
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
     }
 

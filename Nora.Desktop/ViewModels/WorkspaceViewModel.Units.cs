@@ -162,6 +162,7 @@ public sealed partial class WorkspaceViewModel
         Replace(RegionOptions, new[] { new FilterOption("", "Todas as regiões") }.Concat(regions).ToArray());
         try { NotifyUnits(); Notify(nameof(SelectedUnit)); } finally { filteringUnits = false; }
         Notify(nameof(MetricsScopeLabel));
+        RebuildAnnouncementChoices();
     }
 
     public void NewUnitDraft()

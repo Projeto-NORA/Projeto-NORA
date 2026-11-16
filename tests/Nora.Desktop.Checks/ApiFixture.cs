@@ -13,7 +13,7 @@ internal static partial class Program
     /// Transporte HTTP sintético do harness: responde só as rotas por UBS e da Secretaria. Não há banco nem rede; as rotas globais
     /// antigas (/api/patients, /api/queue, /api/slots) deliberadamente não existem, como no servidor fora de Development.
     /// </summary>
-    private sealed class ApiFixture : HttpMessageHandler
+    private sealed partial class ApiFixture : HttpMessageHandler
     {
         private sealed class UnitState
         {
@@ -137,6 +137,13 @@ internal static partial class Program
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
             if (path == "/api/auth/logout") { LogoutCalled = true; return FailLogout ? new(HttpStatusCode.InternalServerError) { Content = new StringContent("private-server-secret") } : new(HttpStatusCode.NoContent); }
+            // As próximas leituras da Jornada ficam retidas até o teste liberá-las (ignoram o cancelamento, como um servidor lento).
+            if (HoldNextHealthQueries > 0 && request.Method == HttpMethod.Post && path.EndsWith("/health-records/query", StringComparison.Ordinal))
+            { HoldNextHealthQueries--; var heldQuery = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldHealthQueries.Add(heldQuery); await heldQuery.Task; }
+            if (HoldNextHealthWrites > 0 && request.Method == HttpMethod.Post && path.EndsWith("/health-records/exams", StringComparison.Ordinal))
+            { HoldNextHealthWrites--; var heldWrite = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldHealthWrites.Add(heldWrite); await heldWrite.Task; }
+            if (HandleGlobalScheduling(request, path) is { } globalResponse) return globalResponse;
+            if (await HandleGlobalCommunityAsync(request, path, cancellationToken) is { } communityResponse) return communityResponse;
             if (path == "/api/obs/units" && request.Method == HttpMethod.Get)
                 return Reply(units.Where(unit => Granted is null || Granted.Contains(unit.Id)).ToArray());
             var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -158,6 +165,8 @@ internal static partial class Program
             using (payload)
             {
                 var method = request.Method;
+                if (HandleUnitScheduling(request, unitId, rest, payload) is { } scheduled) return scheduled;
+                if (HandleUnitCommunity(request, unitId, rest, payload) is { } community) return community;
                 if (route == "registry")
                 {
                     if (method == HttpMethod.Get) return Reply(state.Registry.ToArray());
@@ -192,7 +201,13 @@ internal static partial class Program
                     Require(index >= 0, "Alteração solicitou paciente inexistente.");
                     var active = payload.RootElement.GetProperty("isActive").GetBoolean();
                     state.Registry[index] = state.Registry[index] with { IsActive = active };
-                    if (!active) for (var i = 0; i < state.Waiting.Count; i++) if (state.Waiting[i].Cpf == cpf && state.Waiting[i].IsActive) state.Waiting[i] = state.Waiting[i] with { Status = "cancelled" };
+                    if (!active)
+                    {
+                        for (var i = 0; i < state.Waiting.Count; i++) if (state.Waiting[i].Cpf == cpf && state.Waiting[i].IsActive) state.Waiting[i] = state.Waiting[i] with { Status = "cancelled" };
+                        // Decisão de 2026-11-16: desativar também cancela as consultas futuras da UBS (cancelamento da unidade, que não pesa no score).
+                        for (var i = 0; i < state.Appointments.Count; i++)
+                            if (state.Appointments[i].Cpf == cpf && state.Appointments[i].Status is "scheduled" or "called" && state.Appointments[i].StartsAt > DateTimeOffset.UtcNow) state.Appointments[i] = state.Appointments[i] with { Status = "cancelled" };
+                    }
                     return new(HttpStatusCode.NoContent);
                 }
                 if (route == "waiting-list")
@@ -214,10 +229,13 @@ internal static partial class Program
                 if (route == "metrics" && method == HttpMethod.Get)
                 {
                     var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
-                    UnitMetricsQueries.Add((unitId, query));
+                    var windowFrom = DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture); var windowTo = DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture);
+                    // A capacidade dos próximos 7 dias do Painel usa a mesma rota com uma janela que começa hoje à meia-noite local; as leituras dela ficam em CapacityQueries.
+                    var isCapacityRead = windowFrom.LocalDateTime == DateTime.Today && windowTo - windowFrom == TimeSpan.FromDays(7);
+                    if (isCapacityRead) CapacityQueries.Add((unitId, query)); else UnitMetricsQueries.Add((unitId, query));
                     if (FailingUnitMetrics.Contains(unitId)) return Problem(HttpStatusCode.InternalServerError, "internal-error");
-                    if (HoldUnitMetrics) { var held = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldUnitMetrics.Add(held); await held.Task; }
-                    return Reply(BuildUnitMetrics(state, DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture), DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture)));
+                    if (HoldUnitMetrics && !isCapacityRead) { var held = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously); HeldUnitMetrics.Add(held); await held.Task; }
+                    return Reply(BuildUnitMetrics(unitId, state, DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture), DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture)));
                 }
                 if (rest is ["lightning-slots", var slotText, "offers"] && method == HttpMethod.Get)
                 {
@@ -312,10 +330,18 @@ internal static partial class Program
             {
                 HistoryQueries.Add(query);
                 var limit = query["limit"] is { } limitText ? int.Parse(limitText, CultureInfo.InvariantCulture) : 100;
-                DateTimeOffset? from = query["from"] is { } f ? DateTimeOffset.Parse(f, CultureInfo.InvariantCulture) : null, to = query["to"] is { } t ? DateTimeOffset.Parse(t, CultureInfo.InvariantCulture) : null, before = query["before"] is { } b ? DateTimeOffset.Parse(b, CultureInfo.InvariantCulture) : null;
+                DateTimeOffset? from = query["from"] is { } f ? DateTimeOffset.Parse(f, CultureInfo.InvariantCulture) : null, to = query["to"] is { } t ? DateTimeOffset.Parse(t, CultureInfo.InvariantCulture) : null;
                 Guid? unit = query["unitId"] is { } u ? Guid.Parse(u) : null;
-                return Reply(History.Where(item => (from is null || item.OccurredAt >= from) && (to is null || item.OccurredAt < to) && (before is null || item.OccurredAt < before) && (unit is null || item.UnitId == unit))
-                    .OrderByDescending(item => item.OccurredAt).Take(limit).ToArray());
+                // Como a API: ordem (instante, posição) decrescente; `before` é o cursor opaco do último item (c1_ + instante + posição). O instante puro continua aceito (só eventos estritamente anteriores).
+                var ordered = History.Select((item, position) => (Item: item with { Cursor = $"c1_{item.OccurredAt.UtcTicks}_{position}" }, Position: position)).OrderByDescending(entry => entry.Item.OccurredAt).ThenByDescending(entry => entry.Position).ToArray();
+                var before = query["before"];
+                bool After(HistoryEvent item, int position)
+                {
+                    if (before is null) return true;
+                    if (before.StartsWith("c1_", StringComparison.Ordinal)) { var pieces = before[3..].Split('_'); var ticks = long.Parse(pieces[0], CultureInfo.InvariantCulture); var seq = int.Parse(pieces[1], CultureInfo.InvariantCulture); return item.OccurredAt.UtcTicks < ticks || (item.OccurredAt.UtcTicks == ticks && position < seq); }
+                    return item.OccurredAt < DateTimeOffset.Parse(before, CultureInfo.InvariantCulture);
+                }
+                return Reply(ordered.Where(entry => (from is null || entry.Item.OccurredAt >= from) && (to is null || entry.Item.OccurredAt < to) && (unit is null || entry.Item.UnitId == unit) && After(entry.Item, entry.Position)).Select(entry => entry.Item).Take(limit).ToArray());
             }
             if (path == "/api/municipal/metrics" && request.Method == HttpMethod.Get)
             {
@@ -364,6 +390,8 @@ internal static partial class Program
                 var pending = units.Count(unit => unit.DatabasePending);
                 return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending));
             }
+            using (var schedulingBody = request.Content is null ? null : JsonDocument.Parse(await request.Content.ReadAsStringAsync(cancellationToken)))
+                if (HandleMunicipalScheduling(request, path, query, schedulingBody) is { } municipalScheduled) return municipalScheduled;
             throw new InvalidOperationException("Rota inesperada da fixture: " + request.Method + " " + path);
         }
 
@@ -371,7 +399,7 @@ internal static partial class Program
         /// Indicadores de uma UBS, determinísticos: 12 concluídas, 3 faltas, 2 cancelamentos (1 do paciente, peso 0,4), fila e vagas reais da fixture,
         /// espera média de 95 min e série esparsa com só dois dias (o último da janela e quatro dias antes), como a API.
         /// </summary>
-        private UnitMetrics BuildUnitMetrics(UnitState state, DateTimeOffset from, DateTimeOffset to)
+        private UnitMetrics BuildUnitMetrics(Guid unitId, UnitState state, DateTimeOffset from, DateTimeOffset to)
         {
             var empty = NoClosedAppointments;
             var completed = empty ? 0 : 12; var missed = empty ? 0 : 3; var weight = empty ? 0 : 0.4;
@@ -383,7 +411,7 @@ internal static partial class Program
             var last = DateOnly.FromDateTime(to.LocalDateTime.AddDays(-1)); var first = DateOnly.FromDateTime(from.LocalDateTime);
             var daily = empty ? Array.Empty<DailyMetrics>() : new[] { new DailyMetrics(last.AddDays(-4).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 0, 3, 1, 0), new DailyMetrics(last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 1, 2, 0, 1) }
                 .Where(day => DateOnly.ParseExact(day.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture) >= first).ToArray();
-            return new(from, to, appointments, waiting, lightning, specialties, daily);
+            return new(from, to, appointments, waiting, lightning, specialties, daily, UnitCapacityOf(unitId), GoalStatuses(unitId, appointments.AttendanceScore, MissedRate(appointments), waiting.AverageWaitMinutes));
         }
 
         /// <summary>Indicadores sintéticos e determinísticos: cada UBS da fixture tem números próprios e os filtros restringem o resultado como no servidor.</summary>
@@ -399,12 +427,13 @@ internal static partial class Program
             }
             WaitingMetrics Waiting(int index) => new(3 * (index + 1), 2 * (index + 1), index + 1, 90 * (index + 1), 1500);
             LightningMetrics Lightning(int index) => new(index + 1, index, 1, 0);
-            var byUnit = scoped.Select(unit => { var index = ready.IndexOf(unit); return new UnitMetricsSummary(unit.Id, unit.Name, unit.Region, Appointments(index), Waiting(index), Lightning(index)); }).ToArray();
+            var byUnit = scoped.Select(unit => { var index = ready.IndexOf(unit); var appointments = Appointments(index); var waiting = Waiting(index); return new UnitMetricsSummary(unit.Id, unit.Name, unit.Region, appointments, waiting, Lightning(index), UnitCapacityOf(unit.Id), GoalStatuses(unit.Id, appointments.AttendanceScore, MissedRate(appointments), waiting.AverageWaitMinutes)); }).ToArray();
             var byRegion = byUnit.GroupBy(item => item.Region, StringComparer.OrdinalIgnoreCase).Select(group =>
             {
                 var completed = group.Sum(item => item.Appointments.Completed); var missed = group.Sum(item => item.Appointments.Missed); var weight = group.Sum(item => item.Appointments.CancellationWeight);
                 return new RegionMetricsSummary(group.Key, new(0, 0, completed, missed, group.Sum(item => item.Appointments.Cancelled), group.Sum(item => item.Appointments.CancelledByPatient), weight, completed + missed + weight == 0 ? null : Math.Round(completed / (completed + missed + weight), 4)),
-                    new(group.Sum(item => item.Waiting.ActiveEntries), group.Sum(item => item.Waiting.WaitingPatients), group.Sum(item => item.Waiting.AcceptedEntries), group.Average(item => item.Waiting.AverageWaitMinutes), 1500), new(0, 0, 0, 0));
+                    new(group.Sum(item => item.Waiting.ActiveEntries), group.Sum(item => item.Waiting.WaitingPatients), group.Sum(item => item.Waiting.AcceptedEntries), group.Average(item => item.Waiting.AverageWaitMinutes), 1500), new(0, 0, 0, 0),
+                    new CapacityMetrics(group.Sum(item => item.Capacity?.OfferedSlots ?? 0), group.Sum(item => item.Capacity?.BookedSlots ?? 0), OccupancyOf(group.Sum(item => item.Capacity?.OfferedSlots ?? 0), group.Sum(item => item.Capacity?.BookedSlots ?? 0))));
             }).ToArray();
             var totalCompleted = byUnit.Sum(item => item.Appointments.Completed); var totalMissed = byUnit.Sum(item => item.Appointments.Missed); var totalWeight = byUnit.Sum(item => item.Appointments.CancellationWeight);
             var totals = new MetricsSummary(
@@ -418,7 +447,9 @@ internal static partial class Program
             }.Where(item => string.IsNullOrEmpty(specialty) || string.Equals(item.Specialty, specialty, StringComparison.OrdinalIgnoreCase)).ToArray();
             var firstDay = DateOnly.FromDateTime(from.LocalDateTime);
             var daily = byUnit.Length == 0 || NoClosedAppointments ? [] : Enumerable.Range(0, Math.Min(5, Math.Max(1, (int)(to - from).TotalDays))).Select(offset => new DailyMetrics(firstDay.AddDays(offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 1, 3 * byUnit.Length + offset, offset % 2, 1)).ToArray();
-            return new(from, to, totals, byUnit, byRegion, specialties, daily, units.Count(unit => unit.DatabasePending));
+            var offeredTotal = byUnit.Sum(item => item.Capacity?.OfferedSlots ?? 0); var bookedTotal = byUnit.Sum(item => item.Capacity?.BookedSlots ?? 0);
+            return new(from, to, totals, byUnit, byRegion, specialties, daily, units.Count(unit => unit.DatabasePending), new CapacityMetrics(offeredTotal, bookedTotal, OccupancyOf(offeredTotal, bookedTotal)),
+                GoalStatuses(null, totals.Appointments.AttendanceScore, MissedRate(totals.Appointments), totals.Waiting.AverageWaitMinutes));
         }
 
         private static HttpResponseMessage Problem(HttpStatusCode status, string code) => new(status)

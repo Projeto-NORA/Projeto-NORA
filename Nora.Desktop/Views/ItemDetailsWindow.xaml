@@ -1,12 +1,28 @@
-<Window x:Class="Nora.Desktop.Views.ItemDetailsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="580" Height="640" MinWidth="440" MinHeight="320" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Title="Detalhes do item">
+<Window x:Class="Nora.Desktop.Views.ItemDetailsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="580" Height="640" MinWidth="440" MinHeight="320" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Title="Detalhes do item">
   <Window.Resources>
     <CollectionViewSource x:Key="GroupedFields" Source="{Binding Details.Fields}"><CollectionViewSource.GroupDescriptions><PropertyGroupDescription PropertyName="Group" /></CollectionViewSource.GroupDescriptions></CollectionViewSource>
+    <DataTemplate x:Key="TabsTemplate">
+      <!-- Abas da ficha do paciente: Dados e Exames e vacinas. A aba aberta é marcada por texto e traço, não só por cor. -->
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+        <Button Content="Dados" Command="{Binding SelectDataCommand}" MinHeight="40" Padding="18,6" Margin="0,0,8,0" AutomationProperties.Name="Aba Dados">
+          <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ShowDataTab}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="BorderThickness" Value="0,0,0,3" /></DataTrigger></Style.Triggers></Style></Button.Style>
+        </Button>
+        <Button Content="Exames e vacinas" Command="{Binding SelectHealthCommand}" MinHeight="40" Padding="18,6" AutomationProperties.Name="Aba Exames e vacinas">
+          <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ShowHealthTab}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="BorderThickness" Value="0,0,0,3" /></DataTrigger></Style.Triggers></Style></Button.Style>
+        </Button>
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:Key="HealthTemplate">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <views:HealthRecordsView DataContext="{Binding Health}" Margin="0,0,6,0" />
+      </ScrollViewer>
+    </DataTemplate>
   </Window.Resources>
   <Grid>
   <Border Margin="10" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="18" Padding="24" AutomationProperties.Name="Ficha de detalhes">
     <Border.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.18" /></Border.Effect>
     <Grid>
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
       <Grid Margin="0,0,0,20" MouseLeftButtonDown="OnDragHeader">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="42" /></Grid.ColumnDefinitions>
         <StackPanel>
@@ -15,7 +31,8 @@
         </StackPanel>
         <Button Grid.Column="1" Content="×" FontSize="24" Padding="4" MinHeight="36" Height="36" VerticalAlignment="Top" Click="OnClose" IsCancel="True" ToolTip="Feche os detalhes e volte à listagem." AutomationProperties.Name="Fechar detalhes" />
       </Grid>
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ContentControl x:Name="TabsHost" Grid.Row="1" Focusable="False" />
+      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding ShowDataTab, Converter={StaticResource BoolVisibility}}">
         <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedFields}}">
           <ItemsControl.GroupStyle><GroupStyle><GroupStyle.ContainerStyle><Style TargetType="GroupItem"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="GroupItem">
             <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,12">
@@ -32,7 +49,8 @@
           </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
-      <TextBlock Grid.Row="2" Text="{Binding CopyStatus}" Foreground="{DynamicResource BrandBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,12,0,0" MinHeight="18" FontSize="12" />
+      <ContentControl x:Name="HealthHost" Grid.Row="2" Focusable="False" Visibility="{Binding ShowHealthTab, Converter={StaticResource BoolVisibility}}" />
+      <TextBlock Grid.Row="3" Text="{Binding CopyStatus}" Foreground="{DynamicResource BrandBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,12,0,0" MinHeight="18" FontSize="12" />
     </Grid>
   </Border>
   </Grid>
