@@ -60,7 +60,7 @@ internal static partial class ApiEndpoints
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context), ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => registry.ListAsync(unitId, true, ct), ct)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => registry.ListAsync(unitId, true, ct), ct, read: true)));
         obs.MapGet("/obs/units/{unitId:guid}/metrics", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, MetricsService metrics, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => metrics.ReadUnitAsync(unitId, from, to, ct), ct)));
         obs.MapPost("/obs/units/{unitId:guid}/registry", async (Guid unitId, UnitPatientRecord request, HttpContext context, UnitAccessService access, UnitPatientRegistryDao registry, CancellationToken ct) =>
@@ -89,7 +89,7 @@ internal static partial class ApiEndpoints
             return Results.NoContent();
         });
         obs.MapGet("/obs/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/appointments", async (Guid unitId, CreateAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -102,7 +102,7 @@ internal static partial class ApiEndpoints
             return Results.Ok(await access.ExecuteAsync(session, unitId, () => appointments.ChangeStatusAsync(unitId, session.User.Id, id, request, ct), ct));
         });
         obs.MapGet("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListAsync(unitId, ct), ct)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListAsync(unitId, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, AddUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -118,7 +118,7 @@ internal static partial class ApiEndpoints
             return Results.NoContent();
         });
         obs.MapGet("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, ct), ct)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, CreateUnitLightningSlotRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -127,7 +127,7 @@ internal static partial class ApiEndpoints
             return Results.Json(slot, statusCode: StatusCodes.Status201Created);
         });
         obs.MapGet("/obs/units/{unitId:guid}/lightning-slots/{slotId:guid}/offers", async (Guid unitId, Guid slotId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListOffersAsync(unitId, slotId, ct), ct)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListOffersAsync(unitId, slotId, ct), ct, read: true)));
         var legacyObs = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs")).AddEndpointFilter(new LegacyWorkflowFilter());
         legacyObs.MapGet("/patients",async(AccountService service,CancellationToken ct)=>Results.Ok(await service.PatientsAsync(ct)));
         legacyObs.MapPost("/patients",async(CreatePatientRequest request,AccountService service,CancellationToken ct)=>Results.Json(await service.CreatePatientAsync(request,ct),statusCode:StatusCodes.Status201Created));
@@ -173,7 +173,7 @@ internal static partial class ApiEndpoints
         patient.MapGet("/patient/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(new { appointments = await access.ExecutePatientAsync(session, unitId, cpf => appointments.ListForPatientAsync(unitId, from, to, cpf, session.User.Id, ct), ct) });
+            return Results.Ok(new { appointments = await access.ExecutePatientAsync(session, unitId, cpf => appointments.ListForPatientAsync(unitId, from, to, cpf, session.User.Id, ct), ct, read: true) });
         });
         patient.MapPost("/patient/units/{unitId:guid}/appointments/{id:guid}/cancel", async (Guid unitId, Guid id, CancelAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
@@ -182,9 +182,9 @@ internal static partial class ApiEndpoints
         });
         // Só leitura (P-036): a redistribuição das ofertas não acontece mais aqui. As ações (fila, vaga, recusa, desativação) e o worker periódico redistribuem.
         patient.MapGet("/patient/units/{unitId:guid}/lightning-offers", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
-            Results.Ok(new { offers = await access.ExecutePatientAsync(Session(context), unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) }));
+            Results.Ok(new { offers = await access.ExecutePatientAsync(Session(context), unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct, read: true) }));
         patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }));
+            Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct, read: true) }));
         patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, SchedulingAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);

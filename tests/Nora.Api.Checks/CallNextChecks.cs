@@ -74,6 +74,16 @@ internal static class CallNextChecks
                 Expect(preview, 200); var next = (await Read(preview)).GetProperty("next");
                 Ensure(next.GetProperty("patientName").GetString() == "Paciente 3" && next.GetProperty("entryId").GetInt64() > 0 && next.GetProperty("enteredAt").GetDateTimeOffset() > RoundClock.T0, "A prévia ignora horário: sem conta e cadastro inativo ficam de fora, o 3º é o primeiro.");
             }
+            // Volta 2 (#4): a prévia com o horário escolhido usa o mesmo critério da chamada e pula quem já tem consulta que cruze esse horário (P3 tem consulta às 08:00 e 08:30).
+            async Task<string> NextAt(DateTimeOffset start, Guid? professional = null)
+            {
+                using var timed = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={cardiology}&professionalId={professional ?? ana}&startsAt={Uri.EscapeDataString(start.ToString("O"))}");
+                Expect(timed, 200); return (await Read(timed)).GetProperty("next").GetProperty("patientName").GetString()!;
+            }
+            Ensure(await NextAt(t1) == "Paciente 4" && await NextAt(t2) == "Paciente 4" && await NextAt(t3) == "Paciente 3", "A prévia com horário pula quem tem consulta que cruza (P3 às 08:00 e 08:30) e não pula no 09:00.");
+            Ensure(await NextAt(t1.AddMinutes(45)) == "Paciente 3", "Horário fora da grade: a prévia volta ao critério sem horário (a chamada responderia slot-unavailable).");
+            using (var onlyStart = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={cardiology}&startsAt={Uri.EscapeDataString(t1.ToString("O"))}")) Expect(onlyStart, 400);
+            using (var onlyProfessional = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={cardiology}&professionalId={ana}")) Expect(onlyProfessional, 400);
             var created = await CallOk(attendant, t1); slot1 = created.GetProperty("slot").GetProperty("id").GetGuid();
             var slot = created.GetProperty("slot"); var offer = created.GetProperty("offer");
             Ensure(slot.GetProperty("status").GetString() == "offered" && slot.GetProperty("origin").GetString() == "call-next" && slot.GetProperty("appointmentId").ValueKind == JsonValueKind.Null && slot.GetProperty("professional").GetString() == "Dra. Ana Souza"
@@ -97,9 +107,10 @@ internal static class CallNextChecks
             // Vencimento (relógio + 10 min): as duas vagas voltam à distribuição automática.
             f.Clock.Advance(TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(1));
             await f.AdvanceAsync(u1);
-            Ensure(await Offers(slot1) == "Paciente 4:expired,Paciente 7:pending" && await Offers(slot2) == "Paciente 5:declined,Paciente 6:expired,Paciente 8:pending", $"Vencimento: a vaga segue para os próximos. T1={await Offers(slot1)} T2={await Offers(slot2)}");
-            var offer7 = await PatientOffer(7);
-            using (var accept = await f.Patients[7].PostAsJsonAsync($"/api/patient/units/{u1}/lightning-offers/{offer7.GetProperty("id").GetGuid()}/respond", new { accept = true }))
+            // R-030: quem recusou (5) ou deixou vencer (4, 6) volta à fila na mesma posição, mas não recebe de novo a MESMA vaga: T1 vai ao 5º (recusou só T2), T2 vai ao 4º (venceu só T1).
+            Ensure(await Offers(slot1) == "Paciente 4:expired,Paciente 5:pending" && await Offers(slot2) == "Paciente 5:declined,Paciente 6:expired,Paciente 4:pending", $"Vencimento: a vaga segue para os próximos. T1={await Offers(slot1)} T2={await Offers(slot2)}");
+            var offer7 = await PatientOffer(5);
+            using (var accept = await f.Patients[5].PostAsJsonAsync($"/api/patient/units/{u1}/lightning-offers/{offer7.GetProperty("id").GetGuid()}/respond", new { accept = true }))
             {
                 Expect(accept, 200); var body = await Read(accept); Ensure(body.GetProperty("accepted").GetBoolean() && body.GetProperty("appointmentId").ValueKind == JsonValueKind.String, "Aceite devolve a consulta.");
                 var appointment = body.GetProperty("appointmentId").GetGuid();

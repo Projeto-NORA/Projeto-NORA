@@ -231,7 +231,7 @@ class PatientControllerTest {
         assertEquals(offerCallsBefore + 1, api.offersCalls)
         assertEquals(appointmentCallsBefore + 1, api.appointmentCalls)
         controller.respondUnitOffer("o2", false)
-        assertEquals("Oferta recusada.", controller.state.message)
+        assertEquals("Oferta recusada. Você continua na fila, no mesmo lugar.", controller.state.message)
         assertEquals(offerCallsBefore + 2, api.offersCalls)
         assertEquals("No appointment reload after a decline", appointmentCallsBefore + 1, api.appointmentCalls)
         assertEquals(listOf("accepted", "declined"), controller.state.unitOffers?.map { it.status })

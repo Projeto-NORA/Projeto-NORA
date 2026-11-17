@@ -252,10 +252,12 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         { update.Parameters.AddWithValue(offerId); update.Parameters.AddWithValue(offerStatus); await update.ExecuteNonQueryAsync(ct); }
         await using (var update = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status=$2,closed_reason=$3 WHERE id=$1", connection))
         { update.Parameters.AddWithValue(slotId); update.Parameters.AddWithValue(slotStatus); update.Parameters.Add(new NpgsqlParameter { Value = (object?)closedReason ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text }); await update.ExecuteNonQueryAsync(ct); }
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.waiting_list SET status='completed' WHERE id=$1", connection))
-        { update.Parameters.AddWithValue(entryId); await update.ExecuteNonQueryAsync(ct); }
-        await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,'completed',$3,$4,$5)", connection))
-        { audit.Parameters.AddWithValue(entryId); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.AddWithValue(source); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); await audit.ExecuteNonQueryAsync(ct); }
+        // R-030: só o aceite tira a pessoa da fila. Recusar ou deixar vencer devolve a entrada a 'waiting' com o entered_at original (mesma posição); a mesma vaga não é oferecida de novo a ela (LightningEligibility).
+        var entryStatus = offerStatus == "accepted" ? "completed" : "waiting";
+        await using (var update = new NpgsqlCommand("UPDATE nora_unit.waiting_list SET status=$2 WHERE id=$1", connection))
+        { update.Parameters.AddWithValue(entryId); update.Parameters.AddWithValue(entryStatus); await update.ExecuteNonQueryAsync(ct); }
+        await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,$6,$3,$4,$5)", connection))
+        { audit.Parameters.AddWithValue(entryId); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.AddWithValue(source); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); audit.Parameters.AddWithValue(entryStatus); await audit.ExecuteNonQueryAsync(ct); }
     }
 
     /// <summary>A vaga como a equipe a enxerga (sem o nome de quem decidiu), na transação do chamador.</summary>

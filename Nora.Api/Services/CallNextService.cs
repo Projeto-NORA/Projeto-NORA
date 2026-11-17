@@ -22,16 +22,34 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
         return (await specialties.FindAsync([id], ct)).GetValueOrDefault(id) is { IsActive: true } specialty ? specialty : throw new ApiInputException();
     }
 
-    /// <summary>Prévia do primeiro da fila que pode receber, sem considerar horário. Especialidade inexistente ou inativa → 400.</summary>
-    public async Task<CallNextPreview> PreviewAsync(SessionInfo session, Guid unitId, Guid? specialtyId, CancellationToken ct)
+    /// <summary>
+    /// Horário livre da grade que o profissional tem exatamente em <paramref name="start"/> para a especialidade (a mesma conferência do <see cref="CallAsync"/>: ocupado, bloqueado ou segurado por vaga não vale); nulo se não existe.
+    /// </summary>
+    private async Task<GeneratedSlot?> FreeSlotAsync(NpgsqlConnection unit, Specialty specialty, Guid professionalId, DateTimeOffset start, CancellationToken ct)
+    {
+        var data = await SchedulingDao.LoadAsync(unit, start, start.AddSeconds(1), professionalId, ct);
+        foreach (var candidate in scheduling.Engine.Generate(data.Templates.Where(template => template.SpecialtyId == specialty.Id).ToList(), start, start.AddSeconds(1)))
+            if (candidate.Start == start.UtcTicks && SlotEngine.StateOf(data, candidate) == SlotState.Free) return candidate;
+        return null;
+    }
+
+    /// <summary>
+    /// Prévia do primeiro da fila que pode receber. Sem horário, ignora o horário. Com <paramref name="startsAt"/> e <paramref name="professionalId"/> (o horário que a atendente escolheu) usa o mesmo critério da chamada: pula quem já tem
+    /// consulta na UBS que cruze esse horário. Se o horário já não está livre na grade, devolve a prévia sem horário (a chamada responderia 409 <c>slot-unavailable</c>). Especialidade inexistente ou inativa → 400.
+    /// </summary>
+    public async Task<CallNextPreview> PreviewAsync(SessionInfo session, Guid unitId, Guid? specialtyId, DateTimeOffset? startsAt, Guid? professionalId, CancellationToken ct)
     {
         var specialty = await ActiveSpecialtyAsync(specialtyId, ct);
+        if (startsAt is not null != (professionalId is not null) || professionalId == Guid.Empty) throw new ApiInputException();
         return await access.ExecuteAsync(session, unitId, async connection =>
         {
             var eligible = await LightningEligibility.ReadAsync(central, connection, unitId, ct);
             await using var unit = await databases.OpenAsync(unitId, ct);
-            return new CallNextPreview(await LightningEligibility.PreviewAsync(unit, specialty.Name, eligible, ct) is { } next ? new(next.EntryId, next.Name, next.EnteredAt) : null);
-        }, ct);
+            DateTimeOffset? start = null, end = null;
+            if (startsAt is { } requested && professionalId is { } professional && await FreeSlotAsync(unit, specialty, professional, requested.ToUniversalTime(), ct) is { } slot)
+            { start = requested.ToUniversalTime(); end = new DateTimeOffset(slot.End, TimeSpan.Zero); }
+            return new CallNextPreview(await LightningEligibility.PreviewAsync(unit, specialty.Name, eligible, ct, start, end) is { } next ? new(next.EntryId, next.Name, next.EnteredAt) : null);
+        }, ct, read: true);
     }
 
     public async Task<CallNextResult> CallAsync(SessionInfo session, Guid unitId, CallNextRequest request, CancellationToken ct)
@@ -59,11 +77,7 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
             await using (var advisory = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended(lower($1), 62419809))", unit))
             { advisory.Parameters.AddWithValue(name); await advisory.ExecuteNonQueryAsync(ct); }
             // O atendimento escolhido tem de ser exatamente um horário livre da grade agora (ocupado, bloqueado ou segurado por vaga → slot-unavailable).
-            var data = await SchedulingDao.LoadAsync(unit, start, start.AddSeconds(1), professionalId, ct);
-            GeneratedSlot? chosenSlot = null;
-            foreach (var candidate in scheduling.Engine.Generate(data.Templates.Where(template => template.SpecialtyId == specialty.Id).ToList(), start, start.AddSeconds(1)))
-                if (candidate.Start == start.UtcTicks && SlotEngine.StateOf(data, candidate) == SlotState.Free) { chosenSlot = candidate; break; }
-            if (chosenSlot is not { } slot) throw new ApiCodedException(StatusCodes.Status409Conflict, "slot-unavailable");
+            if (await FreeSlotAsync(unit, specialty, professionalId, start, ct) is not { } slot) throw new ApiCodedException(StatusCodes.Status409Conflict, "slot-unavailable");
             var end = new DateTimeOffset(slot.End, TimeSpan.Zero);
             if (await LightningEligibility.PickAsync(unit, specialty.Name, eligible, start, end, ct) is not { } entryId) throw new ApiCodedException(StatusCodes.Status409Conflict, "queue-empty");
             string patientName;

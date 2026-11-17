@@ -24,7 +24,7 @@ Banco escolhido: **PostgreSQL 18**, usuário **postgres** na instância de uso. 
 
 A fila de Vaga Relâmpago é operada por atendente/administrador no OBS. A ordem confirmada é **entrada**, desempate pelo identificador. Toda oferta tem **10 minutos**. Recusa, cancelamento ou expiração libera a vaga para o próximo. O servidor verifica prazo antes das operações e periodicamente a cada15 segundos; aceita somente uma resposta concorrente.
 
-A fila desta entrega é administrativa, para ofertas. Aceite confirma a oportunidade, sem afirmar atendimento clínico realizado. Entrada concluída encerra o ciclo da oferta, inclusive recusa/expiração; nova inclusão pelo OBS cria outra entrada. Não se infere prioridade clínica.
+A fila desta entrega é administrativa, para ofertas. Aceite confirma a oportunidade, sem afirmar atendimento clínico realizado. Entrada concluída (oferta aceita) encerra o ciclo da oferta; recusar ou deixar vencer devolve a entrada à fila na mesma posição (R-030), sem reoferecer a mesma vaga à mesma pessoa; entrada cancelada ou concluída só volta por nova inclusão pelo OBS, que cria outra entrada. Não se infere prioridade clínica.
 
 ## Estado de implementação
 

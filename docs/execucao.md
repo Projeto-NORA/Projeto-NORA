@@ -1,6 +1,32 @@
 # Execução e validação
 
-## Estado atual das validações — 2026-11-17 (rodada final)
+## Volta 2 — 2026-11-17 (R-030, otimização P1/P2 e achados da revisão)
+
+Tarefa `docs/tarefas/2026-11-17-r030-otimizacao-volta2.md`. Depois da volta à fila (R-030), da pré-checagem do passe do relâmpago (P1), do `FOR SHARE` nas leituras (P2, ver [desempenho](desempenho.md)), do `device.dat` que só é descartado por dado inválido, da prévia do Chamar próximo com o horário e da repetição em `40P01`, com PostgreSQL 18 descartável:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55791) | HTTP 32/32; fluxos 28/28; plataforma 19/19; revisão 17/17; comunicação e Jornada 16/16; agenda 21/21; Família 21/21; revisão da Família 14/14; decisões 7/7; lacunas 5/5; Google e push 15/15; computadores do OBS 13/13; chamar próximo 8/8; serviços e horários 7/7; conflito entre UBS 7/7; aprovação das vagas 8/8; caixa de saída do e-mail 5/5; **volta à fila 5/5**; **desempenho e concorrência 6/6** |
+| `Nora.Desktop.Checks` (sem API) | 173/173 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55792) | 176/176 |
+
+Os testes que esperavam `completed` depois de recusa ou vencimento foram atualizados para o novo roteiro (R-030): `PlatformChecks` (UBS 2: o P2 recusa, volta à fila e depois cancela a própria entrada), `FamilyChecks.Gaps` (a entrada do dependente fica `waiting`), `WorkflowChecks` (resumo com 3 pessoas aguardando e a nova inclusão de quem voltou à fila é 409) e `CallNextChecks` (a ordem em que as vagas voltam à fila).
+## Validação final antes da apresentação — 2026-11-17, 17h28
+
+Código com R-030 (recusa ou vencimento devolve à fila), otimização P1 e P2, correções das voltas 2 e 3 da revisão, P-046, P-048 e o botão "Configurar" em fonte ampliada:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `Nora.Desktop.Checks` (sem API) | 173/173 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55774) | 176/176 |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55764) | todas verdes: HTTP 32/32, fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores 13/13, chamar próximo 8/8, horários 7/7, conflito entre UBS 7/7, aprovação 8/8, caixa de saída 5/5, volta à fila 5/5, desempenho 6/6 |
+| Android | 285 testes locais, lint 0 erros, 54 prévias, 45 instrumentados (43 aprovados e 2 pulados por assumption) no `Medium_Phone_API_37.0` |
+
+Observação: uma rodada anterior do E2E falhou numa verificação de gráfico do OBS com "Insufficient memory to continue the execution of the program", com só 1,9 GB de RAM livre (emulador, daemons do Gradle e agentes ao mesmo tempo). A mesma verificação passou na suíte do desktop, e o E2E repetido com 18 GB livres passou 176/176. Para rodar o E2E, feche o emulador e rode `gradlew --stop` antes.
+
+## Estado das validações — 2026-11-17 (rodada final)
 
 Conferido no código da rodada final (P-014, Chamar próximo, serviços e horários da UBS, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail, mais as 12 correções da revisão adversarial), antes do commit, com PostgreSQL 18 descartável:
 
@@ -52,7 +78,7 @@ pwsh -NoProfile -File tests/validar-postgres-descartavel.ps1 -PostgreSqlBin "$en
 pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -PostgreSqlBin "$env:LOCALAPPDATA\Programs\PostgreSQL\18\bin"
 ```
 
-**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família, as correções da revisão da Família, as decisões e as lacunas da Família e o Entrar com Google e push (com um Google falso, sem rede); sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only`, `--family-review-only`, `--family-decisions-only`, `--family-gaps-only` ou `--google-push-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes.
+**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família, as correções da revisão da Família, as decisões e as lacunas da Família e o Entrar com Google e push (com um Google falso, sem rede); sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only`, `--family-review-only`, `--family-decisions-only`, `--family-gaps-only`, `--google-push-only`, `--workflow-only`, `--queue-return-only` (R-030: volta à fila na mesma posição), `--performance-only` (P1 e P2 de [desempenho](desempenho.md), com as linhas `MEDIDA`, e o impasse 40P01 da volta 2), `--devices-only`, `--call-next-only`, `--slot-approval-only`, `--unit-profile-only`, `--cross-unit-only` ou `--email-outbox-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes.
 
 **E2E por UBS.** `validar-clientes-descartavel.ps1` sobe a fixture por UBS (`NORA_TEST_REGISTRATION=1` e `NORA_E2E_UNIT_REGISTRY=1`, com bancos de UBS descartáveis) e o desktop exercita OBS e Secretaria contra a API real. Com `-Android` o script também instala e roda os testes instrumentados, o que exige emulador. O script não liga o emulador: suba-o antes (ver `android-emulador.md`) e confira `adb devices`. Em 2026-11-16 a rodada `-Android` foi feita com a API e o desktop do HEAD `09fdd87` compilados num worktree temporário (outro agente alterava a API neste) e com o APPNORA deste worktree; a primeira tentativa teve uma falha intermitente do desktop (P-047) e a repetição passou inteira. Dois cuidados do Android 17 (API 37) apareceram nessa rodada: o app precisa de `ACCESS_LOCAL_NETWORK` para falar com `10.0.2.2` (o teste a concede com `pm grant`), e a oferta da Vaga Relâmpago só existe depois do ciclo de 15 s do `UnitLightningWorker` (o teste espera até 45 s).
 

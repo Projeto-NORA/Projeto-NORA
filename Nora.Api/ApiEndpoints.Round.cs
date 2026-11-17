@@ -24,7 +24,7 @@ internal static partial class ApiEndpoints
         obs.MapPost("/obs/units/{unitId:guid}/devices", async (Guid unitId, CreateObsDeviceRequest request, HttpContext context, SchedulingAccessService access, ObsDeviceService devices, CancellationToken ct) =>
         {
             var session = Session(context);
-            var (device, credential, code) = await access.ExecuteAdministratorAsync(session, unitId, connection => devices.CreateAsync(connection, session, unitId, request, ObsDeviceCredentials.FromRequest(context.Request), ct), ct);
+            var (device, credential, code) = await ObsDeviceService.RetryOnDeadlockAsync(() => access.ExecuteAdministratorAsync(session, unitId, connection => devices.CreateAsync(connection, session, unitId, request, ObsDeviceCredentials.FromRequest(context.Request), ct), ct));
             return credential is not null
                 ? Results.Json(new ObsDeviceWithCredential(device, credential), statusCode: StatusCodes.Status201Created)
                 : Results.Json(new ObsDeviceWithCode(device, code!.ActivationCode, code.CodeExpiresAt), statusCode: StatusCodes.Status201Created);
@@ -32,17 +32,17 @@ internal static partial class ApiEndpoints
         obs.MapPost("/obs/units/{unitId:guid}/devices/{id:guid}/activation-code", async (Guid unitId, Guid id, HttpContext context, SchedulingAccessService access, ObsDeviceService devices, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(await access.ExecuteAdministratorAsync(session, unitId, connection => devices.IssueCodeAsync(connection, session, unitId, id, ct), ct));
+            return Results.Ok(await ObsDeviceService.RetryOnDeadlockAsync(() => access.ExecuteAdministratorAsync(session, unitId, connection => devices.IssueCodeAsync(connection, session, unitId, id, ct), ct)));
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.ObsDevices));
         obs.MapPost("/obs/units/{unitId:guid}/devices/{id:guid}/revoke", async (Guid unitId, Guid id, RevokeObsDeviceRequest request, HttpContext context, SchedulingAccessService access, ObsDeviceService devices, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(new ObsDeviceEnvelope(await access.ExecuteAdministratorAsync(session, unitId, connection => devices.RevokeAsync(connection, session, unitId, id, request, ObsDeviceCredentials.FromRequest(context.Request), ct), ct)));
+            return Results.Ok(new ObsDeviceEnvelope(await ObsDeviceService.RetryOnDeadlockAsync(() => access.ExecuteAdministratorAsync(session, unitId, connection => devices.RevokeAsync(connection, session, unitId, id, request, ObsDeviceCredentials.FromRequest(context.Request), ct), ct))));
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.ObsDevices));
 
         // ---- Fila: chamar próximo (oferece um horário livre da grade ao primeiro elegível da especialidade) ----
-        obs.MapGet("/obs/units/{unitId:guid}/waiting-list/next", async (Guid unitId, Guid? specialtyId, HttpContext context, CallNextService service, CancellationToken ct) =>
-            Results.Ok(await service.PreviewAsync(Session(context), unitId, specialtyId, ct)));
+        obs.MapGet("/obs/units/{unitId:guid}/waiting-list/next", async (Guid unitId, Guid? specialtyId, DateTimeOffset? startsAt, Guid? professionalId, HttpContext context, CallNextService service, CancellationToken ct) =>
+            Results.Ok(await service.PreviewAsync(Session(context), unitId, specialtyId, startsAt, professionalId, ct)));
         obs.MapPost("/obs/units/{unitId:guid}/waiting-list/call-next", async (Guid unitId, CallNextRequest request, HttpContext context, CallNextService service, CancellationToken ct) =>
             Results.Json(await service.CallAsync(Session(context), unitId, request, ct), statusCode: StatusCodes.Status201Created));
 

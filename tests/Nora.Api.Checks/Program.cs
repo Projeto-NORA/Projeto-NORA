@@ -30,6 +30,9 @@ if (args.Contains("--slot-approval-only")) return await SlotApprovalChecks.RunAs
 if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsync(directory.FullName);
 if (args.Contains("--cross-unit-only")) return await CrossUnitChecks.RunAsync(directory.FullName);
 if (args.Contains("--email-outbox-only")) return await EmailOutboxChecks.RunAsync(directory.FullName);
+if (args.Contains("--performance-only")) return await PerformanceChecks.RunAsync(directory.FullName);
+if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--queue-return-only")) return await QueueReturnChecks.RunAsync(directory.FullName);
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -240,7 +243,9 @@ var profileFailures = await UnitProfileChecks.RunAsync(directory.FullName);
 var crossUnitFailures = await CrossUnitChecks.RunAsync(directory.FullName);
 var approvalFailures = await SlotApprovalChecks.RunAsync(directory.FullName);
 var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
-return deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var queueReturnFailures = await QueueReturnChecks.RunAsync(directory.FullName);
+var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
+return queueReturnFailures + performanceFailures + deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

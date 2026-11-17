@@ -434,7 +434,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         val outcome = when {
             accept && result.accepted -> "Oferta aceita. $subject"
             accept -> "A unidade não confirmou o agendamento desta oportunidade. Confira ${if (acting == null) "suas consultas" else "as consultas"}."
-            else -> "Oferta recusada."
+            else -> if (acting == null) "Oferta recusada. Você continua na fila, no mesmo lugar." else "Oferta recusada. A pessoa continua na fila, no mesmo lugar."
         }
         state = state.copy(message = if (reloaded) outcome else "$outcome Não foi possível atualizar a tela; use Atualizar.")
     }

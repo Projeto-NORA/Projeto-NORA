@@ -345,6 +345,9 @@ internal static class PlatformChecks
                 using (var offers = await patients[2].GetAsync(offersPath)) { Expect(offers, 200); offerP2 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                 clock.AdvanceTo(t0.AddMinutes(31));
                 using (var decline = await patients[2].PostAsJsonAsync($"{offersPath}/{offerP2}/respond", new { accept = false })) Expect(decline, 200);
+                // R-030: recusar devolve a entrada à fila na mesma posição (entered_at intacto); este teste segue o roteiro antigo e o P2 sai da fila cancelando a própria entrada.
+                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e1) == "waiting" && await UnitScalar<bool>(u2, "SELECT entered_at=$2 FROM nora_unit.waiting_list WHERE id=$1", e1, t0), "Recusar deveria devolver a entrada à fila na mesma posição.");
+                using (var leave = await patients[2].PostAsJsonAsync($"/api/patient/units/{u2}/waiting-list/{e1}/cancel", new { confirmed = true })) Expect(leave, 204);
                 Guid offerP4;
                 using (var offers = await patients[4].GetAsync(offersPath)) { Expect(offers, 200); offerP4 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                 clock.AdvanceTo(t0.AddMinutes(33));

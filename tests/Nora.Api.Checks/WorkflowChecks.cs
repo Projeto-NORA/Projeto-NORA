@@ -362,7 +362,11 @@ internal static class WorkflowChecks
                     { Expect(secondDermList, 200); using var secondDermBody = await Json(secondDermList); secondDermOffer = secondDermBody.RootElement.GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("specialty").GetString() == "Dermatologia" && o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                     using (var cancelWaiting = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/waiting-list/{secondDerm.Id}/cancel", new { confirmed = true })) Expect(cancelWaiting, 204);
                     using (var staleOffer = await secondPatient.PostAsJsonAsync($"{offersPath}/{secondDermOffer}/respond", new { accept = true })) Expect(staleOffer, 409);
-                    await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Cardiologia"), default);
+                    // R-030: o vencimento da 1ª oferta devolveu o Cpf(2) à fila na mesma posição; ele continua com a mesma entrada (uma nova inclusão seria 409) e a próxima vaga vai a ela.
+                    await using (var stillWaiting = new Npgsql.NpgsqlCommand("SELECT status FROM nora_unit.waiting_list WHERE id=$1", unitDb))
+                    { stillWaiting.Parameters.AddWithValue(earlierEligible.Id); Require(await stillWaiting.ExecuteScalarAsync() as string == "waiting", "Quem deixou a oferta vencer deveria ter voltado à fila (waiting)."); }
+                    try { await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Cardiologia"), default); throw new InvalidOperationException("Quem voltou à fila não pode ser incluído de novo."); }
+                    catch (Nora.Api.Services.ApiConflictException) { }
                     var workerStart = clock.GetUtcNow().AddDays(6);
                     var workerSource = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest("52998224725", "Cardiologia", "Profissional do prazo", workerStart, workerStart.AddMinutes(30)), default);
                     await schedule.ChangeStatusAsync(unitId, actor, workerSource.Id, new AppointmentStatusRequest("cancelled", true), default);
@@ -386,7 +390,7 @@ internal static class WorkflowChecks
                         using (var oldOverview = await patient.GetAsync("/api/patient/overview")) Expect(oldOverview, 403);
                         using var networkSummary = await municipal.GetAsync($"/api/municipal/summary?unitId={unitId}"); Expect(networkSummary, 200);
                         using var networkBody = await Json(networkSummary); var network = networkBody.RootElement;
-                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 1 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes.");
+                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 3 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes (R-030: quem recusou ou deixou vencer continua na fila, então Cpf(1) e Cpf(2) somam aos que já aguardavam): " + network);
                     }
                     finally { app.Configuration["Nora:LegacyGlobalWorkflow:Enabled"] = "true"; }
                     using (var revoke = await municipal.DeleteAsync($"/api/municipal/staff/{staffId}/units/{unitId}")) Expect(revoke, 204);

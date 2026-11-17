@@ -30,19 +30,30 @@ internal static class LightningEligibility
         "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list other ON other.id=o.entry_id WHERE o.status='pending' AND other.cpf=q.cpf) ";
     private const string NoOverlap = "AND NOT EXISTS(SELECT 1 FROM nora_unit.appointments a WHERE a.cpf=q.cpf AND a.status IN ('scheduled','called','completed','missed') AND a.starts_at<$4 AND a.ends_at>$3) ";
 
-    /// <summary>Primeira entrada elegível para o horário, travada (<c>FOR UPDATE</c>) na transação da UBS; nulo se ninguém pode receber.</summary>
-    public static async Task<long?> PickAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    /// <summary>R-030: quem recusou ou deixou vencer a oferta desta vaga volta à fila na mesma posição, mas não recebe a mesma vaga de novo (a vaga segue para o próximo).</summary>
+    private const string NotAlreadyOffered = "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers r JOIN nora_unit.waiting_list rq ON rq.id=r.entry_id WHERE r.slot_id=$5 AND rq.cpf=q.cpf AND r.status IN ('declined','expired')) ";
+
+    /// <summary>
+    /// Primeira entrada elegível para o horário, travada (<c>FOR UPDATE</c>) na transação da UBS; nulo se ninguém pode receber. Com <paramref name="slotId"/> (vaga que já existe), quem já recusou ou deixou vencer a oferta dessa
+    /// mesma vaga fica de fora; no "chamar próximo" a vaga ainda não existe e não há o que excluir.
+    /// </summary>
+    public static async Task<long?> PickAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset start, DateTimeOffset end, CancellationToken ct, Guid? slotId = null)
     {
-        await using var query = new NpgsqlCommand("SELECT q.id " + Candidates + NoOverlap + "ORDER BY q.entered_at,q.id LIMIT 1 FOR UPDATE OF q", unit);
+        await using var query = new NpgsqlCommand("SELECT q.id " + Candidates + NoOverlap + (slotId is null ? "" : NotAlreadyOffered) + "ORDER BY q.entered_at,q.id LIMIT 1 FOR UPDATE OF q", unit);
         query.Parameters.AddWithValue(specialty); query.Parameters.AddWithValue(eligible.ToArray()); query.Parameters.AddWithValue(start); query.Parameters.AddWithValue(end);
-        return await query.ExecuteScalarAsync(ct) is long id ? id : null;
+        if (slotId is { } id) query.Parameters.AddWithValue(id);
+        return await query.ExecuteScalarAsync(ct) is long entry ? entry : null;
     }
 
-    /// <summary>Prévia do primeiro da fila que pode receber (sem considerar horário, sem travar): a oferta real pode ir a outra pessoa se a fila mudar.</summary>
-    public static async Task<(long EntryId, string Name, DateTimeOffset EnteredAt)?> PreviewAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, CancellationToken ct)
+    /// <summary>
+    /// Prévia do primeiro da fila que pode receber, sem travar: a oferta real pode ir a outra pessoa se a fila mudar. Com <paramref name="start"/> e <paramref name="end"/> usa o mesmo critério de horário do
+    /// <see cref="PickAsync"/> (pula quem já tem consulta na UBS que cruze o horário); sem eles, ignora o horário.
+    /// </summary>
+    public static async Task<(long EntryId, string Name, DateTimeOffset EnteredAt)?> PreviewAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, CancellationToken ct, DateTimeOffset? start = null, DateTimeOffset? end = null)
     {
-        await using var query = new NpgsqlCommand("SELECT q.id,(SELECT p.full_name FROM nora_unit.patient_registry p WHERE p.cpf=q.cpf),q.entered_at " + Candidates + "ORDER BY q.entered_at,q.id LIMIT 1", unit);
+        await using var query = new NpgsqlCommand("SELECT q.id,(SELECT p.full_name FROM nora_unit.patient_registry p WHERE p.cpf=q.cpf),q.entered_at " + Candidates + (start is not null && end is not null ? NoOverlap : "") + "ORDER BY q.entered_at,q.id LIMIT 1", unit);
         query.Parameters.AddWithValue(specialty); query.Parameters.AddWithValue(eligible.ToArray());
+        if (start is { } from && end is { } to) { query.Parameters.AddWithValue(from); query.Parameters.AddWithValue(to); }
         await using var reader = await query.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? (reader.GetInt64(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)) : null;
     }

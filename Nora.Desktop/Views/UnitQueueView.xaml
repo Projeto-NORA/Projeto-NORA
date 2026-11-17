@@ -17,7 +17,7 @@
         <Border Visibility="{Binding CallNextOpen, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14" AutomationProperties.Name="Chamar próximo da fila">
           <StackPanel MaxWidth="780" HorizontalAlignment="Left">
             <TextBlock Text="Chamar próximo da fila" FontWeight="SemiBold" />
-            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Escolha um horário livre da grade. A oferta vai ao 1º da fila dessa especialidade, que tem 10 minutos para responder; se ele recusar ou não responder, o horário segue sozinho para os próximos da fila." />
+            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Escolha um horário livre da grade. A oferta vai ao 1º da fila dessa especialidade, que tem 10 minutos para responder; se ele recusar ou não responder, continua na fila na mesma posição e o horário segue sozinho para os próximos." />
             <WrapPanel>
               <StackPanel Width="270" Margin="0,0,12,0"><TextBlock Text="Especialidade" FontWeight="SemiBold" FontSize="12" />
                 <ComboBox ItemsSource="{Binding CallNextSpecialties}" SelectedItem="{Binding CallNextSpecialty}" DisplayMemberPath="Label" Margin="0,6,0,12" AutomationProperties.Name="Especialidade do Chamar próximo" /></StackPanel>

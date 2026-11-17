@@ -13,6 +13,16 @@ public sealed class ObsDeviceService(DatabaseHelper central, ObsDeviceDao dao, T
 {
     private const int CodeAttempts = 3;
 
+    /// <summary>
+    /// Repete a operação uma vez quando o PostgreSQL a derruba por impasse (<c>40P01</c>, SQLSTATE de deadlock). Dois administradores (ou um administrador e a ativação por código) no mesmo computador podem se cruzar nos locks
+    /// da sessão e do computador; o PostgreSQL desfaz uma das transações e a repetição, já sem o cruzamento, conclui. Cada tentativa é uma transação nova (a operação abre a sua); só um impasse é repetido, e uma segunda queda sobe como erro.
+    /// </summary>
+    internal static async Task<T> RetryOnDeadlockAsync<T>(Func<Task<T>> operation)
+    {
+        try { return await operation(); }
+        catch (PostgresException error) when (error.SqlState == PostgresErrorCodes.DeadlockDetected) { return await operation(); }
+    }
+
     /// <summary>Computador da requisição. Sem cabeçalho, desconhecido, segredo errado ou revogado dão a mesma resposta: 401 device-revoked.</summary>
     public async Task<ObsDeviceRef> CurrentAsync(DeviceCredential? credential, CancellationToken ct) =>
         credential is not null && await dao.FindActiveAsync(credential, ct) is { } device ? device : throw new ApiCodedException(StatusCodes.Status401Unauthorized, "device-revoked");
@@ -21,12 +31,15 @@ public sealed class ObsDeviceService(DatabaseHelper central, ObsDeviceDao dao, T
     public async Task<ObsDeviceActivation> ActivateAsync(ActivateObsDeviceRequest request, CancellationToken ct)
     {
         var code = ObsDeviceCredentials.NormalizeCode(request.Code) ?? throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-activation-code");
-        await using var connection = await central.OpenAsync(ct);
-        await using var transaction = await connection.BeginTransactionAsync(ct);
-        var activation = await dao.ActivateAsync(connection, ObsDeviceCredentials.HashCode(code), ObsDeviceCredentials.NewSecret(), time.GetUtcNow(), ct)
-            ?? throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-activation-code");
-        await transaction.CommitAsync(ct);
-        return activation;
+        return await RetryOnDeadlockAsync(async () =>
+        {
+            await using var connection = await central.OpenAsync(ct);
+            await using var transaction = await connection.BeginTransactionAsync(ct);
+            var activation = await dao.ActivateAsync(connection, ObsDeviceCredentials.HashCode(code), ObsDeviceCredentials.NewSecret(), time.GetUtcNow(), ct)
+                ?? throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-activation-code");
+            await transaction.CommitAsync(ct);
+            return activation;
+        });
     }
 
     public async Task<ObsDeviceList> ListAsync(NpgsqlConnection connection, Guid unitId, DeviceCredential? current, CancellationToken ct) =>

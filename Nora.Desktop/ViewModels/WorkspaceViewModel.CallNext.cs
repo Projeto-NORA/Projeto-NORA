@@ -13,7 +13,7 @@ public sealed record CallNextPeriod(int Days, string Label);
 
 /// <summary>
 /// "Chamar próximo" na Fila do OBS: a atendente escolhe um horário livre da grade e o botão oferece esse horário ao 1º da fila da especialidade, na hora (10 minutos para responder).
-/// Se a pessoa recusar ou deixar vencer, o horário segue sozinho, pela Vaga Relâmpago, para os próximos da fila. A conferência de consulta em outra UBS acontece no aceite.
+/// Se a pessoa recusar ou deixar vencer, ela volta à fila na mesma posição (R-030) e o horário segue sozinho, pela Vaga Relâmpago, para os próximos, sem ser oferecido de novo a ela. A conferência de consulta em outra UBS acontece no aceite.
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
@@ -22,6 +22,9 @@ public sealed partial class WorkspaceViewModel
     private CallNextPeriod callNextPeriod = CallNextPeriods[0];
     private AvailableSlot? callNextSlot;
     private NextInQueue? callNextPreview;
+    // Quem receberia ESTE horário (o servidor pula quem já tem consulta que o cruze). Só vale para o horário `callNextConfirmedFor`; sem ninguém e sem conferência, o texto não nomeia ninguém.
+    private NextInQueue? callNextSlotPreview;
+    private AvailableSlot? callNextConfirmedFor;
 
     public static IReadOnlyList<CallNextPeriod> CallNextPeriods { get; } = [new(1, "Hoje"), new(7, "Próximos 7 dias")];
     public ObservableCollection<SpecialtyQueueOption> CallNextSpecialties { get; } = [];
@@ -46,7 +49,7 @@ public sealed partial class WorkspaceViewModel
         get => callNextPeriod;
         set { if (value is null || callNextPeriod == value) return; callNextPeriod = value; Notify(); ClearCallNextResults(); }
     }
-    public AvailableSlot? CallNextSlot { get => callNextSlot; set { callNextSlot = value; Notify(); Notify(nameof(CanCallNextOffer)); Notify(nameof(CallNextConfirmationText)); } }
+    public AvailableSlot? CallNextSlot { get => callNextSlot; set { callNextSlot = value; callNextConfirmedFor = null; callNextSlotPreview = null; Notify(); Notify(nameof(CanCallNextOffer)); Notify(nameof(CallNextConfirmationText)); } }
     public bool CanCallNextSearch => CanOperate && HasActiveObsUnit && CallNextSpecialty is not null;
     public bool CanCallNextOffer => CanOperate && HasActiveObsUnit && CallNextSlot is not null && callNextPreview is not null;
     /// <summary>A leitura da grade da UBS (profissionais e especialidades) falhou: sem ela a lista de especialidades pode estar vazia e o botão de buscar fica desligado, então o painel oferece reler só a grade.</summary>
@@ -67,9 +70,22 @@ public sealed partial class WorkspaceViewModel
         : callNextPreviewFailed ? "Não foi possível conferir o 1º da fila agora. Use Buscar horários livres para tentar de novo."
         : callNextPreview is { } next ? $"1º da fila que pode receber: {next.Display}"
         : "Ninguém desta fila pode receber pelo aplicativo agora.";
-    public string CallNextConfirmationText => callNextSlot is { } slot && callNextPreview is { } next
-        ? $"Oferecer {slot.StartsAt.ToLocalTime():dd/MM HH:mm} com {slot.ProfessionalName} a {NextInQueue.ShortName(next.PatientName)}? Ela tem 10 minutos para responder."
-        : "";
+    /// <summary>
+    /// Texto da confirmação. Depois de <see cref="PrepareCallNextConfirmationAsync"/> nomeia quem de fato receberia ESTE horário (o servidor pula quem já tem consulta que o cruze); se a conferência do horário não foi possível,
+    /// não nomeia ninguém ("ao 1º da fila que puder receber nesse horário"). Antes dela, usa a prévia geral da fila (a tela sempre confere o horário antes de perguntar).
+    /// </summary>
+    public string CallNextConfirmationText
+    {
+        get
+        {
+            if (callNextSlot is not { } slot) return "";
+            var when = $"{slot.StartsAt.ToLocalTime():dd/MM HH:mm} com {slot.ProfessionalName}";
+            if (ReferenceEquals(callNextConfirmedFor, slot))
+                return callNextSlotPreview is { } who ? $"Oferecer {when} a {NextInQueue.ShortName(who.PatientName)}? Ela tem 10 minutos para responder."
+                    : $"Oferecer {when} ao 1º da fila que puder receber nesse horário? Ela tem 10 minutos para responder.";
+            return callNextPreview is { } next ? $"Oferecer {when} a {NextInQueue.ShortName(next.PatientName)}? Ela tem 10 minutos para responder." : "";
+        }
+    }
 
     private static readonly string[] CallNextNames =
     [
@@ -175,6 +191,36 @@ public sealed partial class WorkspaceViewModel
         NotifyCallNext();
     }
 
+    /// <summary>
+    /// Antes de perguntar, confere quem receberia o horário escolhido (mesmo critério do servidor: quem já tem consulta que cruze o horário fica de fora). Devolve falso, com a mensagem de fila vazia e a oferta desabilitada, se ninguém
+    /// puder receber esse horário. Falha de rede na conferência não bloqueia: a confirmação deixa de nomear alguém e o servidor decide.
+    /// </summary>
+    public async Task<bool> PrepareCallNextConfirmationAsync()
+    {
+        var unit = ActiveObsUnit; var specialty = CallNextSpecialty; var slot = CallNextSlot;
+        if (unit is null || specialty is null || slot is null) return false;
+        NextInQueue? next = null; var unknown = false;
+        try { next = await api.NextInQueueAsync(unit.Id, specialty.Id, slot.ProfessionalId, slot.StartsAt); }
+        // Sessão vencida ou troca de senha pendente seguem o mesmo caminho das outras ações (RunAsync), em vez de virar erro genérico.
+        catch (NoraApiException error) when (error.Unauthorized) { SignOutRejected(error.Message); return false; }
+        catch (NoraApiException error) when (error.Code == "password-change-required") { EnterPasswordChange(); return false; }
+        catch (NoraApiException error)
+        {
+            unknown = true;
+            System.Diagnostics.Trace.TraceWarning("NORA: não foi possível conferir quem recebe o horário: {0}", error.Message);
+        }
+        if (disposed || ActiveObsUnit?.Id != unit.Id || !ReferenceEquals(CallNextSlot, slot)) return false;
+        callNextConfirmedFor = slot; callNextSlotPreview = next;
+        if (!unknown && next is null)
+        {
+            callNextPreview = null; NotifyCallNext();
+            Say(MessageKind.Error, "Ninguém desta fila pode receber a oferta agora (sem conta no aplicativo, cadastro inativo, oferta pendente ou consulta no mesmo horário).");
+            return false;
+        }
+        NotifyCallNext();
+        return true;
+    }
+
     /// <summary>Oferece o horário escolhido ao 1º da fila. A tela pede a confirmação antes; a API também exige <c>confirmed</c>.</summary>
     public Task OfferCallNextAsync() => RunAsync(async () =>
     {
@@ -199,7 +245,7 @@ public sealed partial class WorkspaceViewModel
         await ReadCallNextPreviewAsync(unit, specialty);
         var name = NextInQueue.ShortName(result!.Offer.PatientName);
         await ReloadAfterChangeAsync(unit, UnitScope.Queue | UnitScope.Slots,
-            $"Horário oferecido a {name} até {result.Offer.ExpiresAt.ToLocalTime():HH:mm}. Se ela recusar ou não responder, o horário segue sozinho para os próximos da fila.");
+            $"Horário oferecido a {name} até {result.Offer.ExpiresAt.ToLocalTime():HH:mm}. Se ela recusar ou não responder, continua na fila na mesma posição e o horário segue sozinho para os próximos.");
         RebuildCallNextOptions();
     });
 

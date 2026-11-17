@@ -91,8 +91,9 @@ public sealed class NoraApiClient : IDisposable
     public Task<SlotApprovalState> SetSlotApprovalAsync(Guid unitId, bool enabled) => SendAsync<SlotApprovalState>(HttpMethod.Put, $"api/obs/units/{unitId}/slot-approval", new { enabled, confirmed = true });
     public Task<UnitLightningSlot> ApproveLightningSlotAsync(Guid unitId, Guid slotId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots/{slotId}/approve", new { confirmed = true });
     public Task<UnitLightningSlot> DiscardLightningSlotAsync(Guid unitId, Guid slotId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots/{slotId}/discard", new { confirmed = true });
-    public async Task<NextInQueue?> NextInQueueAsync(Guid unitId, Guid specialtyId, CancellationToken cancellation = default) =>
-        (await SendAsync<NextInQueueResult>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list/next?specialtyId={specialtyId}", cancellation: cancellation)).Next;
+    /// <summary>1º da fila que pode receber. Com <paramref name="professionalId"/> e <paramref name="startsAt"/> (o horário escolhido) o servidor usa o mesmo critério da chamada e pula quem já tem consulta que cruze esse horário.</summary>
+    public async Task<NextInQueue?> NextInQueueAsync(Guid unitId, Guid specialtyId, Guid? professionalId = null, DateTimeOffset? startsAt = null, CancellationToken cancellation = default) =>
+        (await SendAsync<NextInQueueResult>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list/next?specialtyId={specialtyId}" + (professionalId is { } professional && startsAt is { } start ? $"&professionalId={professional}&startsAt={Uri.EscapeDataString(start.ToUniversalTime().ToString("O"))}" : ""), cancellation: cancellation)).Next;
     public Task<CallNextResult> CallNextAsync(Guid unitId, Guid specialtyId, Guid professionalId, DateTimeOffset startsAt) =>
         SendAsync<CallNextResult>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/call-next", new { specialtyId, professionalId, startsAt, confirmed = true });
     public async Task LogoutAsync()
