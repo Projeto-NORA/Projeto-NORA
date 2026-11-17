@@ -10,3 +10,9 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+
+# P-048: com R8 ligado em `kotlin.**` o build de release caía ao abrir (PushHub -> kotlin.sequences) com
+# IllegalAccessError: "Class kotlin.sequences.d extended by class qh1 is inaccessible". O R8 renomeou as partes das fachadas multi-arquivo
+# da stdlib (SequencesKt__*, SequencesKt___*) para pacotes diferentes, e a superclasse não pública deixou de ser acessível.
+# Manter os nomes das classes da stdlib do Kotlin evita isso; o que não é usado continua sendo removido pelo shrinking.
+-keepnames class kotlin.** { *; }

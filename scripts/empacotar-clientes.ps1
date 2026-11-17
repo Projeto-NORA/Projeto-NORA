@@ -9,18 +9,39 @@
 
 .PARAMETER SemAndroid
   Pula o APK (por exemplo, numa máquina sem JDK/Android SDK).
+
+.PARAMETER Release
+  Gera o NORA-paciente.apk de RELEASE, assinado com a chave própria (em vez do APK de depuração). Exige o arquivo de propriedades da
+  chave (storeFile, storePassword, keyAlias, keyPassword), procurado em: variável NORA_ANDROID_SIGNING, APPNORA\keystore.properties e
+  %USERPROFILE%\NORA-assinatura\keystore.properties. Para criar a chave: scripts\criar-chave-android.ps1. Guia em docs/distribuicao.md.
 #>
 param(
     [string] $Saida,
-    [switch] $SemAndroid
+    [switch] $SemAndroid,
+    [switch] $Release
 )
 $ErrorActionPreference = 'Stop'
 $raiz = Split-Path -Parent $PSScriptRoot
 if (-not $Saida) { $Saida = Join-Path $raiz ('dist\' + (Get-Date -Format 'yyyy-MM-dd_HHmm')) }
 New-Item -ItemType Directory -Force $Saida | Out-Null
 
+# -Release: confere a chave ANTES de publicar os desktops (falhar depois de 10 minutos de publish seria cruel).
+$propriedadesChave = $null
+if ($Release -and -not $SemAndroid) {
+    $propriedadesChave = @($env:NORA_ANDROID_SIGNING,
+        (Join-Path $raiz 'APPNORA\keystore.properties'),
+        (Join-Path $env:USERPROFILE 'NORA-assinatura\keystore.properties')) |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+    if (-not $propriedadesChave) {
+        Write-Host ('FALHOU  Falta a chave de assinatura para o APK de release. Rode scripts\criar-chave-android.ps1 (cria %USERPROFILE%\NORA-assinatura\keystore.properties) ' +
+            'ou aponte NORA_ANDROID_SIGNING para o seu keystore.properties. Sem -Release o script gera o APK de depuração.') -ForegroundColor Red
+        exit 1
+    }
+    $propriedadesChave = (Resolve-Path -LiteralPath $propriedadesChave).Path
+}
+
 $passos = @('Publicando OBS-NORA', 'Publicando Painel-Municipal')
-if (-not $SemAndroid) { $passos += 'Gerando o APK do app do paciente' }
+if (-not $SemAndroid) { $passos += $(if ($Release) { 'Gerando o APK de release assinado do app do paciente' } else { 'Gerando o APK do app do paciente' }) }
 $passos += 'Compactando para envio'
 $atual = 0
 function Passo([string] $nome) {
@@ -48,14 +69,30 @@ try {
     if (-not $SemAndroid) {
         Passo $passos[2]
         if (-not $env:JAVA_HOME) { throw 'Defina JAVA_HOME (JDK 21) e ANDROID_HOME antes, ou rode com -SemAndroid.' }
+        $tarefa = ':app:assembleDebug'
+        if ($Release) {
+            $env:NORA_ANDROID_SIGNING = $propriedadesChave   # o Gradle lê o arquivo por esta variável (só neste processo)
+            $tarefa = ':app:assembleRelease'
+            Feito "Chave: $propriedadesChave"
+        }
         Push-Location (Join-Path $raiz 'APPNORA')
         try {
-            # APK de depuração: assinado com a chave de depuração do SDK, instala em qualquer Android e aceita só HTTPS
-            # (HTTP apenas para o emulador). O APK de release exige chave de assinatura própria (ver docs/distribuicao.md).
-            & .\gradlew.bat :app:assembleDebug --console=plain -q
+            # Depuração: assinado com a chave de depuração do SDK, instala em qualquer Android e aceita só HTTPS (HTTP apenas para o
+            # emulador). Release: assinado com a chave própria, com R8 (docs/distribuicao.md).
+            & .\gradlew.bat $tarefa --console=plain -q
             if ($LASTEXITCODE -ne 0) { throw "Falha no Gradle (código $LASTEXITCODE)." }
         } finally { Pop-Location }
-        $apk = Join-Path $raiz 'APPNORA\app\build\outputs\apk\debug\app-debug.apk'
+        $apk = Join-Path $raiz $(if ($Release) { 'APPNORA\app\build\outputs\apk\release\app-release.apk' } else { 'APPNORA\app\build\outputs\apk\debug\app-debug.apk' })
+        if (-not (Test-Path $apk)) { throw "O Gradle não gerou $apk (o release sem chave sai como app-release-unsigned.apk)." }
+        if ($Release -and $env:ANDROID_HOME) {
+            $apksigner = Get-ChildItem (Join-Path $env:ANDROID_HOME 'build-tools') -Filter apksigner.bat -Recurse -ErrorAction SilentlyContinue |
+                Sort-Object FullName -Descending | Select-Object -First 1
+            if ($apksigner) {
+                & $apksigner.FullName verify $apk | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw 'O apksigner não aprovou a assinatura do APK de release.' }
+                Feito 'Assinatura conferida com o apksigner'
+            }
+        }
         Copy-Item $apk (Join-Path $Saida 'NORA-paciente.apk') -Force
         Feito (Join-Path $Saida 'NORA-paciente.apk')
     }
