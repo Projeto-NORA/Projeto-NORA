@@ -63,7 +63,7 @@ A KVM 1 aguenta o NORA com folga. PostgreSQL e API juntos usam bem menos de 1 GB
 
 - **Para o piloto: Render + Neon**, como você prefere. Não há problema grande para um protótipo; os cuidados acima resolvem.
 - **Hostinger como plano B**, só se a espera de 1 min incomodar no piloto ou se a Vaga Relâmpago precisar andar com todo mundo fora do app. O passo a passo está no fim.
-- **Para a apresentação de hoje:** se a hospedagem não estiver pronta a tempo, rode a API no seu notebook e use os desktops nele mesmo (`http://localhost`). Assim você não depende de rede na hora. O app no celular precisa de HTTPS, então ele só entra na demonstração com a API hospedada.
+- **Para apresentações:** rode tudo no notebook com `scripts/demo-local.ps1` (banco, API, OBS, Painel e o app no emulador Android em `http://10.0.2.2`), sem depender de internet nem de deploy. O app num celular de verdade só entra com a API hospedada, porque fora do emulador ele exige HTTPS.
 
 ## Antes de pôr dados reais da escola (LGPD)
 
@@ -115,7 +115,7 @@ Gere três chaves aleatórias. Cada comando abaixo imprime uma chave nova; guard
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
 ```
 
-Para o SMTP, o caminho mais simples é uma conta Gmail só do piloto, com verificação em duas etapas e uma **senha de app**: host `smtp.gmail.com`, porta `587`. Um serviço de e-mail transacional com plano gratuito também serve.
+**E-mail no Render: use o Brevo na porta 2525.** O Render Free **bloqueia a saída pelas portas 25, 465 e 587** ([fonte](https://render.com/docs/free)), justamente as do SMTP, então o Gmail na 587 não funciona lá e o cadastro do paciente pelo app ficaria sem código. Crie uma conta gratuita no [Brevo](https://www.brevo.com/free-smtp-server) (300 e-mails por dia), valide o remetente e gere uma **chave SMTP** (não é a senha da conta). Use host `smtp-relay.brevo.com`, porta `2525`, usuário = o login SMTP que o Brevo mostra, senha = a chave SMTP. A API usa STARTTLS, que funciona na 2525. Na demonstração local (`scripts/demo-local.ps1`) e na Hostinger o Gmail com senha de app na 587 continua valendo.
 
 ### 4. API no Render
 
@@ -134,11 +134,11 @@ Para o SMTP, o caminho mais simples é uma conta Gmail só do piloto, com verifi
    | `Nora__Registration__HashKey` | chave 1 |
    | `Nora__PasswordReset__HashKey` | chave 2 |
    | `Nora__EmailChange__HashKey` | chave 3 |
-   | `Nora__Smtp__Host` | `smtp.gmail.com` |
-   | `Nora__Smtp__Port` | `587` |
-   | `Nora__Smtp__Username` | o e-mail do piloto |
-   | `Nora__Smtp__Password` | a senha de app |
-   | `Nora__Smtp__FromAddress` | o e-mail do piloto |
+   | `Nora__Smtp__Host` | `smtp-relay.brevo.com` |
+   | `Nora__Smtp__Port` | `2525` (o Render Free bloqueia a 587) |
+   | `Nora__Smtp__Username` | o login SMTP do Brevo |
+   | `Nora__Smtp__Password` | a chave SMTP do Brevo |
+   | `Nora__Smtp__FromAddress` | o remetente validado no Brevo |
    | `Nora__ForwardedHeaders__KnownNetworks` | `10.0.0.0/8` |
    | `ALLOWED_HOSTS` | opcional no Render (a imagem usa o `RENDER_EXTERNAL_HOSTNAME`, que o Render define sozinho); sobrescreve com o domínio público, vários separados por `;` |
 
