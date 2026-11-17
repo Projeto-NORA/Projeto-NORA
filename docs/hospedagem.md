@@ -1,0 +1,196 @@
+# Hospedagem do NORA para o piloto (escola simulando a rede de saúde)
+
+Este documento responde onde hospedar a API e o banco do NORA para um piloto com dados de uma escola, por um período curto, e explica o passo a passo. Os três aplicativos (OBS, Painel Municipal e o app Android) **não** são hospedados: eles rodam nos computadores e celulares e só precisam do endereço HTTPS da API (ver [distribuicao.md](distribuicao.md)).
+
+Os limites citados foram conferidos em 2026-11-17 nas páginas oficiais: [Render Free](https://render.com/docs/free), [planos do Neon](https://neon.com/docs/introduction/plans) e [bancos no Neon](https://neon.com/docs/manage/databases). Para a Hostinger KVM 1 não há página oficial com os números completos; os valores abaixo vêm de listagens de terceiros e precisam ser conferidos no painel da Hostinger. Esses limites mudam, então vale reconferir no dia.
+
+## O que precisa ficar no ar
+
+| Peça | O que é | Observação |
+| --- | --- | --- |
+| `Nora.Api` | servidor .NET 10 (ASP.NET) | Tem três rotinas em segundo plano: a Vaga Relâmpago a cada 15 s, a limpeza a cada 6 h e o push a cada 30 s (o push só roda com o Firebase configurado). |
+| PostgreSQL | um banco **central** e **um banco por UBS** | A API cria o banco da UBS sozinha com `CREATE DATABASE` quando a Secretaria cadastra a UBS. O usuário do banco precisa da permissão `CREATEDB`. |
+| SMTP | envio de e-mail | O cadastro do paciente no app manda um código por e-mail. Sem SMTP, o app não cria conta. |
+| HTTPS | certificado | O app Android em Release só aceita HTTPS. Os desktops aceitam HTTPS ou `http://localhost`. |
+
+O volume de dados de uma escola é pequeno: alguns milhares de pessoas ocupam dezenas de megabytes. Espaço não é problema em nenhuma das opções.
+
+## Comparação
+
+| | Render (API) + Neon (banco) | Hostinger KVM 1 (tudo na VPS) |
+| --- | --- | --- |
+| Custo | gratuito | já pago (dividido com o amigo) |
+| Recursos | Render: instância gratuita com 512 MB. Neon: 1 GB por projeto e 100 CU-hora por mês | 1 vCPU, 4 GB de RAM e 50 GB NVMe, divididos com o que o amigo já roda |
+| HTTPS | automático (`https://<nome>.onrender.com`) | você configura um domínio ou `sslip.io` e um proxy com certificado (Caddy) |
+| API dormindo | **sim**: depois de 15 min sem acesso, a próxima requisição espera cerca de 1 min | não: fica sempre ligada |
+| Rotinas em segundo plano | param enquanto a API dorme e voltam ao acordar | rodam sempre |
+| Banco dormindo | o Neon suspende depois de 5 min sem uso; acordar leva poucos segundos | não dorme |
+| Manutenção | quase nenhuma | você cuida de atualização, firewall, backup e de não atrapalhar o serviço do amigo |
+| Risco ao amigo | nenhum | dividir CPU e RAM; portas 80/443 talvez já usadas por ele |
+| Prazo | Neon não expira. Render gratuito dá 750 h por mês, o bastante para um serviço ligado o mês inteiro | enquanto o plano estiver pago |
+
+### Render + Neon tem algum problema grande?
+
+Para um protótipo, não. Existem quatro cuidados, e nenhum deles impede o uso.
+
+1. **Primeira requisição lenta.** Depois de 15 min parada, a API leva cerca de 1 min para acordar e o Neon mais alguns segundos.
+   - **Antes de apresentar:** abra `https://<sua-api>.onrender.com/health/ready` uns 3 min antes e espere a resposta `ready`.
+   - **Durante o piloto:** as pessoas vão ver essa espera de vez em quando.
+2. **Vaga Relâmpago "pausada" enquanto a API dorme.** A oferta de 10 min só vence e passa para o próximo da fila quando a API está acordada.
+   - Numa apresentação não faz diferença, porque ela fica acordada.
+   - Num piloto de dias, uma oferta pode ficar parada até alguém abrir um aplicativo.
+3. **Não use o PostgreSQL gratuito do Render.** Ele expira em 30 dias, não tem backup e permite um só banco. O NORA cria um banco por UBS. Por isso o banco fica no Neon.
+4. **Cota de computação do Neon (100 CU-hora por mês).** Enquanto a API está acordada, ela consulta o banco a cada 15 s e o Neon não suspende.
+   - Com a API dormindo quando ninguém usa, a cota sobra.
+   - Não ligue um "despertador" que acesse a API 24 h por dia: isso gastaria a cota do Neon em cerca de duas semanas. Se quiser deixá-la acordada, faça isso só no dia da apresentação.
+
+Dois cuidados técnicos que o passo a passo já resolve:
+
+- **Usar a conexão direta do Neon**, não a que tem `-pooler` no nome. A criação do banco da UBS usa uma trava de sessão, que não funciona atrás do pooler.
+- **Pôr o banco e a API na mesma região.** O Render não tem servidor no Brasil. Com a API em Virginia ou Ohio e o banco em São Paulo, cada tela faria várias idas e voltas entre países. Por isso o Neon fica em **US East**, ao lado do Render.
+
+### E a Hostinger?
+
+A KVM 1 aguenta o NORA com folga. PostgreSQL e API juntos usam bem menos de 1 GB de RAM, e os dados da escola cabem em poucos megabytes.
+
+- **A favor:** a API não dorme, as rotinas rodam sempre e não há espera de 1 min.
+- **Contra:**
+  - você assume a manutenção (atualizações, firewall, backup);
+  - precisa de HTTPS com domínio;
+  - divide CPU e memória com o serviço do amigo. Se ele já usa as portas 80/443, o NORA precisa entrar atrás do proxy que ele já tem.
+
+### Recomendação
+
+- **Para o piloto: Render + Neon**, como você prefere. Não há problema grande para um protótipo; os cuidados acima resolvem.
+- **Hostinger como plano B**, só se a espera de 1 min incomodar no piloto ou se a Vaga Relâmpago precisar andar com todo mundo fora do app. O passo a passo está no fim.
+- **Para a apresentação de hoje:** se a hospedagem não estiver pronta a tempo, rode a API no seu notebook e use os desktops nele mesmo (`http://localhost`). Assim você não depende de rede na hora. O app no celular precisa de HTTPS, então ele só entra na demonstração com a API hospedada.
+
+## Antes de pôr dados reais da escola (LGPD)
+
+Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratamento de dados pessoais pela LGPD. Mesmo num teste, combine com a escola:
+
+- **Consentimento** de quem participa, e dos responsáveis no caso de menores, explicando que é uma simulação, por quanto tempo os dados ficam guardados e quando serão apagados.
+- **Só o necessário:** nome, CPF e e-mail bastam para a demonstração. Não lance exames, vacinas ou qualquer dado de saúde real; na Jornada, use registros inventados.
+- **CPF:** o NORA confere os dígitos do CPF. Se preferir não usar o CPF real, use CPFs fictícios válidos com os nomes reais, combinados com cada participante.
+- **E-mail:** precisa ser real, porque o código do cadastro chega por ele.
+- **Onde ficam os dados:** com Render e Neon em US East, os dados ficam nos Estados Unidos. Diga isso aos participantes. Na Hostinger, depende da região da VPS.
+- **Fim do piloto:** faça o backup (ver "Encerrar o piloto"), guarde-o em local protegido pelo tempo combinado e apague os serviços.
+
+## Passo a passo: Render + Neon
+
+### 1. Banco no Neon
+
+1. Crie a conta em [neon.com](https://neon.com) e um projeto chamado `nora-piloto`:
+   - **PostgreSQL 18**;
+   - região **AWS US East (N. Virginia)**, a mesma que você vai escolher no Render.
+2. Em **Connect**, desligue **Connection pooling**. Copie a conexão direta: o host **não** pode ter `-pooler`.
+3. O Neon mostra a conexão como URI (`postgresql://usuario:senha@host/neondb?sslmode=require`), mas a API usa o formato do Npgsql. Monte assim, sem colar no Git nem em chat:
+
+   ```text
+   Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require
+   ```
+
+   Use `VerifyFull` e não `Require`: no Npgsql 10, `Require` só cifra a conexão e **não confere o certificado** do servidor, então quem estivesse no caminho entre a API e o Neon poderia se passar por ele e ler CPFs, nomes e e-mails. O Neon usa certificado de autoridade pública, que a imagem da API e o Windows já reconhecem; com `VerifyFull` a conexão é recusada se o certificado não for o do Neon.
+
+4. O usuário padrão do projeto (`neondb_owner`) já pode criar bancos com `CREATE DATABASE`. É isso que a API faz ao cadastrar uma UBS. O Neon permite até 500 bancos por branch.
+
+### 2. Preparar o banco a partir do seu computador
+
+A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell:
+
+```powershell
+$env:ConnectionStrings__Nora = "Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require"
+dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 021)
+dotnet run --project Nora.Api -c Release -- --provision          # escopo "municipal": conta da Secretaria
+dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs": administrador da primeira UBS
+```
+
+A variável vale só naquela janela. Feche-a no fim. Depois que a Secretaria cadastrar as UBS no Painel Municipal, a API cria os bancos delas sozinha. Ao atualizar a API mais tarde, rode `--migrate` e em seguida `--migrate-all-units`, nessa ordem.
+
+### 3. Chaves e e-mail
+
+Gere três chaves aleatórias. Cada comando abaixo imprime uma chave nova; guarde-as num gerenciador de senhas:
+
+```powershell
+[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+```
+
+Para o SMTP, o caminho mais simples é uma conta Gmail só do piloto, com verificação em duas etapas e uma **senha de app**: host `smtp.gmail.com`, porta `587`. Um serviço de e-mail transacional com plano gratuito também serve.
+
+### 4. API no Render
+
+1. **Publique o código no GitHub.** O repositório já é privado; o Render lê repositório privado depois que você autoriza o GitHub.
+2. **Crie o serviço:** em [render.com](https://render.com), **New → Web Service**, escolha o repositório e configure:
+   - **Language:** Docker. O `Dockerfile` da raiz já compila e roda a API.
+   - **Branch:** `main`.
+   - **Region:** Virginia (US East), a mesma do Neon.
+   - **Instance type:** Free.
+   - **Health Check Path:** `/health/live`.
+3. **Variáveis de ambiente** (aba **Environment**). Todas são segredo ou configuração e nenhuma vai para o Git:
+
+   | Variável | Valor |
+   | --- | --- |
+   | `ConnectionStrings__Nora` | a conexão do passo 1 |
+   | `Nora__Registration__HashKey` | chave 1 |
+   | `Nora__PasswordReset__HashKey` | chave 2 |
+   | `Nora__EmailChange__HashKey` | chave 3 |
+   | `Nora__Smtp__Host` | `smtp.gmail.com` |
+   | `Nora__Smtp__Port` | `587` |
+   | `Nora__Smtp__Username` | o e-mail do piloto |
+   | `Nora__Smtp__Password` | a senha de app |
+   | `Nora__Smtp__FromAddress` | o e-mail do piloto |
+   | `Nora__ForwardedHeaders__KnownNetworks` | `10.0.0.0/8` |
+   | `ALLOWED_HOSTS` | opcional no Render (a imagem usa o `RENDER_EXTERNAL_HOSTNAME`, que o Render define sozinho); sobrescreve com o domínio público, vários separados por `;` |
+
+   **Sobre o endereço e o host:** o `appsettings.json` que vai na imagem manda escutar só em `127.0.0.1:5080` e aceitar só `localhost`. O `Dockerfile` já troca isso na subida: escuta em `0.0.0.0` na porta que o Render informa em `PORT` e aceita apenas o domínio do serviço (`<nome>.onrender.com`). Não ponha `AllowedHosts=*` para "resolver": isso desliga a conferência do host. Se o deploy subir mas o `/health/live` do Render falhar com 400, veja nos logs o host recebido e acrescente-o em `ALLOWED_HOSTS`, separado por `;`.
+
+   **Sobre `KnownNetworks`:** o Render entrega as requisições por um proxy interno. Sem essa linha, todos os usuários parecem vir do mesmo IP e dividem o limite de tentativas de login. Depois do primeiro acesso, confira nos logs do Render se o IP de origem do proxy está nessa faixa; se não estiver, troque pela faixa que aparecer.
+
+4. **Deploy.** Ao terminar, abra `https://<nome>.onrender.com/health/ready`. A resposta `ready` confirma a API e o banco.
+
+### 5. Ligar os aplicativos
+
+O endereço que vai nos três aplicativos é `https://<nome>.onrender.com`. Como gerar e entregar os executáveis está em [distribuicao.md](distribuicao.md).
+
+### 6. Ordem do primeiro uso
+
+1. **Secretaria (Painel Municipal):** entra com a conta `municipal`, cadastra as UBS (a API cria o banco de cada uma), as especialidades e as contas OBS das atendentes, e dá a cada conta acesso às UBS.
+2. **Administrador da UBS (OBS):** entra em qualquer computador. Em Configurações da UBS → Computadores, ativa o computador da recepção ou gera um código para os outros. Também preenche horário de funcionamento, serviços, profissionais, consultórios e a grade.
+3. **Atendente (OBS):** entra num computador ativado e cadastra os pacientes, com CPF e um e-mail real.
+4. **Paciente (app):** escolhe "Criar conta", informa nome, CPF e senha, escolhe a UBS e confirma o código que chegou no e-mail.
+
+## Plano B: tudo na Hostinger KVM 1
+
+Use este caminho se a espera do Render atrapalhar. Antes, combine com seu amigo:
+
+- o que já roda na VPS e se as portas 80/443 já estão em uso;
+- se dá para usar Docker.
+
+1. **Endereço com HTTPS:** com um domínio, crie um registro `A` apontando para o IP da VPS. Sem domínio, use `nora.<IP-com-hífens>.sslip.io`; o `sslip.io` responde com o próprio IP e o Caddy consegue o certificado.
+2. **Arquivo `/opt/nora/docker-compose.yml`:** três serviços, `postgres:18` com volume próprio, a API construída pelo `Dockerfile` do repositório e o `caddy:2` na frente:
+   - o PostgreSQL **não** publica porta para a internet;
+   - a API recebe as mesmas variáveis da tabela do Render, com `ConnectionStrings__Nora` apontando para o serviço `postgres`, mas com duas diferenças: `ALLOWED_HOSTS` é o domínio público (aqui não existe o `RENDER_EXTERNAL_HOSTNAME`) e **`Nora__ForwardedHeaders__KnownNetworks` não é `10.0.0.0/8`**, e sim a sub-rede da rede do compose, explicada abaixo;
+   - declare uma rede própria com sub-rede fixa (`networks: nora: ipam: config: - subnet: 172.30.0.0/24`) e ligue API, Caddy e `postgres` a ela. O Caddy (e um Nginx do host que encaminhe para a porta publicada, que chega pelo gateway da rede) alcança a API por esse endereço, fora da faixa `10.0.0.0/8`; use `172.30.0.0/24` em `KnownNetworks`. Com a faixa errada a API não confia no `X-Forwarded-For`, vê todo mundo com o IP do Caddy e uma só pessoa errando a senha bloqueia o login de todos (limite de 30 por minuto) e a ativação de computadores do OBS (10 por 10 minutos). Depois do primeiro acesso, confira nos logs ou testando que um segundo usuário, de outro IP, não herda o bloqueio do primeiro;
+   - o Caddy faz `reverse_proxy api:8080`.
+3. **Se o amigo já tiver um Nginx ou Traefik nas portas 80/443,** não suba o Caddy: crie no proxy dele um site novo para o domínio do NORA, apontando para a porta da API.
+4. **Migração e contas:** rode `--migrate` e `--provision` como no passo 2 do Render, de dentro do contêiner da API ou do seu PC por um túnel SSH (`ssh -L 5433:localhost:5432`). Não abra a porta do banco.
+5. **Proteção da VPS:** firewall só com 22, 80 e 443, e usuário do banco com senha forte.
+
+## Encerrar o piloto (backup e desligamento)
+
+1. **Backup.** Com o cliente do PostgreSQL 18 instalado no PC, rode um `pg_dump` por banco: o central e um `nora_ubs_<id>` por UBS. A lista dos bancos sai de `SELECT datname FROM pg_database`.
+
+   ```powershell
+   & "C:\Users\Pichau\AppData\Local\Programs\PostgreSQL\18\bin\pg_dump.exe" "host=<host> dbname=neondb user=<usuario> sslmode=verify-full sslrootcert=system" -Fc -f nora-central.dump
+   ```
+
+   Repita trocando `dbname` e o nome do arquivo para cada banco de UBS. Guarde os arquivos `.dump` criptografados (por exemplo, num `.zip` com senha forte ou num cofre). A guarda e o descarte seguem o que foi combinado com a escola.
+2. **Desligar.** Apague o serviço no Render e o projeto no Neon. Na Hostinger, `docker compose down -v` apaga também o volume do banco. A partir daí os aplicativos não conectam mais, porque o endereço deixa de existir.
+3. **Restaurar no futuro**, se precisar: `pg_restore` em um PostgreSQL 18 novo, banco por banco, e a API apontando para ele.
+
+## Fontes
+
+- [Render — Free instances](https://render.com/docs/free)
+- [Neon — Plans](https://neon.com/docs/introduction/plans)
+- [Neon — Manage databases](https://neon.com/docs/manage/databases)
+- [Hostinger KVM 1 (dados de terceiros)](https://www.vpsbenchmarks.com/hosters/hostinger/plans/kvm-1)

@@ -1,6 +1,21 @@
 # Execução e validação
 
-## Estado atual das validações — 2026-11-16
+## Estado atual das validações — 2026-11-17 (rodada final)
+
+Conferido no código da rodada final (P-014, Chamar próximo, serviços e horários da UBS, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail, mais as 12 correções da revisão adversarial), antes do commit, com PostgreSQL 18 descartável:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `Nora.Desktop.Checks` (sem API) | 170/170 |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55762) | HTTP 32/32; fluxos 28/28; bancos por UBS PASS; plataforma 19/19; revisão 17/17; comunicação e Jornada 16/16; agenda 21/21; Família 21/21; revisão da Família 14/14; decisões 7/7; lacunas 5/5; Google e push 15/15; computadores do OBS 13/13; chamar próximo 8/8; serviços e horários 7/7; conflito entre UBS 7/7; aprovação das vagas 8/8; caixa de saída do e-mail 5/5 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55772) | 173/173 |
+| Android (commit `dfadb0e`) | 285 testes locais, lint 0 erros e 6 avisos antigos, 54 prévias, 41 instrumentados + 2 pulados por assumption no `Medium_Phone_API_37.0`; o E2E `-Android` passou com o código de `09fdd87` |
+| `scripts/demo-local.ps1` | sobe banco, migrações e API em pasta temporária; `/health/ready` responde e o host `10.0.2.2` do emulador é aceito |
+
+Versões de banco desta rodada: central até a **021**, UBS até a **016**. Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`, nessa ordem (a migração das UBS exige o central na 021). Ressalva: a segunda volta da revisão adversarial não rodou (P-050).
+
+## Estado das validações — 2026-11-16
 
 Números da Fase 3 (agenda pelo catálogo, capacidade, metas, alertas, comunicação, Jornada, Família, troca de e-mail, desativação e manutenção), no código dos commits `75a6a06` (API), `fffca9b` (desktop) e `ca0e380` (app), já com as correções da revisão adversarial, e com PostgreSQL 18.6 descartável. São os resultados que cada área relatou na última rodada; uma rodada integrada final pode atualizá-los. As seções seguintes são registros datados de rodadas anteriores e não descrevem o estado atual (a rodada de 2026-11-15, no HEAD `3d46a78`, tinha desktop 103/103, E2E 104/104 e Android 84/84 locais com 28 previews).
 
@@ -41,7 +56,7 @@ pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -PostgreSqlBin "$en
 
 **E2E por UBS.** `validar-clientes-descartavel.ps1` sobe a fixture por UBS (`NORA_TEST_REGISTRATION=1` e `NORA_E2E_UNIT_REGISTRY=1`, com bancos de UBS descartáveis) e o desktop exercita OBS e Secretaria contra a API real. Com `-Android` o script também instala e roda os testes instrumentados, o que exige emulador. O script não liga o emulador: suba-o antes (ver `android-emulador.md`) e confira `adb devices`. Em 2026-11-16 a rodada `-Android` foi feita com a API e o desktop do HEAD `09fdd87` compilados num worktree temporário (outro agente alterava a API neste) e com o APPNORA deste worktree; a primeira tentativa teve uma falha intermitente do desktop (P-047) e a repetição passou inteira. Dois cuidados do Android 17 (API 37) apareceram nessa rodada: o app precisa de `ACCESS_LOCAL_NETWORK` para falar com `10.0.2.2` (o teste a concede com `pm grant`), e a oferta da Vaga Relâmpago só existe depois do ciclo de 15 s do `UnitLightningWorker` (o teste espera até 45 s).
 
-**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 018 e as UBS até a 014, e uma UBS sem a 014 responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
+**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 018 e as UBS até a 016 (central até a 021), e uma UBS desatualizada responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
 
 ## Integração por UBS — 2026-11-09
 
