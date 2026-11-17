@@ -8,10 +8,11 @@ namespace Nora.Api.DAOs;
 /// <param name="central">Banco central, só para o nome do responsável nas listas do paciente (<see cref="ListForPatientAsync"/>).</param>
 public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider time, SchedulingService? scheduling = null, DatabaseHelper? central = null)
 {
-    public async Task<AppointmentInfo> CreateAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct)
+    /// <param name="beforeInsert">Confere consulta da mesma pessoa em outra UBS depois das conferências da própria UBS e antes de gravar (409 <c>other-unit-overlap</c>).</param>
+    public async Task<AppointmentInfo> CreateAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct, Func<DateTimeOffset, DateTimeOffset, Task>? beforeInsert = null)
     {
         // Com ao menos um profissional ativo cadastrado a UBS marca só pelo catálogo e pela grade (Fase 3); sem profissional continua o texto livre abaixo.
-        if (scheduling is not null && await scheduling.UsesCatalogAsync(unitId, ct)) return await scheduling.BookForStaffAsync(unitId, actorId, request, ct);
+        if (scheduling is not null && await scheduling.UsesCatalogAsync(unitId, ct)) return await scheduling.BookForStaffAsync(unitId, actorId, request, ct, beforeInsert);
         var cpf = AccountService.NormalizeCpf(request.Cpf);
         var specialty = request.Specialty?.Trim() ?? "";
         var professional = request.Professional?.Trim() ?? "";
@@ -28,8 +29,9 @@ public sealed class AppointmentDao(UnitDatabaseRouter databases, TimeProvider ti
         { patientLock.Parameters.AddWithValue(cpf); await patientLock.ExecuteNonQueryAsync(ct); }
         await using (var exists = new NpgsqlCommand("SELECT is_active FROM nora_unit.patient_registry WHERE cpf=$1 FOR SHARE", connection))
         { exists.Parameters.AddWithValue(cpf); if (await exists.ExecuteScalarAsync(ct) is not true) throw new ApiNotFoundException(); }
-        await using (var conflict = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE (lower(professional)=lower($1) OR cpf=$4) AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2) OR EXISTS(SELECT 1 FROM nora_unit.lightning_slots s JOIN nora_unit.appointments a ON a.id=s.appointment_id WHERE lower(a.professional)=lower($1) AND s.status IN ('open','offered') AND a.starts_at<$3 AND a.ends_at>$2)", connection))
+        await using (var conflict = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE (lower(professional)=lower($1) OR cpf=$4) AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2) OR EXISTS(SELECT 1 FROM nora_unit.lightning_slots WHERE lower(btrim(professional))=lower(btrim($1)) AND status IN ('open','offered') AND starts_at<$3 AND ends_at>$2)", connection))
         { conflict.Parameters.AddWithValue(professional); conflict.Parameters.AddWithValue(start); conflict.Parameters.AddWithValue(end); conflict.Parameters.AddWithValue(cpf); if (await conflict.ExecuteScalarAsync(ct) is true) throw new ApiConflictException(); }
+        if (beforeInsert is not null) await beforeInsert(start, end);
         var id = Guid.NewGuid(); var now = time.GetUtcNow();
         await using (var insert = new NpgsqlCommand("INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8)", connection))
         { foreach (var value in new object[] { id, cpf, specialty, professional, start, end, actorId, now }) insert.Parameters.AddWithValue(value); await insert.ExecuteNonQueryAsync(ct); }

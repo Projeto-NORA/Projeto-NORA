@@ -20,9 +20,10 @@ public sealed class AnnouncementDao(DatabaseHelper central)
     /// Predicado de visibilidade sobre <c>nora.announcements a</c>; $1 conta, $2 agora, $3 público do leitor ('staff' ou 'patients'). Toda a rede só
     /// alcança quem tem ao menos uma UBS (concessão ou vínculo); região e UBS específicas, só quem tem UBS nelas.
     /// </summary>
-    private static string Visible(bool staff)
+    private static string Visible(bool staff, int? unitParameter = null)
     {
-        var units = staff ? StaffUnits : PatientUnits;
+        // A atendente ligada a um computador só enxerga os comunicados da UBS dele (unitParameter = posição do parâmetro uuid da UBS).
+        var units = staff ? (unitParameter is { } position ? $"{StaffUnits} AND unit_id=${position}::uuid" : StaffUnits) : PatientUnits;
         return $"a.closed_at IS NULL AND (a.expires_at IS NULL OR a.expires_at>$2) AND a.audience IN ('both',$3) AND ((a.scope='all' AND EXISTS({units})) " +
             $"OR (a.scope='units' AND EXISTS(SELECT 1 FROM nora.announcement_units au WHERE au.announcement_id=a.id AND au.unit_id IN ({units}))) " +
             $"OR (a.scope='region' AND EXISTS(SELECT 1 FROM nora.announcement_regions ar JOIN nora.health_units h ON lower(btrim(h.region))=ar.region_key WHERE ar.announcement_id=a.id AND h.id IN ({units}))))";
@@ -136,7 +137,7 @@ public sealed class AnnouncementDao(DatabaseHelper central)
     /// antes da consulta: como a ordem de seq é a de commit, nada abaixo dele ainda vai aparecer depois, então devolver esse teto como cursor
     /// não pula comunicado e permite que a próxima chamada, sem novidade, custe só uma leitura do índice.
     /// </summary>
-    public async Task<AnnouncementPage> ListForAccountAsync(Guid accountId, bool staff, long after, int limit, DateTimeOffset now, CancellationToken ct)
+    public async Task<AnnouncementPage> ListForAccountAsync(Guid accountId, bool staff, long after, int limit, DateTimeOffset now, CancellationToken ct, Guid? unitFilter = null)
     {
         await using var connection = await central.OpenAsync(ct);
         long ceiling;
@@ -147,8 +148,8 @@ public sealed class AnnouncementDao(DatabaseHelper central)
         await using (var query = central.Command(connection,
             "SELECT a.id,a.seq,a.title,a.body,a.created_at,a.expires_at,r.read_at FROM nora.announcements a " +
             "LEFT JOIN nora.announcement_reads r ON r.announcement_id=a.id AND r.account_id=$1 " +
-            $"WHERE a.seq>$4 AND a.seq<=$5 AND {Visible(staff)} ORDER BY a.seq LIMIT $6",
-            accountId, now.ToUniversalTime(), staff ? "staff" : "patients", after, ceiling, limit + 1))
+            $"WHERE a.seq>$4 AND a.seq<=$5 AND {Visible(staff, unitFilter is null ? null : 7)} ORDER BY a.seq LIMIT $6",
+            [.. new object[] { accountId, now.ToUniversalTime(), staff ? "staff" : "patients", after, ceiling, limit + 1 }, .. unitFilter is { } unit ? new object[] { unit } : []]))
         await using (var reader = await query.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
                 items.Add(new(reader.GetGuid(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetFieldValue<DateTimeOffset>(4),
@@ -159,10 +160,10 @@ public sealed class AnnouncementDao(DatabaseHelper central)
     }
 
     /// <summary>Marca como lido (idempotente: a primeira leitura vale e o instante não muda). Comunicado que a conta não enxerga → 404.</summary>
-    public async Task MarkReadAsync(Guid accountId, bool staff, Guid id, DateTimeOffset now, CancellationToken ct)
+    public async Task MarkReadAsync(Guid accountId, bool staff, Guid id, DateTimeOffset now, CancellationToken ct, Guid? unitFilter = null)
     {
         await using var connection = await central.OpenAsync(ct);
-        await using (var visible = central.Command(connection, $"SELECT 1 FROM nora.announcements a WHERE a.id=$4 AND {Visible(staff)}", accountId, now.ToUniversalTime(), staff ? "staff" : "patients", id))
+        await using (var visible = central.Command(connection, $"SELECT 1 FROM nora.announcements a WHERE a.id=$4 AND {Visible(staff, unitFilter is null ? null : 5)}", [.. new object[] { accountId, now.ToUniversalTime(), staff ? "staff" : "patients", id }, .. unitFilter is { } unit ? new object[] { unit } : []]))
             if (await visible.ExecuteScalarAsync(ct) is null) throw new ApiNotFoundException();
         await central.ExecuteAsync(connection, "INSERT INTO nora.announcement_reads(announcement_id,account_id,read_at) VALUES($1,$2,$3) ON CONFLICT DO NOTHING", ct, id, accountId, now.ToUniversalTime());
     }

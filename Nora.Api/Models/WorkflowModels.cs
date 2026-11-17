@@ -9,4 +9,5 @@ public sealed record CreateSlotRequest(string Label);
 public sealed record RespondOfferRequest([property: JsonRequired] bool Accept);
 public sealed record PatientOverview(UserInfo User, List<QueueEntry> Queue, List<OfferInfo> Offers);
 public sealed record LightningCohort(int Days, long OpenSlots, long AcceptedOffers, long RegisteredSlots, long CreatedOffers, long DeclinedOffers, long ExpiredOffers, long PendingOffers, long CancelledOffers);
-public sealed record MunicipalSummary(long Patients, long WaitingPatients, long OpenSlots, long AcceptedOffers, long RegisteredSlots, long CreatedOffers, long DeclinedOffers, long ExpiredOffers, long PendingOffers, long CancelledOffers, List<LightningCohort> LightningCohorts, long InactivePatients = 0, long WaitingEntries = 0, long UnitsWithoutDatabase = 0);
+public sealed record MunicipalSummary(long Patients, long WaitingPatients, long OpenSlots, long AcceptedOffers, long RegisteredSlots, long CreatedOffers, long DeclinedOffers, long ExpiredOffers, long PendingOffers, long CancelledOffers, List<LightningCohort> LightningCohorts, long InactivePatients = 0, long WaitingEntries = 0, long UnitsWithoutDatabase = 0,
+    long AwaitingApprovalSlots = 0, long ApprovedSlots = 0, long ApprovalTimeoutSlots = 0, long DiscardedSlots = 0);

@@ -15,9 +15,9 @@ internal static partial class ApiEndpoints
             await command.ExecuteScalarAsync(ct);
             return Results.Ok(new {status="ready",scope="database"});
         });
-        app.MapPost("/api/auth/login",async (LoginRequest request,AuthService auth,CancellationToken ct) =>
+        app.MapPost("/api/auth/login",async (LoginRequest request,HttpContext context,AuthService auth,CancellationToken ct) =>
         {
-            var response=await auth.LoginAsync(request,ct);
+            var response=await auth.LoginAsync(request,ct,ObsDeviceCredentials.FromRequest(context.Request));
             return response is null ? Results.Unauthorized() : Results.Ok(response);
         }).RequireRateLimiting("login");
         app.MapPost("/api/auth/password-reset/request", async (PasswordResetStartRequest request,
@@ -58,7 +58,7 @@ internal static partial class ApiEndpoints
             return Results.NoContent();
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PasswordChange));
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
-        obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context).User.Id, ct)));
+        obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context), ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => registry.ListAsync(unitId, true, ct), ct)));
         obs.MapGet("/obs/units/{unitId:guid}/metrics", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, MetricsService metrics, CancellationToken ct) =>
@@ -90,10 +90,10 @@ internal static partial class ApiEndpoints
         });
         obs.MapGet("/obs/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct)));
-        obs.MapPost("/obs/units/{unitId:guid}/appointments", async (Guid unitId, CreateAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
+        obs.MapPost("/obs/units/{unitId:guid}/appointments", async (Guid unitId, CreateAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);
-            var result = await access.ExecuteAsync(session, unitId, () => appointments.CreateAsync(unitId, session.User.Id, request, ct), ct);
+            var result = await access.ExecuteForCpfAsync(session, unitId, request.Cpf, cpfLock => appointments.CreateAsync(unitId, session.User.Id, request, ct, (start, end) => crossUnit.EnsureFreeAsync(cpfLock, unitId, start, end, ct)), ct);
             return Results.Json(result, statusCode: StatusCodes.Status201Created);
         });
         obs.MapPatch("/obs/units/{unitId:guid}/appointments/{id:guid}/status", async (Guid unitId, Guid id, AppointmentStatusRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
@@ -185,10 +185,10 @@ internal static partial class ApiEndpoints
             Results.Ok(new { offers = await access.ExecutePatientAsync(Session(context), unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) }));
         patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
             Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }));
-        patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
+        patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, SchedulingAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);
-            var result = await access.ExecutePatientAsync(session, unitId, cpf => lightning.RespondAsync(unitId, session.User.Id, cpf, id, request.Accept, ct), ct);
+            var result = await access.ExecutePatientNetworkAsync(session, unitId, cpfLock => lightning.RespondAsync(unitId, session.User.Id, cpfLock.Cpf, id, request.Accept, ct, null, (start, end) => crossUnit.EnsureFreeAsync(cpfLock, unitId, start, end, ct)), ct);
             if (!result.Accepted) await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.Ok(result);
         });
@@ -257,6 +257,7 @@ internal static partial class ApiEndpoints
         municipal.MapPut("/units/{id:guid}", async (Guid id, HealthUnitRequest request, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.UpdateAsync(id, request, ct)));
         app.MapSchedulingEndpoints();
         app.MapFamilyEndpoints(); // Fase 3 — Família e troca do e-mail da conta (ApiEndpoints.Family.cs)
+        app.MapRoundEndpoints(); // Rodada final — computadores do OBS, chamar próximo, atendimento ao público e aprovação das vagas (ApiEndpoints.Round.cs)
         app.MapIdentityEndpoints(); // P-042 — Entrar com Google e push (ApiEndpoints.Identity.cs)
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
@@ -285,7 +286,7 @@ internal static partial class ApiEndpoints
             var context=invocation.HttpContext;
             var authorization=context.Request.Headers.Authorization.ToString();
             if(!authorization.StartsWith("Bearer ",StringComparison.OrdinalIgnoreCase)) return Results.Unauthorized();
-            var session=await context.RequestServices.GetRequiredService<AuthService>().AuthenticateAsync(authorization[7..],context.RequestAborted);
+            var session=await context.RequestServices.GetRequiredService<AuthService>().AuthenticateAsync(authorization[7..],context.RequestAborted,ObsDeviceCredentials.FromRequest(context.Request));
             if(session is null) return Results.Unauthorized();
             // Senha provisória: só /api/auth/me, /logout e /password respondem até a troca (o grupo auth é o único que passa allowPasswordChangePending).
             if(session.User.MustChangePassword && !allowPasswordChangePending) throw new ApiCodedException(StatusCodes.Status403Forbidden,"password-change-required");

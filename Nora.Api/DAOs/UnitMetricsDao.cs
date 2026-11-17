@@ -57,6 +57,8 @@ public sealed partial class UnitMetricsDao
 {
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9_+/-]{0,63}$")] private static partial Regex ZonePattern();
 
+    /// <summary>Vaga (alias <c>s</c>) que chegou a ser liberada: nunca conta a que aguardou aprovação, a descartada, a que o prazo fechou nem a fechada por conflito na aprovação.</summary>
+    internal const string ReleasedSlot = "(s.status<>'awaiting_approval' AND COALESCE(s.closed_reason,'') NOT IN ('approval-timeout','discarded','conflict'))";
     private const string CancelledByPatientJoin = "LEFT JOIN nora_unit.appointment_events e ON e.appointment_id=a.id AND a.status='cancelled' AND e.status='cancelled' AND e.source='patient'";
     private const string LeadMicros = "(EXTRACT(EPOCH FROM (a.starts_at - e.occurred_at)) * 1000000)::bigint";
 
@@ -110,12 +112,11 @@ public sealed partial class UnitMetricsDao
             WHERE q.status IN ('waiting','offered') AND ($1 = '' OR lower(btrim(q.specialty))=lower(btrim($1)))
             """, specialty));
         batch.BatchCommands.Add(Statement(WaitSql, start, end, specialty));
-        batch.BatchCommands.Add(Statement("""
+        batch.BatchCommands.Add(Statement($"""
             SELECT count(DISTINCT s.id), count(o.id) FILTER (WHERE o.status='accepted'), count(o.id) FILTER (WHERE o.status='declined'), count(o.id) FILTER (WHERE o.status='expired')
             FROM nora_unit.lightning_slots s
-            JOIN nora_unit.appointments a ON a.id=s.appointment_id
             LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id
-            WHERE s.created_at >= $1 AND s.created_at < $2 AND ($3 = '' OR lower(btrim(a.specialty))=lower(btrim($3)))
+            WHERE s.created_at >= $1 AND s.created_at < $2 AND ($3 = '' OR lower(btrim(s.specialty))=lower(btrim($3))) AND {ReleasedSlot}
             """, start, end, specialty));
         var data = new UnitMetricsData();
         await using var reader = await batch.ExecuteReaderAsync(ct);

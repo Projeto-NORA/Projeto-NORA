@@ -29,14 +29,15 @@ public sealed class AnnouncementService(AnnouncementDao dao, TimeProvider time)
     public Task<AnnouncementReads> ReadsAsync(Guid actorId, Guid id, CancellationToken ct)
         => id == Guid.Empty ? throw new ApiInputException() : dao.ReadsAsync(actorId, id, time.GetUtcNow(), ct);
 
-    public Task<AnnouncementPage> ListForAccountAsync(Guid accountId, bool staff, long? after, int? limit, CancellationToken ct)
+    /// <param name="unitFilter">Atendente ligada a um computador: só os comunicados da UBS dele.</param>
+    public Task<AnnouncementPage> ListForAccountAsync(Guid accountId, bool staff, long? after, int? limit, CancellationToken ct, Guid? unitFilter = null)
     {
         if (after is < 0) throw new ApiInputException();
-        return dao.ListForAccountAsync(accountId, staff, after ?? 0, Limit(limit), time.GetUtcNow(), ct);
+        return dao.ListForAccountAsync(accountId, staff, after ?? 0, Limit(limit), time.GetUtcNow(), ct, unitFilter);
     }
 
-    public Task MarkReadAsync(Guid accountId, bool staff, Guid id, CancellationToken ct)
-        => id == Guid.Empty ? throw new ApiInputException() : dao.MarkReadAsync(accountId, staff, id, time.GetUtcNow(), ct);
+    public Task MarkReadAsync(Guid accountId, bool staff, Guid id, CancellationToken ct, Guid? unitFilter = null)
+        => id == Guid.Empty ? throw new ApiInputException() : dao.MarkReadAsync(accountId, staff, id, time.GetUtcNow(), ct, unitFilter);
 
     private static int Limit(int? limit) => limit is null ? DefaultPage : limit is >= 1 and <= MaxPage ? limit.Value : throw new ApiInputException();
 

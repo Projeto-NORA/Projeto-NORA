@@ -58,6 +58,8 @@ internal static class ClientFixture
             var managerUser = await accounts.ProvisionAsync("municipal", "manager", operatorAccount);
             if (registrationTest)
             {
+                // Atendente sintética do E2E de computadores do OBS: só entra em computador ativado (a exigência fica ligada) e tem concessão nas três UBS.
+                var attendantUser = await accounts.ProvisionAsync("obs", "attendant", new("Atendente de teste", "11144477735", "attendant@example.test", password));
                 var units = app.Services.GetRequiredService<HealthUnitService>();
                 var unitRecords = app.Services.GetRequiredService<HealthUnitDao>();
                 var registry = app.Services.GetRequiredService<UnitPatientRegistryDao>();
@@ -68,6 +70,7 @@ internal static class ClientFixture
                     app.Configuration[$"Nora:UnitDatabases:{unit.Id:N}"] = registrationConnections[i];
                     await app.Services.GetRequiredService<UnitMigrationDao>().MigrateAsync(unit.Id);
                     await units.SetStaffAccessAsync(operatorUser.Id, unit.Id, managerUser.Id, true, default);
+                    await units.SetStaffAccessAsync(attendantUser.Id, unit.Id, managerUser.Id, true, default);
                     if (i < 2) await registry.CreateAsync(unit.Id, operatorUser.Id, new("52998224725", "Paciente Sintético", i == 0 ? "first@example.test" : "second@example.test"));
                     if (i == 0)
                     {

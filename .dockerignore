@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.build/
+.git/
+.claude/
+APPNORA/
+graphify-out/
+docs/
+tests/
+**/*.user
+**/appsettings.Development.json
+**/secrets*.json

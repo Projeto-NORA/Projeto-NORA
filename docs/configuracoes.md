@@ -59,7 +59,9 @@ A API não tem tela de preferências: tudo vem da configuração do processo (`a
 | `Nora:Registration:HashKey` | nenhum | chave HMAC do cadastro do paciente, com ao menos 32 bytes |
 | `Nora:EmailChange:HashKey` | `Nora:Registration:HashKey` e depois `Nora:PasswordReset:HashKey` | chave HMAC do código de troca do e-mail da conta; vale a primeira das três com ao menos 32 bytes, e nenhuma faz as rotas que geram código responderem 503 |
 | `Nora:Alerts:HighQueue`, `LongWaitDays`, `MissedRate`, `WindowDays`, `Occupancy`, `OccupancyDays` | 20, 30, 0,20, 30, 0,95 e 7 | limites dos alertas; valor fora da faixa não derruba a subida, mas faz as rotas de alertas do OBS e da Secretaria falharem até ser corrigido |
-| `Nora:Maintenance:Enabled` | `true` | liga a limpeza periódica: sessões vencidas ou revogadas há mais de 30 dias e desafios de cadastro e de recuperação de senha vencidos há mais de 1 dia |
+| `Nora:ObsDevices:RequireForAttendants` | `true` | a atendente só entra no OBS em computador ativado pelo administrador da UBS; com `false` (implantação gradual) a ativação e o "manter conectado" funcionam, mas a atendente também entra sem computador (o administrador entra sempre) |
+| `Nora:ObsDevices:KeepSignedInDays` | `30` | validade, em dias (1 a 90), da sessão do OBS com "manter conectado" (só em computador ativado, sem renovação automática); valor inválido impede a inicialização |
+| `Nora:Maintenance:Enabled` | `true` | liga a limpeza periódica (sessões vencidas ou revogadas há mais de 30 dias, desafios de cadastro e de recuperação de senha e códigos de ativação de computadores do OBS vencidos há mais de 1 dia) e a reconciliação das sugestões de e-mail que sobraram na caixa de saída das UBS |
 | `Nora:Maintenance:IntervalHours` | `6` | intervalo da limpeza, de 1 a 168 horas; o primeiro passe roda um minuto após a subida, e valor inválido impede a inicialização |
 | `Nora:UnitLightningWorker:Enabled` | `true` | verificação de 15 s que expira e redistribui as ofertas de Vaga Relâmpago das UBS |
 | `Nora:LegacyGlobalWorkflow:Enabled` | `false` | rotas globais antigas; só valem em `Development`, para fixtures de teste, e não são opção de implantação |
@@ -74,6 +76,10 @@ A API não tem tela de preferências: tudo vem da configuração do processo (`a
 | `Nora:Push:MaxAttempts` | `5` | tentativas por aviso em falha transitória, de 1 a 20 |
 | `Nora:Push:LookbackHours` | `24` | de 1 a 168: quanto para trás o worker procura decisões de família e, na primeira vez, comunicados |
 | `Nora:Push:PresenceScanMinutes` | `5` | de 0 a 1440: intervalo da varredura da janela de confirmação de presença (0 = a cada passe) |
+
+### Computadores do OBS — como implantar (P-014)
+
+A exigência vem **ligada** (`Nora:ObsDevices:RequireForAttendants=true`): depois do deploy as sessões de atendente que não estão ligadas a um computador deixam de valer (401) e a atendente não entra sem um (403 `device-required`). Roteiro: (1) `Nora.Api --migrate` (central até a 021) e `Nora.Api --migrate-all-units` (UBS até a 016); (2) o administrador da UBS entra normalmente, em qualquer computador, e ativa o computador da recepção em Configurações da UBS → Computadores ("Ativar este computador") ou gera um código para outro computador; (3) a atendente abre o OBS no computador ativado e entra com a própria senha (com "Manter conectado" a sessão dura 30 dias). Para uma implantação gradual, suba com `Nora__ObsDevices__RequireForAttendants=false`, ative os computadores e só então volte ao padrão. O segredo do computador nunca vai ao servidor depois da ativação (só o hash) e não está em nenhum arquivo do repositório; o código de ativação vale 15 minutos e uma única vez.
 
 ### Entrar com Google e push — como ligar (P-042)
 

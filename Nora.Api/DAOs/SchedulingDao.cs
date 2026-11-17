@@ -292,7 +292,7 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         batch.BatchCommands.Add(Statement("SELECT t.id,t.professional_id,p.full_name,lower(btrim(p.full_name)),t.weekday,t.start_time,t.end_time,t.slot_minutes,t.room_id,r.name,t.specialty_id,t.valid_from,t.valid_until FROM nora_unit.schedule_templates t JOIN nora_unit.professionals p ON p.id=t.professional_id AND p.is_active JOIN nora_unit.rooms r ON r.id=t.room_id AND r.is_active WHERE ($1::uuid IS NULL OR t.professional_id=$1)", professionalId));
         batch.BatchCommands.Add(Statement("SELECT professional_id,starts_at,ends_at FROM nora_unit.schedule_blocks WHERE starts_at<$2 AND ends_at>$1", low, high));
         batch.BatchCommands.Add(Statement("SELECT lower(btrim(professional)),starts_at,ends_at FROM nora_unit.appointments WHERE status IN ('scheduled','called','completed','missed') AND starts_at<$2 AND ends_at>$1", low, high));
-        batch.BatchCommands.Add(Statement("SELECT lower(btrim(a.professional)),a.starts_at,a.ends_at FROM nora_unit.lightning_slots s JOIN nora_unit.appointments a ON a.id=s.appointment_id WHERE s.status IN ('open','offered') AND a.starts_at<$2 AND a.ends_at>$1", low, high));
+        batch.BatchCommands.Add(Statement("SELECT lower(btrim(professional)),starts_at,ends_at FROM nora_unit.lightning_slots WHERE status IN ('open','offered') AND starts_at<$2 AND ends_at>$1", low, high));
         await using var reader = await batch.ExecuteReaderAsync(ct);
         var templates = new List<ScheduleTemplateRow>();
         while (await reader.ReadAsync(ct))
@@ -340,9 +340,10 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
     /// <summary>
     /// Marca uma consulta num atendimento livre da grade (equipe: <paramref name="bookedBy"/> "staff"; paciente: "patient"), numa transação da UBS: confere profissional e
     /// especialidade, recalcula a grade com os locks de profissional e de paciente seguros e recusa horário que não seja exatamente um atendimento livre.
-    /// Atendimento ocupado, bloqueado, segurado por vaga relâmpago ou inexistente → 409 slot-unavailable; paciente já com consulta no mesmo horário → 409 patient-overlap.
+    /// Atendimento ocupado, bloqueado, segurado por vaga relâmpago ou inexistente → 409 slot-unavailable; paciente já com consulta no mesmo horário → 409 patient-overlap; mesma pessoa com consulta no horário em outra UBS
+    /// (<paramref name="beforeInsert"/>) → 409 other-unit-overlap.
     /// </summary>
-    internal async Task<AppointmentInfo> BookAsync(Guid unitId, Guid actorId, string cpf, Guid professionalId, Specialty specialty, DateTimeOffset startsAt, DateTimeOffset? endsAt, string bookedBy, SlotEngine engine, CancellationToken ct, Guid? guardianId = null)
+    internal async Task<AppointmentInfo> BookAsync(Guid unitId, Guid actorId, string cpf, Guid professionalId, Specialty specialty, DateTimeOffset startsAt, DateTimeOffset? endsAt, string bookedBy, SlotEngine engine, CancellationToken ct, Guid? guardianId = null, Func<DateTimeOffset, DateTimeOffset, Task>? beforeInsert = null)
     {
         var start = startsAt.ToUniversalTime();
         await using var connection = await databases.OpenAsync(unitId, ct);
@@ -367,6 +368,8 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         if (endsAt is { } end && end.ToUniversalTime().UtcTicks != chosen.End) throw new ApiInputException();
         await using (var overlap = Cmd(connection, "SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE cpf=$1 AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2)", cpf, start, new DateTimeOffset(chosen.End, TimeSpan.Zero)))
             if (await overlap.ExecuteScalarAsync(ct) is true) throw new ApiCodedException(StatusCodes.Status409Conflict, "patient-overlap");
+        // Conflito com consulta da mesma pessoa em outra UBS (o executor já segura o lock de CPF): depois da conferência da própria UBS, antes de gravar.
+        if (beforeInsert is not null) await beforeInsert(start, new DateTimeOffset(chosen.End, TimeSpan.Zero));
         var id = Guid.NewGuid(); var now = time.GetUtcNow();
         await using (var insert = Cmd(connection, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at,professional_id,specialty_id,room_id,booked_by) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8,$9,$10,$11,$12)",
             id, cpf, specialty.Name, name, start, new DateTimeOffset(chosen.End, TimeSpan.Zero), actorId, now, professionalId, specialty.Id, chosen.Template.RoomId, bookedBy))
@@ -412,6 +415,17 @@ public sealed class SchedulingDao(UnitDatabaseRouter databases, TimeProvider tim
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var query = Cmd(connection, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND specialty_id=$2 AND booked_by='patient' AND status IN ('scheduled','called') AND starts_at>$3", cpf, specialtyId, now.ToUniversalTime());
         return (long)(await query.ExecuteScalarAsync(ct))!;
+    }
+
+    /// <summary>Especialidades da grade vigente: linhas de profissional e consultório ativos cuja vigência não terminou antes de <paramref name="today"/> (data local).</summary>
+    public async Task<List<Guid>> ListGridSpecialtyIdsAsync(Guid unitId, DateOnly today, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = Cmd(connection, "SELECT DISTINCT t.specialty_id FROM nora_unit.schedule_templates t JOIN nora_unit.professionals p ON p.id=t.professional_id AND p.is_active JOIN nora_unit.rooms r ON r.id=t.room_id AND r.is_active WHERE COALESCE(t.valid_until,'infinity'::date)>=$1::date", today);
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        var ids = new List<Guid>();
+        while (await reader.ReadAsync(ct)) ids.Add(reader.GetGuid(0));
+        return ids;
     }
 
     // ---- Consultórios ativos, fila por especialidade ----

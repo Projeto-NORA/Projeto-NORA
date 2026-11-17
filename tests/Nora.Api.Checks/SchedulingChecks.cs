@@ -437,7 +437,8 @@ internal static class SchedulingChecks
             // Limite: P1 já tem Cardiologia marcada pelo app; outra na mesma UBS e na outra UBS é recusada; outra especialidade passa.
             using (var second = await Book(1, u1, ana, cardiology, "2026-11-17T12:30:00Z")) await ExpectProblem(second, 409, "specialty-limit");
             using (var otherUnit = await Book(1, u2, f.Carla, cardiology, "2026-11-22T12:00:00Z")) await ExpectProblem(otherUnit, 409, "specialty-limit");
-            using (var otherSpecialty = await Book(1, u2, f.Carla, clinical, "2026-11-17T12:00:00Z")) Expect(otherSpecialty, 201);
+            // A mesma pessoa não pode ter dois atendimentos no mesmo horário em UBS diferentes (conflito entre UBS): a outra especialidade, no mesmo horário da consulta da UBS 1, é recusada sem dizer qual UBS.
+            using (var otherSpecialty = await Book(1, u2, f.Carla, clinical, "2026-11-17T12:00:00Z")) await ExpectProblem(otherSpecialty, 409, "other-unit-overlap");
             // Cancelar libera a especialidade na rede toda.
             using (var cancel = await f.Patients[1].PostAsJsonAsync($"/api/patient/units/{u1}/appointments/{tueAppointment}/cancel", new { confirmed = true })) Expect(cancel, 200);
             using (var afterCancel = await Book(1, u2, f.Carla, cardiology, "2026-11-22T12:00:00Z")) Expect(afterCancel, 201);
@@ -782,10 +783,12 @@ internal static class SchedulingChecks
             var attendant = await accounts.ProvisionAsync("obs", "attendant", new("Atendente da agenda", Cpf(903), "atendente@example.test", Password));
             await app.StartAsync();
             var f = new Fixture { App = app, Schema = schema, Clock = clock, Anonymous = NewClient(app), Municipal = NewClient(app), Admin = NewClient(app), Attendant = NewClient(app), AdminId = admin.Id };
-            await Login(f.Municipal, "municipal", "gestora@example.test"); await Login(f.Admin, "obs", "admin@example.test"); await Login(f.Attendant, "obs", "atendente@example.test");
+            await Login(f.Municipal, "municipal", "gestora@example.test"); await Login(f.Admin, "obs", "admin@example.test");
             f.Unit1 = await f.CreateUnitAsync("UBS Agenda Um", "Centro"); f.Unit2 = await f.CreateUnitAsync("UBS Agenda Dois", "Centro"); f.Unit3 = await f.CreateUnitAsync("UBS Agenda Três", "Norte");
             foreach (var unit in new[] { f.Unit1, f.Unit2, f.Unit3 }) { using var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{admin.Id}/units/{unit}", null); Expect(grant, 204); }
             using (var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{attendant.Id}/units/{f.Unit1}", null)) Expect(grant, 204);
+            // A atendente só entra em computador ativado da UBS dela.
+            await ObsDeviceHelper.ActivateAndLoginAsync(f.Admin, f.Attendant, f.Unit1, "atendente@example.test", Password);
             // P1, P4 e P5 vivem nas duas primeiras UBS; os demais só na UBS 1.
             foreach (var number in Enumerable.Range(1, 11))
             {

@@ -23,6 +23,13 @@ if (args.Contains("--family-review-only")) return await FamilyChecks.RunReviewAs
 if (args.Contains("--family-decisions-only")) return await FamilyChecks.RunDecisionsAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--family-gaps-only")) return await FamilyChecks.RunGapsAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--google-push-only")) return await GooglePushChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+// Rodada final: computadores do OBS, chamar próximo, atendimento ao público, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail.
+if (args.Contains("--devices-only")) return await ObsDeviceChecks.RunAsync(directory.FullName);
+if (args.Contains("--call-next-only")) return await CallNextChecks.RunAsync(directory.FullName);
+if (args.Contains("--slot-approval-only")) return await SlotApprovalChecks.RunAsync(directory.FullName);
+if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsync(directory.FullName);
+if (args.Contains("--cross-unit-only")) return await CrossUnitChecks.RunAsync(directory.FullName);
+if (args.Contains("--email-outbox-only")) return await EmailOutboxChecks.RunAsync(directory.FullName);
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -227,7 +234,13 @@ var familyReviewFailures = await FamilyChecks.RunReviewAsync(directory.FullName)
 var familyDecisionFailures = await FamilyChecks.RunDecisionsAsync(directory.FullName);
 var familyGapFailures = await FamilyChecks.RunGapsAsync(directory.FullName);
 var googlePushFailures = await GooglePushChecks.RunAsync(directory.FullName);
-return googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var deviceFailures = await ObsDeviceChecks.RunAsync(directory.FullName);
+var callNextFailures = await CallNextChecks.RunAsync(directory.FullName);
+var profileFailures = await UnitProfileChecks.RunAsync(directory.FullName);
+var crossUnitFailures = await CrossUnitChecks.RunAsync(directory.FullName);
+var approvalFailures = await SlotApprovalChecks.RunAsync(directory.FullName);
+var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
+return deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

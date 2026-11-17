@@ -28,11 +28,11 @@ internal static class CommunityEndpoints
         // ---- Equipe (OBS): comunicados ----
         var obsAnnouncements = app.MapGroup("/api/obs/announcements").AddEndpointFilter(sessionFilter("obs"));
         obsAnnouncements.MapGet("", async (long? after, int? limit, HttpContext context, AnnouncementService service, CancellationToken ct) =>
-            Results.Ok(await service.ListForAccountAsync(Session(context).User.Id, true, after, limit, ct)))
+            Results.Ok(await service.ListForAccountAsync(Session(context).User.Id, true, after, limit, ct, AttendantUnit(Session(context)))))
             .AddEndpointFilter(new AccountLimitFilter(CommunityRateLimiter.AnnouncementPoll));
         obsAnnouncements.MapPost("/{id:guid}/read", async (Guid id, HttpContext context, AnnouncementService service, CancellationToken ct) =>
         {
-            await service.MarkReadAsync(Session(context).User.Id, true, id, ct);
+            await service.MarkReadAsync(Session(context).User.Id, true, id, ct, AttendantUnit(Session(context)));
             return Results.NoContent();
         }).AddEndpointFilter(new AccountLimitFilter(CommunityRateLimiter.AnnouncementRead));
 
@@ -85,6 +85,8 @@ internal static class CommunityEndpoints
     }
 
     private static SessionInfo Session(HttpContext context) => (SessionInfo)context.Items[typeof(SessionInfo)]!;
+    /// <summary>UBS do computador a que a atendente está ligada (nulo para o administrador e para sessão sem computador): os comunicados dela são só desta UBS.</summary>
+    private static Guid? AttendantUnit(SessionInfo session) => session.User.Role == "attendant" ? session.DeviceUnitId : null;
 
     /// <summary>Limite por conta autenticada; precisa vir depois do filtro de sessão (os do grupo rodam antes dos do endpoint).</summary>
     private sealed class AccountLimitFilter(string policy) : IEndpointFilter

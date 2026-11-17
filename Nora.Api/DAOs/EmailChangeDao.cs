@@ -15,16 +15,25 @@ public sealed class EmailChangeDao(DatabaseHelper database)
     /// Só vale se a conta existe, está ativa e tem vínculo com a UBS que corrigiu o e-mail (uma UBS sem vínculo não faz aparecer pedido no app do paciente). A sugestão
     /// pendente anterior é substituída; se o e-mail da conta já é o novo, só a pendente antiga é encerrada.
     /// </summary>
-    internal async Task RecordAsync(NpgsqlConnection connection, Guid unitId, string cpf, string newEmail, DateTimeOffset now, CancellationToken ct)
+    /// <param name="sourceCreatedAt">Instante da correção na UBS (a linha da caixa de saída). A sugestão nasce com ele, e se a conta já tem sugestão mais nova (qualquer situação, de qualquer UBS) esta é antiga demais: nada é feito, para a passada periódica não trocar a sugestão mais nova por uma que sobrou de uma correção anterior.</param>
+    /// <param name="sourceKey">Id da linha da caixa de saída da UBS que originou a sugestão: se já existe sugestão com esta origem (em qualquer situação, inclusive dispensada) nada é feito, então reprocessar a caixa de saída nunca recria nem duplica.</param>
+    internal async Task RecordAsync(NpgsqlConnection connection, Guid unitId, string cpf, string newEmail, DateTimeOffset now, CancellationToken ct, Guid? sourceKey = null, DateTimeOffset? sourceCreatedAt = null)
     {
+        if (sourceKey is { } source)
+            await using (var exists = database.Command(connection, "SELECT 1 FROM nora.email_change_suggestions WHERE source_key=$1", source))
+                if (await exists.ExecuteScalarAsync(ct) is not null) return;
         Guid? accountId = null; string? current = null;
         await using (var find = database.Command(connection, "SELECT a.id,a.email FROM nora.accounts a JOIN nora.patient_units p ON p.patient_id=a.id AND p.unit_id=$2 WHERE a.scope='patient' AND a.is_active AND a.cpf=$1", cpf, unitId))
         await using (var reader = await find.ExecuteReaderAsync(ct))
             if (await reader.ReadAsync(ct)) { accountId = reader.GetGuid(0); current = reader.GetString(1); }
         if (accountId is not { } account) return;
+        var createdAt = sourceCreatedAt ?? now;
+        if (sourceCreatedAt is not null)
+            await using (var newer = database.Command(connection, "SELECT 1 FROM nora.email_change_suggestions WHERE account_id=$1 AND created_at>$2", account, createdAt))
+                if (await newer.ExecuteScalarAsync(ct) is not null) return;
         await database.ExecuteAsync(connection, "UPDATE nora.email_change_suggestions SET status='superseded',closed_at=$2,code_hash=NULL,code_expires_at=NULL WHERE account_id=$1 AND status='pending'", ct, account, now);
         if (string.Equals(current, newEmail, StringComparison.OrdinalIgnoreCase)) return;
-        await database.ExecuteAsync(connection, "INSERT INTO nora.email_change_suggestions(id,account_id,unit_id,suggested_email,status,created_at) VALUES($1,$2,$3,$4,'pending',$5)", ct, Guid.NewGuid(), account, unitId, newEmail, now);
+        await database.ExecuteAsync(connection, "INSERT INTO nora.email_change_suggestions(id,account_id,unit_id,suggested_email,status,created_at,source_key) VALUES($1,$2,$3,$4,'pending',$5,$6::uuid)", ct, Guid.NewGuid(), account, unitId, newEmail, createdAt, (object?)sourceKey ?? DBNull.Value);
     }
 
     /// <summary>A sugestão pendente da conta com o nome da UBS, para a leitura do app; nula quando não há.</summary>

@@ -677,7 +677,7 @@ internal static class PlatformChecks
         return NoraApiHost.Create(new()
         {
             // Sem verificação periódica: a redistribuição acontece só pelas rotas, com o relógio de teste.
-            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:ObsDevices:RequireForAttendants", "false",
                 "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None",
                 "--Nora:Registration:HashKey", "synthetic-platform-registration-key-32-bytes"],
             EnvironmentName = "Development",

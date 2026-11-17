@@ -7,8 +7,12 @@ using Nora.Api.Services;
 namespace Nora.Api.DAOs;
 
 /// <summary>Internal database boundary. Callers must authorize staff and the selected UBS before use.</summary>
-public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
+/// <param name="central">Banco central: o índice de UBS onde cada CPF tem cadastro (conflito de horário entre UBS). Nulo só em teste de unidade isolado, que não tem central.</param>
+/// <param name="time">Relógio da caixa de saída do e-mail (o reconciliador compara com o mesmo relógio).</param>
+public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases, DatabaseHelper? central = null, TimeProvider? time = null)
 {
+    private readonly TimeProvider clock = time ?? TimeProvider.System;
+
     /// <summary>Devolve o e-mail de referência que havia antes (já em minúsculas, como é gravado), para o chamador saber se ele mudou.</summary>
     public async Task<string> UpdateEmailAsync(Guid unitId, Guid actorId, string value, string? newEmail, CancellationToken ct = default)
     {
@@ -23,6 +27,7 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
             update.Parameters.AddWithValue(cpf); update.Parameters.AddWithValue(email);
             previous = await update.ExecuteScalarAsync(ct) as string ?? throw new ApiNotFoundException();
         }
+        await QueueEmailChangeAsync(connection, cpf, previous, email, ct);
         await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action) VALUES($1,$2,'email_updated')", connection))
         {
             audit.Parameters.AddWithValue(cpf); audit.Parameters.AddWithValue(actorId);
@@ -36,6 +41,12 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
     {
         var normalized = Normalize(unitId, actorId, patient);
         var cpf = normalized.Cpf; var name = normalized.FullName; var email = normalized.Email; var phone = normalized.Phone; var patientAddress = normalized.Address;
+        // O índice central de cadastros é gravado e confirmado ANTES do cadastro na UBS: sobrar uma linha é inofensivo (só faz conferir um banco a mais); faltar abriria um furo na conferência entre UBS.
+        if (central is not null)
+        {
+            await using var index = await central.OpenAsync(ct);
+            await central.ExecuteAsync(index, "INSERT INTO nora.unit_registry_index(cpf,unit_id) VALUES($1,$2) ON CONFLICT DO NOTHING", ct, cpf, unitId);
+        }
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await using (var insert = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry(cpf,full_name,email,created_by,phone,cep,street,address_number,complement,neighborhood,city,state,ibge) VALUES($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,'')) ON CONFLICT(cpf) DO NOTHING", connection))
@@ -64,6 +75,7 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
                 update.Parameters.AddWithValue(value);
             previous = await update.ExecuteScalarAsync(ct) as string ?? throw new ApiNotFoundException();
         }
+        await QueueEmailChangeAsync(connection, normalized.Cpf, previous, normalized.Email, ct);
         await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.patient_registry_events(cpf,actor_id,action) VALUES($1,$2,'updated')", connection))
         { audit.Parameters.AddWithValue(normalized.Cpf); audit.Parameters.AddWithValue(actorId); await audit.ExecuteNonQueryAsync(ct); }
         await transaction.CommitAsync(ct);
@@ -117,12 +129,44 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases)
         return new(reader.GetString(0), reader.GetString(1), reader.GetString(2), Optional(3), address, reader.GetBoolean(12), false, reader.GetFieldValue<DateTimeOffset>(13));
     }
 
-    /// <summary>E-mail de referência atual (já em minúsculas, como é gravado) do cadastro, ativo ou não, ou nulo se o CPF não tem cadastro na UBS.</summary>
-    public async Task<string?> ReferenceEmailAsync(Guid unitId, string cpf, CancellationToken ct)
+    /// <summary>
+    /// Caixa de saída da sugestão de troca de e-mail da conta: na MESMA transação da UBS que muda o e-mail de referência, se ele mudou, guarda a linha (uma por CPF; a última mudança vale). Só sai depois de a sugestão ser registrada
+    /// no banco central (<see cref="Services.EmailSuggestionReconciler"/>), então o e-mail novo nunca fica sem a sugestão correspondente nem ela sem o e-mail.
+    /// </summary>
+    private async Task QueueEmailChangeAsync(NpgsqlConnection connection, string cpf, string previous, string email, CancellationToken ct)
+    {
+        if (string.Equals(previous, email, StringComparison.Ordinal)) return;
+        await using var queue = new NpgsqlCommand("INSERT INTO nora_unit.email_change_outbox(cpf,id,email,created_at) VALUES($1,gen_random_uuid(),$2,$3) ON CONFLICT (cpf) DO UPDATE SET id=EXCLUDED.id,email=EXCLUDED.email,created_at=EXCLUDED.created_at", connection);
+        queue.Parameters.AddWithValue(cpf); queue.Parameters.AddWithValue(email); queue.Parameters.AddWithValue(clock.GetUtcNow());
+        await queue.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>Linha da caixa de saída do CPF (id da origem, e-mail e instante da correção na UBS), ou nulo.</summary>
+    internal async Task<(Guid Id, string Email, DateTimeOffset CreatedAt)?> ReadOutboxAsync(Guid unitId, string cpf, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT email FROM nora_unit.patient_registry WHERE cpf=$1", connection);
-        query.Parameters.AddWithValue(cpf); return await query.ExecuteScalarAsync(ct) as string;
+        await using var query = new NpgsqlCommand("SELECT id,email,created_at FROM nora_unit.email_change_outbox WHERE cpf=$1", connection);
+        query.Parameters.AddWithValue(cpf); await using var reader = await query.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? (reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)) : null;
+    }
+
+    /// <summary>CPFs com linha na caixa de saída criada antes de <paramref name="before"/> (mais antigas primeiro), no máximo <paramref name="limit"/>.</summary>
+    internal async Task<List<string>> ListStaleOutboxAsync(Guid unitId, DateTimeOffset before, int limit, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var query = new NpgsqlCommand("SELECT cpf FROM nora_unit.email_change_outbox WHERE created_at<$1 ORDER BY created_at,cpf LIMIT $2", connection);
+        query.Parameters.AddWithValue(before); query.Parameters.AddWithValue(limit); await using var reader = await query.ExecuteReaderAsync(ct);
+        var cpfs = new List<string>();
+        while (await reader.ReadAsync(ct)) cpfs.Add(reader.GetString(0));
+        return cpfs;
+    }
+
+    /// <summary>Apaga a linha da caixa de saída se ainda for a mesma (uma correção nova no meio do caminho troca o id e a linha nova fica).</summary>
+    internal async Task DeleteOutboxAsync(Guid unitId, string cpf, Guid id, CancellationToken ct)
+    {
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        await using var delete = new NpgsqlCommand("DELETE FROM nora_unit.email_change_outbox WHERE cpf=$1 AND id=$2", connection);
+        delete.Parameters.AddWithValue(cpf); delete.Parameters.AddWithValue(id); await delete.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>Nomes do cadastro de referência (ativo ou não) dos CPFs informados, numa consulta só. CPF sem cadastro não aparece.</summary>

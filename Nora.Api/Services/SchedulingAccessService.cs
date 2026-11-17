@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Npgsql;
 using Nora.Api.Database;
 using Nora.Api.DAOs;
 using Nora.Api.Models;
@@ -11,7 +12,10 @@ namespace Nora.Api.Services;
 public sealed class SchedulingAccessService(DatabaseHelper central, UnitPatientRegistryDao registry, UnitAccessService access)
 {
     /// <summary>Só o administrador da UBS mantém profissionais, consultórios, grade e bloqueios; o atendente recebe 403. A concessão da UBS segue o executor comum.</summary>
-    public Task<T> ExecuteAdministratorAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct)
+    public Task<T> ExecuteAdministratorAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct) => ExecuteAdministratorAsync(session, unitId, _ => action(), ct);
+
+    /// <summary>Como acima, e a ação recebe a conexão central da transação do executor (para gravar no banco central sem uma segunda conexão e sem se bloquear).</summary>
+    public Task<T> ExecuteAdministratorAsync<T>(SessionInfo session, Guid unitId, Func<NpgsqlConnection, Task<T>> action, CancellationToken ct)
     {
         if (session.User.Role != "administrator") throw new ApiForbiddenException();
         return access.ExecuteAsync(session, unitId, action, ct);
@@ -35,15 +39,15 @@ public sealed class SchedulingAccessService(DatabaseHelper central, UnitPatientR
     }
 
     /// <summary>Executor do responsável pelo dependente com o lock de CPF (do dependente) seguro: ver <see cref="UnitAccessService.ExecuteGuardianAsync{T}"/>. Usado pelo agendamento, que depende das consultas do CPF na rede inteira.</summary>
-    public Task<T> ExecuteGuardianNetworkAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<string, Task<T>> action, CancellationToken ct) =>
-        access.ExecuteGuardianAsync(session, dependentId, unitId, action, ct, serializeCpf: true);
+    public Task<T> ExecuteGuardianNetworkAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<CpfLock, Task<T>> action, CancellationToken ct) =>
+        access.ExecuteGuardianCoreAsync(session, dependentId, unitId, (connection, cpf) => action(new CpfLock(cpf, connection)), ct, serializeCpf: true);
 
     /// <summary>
     /// Como <see cref="UnitAccessService.ExecutePatientAsync{T}"/>, e além disso serializa, pelo mesmo lock de CPF da remoção de vínculo (<c>62419805</c>), tudo o que depende do conjunto de
     /// consultas do paciente na rede inteira. É o que impede duas UBS, em paralelo, de furarem o limite de uma consulta futura por especialidade: o segundo pedido só começa depois
     /// de o primeiro confirmar a UBS e a central, e então enxerga a consulta nova. Ordem dos bloqueios igual à da remoção de vínculo (CPF, depois o vínculo), sem risco de impasse.
     /// </summary>
-    public async Task<T> ExecutePatientNetworkAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct)
+    public async Task<T> ExecutePatientNetworkAsync<T>(SessionInfo session, Guid unitId, Func<CpfLock, Task<T>> action, CancellationToken ct)
     {
         if (unitId == Guid.Empty || session.User.Scope != "patient" || session.User.Role != "patient") throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
@@ -53,7 +57,7 @@ public sealed class SchedulingAccessService(DatabaseHelper central, UnitPatientR
         await using (var link = central.Command(connection, "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await link.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
         if (!await registry.IsActiveAsync(unitId, cpf, ct)) throw new ApiForbiddenException();
-        var result = await action(cpf);
+        var result = await action(new CpfLock(cpf, connection));
         await transaction.CommitAsync(ct);
         return result;
     }

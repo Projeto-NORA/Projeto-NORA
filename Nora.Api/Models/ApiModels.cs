@@ -4,13 +4,15 @@ namespace Nora.Api.Models;
 
 public sealed record UserInfo(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false);
 public sealed record Account(UserInfo User, string Cpf, string Email, string PasswordHash);
-public sealed record LoginRequest(string Scope, string Identifier, string Password);
-public sealed record LoginResponse(string Token, DateTimeOffset ExpiresAt, UserInfo User);
+public sealed record LoginRequest(string Scope, string Identifier, string Password, bool? KeepSignedIn = null);
+/// <summary>KeepSignedIn e Device ficam no fim: KeepSignedIn é o que foi realmente aplicado (só vale com computador ativado); Device só aparece no login do OBS com computador reconhecido.</summary>
+public sealed record LoginResponse(string Token, DateTimeOffset ExpiresAt, UserInfo User, bool KeepSignedIn = false, ObsDeviceRef? Device = null);
 public sealed record AddressInfo(string Cep, string Street, string? Number, string? Complement, string? Neighborhood, string City, string State, string? Ibge = null);
 public sealed record CreatePatientRequest(string FullName, string Cpf, string Email, string Password, string? Phone = null, AddressInfo? Address = null);
 public sealed record PatientInfo(Guid Id, string FullName, string Cpf, string Email, string? Phone = null, bool IsOnline = false, bool IsActive = true, DateTimeOffset? CreatedAt = null, AddressInfo? Address = null);
 public sealed record SetPatientActiveRequest([property: JsonRequired] bool IsActive);
-public sealed record SessionInfo(UserInfo User, string TokenHash);
+/// <summary>DeviceId e DeviceUnitId: computador ativado a que a sessão do OBS está ligada (nulos sem computador).</summary>
+public sealed record SessionInfo(UserInfo User, string TokenHash, Guid? DeviceId = null, Guid? DeviceUnitId = null);
 public sealed record PasswordResetStartRequest(string Cpf);
 public sealed record PasswordResetChallengeResponse(Guid ChallengeId, int ExpiresInSeconds);
 public sealed record PasswordResetFinishRequest(Guid ChallengeId, string Code, string NewPassword);

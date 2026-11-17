@@ -614,7 +614,7 @@ internal static class ReviewChecks
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.Api", "Nora.Api.csproj"))) directory = directory.Parent;
-        var args = new List<string> { "--urls", "http://127.0.0.1:0", "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+        var args = new List<string> { "--urls", "http://127.0.0.1:0", "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:ObsDevices:RequireForAttendants", "false",
             "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-review-registration-key-32-bytes" };
         if (connection is not null) args.AddRange(["--ConnectionStrings:Nora", connection]);
         if (extraArgs is not null) args.AddRange(extraArgs);

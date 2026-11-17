@@ -72,7 +72,11 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
     /// encerrado, de outra UBS ou com o cadastro do dependente inativo → 403 (nunca revela qual). O CPF do dependente nunca vem do cliente.
     /// </summary>
     /// <param name="serializeCpf">Segura o lock de CPF <c>62419805</c> (o mesmo da conta do próprio dependente e da remoção de vínculo) para serializar o que depende do conjunto de consultas do CPF na rede (agendamento).</param>
-    public async Task<T> ExecuteGuardianAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool serializeCpf = false)
+    public Task<T> ExecuteGuardianAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool serializeCpf = false) =>
+        ExecuteGuardianCoreAsync(session, dependentId, unitId, (_, cpf) => action(cpf), ct, serializeCpf);
+
+    /// <summary>Corpo do executor do responsável: a ação também recebe a conexão central da transação (usada para montar o <see cref="CpfLock"/> quando <paramref name="serializeCpf"/>).</summary>
+    internal async Task<T> ExecuteGuardianCoreAsync<T>(SessionInfo session, Guid dependentId, Guid unitId, Func<NpgsqlConnection, string, Task<T>> action, CancellationToken ct, bool serializeCpf)
     {
         if (dependentId == Guid.Empty || unitId == Guid.Empty || session.User.Scope != "patient" || session.User.Role != "patient") throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
@@ -83,7 +87,7 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
             dependentCpf = await link.ExecuteScalarAsync(ct) as string ?? throw new ApiForbiddenException();
         if (serializeCpf) await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, dependentCpf);
         if (!await registry.IsActiveAsync(unitId, dependentCpf, ct)) throw new ApiForbiddenException();
-        var result = await action(dependentCpf);
+        var result = await action(connection, dependentCpf);
         await transaction.CommitAsync(ct);
         return result;
     }
@@ -102,16 +106,48 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         return result;
     }
 
-    public async Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct)
+    /// <summary>Executa a ação com a concessão da UBS segura; ver <see cref="ExecuteAsync{T}(SessionInfo, Guid, Func{NpgsqlConnection, Task{T}}, CancellationToken)"/>.</summary>
+    public Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct) => ExecuteAsync(session, unitId, _ => action(), ct);
+
+    /// <summary>
+    /// Executor da equipe do OBS: revalida conta e sessão e segura a concessão da UBS (<c>FOR UPDATE</c>) até o commit; a ação recebe a conexão central da transação (para quem precisa gravar no
+    /// banco central sem pedir uma segunda conexão nem bloquear a si mesmo). A atendente ligada a um computador só opera a UBS dele (403); o administrador não é restringido.
+    /// </summary>
+    public async Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<NpgsqlConnection, Task<T>> action, CancellationToken ct)
     {
         if (unitId == Guid.Empty || session.User.Scope != "obs" || session.User.Role is not ("administrator" or "attendant")) throw new ApiForbiddenException();
+        if (session.User.Role == "attendant" && session.DeviceUnitId is { } deviceUnit && deviceUnit != unitId) throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await RevalidateAsync(connection, session, ct);
         await using (var grant = central.Command(connection, "SELECT 1 FROM nora.staff_units WHERE account_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await grant.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
-        var result = await action();
+        var result = await action(connection);
         await transaction.CommitAsync(ct);
         return result;
     }
+
+    /// <summary>
+    /// Executor da equipe para o que cria consulta de um CPF: como <see cref="ExecuteAsync{T}(SessionInfo, Guid, Func{NpgsqlConnection, Task{T}}, CancellationToken)"/> e, depois da concessão, segura o lock de CPF <c>62419805</c> até o commit central
+    /// (que vem depois do commit da UBS), para a conferência de consulta em outra UBS enxergar tudo que as outras UBS já confirmaram. CPF inválido → 400 antes de qualquer gravação.
+    /// </summary>
+    public Task<T> ExecuteForCpfAsync<T>(SessionInfo session, Guid unitId, string? cpfValue, Func<CpfLock, Task<T>> action, CancellationToken ct) =>
+        ExecuteAsync(session, unitId, async connection =>
+        {
+            var cpf = AccountService.NormalizeCpf(cpfValue);
+            if (!AccountService.ValidCpf(cpf)) throw new ApiInputException();
+            await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
+            return await action(new CpfLock(cpf, connection));
+        }, ct);
+}
+
+/// <summary>
+/// Prova de que o lock de CPF <c>62419805</c> está seguro na transação central <see cref="Central"/>. Só os executores de acesso criam (o construtor é interno): a conferência de consulta em
+/// outra UBS (<see cref="CrossUnitOverlapService"/>) só aceita este tipo, o que impede chamá-la sem o lock.
+/// </summary>
+public readonly struct CpfLock
+{
+    internal CpfLock(string cpf, NpgsqlConnection central) { Cpf = cpf; Central = central; }
+    public string Cpf { get; }
+    internal NpgsqlConnection Central { get; }
 }

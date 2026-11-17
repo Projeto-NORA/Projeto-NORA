@@ -616,7 +616,7 @@ internal static class WorkflowChecks
                 Expect(heartbeat, 401);
                 using var inactiveQueue = await obs.PostAsJsonAsync("/api/queue", new { patientId = firstId });
                 Expect(inactiveQueue, 409);
-                Require(await app.Services.GetRequiredService<SessionDao>().CreateAsync(firstId, new string('A',64), clock.GetUtcNow().AddHours(8), default) == 0, "Login concorrente persistiu sessão de conta desativada.");
+                Require((await app.Services.GetRequiredService<SessionDao>().CreateAsync(new(firstId, "patient", "patient", new string('A',64), clock.GetUtcNow().AddHours(8), clock.GetUtcNow().AddDays(30), false, null, false, clock.GetUtcNow()), default)).Outcome == SessionOutcome.AccountInactive, "Login concorrente persistiu sessão de conta desativada.");
                 try
                 {
                     await app.Services.GetRequiredService<WorkflowService>().OverviewAsync(session!, default);
@@ -923,7 +923,8 @@ internal static class WorkflowChecks
 
         WebApplication Create() => NoraApiHost.Create(new()
         {
-            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connectionString, "--Nora:Schema", schema, "--Nora:LegacyGlobalWorkflow:Enabled", "true"],
+            // Só este host legado (rotas globais, sem UBS) entra como atendente sem computador ativado: a exigência de computador é testada em ObsDeviceChecks e as demais suítes ativam um computador.
+            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connectionString, "--Nora:Schema", schema, "--Nora:LegacyGlobalWorkflow:Enabled", "true", "--Nora:ObsDevices:RequireForAttendants", "false"],
             EnvironmentName = "Development",
             ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name,
             ContentRootPath = Path.Combine(root, "Nora.Api")

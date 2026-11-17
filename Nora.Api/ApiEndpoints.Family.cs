@@ -67,10 +67,10 @@ internal static partial class ApiEndpoints
         patient.MapGet(d + "/lightning-offers", async (Guid dependentId, Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
             Results.Ok(new { offers = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) }))
             .AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
-        patient.MapPost(d + "/lightning-offers/{id:guid}/respond", async (Guid dependentId, Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
+        patient.MapPost(d + "/lightning-offers/{id:guid}/respond", async (Guid dependentId, Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, SchedulingAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);
-            var result = await access.ExecuteGuardianAsync(session, dependentId, unitId, cpf => lightning.RespondAsync(unitId, session.User.Id, cpf, id, request.Accept, ct, session.User.Id), ct);
+            var result = await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, cpfLock => lightning.RespondAsync(unitId, session.User.Id, cpfLock.Cpf, id, request.Accept, ct, session.User.Id, (start, end) => crossUnit.EnsureFreeAsync(cpfLock, unitId, start, end, ct)), ct);
             if (!result.Accepted) await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.Ok(result);
         }).AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Write));

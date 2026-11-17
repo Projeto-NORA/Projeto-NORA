@@ -9,6 +9,12 @@ public sealed class HealthUnitService(HealthUnitDao dao, UnitDatabaseProvisioner
     /// <summary>Unidades com o banco pronto: as únicas que entram no catálogo público, no vínculo, no resumo e nos indicadores.</summary>
     public async Task<List<HealthUnit>> ListReadyAsync(CancellationToken ct) => (await dao.ListAsync(ct)).Where(unit => unit.DatabaseState == "ready").ToList();
     public Task<List<HealthUnit>> ListForStaffAsync(Guid accountId, CancellationToken ct) => dao.ListForStaffAsync(accountId, ct);
+    /// <summary>UBS do OBS: a atendente ligada a um computador só enxerga a UBS dele; o administrador, todas as que tem concessão.</summary>
+    public async Task<List<HealthUnit>> ListForStaffAsync(SessionInfo session, CancellationToken ct)
+    {
+        var granted = await dao.ListForStaffAsync(session.User.Id, ct);
+        return session.User.Role == "attendant" && session.DeviceUnitId is { } unit ? granted.Where(item => item.Id == unit).ToList() : granted;
+    }
     public Task<List<StaffAccount>> ListStaffAsync(CancellationToken ct) => dao.ListStaffAsync(ct);
     public Task SetStaffAccessAsync(Guid accountId, Guid unitId, Guid actorId, bool grant, CancellationToken ct) => dao.SetStaffAccessAsync(accountId, unitId, actorId, grant, ct);
     public Task<List<HealthUnit>> ListForPatientAsync(Guid patientId, CancellationToken ct) => dao.ListForPatientAsync(patientId, ct);

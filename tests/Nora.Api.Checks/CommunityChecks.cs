@@ -568,7 +568,7 @@ internal static class CommunityChecks
     private static WebApplication Create(string root, string schema, string connection, CheckClock clock) => NoraApiHost.Create(new()
     {
         // Sem verificação periódica de ofertas: nada aqui depende dela, e o relógio de teste não deve ser consultado por tarefas de fundo.
-        Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false",
+        Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:ObsDevices:RequireForAttendants", "false",
             "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None",
             "--Nora:Registration:HashKey", "synthetic-community-registration-key-32-bytes"],
         EnvironmentName = "Development",

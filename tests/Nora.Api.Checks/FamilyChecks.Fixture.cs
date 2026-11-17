@@ -131,11 +131,14 @@ internal static partial class FamilyChecks
             await app.StartAsync();
             var f = new Fixture { App = app, Schema = schema, ConnectionString = connection, Clock = clock, Mail = mail, Anonymous = NewClient(app), Municipal = NewClient(app), Admin = NewClient(app), Attendant = NewClient(app), OtherAttendant = NewClient(app), AdminId = admin.Id, AttendantId = attendant.Id };
             f.clients.AddRange([f.Anonymous, f.Municipal, f.Admin, f.Attendant, f.OtherAttendant]);
-            await Login(f.Municipal, "municipal", "gestora@example.test"); await Login(f.Admin, "obs", "admin@example.test"); await Login(f.Attendant, "obs", "atendente@example.test"); await Login(f.OtherAttendant, "obs", "outro@example.test");
+            await Login(f.Municipal, "municipal", "gestora@example.test"); await Login(f.Admin, "obs", "admin@example.test");
             f.Unit1 = await f.CreateUnitAsync("UBS Família Um", "Centro"); f.Unit2 = await f.CreateUnitAsync("UBS Família Dois", "Norte");
             foreach (var unit in new[] { f.Unit1, f.Unit2 }) { using var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{admin.Id}/units/{unit}", null); Expect(grant, 204); }
             using (var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{attendant.Id}/units/{f.Unit1}", null)) Expect(grant, 204);
             using (var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{other.Id}/units/{f.Unit2}", null)) Expect(grant, 204);
+            // As atendentes só entram em computador ativado da UBS delas (o administrador ativa um computador por UBS).
+            await ObsDeviceHelper.ActivateAndLoginAsync(f.Admin, f.Attendant, f.Unit1, "atendente@example.test", Password);
+            await ObsDeviceHelper.ActivateAndLoginAsync(f.Admin, f.OtherAttendant, f.Unit2, "outro@example.test", Password);
 
             async Task Person(int number, string name, string email, string registryEmail, Guid[] registeredIn, bool account, bool link)
             {

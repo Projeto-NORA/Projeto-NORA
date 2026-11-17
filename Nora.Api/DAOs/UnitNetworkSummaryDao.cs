@@ -19,7 +19,7 @@ public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRoute
         var chosen = (selectedUnitId is { } id ? all.Where(unit => unit.Id == id) : all).ToList();
         var ready = chosen.Where(unit => unit.DatabaseState == "ready");
         var activeCpfs = new HashSet<string>(StringComparer.Ordinal); var allCpfs = new HashSet<string>(StringComparer.Ordinal); var waitingCpfs = new HashSet<string>(StringComparer.Ordinal);
-        var totals = new long[9];
+        var totals = new long[13];
         var cohorts = new long[3, 8]; var now = time.GetUtcNow();
         foreach (var unit in ready)
         {
@@ -30,7 +30,9 @@ public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRoute
             await using (var query = new NpgsqlCommand("SELECT DISTINCT cpf FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')", connection))
             await using (var reader = await query.ExecuteReaderAsync(ct))
                 while (await reader.ReadAsync(ct)) waitingCpfs.Add(reader.GetString(0));
-            const string totalSql = "SELECT (SELECT count(*) FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora_unit.lightning_slots WHERE status IN ('open','offered')),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='accepted'),(SELECT count(*) FROM nora_unit.lightning_slots),(SELECT count(*) FROM nora_unit.lightning_offers),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='declined'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='expired'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='pending'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='cancelled')";
+            // Vaga que nunca foi liberada (aguardando aprovação ou fechada sem aprovação) não conta nas vagas registradas nem abertas; os quatro últimos totais contam justamente essas vagas.
+            const string totalSql = "SELECT (SELECT count(*) FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')),(SELECT count(*) FROM nora_unit.lightning_slots s WHERE s.status IN ('open','offered')),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='accepted'),(SELECT count(*) FROM nora_unit.lightning_slots s WHERE " + UnitMetricsDao.ReleasedSlot + "),(SELECT count(*) FROM nora_unit.lightning_offers),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='declined'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='expired'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='pending'),(SELECT count(*) FROM nora_unit.lightning_offers WHERE status='cancelled')," +
+                "(SELECT count(*) FROM nora_unit.lightning_slots WHERE status='awaiting_approval'),(SELECT count(*) FROM nora_unit.lightning_slots WHERE decided_at IS NOT NULL AND closed_reason IS DISTINCT FROM 'discarded'),(SELECT count(*) FROM nora_unit.lightning_slots WHERE closed_reason='approval-timeout'),(SELECT count(*) FROM nora_unit.lightning_slots WHERE closed_reason='discarded')";
             await using (var query = new NpgsqlCommand(totalSql, connection))
             await using (var reader = await query.ExecuteReaderAsync(ct))
             { await reader.ReadAsync(ct); for (var i = 0; i < totals.Length; i++) totals[i] += reader.GetInt64(i); }
@@ -40,7 +42,7 @@ public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRoute
                   count(o.id) FILTER (WHERE o.status='declined'), count(o.id) FILTER (WHERE o.status='expired'),
                   count(o.id) FILTER (WHERE o.status='pending'), count(o.id) FILTER (WHERE o.status='cancelled')
                 FROM (VALUES (7),(30),(90)) AS d(days)
-                LEFT JOIN nora_unit.lightning_slots s ON s.created_at >= $1 - d.days * interval '1 day' AND s.created_at <= $1
+                LEFT JOIN nora_unit.lightning_slots s ON s.created_at >= $1 - d.days * interval '1 day' AND s.created_at <= $1 AND (s.status<>'awaiting_approval' AND COALESCE(s.closed_reason,'') NOT IN ('approval-timeout','discarded','conflict'))
                 LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id GROUP BY d.days ORDER BY d.days
                 """;
             await using (var query = new NpgsqlCommand(cohortSql, connection))
@@ -52,6 +54,6 @@ public sealed class UnitNetworkSummaryDao(HealthUnitDao units, UnitDatabaseRoute
         var windows = new List<LightningCohort>(); var days = new[] { 7, 30, 90 };
         for (var i = 0; i < days.Length; i++) windows.Add(new(days[i], cohorts[i, 0], cohorts[i, 1], cohorts[i, 2], cohorts[i, 3], cohorts[i, 4], cohorts[i, 5], cohorts[i, 6], cohorts[i, 7]));
         return new(activeCpfs.Count, waitingCpfs.Count, totals[1], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], windows,
-            allCpfs.Count - activeCpfs.Count, totals[0], chosen.Count(unit => unit.DatabaseState != "ready"));
+            allCpfs.Count - activeCpfs.Count, totals[0], chosen.Count(unit => unit.DatabaseState != "ready"), totals[9], totals[10], totals[11], totals[12]);
     }
 }

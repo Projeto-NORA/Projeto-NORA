@@ -39,6 +39,14 @@ public static class NoraApiHost
         builder.Services.AddSingleton<MetricsService>();
         builder.Services.AddSingleton<UnitDatabaseProvisioner>();
         builder.Services.AddSingleton<AccountRateLimiter>();
+        builder.Services.AddSingleton<ObsDeviceOptions>();
+        builder.Services.AddSingleton<ObsDeviceDao>();
+        builder.Services.AddSingleton<ObsDeviceService>();
+        builder.Services.AddSingleton<CrossUnitOverlapService>();
+        builder.Services.AddSingleton<CallNextService>();
+        builder.Services.AddSingleton<UnitProfileService>();
+        builder.Services.AddSingleton<SlotApprovalService>();
+        builder.Services.AddSingleton<EmailSuggestionReconciler>();
         builder.Services.AddSingleton<UnitAccessService>();
         builder.Services.AddSingleton<PatientRegistrationService>();
         builder.Services.AddSingleton<AccountDao>();
@@ -114,6 +122,8 @@ public static class NoraApiHost
             options.AddPolicy("patient-link-units",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("staff-account",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
             options.AddPolicy("unit-database",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=20,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("obs-device-activate",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=10,Window=TimeSpan.FromMinutes(10),QueueLimit=0}));
+            options.AddPolicy("obs-device-current",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
             options.AddPolicy("cep",context=>RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions {PermitLimit=30,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
         });
         configureServices?.Invoke(builder.Services);
@@ -121,6 +131,7 @@ public static class NoraApiHost
         // Configuração inválida do Google ou do push impede a subida com mensagem clara (ausência é válida: fica desligado).
         _=app.Services.GetRequiredService<GoogleSignInOptions>();
         _=app.Services.GetRequiredService<PushOptions>();
+        _=app.Services.GetRequiredService<ObsDeviceOptions>();
         if(behindProxy) app.UseForwardedHeaders();
         app.UseExceptionHandler(errors=>errors.Run(context=>
         {

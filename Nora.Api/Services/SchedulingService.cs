@@ -26,10 +26,14 @@ public sealed partial class SchedulingService
     private readonly TimeProvider time;
     private readonly SlotEngine engine;
     private readonly FamilyService family;
+    private readonly CrossUnitOverlapService crossUnit;
 
-    public SchedulingService(SchedulingDao dao, SpecialtyDao specialties, SchedulingAccessService access, TimeProvider time, IConfiguration configuration, FamilyService family)
+    /// <summary>Calendário da grade desta API (usado também pelo "chamar próximo" para recalcular o atendimento escolhido).</summary>
+    internal SlotEngine Engine => engine;
+
+    public SchedulingService(SchedulingDao dao, SpecialtyDao specialties, SchedulingAccessService access, TimeProvider time, IConfiguration configuration, FamilyService family, CrossUnitOverlapService crossUnit)
     {
-        this.dao = dao; this.specialties = specialties; this.access = access; this.time = time; this.family = family;
+        this.dao = dao; this.specialties = specialties; this.access = access; this.time = time; this.family = family; this.crossUnit = crossUnit;
         var zone = UnitMetricsDao.ConfiguredZone(configuration);
         try { engine = new(TimeZoneInfo.FindSystemTimeZoneById(zone)); }
         catch (Exception error) when (error is TimeZoneNotFoundException or InvalidTimeZoneException) { throw new InvalidOperationException($"O fuso horário '{zone}' de Nora:TimeZone não está disponível no sistema operacional da API.", error); }
@@ -140,6 +144,9 @@ public sealed partial class SchedulingService
     /// <summary>Especialidade da lista central a partir do texto livre do filtro de indicadores (mesma comparação do nome único). Nulo se não existir.</summary>
     public async Task<Guid?> FindSpecialtyIdAsync(string text, CancellationToken ct) => (await specialties.FindByNameAsync(text, ct))?.Id;
 
+    /// <summary>Hoje no fuso da API (<c>Nora:TimeZone</c>).</summary>
+    public DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), engine.Zone).DateTime);
+
     public async Task<ActiveRooms> ReadActiveRoomsAsync(Guid unitId, CancellationToken ct)
     {
         var zone = engine.Zone;
@@ -152,7 +159,7 @@ public sealed partial class SchedulingService
     // ---- Marcação ----
 
     /// <summary>Marcação da equipe numa UBS que já usa o catálogo (chamada por <c>AppointmentDao.CreateAsync</c>). Sem profissional e especialidade do catálogo → 400 catalog-required.</summary>
-    internal async Task<AppointmentInfo> BookForStaffAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct)
+    internal async Task<AppointmentInfo> BookForStaffAsync(Guid unitId, Guid actorId, CreateAppointmentRequest request, CancellationToken ct, Func<DateTimeOffset, DateTimeOffset, Task>? beforeInsert = null)
     {
         if (request.ProfessionalId is not { } professional || professional == Guid.Empty || request.SpecialtyId is not { } specialtyId || specialtyId == Guid.Empty) throw new ApiCodedException(StatusCodes.Status400BadRequest, "catalog-required");
         var cpf = AccountService.NormalizeCpf(request.Cpf);
@@ -160,12 +167,13 @@ public sealed partial class SchedulingService
         if (!AccountService.ValidCpf(cpf) || start <= time.GetUtcNow()) throw new ApiInputException();
         var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
         if (specialty is not { IsActive: true }) throw new ApiInputException();
-        return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, request.EndsAt == default ? null : request.EndsAt, "staff", engine, ct);
+        return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, request.EndsAt == default ? null : request.EndsAt, "staff", engine, ct, null, beforeInsert);
     }
 
     /// <summary>
     /// Marcação pelo próprio paciente: vale na hora, só num atendimento livre da grade de 24 h a 90 dias à frente, e uma consulta futura por especialidade marcada pelo app em toda a rede
-    /// (UBS vinculadas ao paciente). Ordem das recusas (todas 409): janela (<c>booking-window</c>), limite (<c>specialty-limit</c>), horário (<c>slot-unavailable</c>).
+    /// (UBS vinculadas ao paciente). Ordem das recusas (todas 409): janela (<c>booking-window</c>), limite (<c>specialty-limit</c>), horário (<c>slot-unavailable</c>), mesma pessoa já com consulta no horário na UBS
+    /// (<c>patient-overlap</c>) e em outra UBS (<c>other-unit-overlap</c>).
     /// </summary>
     public async Task<AppointmentInfo> PatientBookAsync(SessionInfo session, Guid unitId, PatientBookingRequest request, CancellationToken ct)
     {
@@ -173,8 +181,8 @@ public sealed partial class SchedulingService
         var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         var start = requested.ToUniversalTime();
-        return await access.ExecutePatientNetworkAsync(session, unitId, async cpf =>
-            await BookForPatientAsync(session.User.Id, null, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true };
+        return await access.ExecutePatientNetworkAsync(session, unitId, async cpfLock =>
+            await BookForPatientAsync(session.User.Id, null, cpfLock, unitId, async () => await family.NetworkUnitsAsync(cpfLock.Cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true };
     }
 
     /// <summary>
@@ -188,17 +196,17 @@ public sealed partial class SchedulingService
         var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         var start = requested.ToUniversalTime();
-        return await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, async cpf =>
-            await BookForPatientAsync(session.User.Id, session.User.Id, cpf, unitId, async () => await family.NetworkUnitsAsync(cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true, BookedByGuardianName = session.User.FullName };
+        return await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, async cpfLock =>
+            await BookForPatientAsync(session.User.Id, session.User.Id, cpfLock, unitId, async () => await family.NetworkUnitsAsync(cpfLock.Cpf, unitId, ct), professional, specialty, start, ct), ct) with { BookedByYou = true, BookedByGuardianName = session.User.FullName };
     }
 
     /// <summary>Corpo comum da marcação pelo app (próprio paciente ou responsável): janela, limite por especialidade nas UBS informadas, horário livre. Chamado já sob o executor e o lock de CPF.</summary>
-    private async Task<AppointmentInfo> BookForPatientAsync(Guid actorId, Guid? guardianId, string cpf, Guid unitId, Func<Task<IEnumerable<Guid>>> limitUnits, Guid professional, Specialty specialty, DateTimeOffset start, CancellationToken ct)
+    private async Task<AppointmentInfo> BookForPatientAsync(Guid actorId, Guid? guardianId, CpfLock cpfLock, Guid unitId, Func<Task<IEnumerable<Guid>>> limitUnits, Guid professional, Specialty specialty, DateTimeOffset start, CancellationToken ct)
     {
-        var now = time.GetUtcNow();
+        var cpf = cpfLock.Cpf; var now = time.GetUtcNow();
         if (start < now + PatientMinimumLead || start > now + PatientMaximumLead) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
         foreach (var unit in await limitUnits())
             if (await dao.CountPatientBookingsAsync(unit, cpf, specialty.Id, now, ct) > 0) throw new ApiCodedException(StatusCodes.Status409Conflict, "specialty-limit");
-        return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, null, "patient", engine, ct, guardianId);
+        return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, null, "patient", engine, ct, guardianId, (from, to) => crossUnit.EnsureFreeAsync(cpfLock, unitId, from, to, ct));
     }
 }

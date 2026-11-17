@@ -5,12 +5,13 @@ using Nora.Api.Models;
 
 namespace Nora.Api.Services;
 
-public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabaseRouter databases, TimeProvider time, UnitPatientRegistryDao registry, EmailChangeDao emailChanges)
+public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabaseRouter databases, TimeProvider time, UnitPatientRegistryDao registry, EmailSuggestionReconciler suggestions)
 {
     /// <summary>
     /// Corrige o e-mail de referência. Se ele mudou e o paciente tem conta vinculada a esta UBS, registra uma sugestão pendente de troca do e-mail da conta (o app pergunta ao paciente; a conta só
-    /// troca depois de o código enviado ao endereço novo ser confirmado). Tudo na transação central que segura o lock do CPF. A entrada é validada antes de qualquer gravação: e-mail
-    /// inválido → 400, tenha o paciente conta vinculada ou não.
+    /// troca depois de o código enviado ao endereço novo ser confirmado). A UBS grava o e-mail novo e a linha da caixa de saída na mesma transação; a sugestão é registrada em seguida, na transação central que
+    /// segura o lock do CPF, e a linha só é apagada depois do commit central (ver <see cref="EmailSuggestionReconciler"/>): se esse commit falhar, a repetição da correção ou a passada periódica recria a sugestão.
+    /// A entrada é validada antes de qualquer gravação: e-mail inválido → 400, tenha o paciente conta vinculada ou não.
     /// </summary>
     public async Task UpdateEmailAsync(Guid unitId, Guid actorId, string cpfValue, string? emailValue, CancellationToken ct)
     {
@@ -19,29 +20,20 @@ public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabas
         var email = UnitPatientRegistryDao.ValidEmail(emailValue);
         await using var connection = await central.OpenAsync(ct); await using var transaction = await connection.BeginTransactionAsync(ct);
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, cpf);
-        await RecordSuggestionAsync(connection, unitId, cpf, email, ct);
         await registry.UpdateEmailAsync(unitId, actorId, cpf, email, ct);
+        var outbox = await suggestions.RegisterAsync(connection, unitId, cpf, ct);
         await transaction.CommitAsync(ct);
+        if (outbox is { } id) await suggestions.ClearAsync(unitId, cpf, id, ct);
     }
     public async Task UpdateDetailsAsync(Guid unitId, Guid actorId, UnitPatientRecord patient, CancellationToken ct)
     {
         var normalized = UnitPatientRegistryDao.Normalize(unitId, actorId, patient);
         await using var connection = await central.OpenAsync(ct); await using var transaction = await connection.BeginTransactionAsync(ct);
         await central.ExecuteAsync(connection, "SELECT pg_advisory_xact_lock(hashtextextended($1,62419805))", ct, normalized.Cpf);
-        await RecordSuggestionAsync(connection, unitId, normalized.Cpf, normalized.Email, ct);
         await registry.UpdateAsync(unitId, actorId, normalized, ct);
+        var outbox = await suggestions.RegisterAsync(connection, unitId, normalized.Cpf, ct);
         await transaction.CommitAsync(ct);
-    }
-
-    /// <summary>
-    /// Grava na transação central, ainda aberta, a sugestão de troca do e-mail da conta, ANTES de a UBS gravar o e-mail novo (<paramref name="email"/> já validado e normalizado pelo chamador).
-    /// O e-mail de referência atual é lido da UBS (CPF sem cadastro → 404) para só sugerir
-    /// quando ele muda. Assim, uma falha do banco central desfaz tudo e a repetição da correção recomeça do zero; resta só a janela do commit central depois do commit da UBS, que não tem como ser atômico.
-    /// </summary>
-    private async Task RecordSuggestionAsync(NpgsqlConnection connection, Guid unitId, string cpf, string email, CancellationToken ct)
-    {
-        var previous = await registry.ReferenceEmailAsync(unitId, cpf, ct) ?? throw new ApiNotFoundException();
-        if (!string.Equals(previous, email, StringComparison.Ordinal)) await emailChanges.RecordAsync(connection, unitId, cpf, email, time.GetUtcNow(), ct);
+        if (outbox is { } id) await suggestions.ClearAsync(unitId, normalized.Cpf, id, ct);
     }
 
     /// <summary>
