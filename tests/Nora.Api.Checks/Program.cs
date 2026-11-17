@@ -13,6 +13,8 @@ while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.
     directory = directory.Parent;
 if (directory == null) throw new InvalidOperationException("Projeto Nora.Api não encontrado a partir do harness.");
 if (args.Contains("--client-fixture")) return await ClientFixture.RunAsync(directory.FullName);
+// Prepara o banco da demonstração (scripts/demo-local.ps1) com UBS, especialidade e um paciente com conta; ver DemoBootstrap.
+if (args.Contains("--demo-bootstrap")) return await DemoBootstrap.RunAsync(directory.FullName);
 // Itera só nas regressões da revisão crítica (o conjunto completo continua sendo o padrão).
 if (args.Contains("--review-only")) return await ReviewChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 // Itera só nas verificações de comunicação e Jornada, ou só nas de agenda.
