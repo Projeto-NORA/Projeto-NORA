@@ -10,6 +10,7 @@ import com.example.app_nora.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import java.io.IOException
 
@@ -45,7 +46,11 @@ data class PatientState(val address: String = "", val session: PatientSession? =
     /** Leitura de exames e vacinas em andamento ou com falha. */
     val records: RecordsState = RecordsState(),
     /** Sugestão de troca do e-mail da conta feita pela UBS. */
-    val email: EmailState = EmailState()) {
+    val email: EmailState = EmailState(),
+    /** Situação do Google na conta (Configurações). */
+    val google: GoogleState = GoogleState(),
+    /** Horário de funcionamento, serviços e especialidades de cada UBS vinculada, por id da UBS (tela UBS). */
+    val about: Map<String, AboutState> = emptyMap()) {
     private val selectedSnapshot: UnitSnapshot? get() = selectedUnitId?.let { unitData[it] }
     val appointments: List<PatientAppointment>? get() = selectedSnapshot?.appointments
     val unitQueue: List<UnitQueueEntry>? get() = selectedSnapshot?.queue
@@ -91,6 +96,8 @@ private data class AnnouncementRead(val items: List<Announcement>, val cursor: L
 private const val FULL_ANNOUNCEMENT_PAGES = 100
 /** Voltas de cada leitura incremental do ciclo de 30 s; o que sobrar vem no ciclo seguinte. */
 private const val CYCLE_ANNOUNCEMENT_PAGES = 5
+/** O logout espera no máximo isto pela remoção do aparelho no push (P2). */
+private const val PUSH_REMOVE_TIMEOUT_MS = 4_000L
 
 class PatientController(private val store: AddressStore, private val apiFactory: (String) -> PatientApi = ::NoraApi) {
     constructor(context: Context, apiFactory: (String) -> PatientApi = ::NoraApi) : this(PreferencesAddressStore(context), apiFactory)
@@ -126,7 +133,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         unitData = emptyMap(), loadingUnits = false, attendanceLoading = false, passwordChangeRequired = false, message = message,
         specialties = null, specialtiesLoading = false, availability = null, availabilityLoading = false, bookingError = null, lastBooked = null,
         announcements = AnnouncementsState(), family = FamilyState(), actingFor = null, dependentData = emptyMap(),
-        dependentOffers = emptyList(), records = RecordsState(), email = EmailState())
+        dependentOffers = emptyList(), records = RecordsState(), email = EmailState(), google = GoogleState(), about = emptyMap())
 
     /**
      * A API do serviço. Com [acting] (por padrão o dependente atual), as chamadas por UBS vão pelas rotas do responsável; as ações
@@ -189,13 +196,33 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         operation(ApiContext.LOGIN) {
             require(identifier.isNotBlank() && password.isNotBlank()) { "Informe seu CPF ou e-mail e sua senha." }
             val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-            val api = api(address, null)
-            val session = api.login(identifier.trim(), password)
-            // Identity and bearer token remain only in memory; backup contains no account data.
-            store.save(address)
-            state = state.copy(address = address, session = session)
+            startSession(address, api(address, null).login(identifier.trim(), password))
         }
         loadUnitsInBackground()
+    }
+
+    /** Entrar com o ID token do Google (G4): a mesma sessão de paciente do login por senha. 401 é genérico, como no login inválido. */
+    suspend fun loginWithGoogle(idToken: String): Boolean {
+        var signedIn = false
+        operation(ApiContext.GOOGLE_LOGIN) {
+            require(idToken.isNotBlank()) { "O Google não devolveu a identificação da conta. Tente de novo." }
+            val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
+            startSession(address, api(address, null).loginWithGoogle(idToken))
+            signedIn = true
+        }
+        loadUnitsInBackground()
+        return signedIn
+    }
+
+    private fun startSession(address: String, session: PatientSession) {
+        // Identity and bearer token remain only in memory; backup contains no account data.
+        store.save(address)
+        state = state.copy(address = address, session = session)
+    }
+
+    /** Mostra um texto na tela (falha que aconteceu fora do controlador, como o Google que não abriu); nunca por cima de uma ação em andamento. */
+    fun showMessage(text: String?) {
+        if (!state.busy) state = state.copy(message = text)
     }
 
     // Chamadas feitas fora de `operation`: uma resposta fora do formato não pode derrubar o app.
@@ -253,7 +280,8 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         val current = state.selectedUnitId?.takeIf { id -> units.any { it.id == id } }
         val single = if (current == null && units.size == 1) units.single().id else null
         state = state.copy(units = units, selectedUnitId = current ?: single,
-            unitData = state.unitData.filterKeys { id -> units.any { it.id == id } })
+            unitData = state.unitData.filterKeys { id -> units.any { it.id == id } },
+            about = state.about.filterKeys { id -> units.any { it.id == id } })
         return single
     }
 
@@ -643,7 +671,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         catch (failure: ApiFailure) {
             if (failure.status == 401) { if (isCurrent(session)) state = signedOut(state, failure.message); return false }
             if (failure.status == 403 && acting != null) loadFamily()
-            error = failureMessage(failure.status, failure.code, context, acting != null)
+            error = failureMessage(failure.status, failure.code, context, acting != null, actingName(acting))
         }
         catch (_: IOException) { error = CONNECTION_FAILED_MESSAGE }
         catch (_: JSONException) { error = INCOMPATIBLE_RESPONSE_MESSAGE }
@@ -763,6 +791,8 @@ class PatientController(private val store: AddressStore, private val apiFactory:
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: ApiFailure) {
                     if (failure.status == 401) { if (isCurrent(session)) state = signedOut(state, failure.message); return }
+                    // 403 agindo por um dependente: o vínculo pode ter terminado; relê os pedidos (como as demais leituras da Jornada dele).
+                    if (failure.status == 403 && acting != null) loadFamily()
                     Log.w("NORA", "Participação não carregada: HTTP ${failure.status}.")
                 }
                 catch (_: IOException) { Log.w("NORA", "Participação não carregada; use Atualizar para tentar novamente.") }
@@ -1138,8 +1168,177 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (isCurrent(session)) state = state.copy(email = EmailState(loaded = true), message = "Tudo bem. O e-mail da conta continua o mesmo.")
     }
 
+    // ---- Entrar com Google: situação, vínculo e desvínculo -------------------------------------------------
+
+    /** Lê se o servidor tem o Google ligado e se há conta Google vinculada (sem `busy`); a falha fica em [GoogleState.error]. */
+    suspend fun loadGoogleStatus() {
+        val session = state.session ?: return
+        if (state.google.loading) return
+        state = state.copy(google = state.google.copy(loading = true, error = null))
+        try {
+            val status = api(state.address, null).googleStatus(session.token)
+            if (isCurrent(session)) state = state.copy(google = GoogleState(status))
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
+            else googleFailed(session, failureMessage(failure.status, failure.code, ApiContext.GOOGLE))
+        }
+        catch (_: IOException) { googleFailed(session, CONNECTION_FAILED_MESSAGE) }
+        catch (_: JSONException) { googleFailed(session, INCOMPATIBLE_RESPONSE_MESSAGE) }
+        finally { if (isCurrent(session) && state.google.loading) state = state.copy(google = state.google.copy(loading = false)) }
+    }
+
+    private fun googleFailed(session: PatientSession, error: String) {
+        if (isCurrent(session)) state = state.copy(google = state.google.copy(loading = false, error = error))
+    }
+
+    /** Vincula a conta Google (G2) ao paciente conectado. 409 `google-already-linked` e 503 `google-disabled` têm texto próprio. */
+    suspend fun linkGoogle(idToken: String): Boolean {
+        var linked = false
+        operation(ApiContext.GOOGLE) {
+            val session = state.session ?: return@operation
+            require(idToken.isNotBlank()) { "O Google não devolveu a identificação da conta. Tente de novo." }
+            val api = api(state.address, null)
+            api.linkGoogle(session.token, idToken)
+            if (!isCurrent(session)) return@operation
+            val status = readGoogleStatusQuietly(api, session) ?: GoogleStatus(enabled = true, linked = true, email = null)
+            if (isCurrent(session)) {
+                state = state.copy(google = GoogleState(status), message = "Conta Google vinculada. Agora você também pode entrar com o Google.")
+                linked = true
+            }
+        }
+        return linked
+    }
+
+    /** Desvincula a conta Google (G3, idempotente). O acesso por CPF ou e-mail e senha continua. */
+    suspend fun unlinkGoogle(): Boolean {
+        var unlinked = false
+        operation(ApiContext.GOOGLE) {
+            val session = state.session ?: return@operation
+            val api = api(state.address, null)
+            api.unlinkGoogle(session.token)
+            if (!isCurrent(session)) return@operation
+            val status = readGoogleStatusQuietly(api, session) ?: GoogleStatus(enabled = true, linked = false, email = null)
+            if (isCurrent(session)) {
+                state = state.copy(google = GoogleState(status), message = "Conta Google desvinculada. Você continua entrando com o CPF ou e-mail e a senha.")
+                unlinked = true
+            }
+        }
+        return unlinked
+    }
+
+    private suspend fun readGoogleStatusQuietly(api: PatientApi, session: PatientSession): GoogleStatus? {
+        try { return api.googleStatus(session.token) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) { if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message) }
+        catch (_: IOException) { Log.w("NORA", "Situação do Google não relida após a alteração.") }
+        catch (_: JSONException) { Log.w("NORA", "Situação do Google incompatível após a alteração.") }
+        return null
+    }
+
+    // ---- Serviços e horários da UBS --------------------------------------------------------------------------
+
+    /**
+     * Lê horário de funcionamento, serviços e especialidades da UBS [unitId] (a selecionada por padrão), sem `busy`. A leitura é do próprio
+     * paciente e fica por UBS; uma leitura já em andamento para a mesma UBS não gera outra requisição.
+     */
+    suspend fun loadUnitAbout(unitId: String? = state.selectedUnitId) {
+        val session = state.session ?: return
+        val id = unitId ?: return
+        if (state.units?.any { it.id == id } != true || state.about[id]?.loading == true) return
+        setAbout(id) { it.copy(loading = true, error = null) }
+        try {
+            val profile = api(state.address, null).unitAbout(session.token, id)
+            if (isCurrent(session)) setAbout(id) { AboutState(profile) }
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
+            else aboutFailed(session, id, failureMessage(failure.status, failure.code, ApiContext.ABOUT))
+        }
+        catch (_: IOException) { aboutFailed(session, id, CONNECTION_FAILED_MESSAGE) }
+        catch (_: JSONException) { aboutFailed(session, id, INCOMPATIBLE_RESPONSE_MESSAGE) }
+        catch (_: IllegalArgumentException) { aboutFailed(session, id, INCOMPATIBLE_RESPONSE_MESSAGE) }
+        finally { if (isCurrent(session) && state.about[id]?.loading == true) setAbout(id) { it.copy(loading = false) } }
+    }
+
+    private fun setAbout(unitId: String, change: (AboutState) -> AboutState) {
+        if (state.units?.any { it.id == unitId } != true) return
+        state = state.copy(about = state.about + (unitId to change(state.about[unitId] ?: AboutState())))
+    }
+
+    private fun aboutFailed(session: PatientSession, unitId: String, error: String) {
+        // Sem dado novo, nada de dado velho: um horário antigo na tela enganaria mais do que a falha.
+        if (isCurrent(session)) setAbout(unitId) { AboutState(error = error) }
+    }
+
+    // ---- Push do servidor (FCM) -------------------------------------------------------------------------------
+
+    /** Dá o token FCM do aparelho; `null` quando o Firebase não está configurado. Definido pelo app; os testes o substituem. */
+    var pushTokenProvider: (suspend () -> String?)? = null
+    /** Quanto o logout espera pela remoção do aparelho no push; os testes encurtam. */
+    var pushRemoveTimeoutMs = PUSH_REMOVE_TIMEOUT_MS
+    private val pushMutex = Mutex()
+    // Sessão e token já registrados (P1) e se o servidor diz que o push está ligado (lido uma vez por sessão).
+    private var pushRegistered: Pair<String, String>? = null
+    private var pushServerEnabled: Pair<String, Boolean>? = null
+
+    /**
+     * Registra o token do aparelho no servidor (P1) depois do login e quando o token muda ([fresh] é o token novo que o serviço do FCM
+     * entregou). Sem provedor de token (Firebase desligado) e sem [fresh], não faz nada; com o push desligado no servidor, também não.
+     * Falhas são silenciosas: o ciclo de 30 s continua avisando, e a próxima entrada tenta de novo. Nunca usa `busy`.
+     */
+    suspend fun syncPushToken(fresh: String? = null) {
+        val session = state.session ?: return
+        val provider = pushTokenProvider
+        if (fresh == null && provider == null) return
+        pushMutex.withLock {
+            if (!isCurrent(session)) return@withLock
+            try {
+                val pushToken = fresh ?: provider?.invoke() ?: return@withLock
+                if (pushToken.isBlank() || pushRegistered == (session.token to pushToken)) return@withLock
+                val api = api(state.address, null)
+                val enabled = pushServerEnabled?.takeIf { it.first == session.token }?.second
+                    ?: api.pushEnabled(session.token).also { pushServerEnabled = session.token to it }
+                if (!enabled) return@withLock
+                api.registerPushToken(session.token, pushToken)
+                if (isCurrent(session)) pushRegistered = session.token to pushToken
+            }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: ApiFailure) {
+                if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
+                else Log.w("NORA", "Push não registrado: HTTP ${failure.status}.")
+            }
+            catch (_: IOException) { Log.w("NORA", "Push não registrado; a próxima entrada tentará novamente.") }
+            catch (_: JSONException) { Log.w("NORA", "O serviço retornou uma resposta de push incompatível.") }
+        }
+    }
+
+    /** P2 no logout: tira o aparelho do push desta conta (idempotente). Espera pouco: sair não pode travar por causa do push. */
+    private suspend fun removePushToken(session: PatientSession) {
+        withTimeoutOrNull(pushRemoveTimeoutMs) {
+            pushMutex.withLock {
+                try {
+                    val known = pushRegistered?.takeIf { it.first == session.token }?.second
+                    // Push desligado no servidor e nenhum registro nesta sessão: não há o que remover.
+                    if (known == null && pushServerEnabled?.takeIf { it.first == session.token }?.second == false) return@withLock
+                    val pushToken = known ?: pushTokenProvider?.invoke() ?: return@withLock
+                    api(state.address, null).removePushToken(session.token, pushToken)
+                    pushRegistered = null
+                }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: ApiFailure) { Log.w("NORA", "Push não removido no logout: HTTP ${failure.status}.") }
+                catch (_: IOException) { Log.w("NORA", "Push não removido no logout; o servidor descarta o token quando o FCM recusar.") }
+                catch (_: JSONException) { Log.w("NORA", "O serviço retornou uma resposta de push incompatível.") }
+            }
+        }
+    }
+
     suspend fun logout() = operation {
         val session = state.session ?: return@operation
+        // O aparelho deixa de receber push desta conta antes de a sessão acabar (P2); a falha não impede a saída.
+        removePushToken(session)
         try { api(state.address, null).logout(session.token) }
         catch (failure: ApiFailure) { if (failure.status != 401) warnUnconfirmedLogout() }
         catch (_: IOException) { warnUnconfirmedLogout() }
@@ -1151,6 +1350,10 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         state = state.copy(message = "Você saiu neste dispositivo. Não foi possível confirmar a saída no serviço.")
     }
 
+    /** Nome do dependente pelo qual se age (para as mensagens que falam dele); `null` sem nome conhecido. */
+    private fun actingName(acting: String?): String? =
+        acting?.let { id -> state.family.links?.firstOrNull { it.id == id }?.dependentName?.takeIf { it.isNotBlank() } }
+
     /** Ação do paciente: uma por vez, com `busy` visível. Leituras em segundo plano não passam por aqui. */
     private suspend fun operation(context: ApiContext = ApiContext.GENERIC, action: suspend () -> Unit) {
         if (state.busy) return
@@ -1161,7 +1364,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         try { action() }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) {
-            val text = if (context == ApiContext.GENERIC) failure.message else failureMessage(failure.status, failure.code, context, acting != null)
+            val text = if (context == ApiContext.GENERIC) failure.message else failureMessage(failure.status, failure.code, context, acting != null, actingName(acting))
             // 403 agindo por um dependente: o vínculo pode ter terminado; relê os pedidos para a tela mostrar o estado real.
             if (failure.status == 403 && acting != null && state.session != null) loadFamily()
             if (failure.status == 401) state = signedOut(state, text) else fail(text)

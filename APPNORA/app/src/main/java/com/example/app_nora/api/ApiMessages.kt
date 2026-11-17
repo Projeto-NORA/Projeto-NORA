@@ -34,12 +34,21 @@ enum class ApiContext {
     FAMILY_REQUEST,
     /** Sugestão de troca do e-mail da conta, envio e confirmação do código. */
     EMAIL_CHANGE,
+    /** Entrar no app com a conta Google (sem sessão). */
+    GOOGLE_LOGIN,
+    /** Situação, vínculo e desvínculo da conta Google (com sessão). */
+    GOOGLE,
+    /** Horário de funcionamento, serviços e especialidades de uma UBS. */
+    ABOUT,
+    /** Registro do aparelho para o push. */
+    PUSH,
 }
 
 const val UNIT_FORBIDDEN_MESSAGE = "Seu cadastro nesta UBS está desativado ou sem vínculo. Procure a unidade."
 const val OFFER_UNAVAILABLE_MESSAGE = "Esta oportunidade não está mais disponível."
 const val LOCAL_NETWORK_DENIED_MESSAGE = "O endereço do serviço fica na rede local. Permita o acesso à rede local para o NORA nas configurações do Android e tente novamente."
 const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. Confira o endereço e sua conexão e tente novamente."
+const val GOOGLE_DISABLED_MESSAGE = "O acesso com Google não está habilitado nesta rede. Use o CPF ou e-mail e a senha."
 const val INCOMPATIBLE_RESPONSE_MESSAGE = "O serviço retornou uma resposta incompatível. Contate a unidade."
 
 /** Senha atual incorreta na troca de senha (400); nunca 401, para a sessão não ser encerrada. */
@@ -59,6 +68,11 @@ const val FAMILY_LINK_EXISTS = "family-link-exists"
 const val FAMILY_LINK_LIMIT = "family-link-limit"
 const val FAMILY_LINK_CLOSED = "family-link-closed"
 const val DEPENDENT_INACTIVE = "dependent-inactive"
+/** Consulta em outra UBS no mesmo horário (409); o servidor nunca diz qual UBS. */
+const val OTHER_UNIT_OVERLAP = "other-unit-overlap"
+/** Google desligado no servidor (503) e conta Google já vinculada a outra conta (409). */
+const val GOOGLE_DISABLED = "google-disabled"
+const val GOOGLE_ALREADY_LINKED = "google-already-linked"
 
 /** O responsável agiu pelo dependente e o servidor recusou (403): vínculo encerrado ou cadastro desativado. */
 const val DEPENDENT_FORBIDDEN_MESSAGE = "O vínculo com esta pessoa não está ativo nesta UBS ou o cadastro dela foi desativado. Veja a aba Família."
@@ -67,15 +81,16 @@ const val DEPENDENT_FORBIDDEN_MESSAGE = "O vínculo com esta pessoa não está a
 private val KNOWN_CODES = setOf("invalid-input", "unauthorized", "forbidden", "not-found", "conflict",
     "too-many-requests", "internal-error", "service-unavailable", INVALID_CURRENT_PASSWORD, PASSWORD_CHANGE_REQUIRED,
     BOOKING_WINDOW, SPECIALTY_LIMIT, SLOT_UNAVAILABLE, PATIENT_OVERLAP, CONFIRMATION_WINDOW,
-    FAMILY_LINK_EXISTS, FAMILY_LINK_LIMIT, FAMILY_LINK_CLOSED, DEPENDENT_INACTIVE)
+    FAMILY_LINK_EXISTS, FAMILY_LINK_LIMIT, FAMILY_LINK_CLOSED, DEPENDENT_INACTIVE, OTHER_UNIT_OVERLAP, GOOGLE_DISABLED, GOOGLE_ALREADY_LINKED)
 
 fun knownProblemCode(raw: String?): String? = raw?.takeIf { it in KNOWN_CODES }
 
 /**
  * Texto em português escolhido pelo app a partir do status HTTP, do `code` conhecido e da operação.
- * O corpo do servidor (title/detail) nunca é exibido. [acting] é verdadeiro quando o responsável agia por um dependente.
+ * O corpo do servidor (title/detail) nunca é exibido. [acting] é verdadeiro quando o responsável agia por um dependente e [actingName]
+ * é o nome dele, quando se conhece (as mensagens que falam da outra pessoa usam o nome em vez de "esta pessoa").
  */
-fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Boolean = false): String {
+fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Boolean = false, actingName: String? = null): String {
     val kind = knownProblemCode(code) ?: when (status) {
         400 -> "invalid-input"
         401 -> "unauthorized"
@@ -89,8 +104,11 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
     }
     val unitScoped = context == ApiContext.UNIT || context == ApiContext.APPOINTMENT_CANCEL || context == ApiContext.OFFER_RESPOND ||
         context == ApiContext.QUEUE_CANCEL || context == ApiContext.UNLINK || context == ApiContext.AVAILABILITY ||
-        context == ApiContext.BOOKING || context == ApiContext.CONFIRMATION || context == ApiContext.RECORDS
+        context == ApiContext.BOOKING || context == ApiContext.CONFIRMATION || context == ApiContext.RECORDS || context == ApiContext.ABOUT
     return when (kind) {
+        OTHER_UNIT_OVERLAP -> otherUnitOverlapMessage(context, acting, actingName)
+        GOOGLE_DISABLED -> GOOGLE_DISABLED_MESSAGE
+        GOOGLE_ALREADY_LINKED -> "Esta conta Google já está vinculada a outra conta do NORA. Use outra conta Google ou procure a equipe da UBS."
         INVALID_CURRENT_PASSWORD -> "A senha atual está incorreta."
         PASSWORD_CHANGE_REQUIRED -> PASSWORD_CHANGE_REQUIRED_MESSAGE
         BOOKING_WINDOW -> "Só é possível marcar de 24 horas até 90 dias antes do horário. Escolha outro horário."
@@ -112,10 +130,15 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
             ApiContext.AVAILABILITY -> "Não foi possível consultar os horários desta especialidade. Escolha outra ou tente mais tarde."
             ApiContext.FAMILY_REQUEST -> "Confira o CPF e a UBS. Você não pode pedir vínculo com o seu próprio CPF."
             ApiContext.EMAIL_CHANGE -> "Confira o código informado."
+            ApiContext.GOOGLE, ApiContext.GOOGLE_LOGIN -> "O Google não confirmou esta conta: o acesso venceu ou o e-mail não está verificado. Tente de novo."
             else -> "Confira os dados informados."
         }
-        "unauthorized" ->
-            if (context == ApiContext.LOGIN) "CPF, e-mail ou senha inválidos." else "Sua sessão terminou. Entre novamente."
+        "unauthorized" -> when (context) {
+            ApiContext.LOGIN -> "CPF, e-mail ou senha inválidos."
+            // O servidor não diz o motivo (conta Google não vinculada, conta inativa ou token inválido): o app também não.
+            ApiContext.GOOGLE_LOGIN -> "Não foi possível entrar com o Google. Se você ainda não vinculou sua conta Google, entre com o CPF ou e-mail e a senha e vincule-a em Configurações."
+            else -> "Sua sessão terminou. Entre novamente."
+        }
         "forbidden" -> when {
             unitScoped && acting -> DEPENDENT_FORBIDDEN_MESSAGE
             unitScoped -> UNIT_FORBIDDEN_MESSAGE
@@ -131,7 +154,7 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
             ApiContext.FAMILY -> "Este pedido não existe mais. Atualize a lista."
             ApiContext.EMAIL_CHANGE -> "Esta sugestão de e-mail não existe mais."
             ApiContext.ANNOUNCEMENTS -> "Este comunicado não está mais disponível. Atualize a lista."
-            ApiContext.UNIT, ApiContext.UNLINK, ApiContext.AVAILABILITY, ApiContext.BOOKING -> "Esta UBS ou este registro não está mais disponível."
+            ApiContext.UNIT, ApiContext.UNLINK, ApiContext.AVAILABILITY, ApiContext.BOOKING, ApiContext.ABOUT -> "Esta UBS ou este registro não está mais disponível."
             else -> "O registro não está mais disponível."
         }
         "conflict" -> when (context) {
@@ -158,4 +181,14 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         "internal-error" -> "O serviço encontrou um erro. Tente novamente mais tarde."
         else -> "Não foi possível concluir a solicitação. Tente novamente."
     }
+}
+
+/**
+ * 409 `other-unit-overlap`: a pessoa já tem consulta no mesmo horário em outra UBS (o servidor não diz qual). No aceite de oferta o texto
+ * lembra que a oferta continua pendente e pode ser recusada.
+ */
+fun otherUnitOverlapMessage(context: ApiContext, acting: Boolean, actingName: String? = null): String {
+    val base = if (!acting) "Você já tem consulta neste horário em outra UBS."
+        else "${actingName?.takeIf { it.isNotBlank() } ?: "Esta pessoa"} já tem consulta neste horário em outra UBS."
+    return if (context == ApiContext.OFFER_RESPOND) "$base Recuse a oferta se não puder trocar." else base
 }

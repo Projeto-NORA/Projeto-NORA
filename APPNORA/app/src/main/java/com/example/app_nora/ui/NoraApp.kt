@@ -61,9 +61,11 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
-    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null,
-    openNotices: Boolean = false, onNoticesOpened: () -> Unit = {}) {
-    val context = LocalContext.current.applicationContext
+    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null, openAppointments: Boolean = false,
+    openNotices: Boolean = false, onNoticesOpened: () -> Unit = {}, openFamily: Boolean = false, onFamilyOpened: () -> Unit = {}) {
+    // A Activity (e não só o contexto do app) é quem abre a lista de contas do Google.
+    val activityContext = LocalContext.current
+    val context = activityContext.applicationContext
     val controller = remember(retainedController) { retainedController ?: PatientController(context) }
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -109,14 +111,24 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
             awaitCancellation()
         }
     }
+    // Depois de entrar o aparelho se registra no push do servidor (P1); sem Firebase configurado isto não faz nada.
+    LaunchedEffect(controller, session?.token) { if (session != null) controller.syncPushToken() }
     NoraPatientContent(store.settings, store::update, controller.state,
         onAddressChange = controller::changeAddress,
+        google = GoogleActions(
+            requestIdToken = {
+                if (allowLocalNetwork()) GoogleSignIn.requestIdToken(activityContext, BuildConfig.NORA_GOOGLE_WEB_CLIENT_ID)
+                else { controller.localNetworkDenied(); GoogleIdResult.Cancelled }
+            },
+            onSignIn = controller::loginWithGoogle, onLink = controller::linkGoogle, onUnlink = controller::unlinkGoogle,
+            onLoadStatus = { scope.launch { controller.loadGoogleStatus() } }, onFailed = controller::showMessage),
+        onLoadAbout = { unitId -> scope.launch { controller.loadUnitAbout(unitId) } },
         onLogin = { identifier, password ->
             scope.launch { if (allowLocalNetwork()) controller.login(identifier, password) else controller.localNetworkDenied() }
         },
         onRefresh = { scope.launch { controller.refreshUnit() } },
-        openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened, openFlashDependent = openFlashDependent,
-        openNotices = openNotices, onNoticesOpened = onNoticesOpened,
+        openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened, openFlashDependent = openFlashDependent, openAppointments = openAppointments,
+        openNotices = openNotices, onNoticesOpened = onNoticesOpened, openFamily = openFamily, onFamilyOpened = onFamilyOpened,
         family = FamilyActions(onLoad = { scope.launch { controller.loadFamily() } },
             onRequest = controller::requestDependent,
             onCancelRequest = { id -> scope.launch { controller.cancelDependentRequest(id) } },
@@ -267,8 +279,9 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     onConfirmPresence: (String, String) -> Unit = { _, _ -> }, onOpenBooking: () -> Unit = {},
     onLoadAvailability: (String, Int) -> Unit = { _, _ -> }, onBookSlot: (AvailableSlot) -> Unit = {},
     family: FamilyActions = FamilyActions(), community: CommunityActions = CommunityActions(), email: EmailActions = EmailActions(),
-    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null,
-    openNotices: Boolean = false, onNoticesOpened: () -> Unit = {}) {
+    google: GoogleActions = GoogleActions(), onLoadAbout: (String) -> Unit = {},
+    openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null, openAppointments: Boolean = false,
+    openNotices: Boolean = false, onNoticesOpened: () -> Unit = {}, openFamily: Boolean = false, onFamilyOpened: () -> Unit = {}) {
     var settingsOpen by rememberSaveable { mutableStateOf(initiallyShowSettings) }
     // A visão de quem o paciente está agindo: ele mesmo, ou o dependente (UBS do vínculo e dados lidos pelas rotas do dependente).
     val view = patient.effective()
@@ -285,6 +298,8 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     // espera (`busy` é chave do efeito) em vez de abrir a tela na visão de outra pessoa e perder o pedido.
     var offerRequest by remember { mutableStateOf<Pair<String, String?>?>(null) }
     val flashRequest = openFlashUnit?.let { it to openFlashDependent } ?: offerRequest
+    // O push de janela de presença usa a mesma decisão (troca de pessoa e de UBS), mas abre Consultas em vez da Vaga Relâmpago.
+    val requestDestination = if (openFlashUnit != null && openAppointments) PatientDestination.APPOINTMENTS else PatientDestination.FLASH
     LaunchedEffect(flashRequest, patient.session?.token, patient.units, patient.family.links, patient.busy) {
         val (target, dependentId) = flashRequest ?: return@LaunchedEffect
         fun finish() { offerRequest = null; if (openFlashUnit != null) onFlashOpened() }
@@ -293,18 +308,18 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
             FlashOpen.DROP -> finish()
             FlashOpen.OPEN_DEPENDENT -> {
                 // Já agindo por ele, a troca não relê nada: a oferta nova (a da notificação) só aparece relendo a lista dele.
-                val already = patient.actingFor == dependentId && destination == PatientDestination.FLASH
+                val already = patient.actingFor == dependentId && destination == requestDestination
                 family.onActFor(dependentId)
                 settingsOpen = false
-                destination = PatientDestination.FLASH
-                if (already) onRefresh()
+                destination = requestDestination
+                if (already) { if (requestDestination == PatientDestination.FLASH) onRefresh() else onLoadAppointments() }
                 finish()
             }
             FlashOpen.OPEN_OWN -> {
                 family.onActFor(null)
                 onSelectUnit(target)
                 settingsOpen = false
-                destination = PatientDestination.FLASH
+                destination = requestDestination
                 finish()
             }
         }
@@ -314,6 +329,16 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         if (!openNotices) return@LaunchedEffect
         if (patient.session != null) { settingsOpen = false; destination = PatientDestination.NOTICES }
         onNoticesOpened()
+    }
+    // Push de pedido de família decidido: abre a aba Família.
+    LaunchedEffect(openFamily, patient.session?.token) {
+        if (!openFamily) return@LaunchedEffect
+        if (patient.session != null) { settingsOpen = false; destination = PatientDestination.FAMILY }
+        onFamilyOpened()
+    }
+    // Situação do Google (só com o client ID no build): relida a cada abertura das Configurações.
+    LaunchedEffect(settingsOpen, patient.session?.token) {
+        if (settingsOpen && patient.session != null && google.webClientId.isNotBlank()) google.onLoadStatus()
     }
     val pageScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
@@ -416,7 +441,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
                         ScreenTitle("Seu app, do seu jeito", "Escolha a aparência e ajuste as preferências deste dispositivo.")
-                        SettingsScreen(settings, onSettingsChange, patient, onAddressChange, onChangePassword = {
+                        SettingsScreen(settings, onSettingsChange, patient, onAddressChange, google, onChangePassword = {
                             settingsOpen = false
                             destination = PatientDestination.PASSWORD
                         }, onLogout = {
@@ -446,7 +471,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             onOpenDependentOffer = { dependentId, unitId -> offerRequest = unitId to dependentId },
                             onOpenProfile = { destination = PatientDestination.PROFILE },
                             onRequestPasswordReset = onRequestPasswordReset,
-                            onConfirmPasswordReset = onConfirmPasswordReset)
+                            onConfirmPasswordReset = onConfirmPasswordReset, google = google)
                         PatientDestination.JOURNEY -> JourneyScreen(view, onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
                             onRefreshAttendance = onLoadAttendance, onLeaveQueue = onCancelQueueEntry, onLoadRecords = community.onLoadRecords)
                         PatientDestination.NOTICES -> NoticesScreen(patient,
@@ -462,7 +487,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             }, email = email)
                         PatientDestination.APPOINTMENTS -> AppointmentsScreen(view, onSelectUnit, onLoadUnits, onLoadAppointments, onCancelAppointment,
                             onConfirmPresence, onBook = { destination = PatientDestination.BOOKING })
-                        PatientDestination.UNITS -> UnitsScreen(patient, ownUnitsNotice, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onCheckUnlink, onUnlinkUnit)
+                        PatientDestination.UNITS -> UnitsScreen(patient, ownUnitsNotice, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onCheckUnlink, onUnlinkUnit, onLoadAbout)
                         PatientDestination.BOOKING -> BookingScreen(view, onSelectUnit, onLoadUnits, onOpenBooking, onLoadAvailability, onBookSlot,
                             onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
                             actingName = patient.actingLink()?.let(::dependentDisplayName))
@@ -482,14 +507,13 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     onLogin: (String, String) -> Unit, onRegister: () -> Unit,
     onOpenSettings: () -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
-    onConfirmPasswordReset: suspend (String, String, String) -> Boolean) {
+    onConfirmPasswordReset: suspend (String, String, String) -> Boolean, google: GoogleActions) {
     var identifier by rememberSaveable { mutableStateOf("") }
     // Senhas nunca entram em estado salvo: após girar a tela a pessoa digita de novo.
     var password by remember { mutableStateOf("") }
     var connectionSettingsOpen by rememberSaveable { mutableStateOf(false) }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
-    var googleOpen by rememberSaveable { mutableStateOf(false) }
     var helpOpen by rememberSaveable { mutableStateOf(false) }
     var localMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var recoveryCodeStep by rememberSaveable { mutableStateOf(false) }
@@ -660,22 +684,13 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                 }
                 Text(if (patient.busy) "Entrando…" else "Entrar", fontWeight = FontWeight.Bold)
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-                Text("ou", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall)
-                HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-            }
-            OutlinedButton(onClick = { googleOpen = true }, modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.ExtraBold,
-                    style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.width(10.dp))
-                Text("Continuar com Google", fontWeight = FontWeight.SemiBold)
-            }
+            // O passo atual da entrada por senha, com o indicador na cor do app (o do botão é branco sobre o azul).
+            if (patient.busy) BusyLine("Conferindo seus dados e entrando…")
+            // O Google só aparece com o client ID web no build; sem ele a entrada é só por senha.
+            if (googleLoginAvailable(google.webClientId)) LoginGoogleSection(patient, google, onAddressMissing = {
+                connectionSettingsOpen = true
+                localMessage = "Informe o endereço da sua UBS para continuar."
+            })
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center) {
                 Text("Primeiro acesso?", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -794,13 +809,6 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
         title = { Text("Senha alterada") },
         text = { Text("Sua senha foi atualizada. Entre com a nova senha para continuar.") },
         confirmButton = { TextButton(onClick = { recoverySuccessOpen = false }) { Text("Ir para o login") } },
-    )
-    if (googleOpen) AlertDialog(
-        onDismissRequest = { googleOpen = false },
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("Entrar com Google") },
-        text = { Text("O acesso com Google ainda não foi habilitado pela rede da sua UBS. Por enquanto, use o CPF ou e-mail e a senha cadastrados na unidade.") },
-        confirmButton = { TextButton(onClick = { googleOpen = false }) { Text("Entendi") } },
     )
 }
 
@@ -955,13 +963,13 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
     onOpenDependentOffer: (String, String) -> Unit, onOpenProfile: () -> Unit,
     onConfirmPresence: (String, String) -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
-    onConfirmPasswordReset: suspend (String, String, String) -> Boolean) {
+    onConfirmPasswordReset: suspend (String, String, String) -> Boolean, google: GoogleActions) {
     if (patient.session == null && onLogin != null) {
         LoginCard(patient, onAddressChange, onLogin,
             onRegister = { onNavigate(PatientDestination.REGISTER) },
             onOpenSettings = onOpenSettings,
             onRequestPasswordReset = onRequestPasswordReset,
-            onConfirmPasswordReset = onConfirmPasswordReset)
+            onConfirmPasswordReset = onConfirmPasswordReset, google = google)
         return
     }
     if (patient.session == null) {
@@ -1165,7 +1173,8 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
 @Composable
 private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
-    onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit) {
+    onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit,
+    onLoadAbout: (String) -> Unit) {
     ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
     if (ownUnitsNotice) ActionMessage("Agora você está vendo as suas UBS")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
@@ -1221,18 +1230,25 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
         if (patient.session != null) OutlinedButton(onClick = {
             linkOpen = true; chosenIds = emptyList(); catalog = null
         }, enabled = !patient.busy) { Text("Vincular outra UBS") }
-        if (patient.session != null && selected != null) OutlinedButton(onClick = { unlinkOpen = true; checking = true; impact = null }, enabled = !patient.busy,
+        // Remover o vínculo é do próprio responsável: agindo por um dependente o botão não aparece.
+        if (canRemoveUnit(patient, selected)) OutlinedButton(onClick = { unlinkOpen = true; checking = true; impact = null }, enabled = !patient.busy,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Remover esta UBS") }
-        MutedText("Distâncias, horários e serviços ainda não são fornecidos pela rede.")
+        MutedText("A distância até a UBS ainda não é informada pela rede.")
     }
+    // Horário de funcionamento, serviços e especialidades da UBS selecionada: lidos a cada abertura da tela e a cada troca de UBS.
+    LaunchedEffect(selected?.id, patient.session?.token) {
+        val id = selected?.id
+        if (id != null && patient.session != null) onLoadAbout(id)
+    }
+    if (patient.session != null && selected != null) UnitAboutCard(selected.name, patient.about[selected.id], onRetry = { onLoadAbout(selected.id) })
     UnitsMap(selected, onLocateUnit)
     // Confere o que será cancelado: relê a fila e as consultas futuras da UBS a cada abertura, sem confiar no que já estava lido.
     LaunchedEffect(unlinkOpen, selected?.id) {
         val id = selected?.id
         if (unlinkOpen && id != null) { impact = onCheckUnlink(id); checking = false }
     }
-    if (unlinkOpen && selected != null) {
+    if (unlinkOpen && selected != null && patient.actingFor == null) {
         UnlinkDialog(selected.name, impact, loading = checking, busy = patient.busy,
             onConfirm = { unlinkOpen = false; onUnlink() }, onDismiss = { unlinkOpen = false })
     }
@@ -1333,7 +1349,7 @@ private fun QuickActionCard(title: String, subtitle: String, glyph: String, modi
 
 @Composable
 private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit,
-    patient: PatientState, onAddressChange: (String) -> Unit, onChangePassword: () -> Unit, onLogout: () -> Unit) {
+    patient: PatientState, onAddressChange: (String) -> Unit, google: GoogleActions, onChangePassword: () -> Unit, onLogout: () -> Unit) {
     SectionCard("Aparência", "Escolha como a NORA aparece para você") {
         Appearance.entries.forEach { appearance ->
             val selected = settings.appearance == appearance
@@ -1375,6 +1391,7 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
             onChange(settings.copy(comfortableSpacing = it))
         }
     }
+    GoogleAccountCard(patient, google)
     SectionCard("Sobre o app", "NORA · Saúde digital") {
         Text("Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
         MutedText(patient.session?.user?.fullName ?: "Nenhuma conta conectada neste dispositivo.")
@@ -1382,7 +1399,8 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
             label = { Text("Endereço do serviço NORA") }, singleLine = true,
             enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
         if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}. Para trocar o endereço, saia e configure na tela de entrada.")
-        if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
+        // Com o cartão do Google na tela, a mensagem das ações dele aparece lá, uma vez só.
+        if (patient.message != null && !googleCardVisible(patient, google)) Text(patient.message, color = MaterialTheme.colorScheme.error)
         if (patient.session != null) {
             OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) { Text("Alterar senha") }
             OutlinedButton(onClick = onLogout, enabled = !patient.busy,

@@ -36,6 +36,14 @@ internal class PasswordGate(private val inner: PatientApi, private val onRequire
     override suspend fun sendEmailSuggestionCode(token: String) = watch { inner.sendEmailSuggestionCode(token) }
     override suspend fun confirmEmailSuggestion(token: String, code: String) = watch { inner.confirmEmailSuggestion(token, code) }
     override suspend fun dismissEmailSuggestion(token: String) = watch { inner.dismissEmailSuggestion(token) }
+    override suspend fun unitAbout(token: String, unitId: String) = watch { inner.unitAbout(token, unitId) }
+    override suspend fun dependentUnitAbout(token: String, dependentId: String, unitId: String) = watch { inner.dependentUnitAbout(token, dependentId, unitId) }
+    override suspend fun googleStatus(token: String) = watch { inner.googleStatus(token) }
+    override suspend fun linkGoogle(token: String, idToken: String) = watch { inner.linkGoogle(token, idToken) }
+    override suspend fun unlinkGoogle(token: String) = watch { inner.unlinkGoogle(token) }
+    override suspend fun registerPushToken(token: String, pushToken: String) = watch { inner.registerPushToken(token, pushToken) }
+    override suspend fun removePushToken(token: String, pushToken: String) = watch { inner.removePushToken(token, pushToken) }
+    override suspend fun pushEnabled(token: String) = watch { inner.pushEnabled(token) }
 }
 
 /**
@@ -57,4 +65,5 @@ internal class DependentScope(private val inner: PatientApi, private val depende
     override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean) =
         inner.dependentRespondOffer(token, dependentId, unitId, id, accept)
     override suspend fun attendance(token: String, unitId: String) = inner.dependentAttendance(token, dependentId, unitId)
+    override suspend fun unitAbout(token: String, unitId: String) = inner.dependentUnitAbout(token, dependentId, unitId)
 }

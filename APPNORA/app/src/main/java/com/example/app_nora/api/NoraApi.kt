@@ -76,6 +76,17 @@ data class DependentOffers(val dependentId: String, val unitId: String, val unit
 /** Sugestão da UBS para trocar o e-mail da conta; o endereço novo só chega mascarado. */
 data class EmailSuggestion(val id: String, val maskedEmail: String, val unitId: String, val unitName: String, val createdAt: String)
 
+/** Um intervalo de funcionamento da UBS: `weekday` 0 = domingo; `opens` e `closes` são `HH:mm`. */
+data class OpeningInterval(val weekday: Int, val opens: String, val closes: String)
+/**
+ * Horário de funcionamento, serviços e especialidades da grade de uma UBS. `informed` falso é "não informado" (diferente de fechado:
+ * com `informed` e sem intervalos a UBS fica fechada todos os dias); `services` é texto puro como a UBS escreveu.
+ */
+data class UnitProfile(val unitId: String, val informed: Boolean, val openingHours: List<OpeningInterval>, val services: String?,
+    val specialties: List<Specialty>, val updatedAt: String?)
+/** Situação do Google na conta: `enabled` é o servidor configurado; `linked` diz se há uma conta Google vinculada (e o e-mail dela). */
+data class GoogleStatus(val enabled: Boolean, val linked: Boolean, val email: String?)
+
 /** `code` é o campo fixo do problem+json, já filtrado para os valores conhecidos; nunca o texto do servidor. */
 class ApiFailure(val status: Int, message: String, val code: String? = null) : IOException(message)
 
@@ -139,6 +150,21 @@ interface PatientApi {
     suspend fun dependentRespondOffer(token: String, dependentId: String, unitId: String, id: String, accept: Boolean): OfferResponse = throw ApiFailure(501, "Oferta indisponível.")
     suspend fun dependentAttendance(token: String, dependentId: String, unitId: String): UnitAttendance = throw ApiFailure(501, "Participação indisponível.")
     suspend fun dependentRecords(token: String, dependentId: String, unitId: String): UnitRecords = throw ApiFailure(501, "Jornada indisponível.")
+    // ---- Serviços e horários da UBS ----
+    suspend fun unitAbout(token: String, unitId: String): UnitProfile = throw ApiFailure(501, "Informações da UBS indisponíveis.")
+    suspend fun dependentUnitAbout(token: String, dependentId: String, unitId: String): UnitProfile = throw ApiFailure(501, "Informações da UBS indisponíveis.")
+
+    // ---- Entrar com Google e push (desligados no servidor sem credenciais) ----
+    /** G4: sessão de paciente a partir do ID token do Google. 401 genérico quando a conta Google não está vinculada. */
+    suspend fun loginWithGoogle(idToken: String, deviceName: String? = null): PatientSession = throw ApiFailure(501, "Entrar com Google indisponível.")
+    suspend fun googleStatus(token: String): GoogleStatus = throw ApiFailure(501, "Google indisponível.")
+    suspend fun linkGoogle(token: String, idToken: String): Unit = throw ApiFailure(501, "Google indisponível.")
+    suspend fun unlinkGoogle(token: String): Unit = throw ApiFailure(501, "Google indisponível.")
+    /** P1: registra o token do aparelho para o push. */
+    suspend fun registerPushToken(token: String, pushToken: String): Unit = throw ApiFailure(501, "Push indisponível.")
+    /** P2: remove o token do aparelho (logout); idempotente. */
+    suspend fun removePushToken(token: String, pushToken: String): Unit = throw ApiFailure(501, "Push indisponível.")
+    suspend fun pushEnabled(token: String): Boolean = throw ApiFailure(501, "Push indisponível.")
     suspend fun logout(token: String)
     suspend fun presence(token: String, online: Boolean)
 }
@@ -429,6 +455,53 @@ class NoraApi(private val address: String) : PatientApi {
     override suspend fun changePassword(token: String, currentPassword: String, newPassword: String) {
         request("/api/auth/password", "POST", token, JSONObject().put("currentPassword", currentPassword).put("newPassword", newPassword), ApiContext.PASSWORD_CHANGE)
     }
+
+    // ---- Serviços e horários da UBS ------------------------------------------------------------------------
+
+    override suspend fun unitAbout(token: String, unitId: String) = about(token, own(unitId), unitId)
+    override suspend fun dependentUnitAbout(token: String, dependentId: String, unitId: String) = about(token, delegated(dependentId, unitId), unitId)
+
+    private suspend fun about(token: String, prefix: String, unitId: String): UnitProfile {
+        val body = request("$prefix/about", token = token, context = ApiContext.ABOUT)
+        val hours = body.getJSONArray("openingHours")
+        val specialties = body.getJSONArray("specialties")
+        return UnitProfile(body.optString("unitId", unitId).ifBlank { unitId }, body.getBoolean("informed"),
+            List(hours.length()) { index -> hours.getJSONObject(index).let { OpeningInterval(it.getInt("weekday"), it.getString("opens"), it.getString("closes")) } },
+            body.stringOrNull("services"),
+            List(specialties.length()) { index -> specialties.getJSONObject(index).let { Specialty(it.getString("id"), it.getString("name")) } },
+            body.stringOrNull("updatedAt"))
+    }
+
+    // ---- Entrar com Google e push --------------------------------------------------------------------------
+
+    override suspend fun loginWithGoogle(idToken: String, deviceName: String?): PatientSession {
+        val body = request("/api/auth/google", "POST", body = JSONObject().put("idToken", idToken).apply { deviceName?.let { put("deviceName", it) } },
+            context = ApiContext.GOOGLE_LOGIN)
+        return PatientSession(body.getString("token"), body.getString("expiresAt"), user(body.getJSONObject("user")))
+    }
+
+    override suspend fun googleStatus(token: String): GoogleStatus {
+        val body = request("/api/patient/google", token = token, context = ApiContext.GOOGLE)
+        return GoogleStatus(body.getBoolean("enabled"), body.getBoolean("linked"), body.stringOrNull("email"))
+    }
+
+    override suspend fun linkGoogle(token: String, idToken: String) {
+        request("/api/patient/google/link", "POST", token, JSONObject().put("idToken", idToken), ApiContext.GOOGLE)
+    }
+
+    override suspend fun unlinkGoogle(token: String) { request("/api/patient/google/unlink", "POST", token, context = ApiContext.GOOGLE) }
+
+    override suspend fun registerPushToken(token: String, pushToken: String) {
+        request("/api/patient/devices", "POST", token, JSONObject().put("token", pushToken).put("platform", "android"), ApiContext.PUSH)
+    }
+
+    // O token do aparelho vai sempre no corpo, nunca na URL.
+    override suspend fun removePushToken(token: String, pushToken: String) {
+        request("/api/patient/devices/remove", "POST", token, JSONObject().put("token", pushToken), ApiContext.PUSH)
+    }
+
+    override suspend fun pushEnabled(token: String): Boolean =
+        request("/api/patient/devices/push", token = token, context = ApiContext.PUSH).getBoolean("enabled")
 
     override suspend fun logout(token: String) { request("/api/auth/logout", "POST", token, context = ApiContext.SESSION) }
     override suspend fun presence(token: String, online: Boolean) {

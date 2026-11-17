@@ -115,4 +115,45 @@ class ApiMessagesTest {
         assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.RECORDS))
         assertEquals("Sua sessão terminou. Entre novamente.", failureMessage(401, null, ApiContext.ANNOUNCEMENTS))
     }
+
+
+    @Test fun otherUnitOverlapNeverNamesAUnitAndTalksAboutTheRightPerson() {
+        assertEquals(OTHER_UNIT_OVERLAP, knownProblemCode(OTHER_UNIT_OVERLAP))
+        assertEquals("Você já tem consulta neste horário em outra UBS.", failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.BOOKING))
+        assertEquals("Maria Souza já tem consulta neste horário em outra UBS.",
+            failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.BOOKING, acting = true, actingName = "Maria Souza"))
+        // Sem o nome do dependente, a mensagem fala "esta pessoa".
+        assertEquals("Esta pessoa já tem consulta neste horário em outra UBS.", failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.BOOKING, acting = true))
+        assertEquals("Esta pessoa já tem consulta neste horário em outra UBS.",
+            failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.BOOKING, acting = true, actingName = "  "))
+    }
+
+    @Test fun acceptingAnOfferWithOtherUnitOverlapSaysToDeclineIfTheySwapCannot() {
+        val own = failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.OFFER_RESPOND)
+        assertEquals("Você já tem consulta neste horário em outra UBS. Recuse a oferta se não puder trocar.", own)
+        assertEquals("Maria Souza já tem consulta neste horário em outra UBS. Recuse a oferta se não puder trocar.",
+            failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.OFFER_RESPOND, acting = true, actingName = "Maria Souza"))
+        // Fora do aceite não há oferta para recusar.
+        assertFalse(failureMessage(409, OTHER_UNIT_OVERLAP, ApiContext.BOOKING).contains("Recuse"))
+    }
+
+    @Test fun googleMessagesAreClearAndTheLoginFailureDoesNotSayWhy() {
+        assertEquals(GOOGLE_DISABLED_MESSAGE, failureMessage(503, GOOGLE_DISABLED, ApiContext.GOOGLE_LOGIN))
+        assertEquals(GOOGLE_DISABLED_MESSAGE, failureMessage(503, GOOGLE_DISABLED, ApiContext.GOOGLE))
+        assertTrue(failureMessage(409, GOOGLE_ALREADY_LINKED, ApiContext.GOOGLE).contains("outra conta do NORA"))
+        val generic = failureMessage(401, "unauthorized", ApiContext.GOOGLE_LOGIN)
+        assertTrue(generic.startsWith("Não foi possível entrar com o Google"))
+        assertNotEquals(failureMessage(401, "unauthorized", ApiContext.LOGIN), generic)
+        // 401 com a sessão aberta (vincular) é sessão vencida, não "conta não vinculada".
+        assertEquals("Sua sessão terminou. Entre novamente.", failureMessage(401, "unauthorized", ApiContext.GOOGLE))
+        assertTrue(failureMessage(400, "invalid-input", ApiContext.GOOGLE_LOGIN).contains("Google"))
+        for (code in listOf(GOOGLE_DISABLED, GOOGLE_ALREADY_LINKED)) assertEquals(code, knownProblemCode(code))
+    }
+
+    @Test fun aboutReadsUseTheUnitMessages() {
+        assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.ABOUT))
+        assertEquals(DEPENDENT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.ABOUT, acting = true))
+        assertTrue(failureMessage(404, null, ApiContext.ABOUT).contains("UBS"))
+        assertTrue(failureMessage(503, null, ApiContext.ABOUT).contains("UBS"))
+    }
 }

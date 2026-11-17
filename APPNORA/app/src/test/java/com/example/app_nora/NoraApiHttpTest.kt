@@ -414,4 +414,141 @@ class NoraApiHttpTest {
         try { api().sendEmailSuggestionCode("t"); fail("expected failure") }
         catch (failure: ApiFailure) { assertEquals(503, failure.status); assertTrue(failure.message.orEmpty().contains("e-mails")) }
     }
+
+
+    // ---- Serviços e horários da UBS ------------------------------------------------------------------------
+
+    private val aboutJson = """{"unitId":"$unitId","informed":true,"openingHours":[{"weekday":1,"opens":"13:00","closes":"17:00"},{"weekday":1,"opens":"08:00","closes":"12:00"},{"weekday":0,"opens":"08:00:00","closes":"12:00:00"}],"services":"Vacinação\nCurativos","specialties":[{"id":"$offerId","name":"Clínica Geral"}],"updatedAt":"2026-11-16T10:00:00+00:00","slotApprovalRequired":false}"""
+
+    @Test fun unitAboutParsesHoursServicesAndSpecialtiesFromTheOwnRoute() = runBlocking {
+        route("/api/patient/units/$unitId/about", 200, aboutJson)
+        val profile = api().unitAbout("token-x", unitId)
+        assertEquals("/api/patient/units/$unitId/about", lastUri); assertEquals("GET", lastMethod); assertEquals("Bearer token-x", lastAuthorization)
+        assertTrue(profile.informed); assertEquals(3, profile.openingHours.size)
+        assertEquals("Vacinação\nCurativos", profile.services)
+        assertEquals("Clínica Geral", profile.specialties.single().name); assertEquals("2026-11-16T10:00:00+00:00", profile.updatedAt)
+    }
+
+    @Test fun unitAboutByTheGuardianUsesTheDelegatedRoute() = runBlocking {
+        route("$dependentBase/about", 200, """{"unitId":"$unitId","informed":false,"openingHours":[],"services":null,"specialties":[],"updatedAt":null}""")
+        val profile = api().dependentUnitAbout("t", dependentId, unitId)
+        assertEquals("$dependentBase/about", lastUri)
+        assertFalse(profile.informed); assertTrue(profile.openingHours.isEmpty()); assertNull(profile.services); assertNull(profile.updatedAt)
+    }
+
+    @Test fun unitAboutRefusalsHaveTheirOwnMessages() = runBlocking {
+        route("/api/patient/units/$unitId/about", 403, """{"code":"forbidden","title":"SEGREDO"}""")
+        try { api().unitAbout("t", unitId); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(UNIT_FORBIDDEN_MESSAGE, failure.message); assertFalse(failure.message.orEmpty().contains("SEGREDO")) }
+        route("/api/patient/units/$unitId/about", 503, """{"code":"service-unavailable"}""")
+        try { api().unitAbout("t", unitId); fail("expected failure") }
+        catch (failure: ApiFailure) { assertTrue(failure.message.orEmpty().contains("UBS")) }
+    }
+
+    // ---- Conflito de horário entre UBS ------------------------------------------------------------------------
+
+    @Test fun otherUnitOverlapOnBookingAndOnAcceptingKeepsTheCodeAndShowsOnlyTheAppsText() = runBlocking {
+        val body = """{"type":"urn:nora:problem:other-unit-overlap","title":"SEGREDO-DA-OUTRA-UBS","status":409,"detail":"SEGREDO-DA-OUTRA-UBS","code":"other-unit-overlap","traceId":"t"}"""
+        route("/api/patient/units/$unitId/appointments", 409, body)
+        try { api().bookAppointment("t", unitId, offerId, offerId, "2026-11-20T12:00:00Z"); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(409, failure.status); assertEquals(OTHER_UNIT_OVERLAP, failure.code)
+            assertEquals("Você já tem consulta neste horário em outra UBS.", failure.message)
+            assertFalse(failure.message.orEmpty().contains("SEGREDO"))
+        }
+        route("/api/patient/units/$unitId/lightning-offers/$offerId/respond", 409, body)
+        try { api().respondUnitOffer("t", unitId, offerId, true); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(OTHER_UNIT_OVERLAP, failure.code)
+            assertEquals("Você já tem consulta neste horário em outra UBS. Recuse a oferta se não puder trocar.", failure.message)
+        }
+        route("$dependentBase/appointments", 409, body)
+        try { api().dependentBook("t", dependentId, unitId, offerId, offerId, "2026-11-20T12:00:00Z"); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(OTHER_UNIT_OVERLAP, failure.code) }
+    }
+
+    // ---- Entrar com Google --------------------------------------------------------------------------------------
+
+    @Test fun googleStatusReadsEnabledLinkedAndEmail() = runBlocking {
+        route("/api/patient/google", 200, """{"enabled":true,"linked":true,"email":"paciente@gmail.example"}""")
+        val status = api().googleStatus("t")
+        assertEquals("/api/patient/google", lastUri); assertEquals("Bearer t", lastAuthorization)
+        assertTrue(status.enabled && status.linked); assertEquals("paciente@gmail.example", status.email)
+        route("/api/patient/google", 200, """{"enabled":false,"linked":false,"email":null}""")
+        val off = api().googleStatus("t")
+        assertFalse(off.enabled); assertNull(off.email)
+    }
+
+    @Test fun linkAndUnlinkGoogleSendTheIdTokenOnlyInTheBody() = runBlocking {
+        route("/api/patient/google/link", 204, "")
+        api().linkGoogle("t", "id-token-de-teste")
+        assertEquals("POST", lastMethod); assertEquals("/api/patient/google/link", lastUri)
+        assertEquals("""{"idToken":"id-token-de-teste"}""", lastBody); assertFalse(lastUri.contains("id-token"))
+        route("/api/patient/google/unlink", 204, "")
+        api().unlinkGoogle("t")
+        assertEquals("POST", lastMethod); assertEquals("/api/patient/google/unlink", lastUri); assertEquals("", lastBody)
+    }
+
+    @Test fun googleLinkRefusalsAreGoogleSpecific() = runBlocking {
+        route("/api/patient/google/link", 409, """{"code":"google-already-linked","title":"SEGREDO"}""")
+        try { api().linkGoogle("t", "x"); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(409, failure.status); assertEquals(GOOGLE_ALREADY_LINKED, failure.code)
+            assertTrue(failure.message.orEmpty().contains("já está vinculada")); assertFalse(failure.message.orEmpty().contains("SEGREDO"))
+        }
+        route("/api/patient/google/link", 503, """{"code":"google-disabled"}""")
+        try { api().linkGoogle("t", "x"); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(GOOGLE_DISABLED, failure.code); assertEquals(GOOGLE_DISABLED_MESSAGE, failure.message) }
+        route("/api/patient/google/link", 400, """{"code":"invalid-input"}""")
+        try { api().linkGoogle("t", "x"); fail("expected failure") }
+        catch (failure: ApiFailure) { assertTrue(failure.message.orEmpty().contains("Google")) }
+    }
+
+    @Test fun googleLoginReturnsAPatientSessionAndSendsTheDeviceNameOnlyWhenGiven() = runBlocking {
+        route("/api/auth/google", 200, """{"token":"t","expiresAt":"2099-01-01T00:00:00Z","user":{"id":"i","fullName":"Maria","scope":"patient"},"keepSignedIn":false,"device":null}""")
+        val session = api().loginWithGoogle("id-token-de-teste")
+        assertEquals("t", session.token); assertEquals("Maria", session.user.fullName)
+        assertEquals("""{"idToken":"id-token-de-teste"}""", lastBody); assertNull(lastAuthorization)
+        api().loginWithGoogle("id-token-de-teste", "Celular")
+        org.json.JSONObject(lastBody).let { assertEquals("Celular", it.getString("deviceName")); assertEquals(2, it.length()) }
+    }
+
+    @Test fun googleLoginUnauthorizedIsTheGenericMessageAndDisabledIsExplained() = runBlocking {
+        route("/api/auth/google", 401, """{"code":"unauthorized","title":"SEGREDO"}""")
+        try { api().loginWithGoogle("x"); fail("expected failure") }
+        catch (failure: ApiFailure) {
+            assertEquals(401, failure.status)
+            assertEquals(failureMessage(401, "unauthorized", ApiContext.GOOGLE_LOGIN), failure.message)
+            assertTrue(failure.message.orEmpty().contains("vincule")); assertFalse(failure.message.orEmpty().contains("SEGREDO"))
+        }
+        route("/api/auth/google", 503, """{"code":"google-disabled"}""")
+        try { api().loginWithGoogle("x"); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(GOOGLE_DISABLED_MESSAGE, failure.message) }
+    }
+
+    @Test fun googleLoginRefusesANonPatientAccount() = runBlocking {
+        route("/api/auth/google", 200, """{"token":"t","expiresAt":"2099-01-01T00:00:00Z","user":{"id":"i","fullName":"n","scope":"obs"}}""")
+        try { api().loginWithGoogle("x"); fail("expected failure") }
+        catch (failure: ApiFailure) { assertEquals(403, failure.status) }
+    }
+
+    // ---- Push ------------------------------------------------------------------------------------------------------
+
+    @Test fun pushTokenGoesInTheBodyOnRegisterAndRemoveNeverInTheUrl() = runBlocking {
+        route("/api/patient/devices", 204, "")
+        api().registerPushToken("t", "fcm-token-de-teste")
+        assertEquals("POST", lastMethod); assertEquals("/api/patient/devices", lastUri); assertEquals("Bearer t", lastAuthorization)
+        org.json.JSONObject(lastBody).let { assertEquals("fcm-token-de-teste", it.getString("token")); assertEquals("android", it.getString("platform")); assertEquals(2, it.length()) }
+        route("/api/patient/devices/remove", 204, "")
+        api().removePushToken("t", "fcm-token-de-teste")
+        assertEquals("POST", lastMethod); assertEquals("/api/patient/devices/remove", lastUri); assertFalse(lastUri.contains("fcm-token"))
+        assertEquals("""{"token":"fcm-token-de-teste"}""", lastBody)
+    }
+
+    @Test fun pushEnabledReadsTheServerFlag() = runBlocking {
+        route("/api/patient/devices/push", 200, """{"enabled":false}""")
+        assertFalse(api().pushEnabled("t")); assertEquals("GET", lastMethod)
+        route("/api/patient/devices/push", 200, """{"enabled":true}""")
+        assertTrue(api().pushEnabled("t"))
+    }
 }

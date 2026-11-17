@@ -93,3 +93,6 @@ fun flashOpenDecision(unitId: String, dependentId: String?, state: PatientState)
     val needsChange = state.actingFor != null || state.selectedUnitId != unitId
     return if (state.busy && needsChange) FlashOpen.WAIT else FlashOpen.OPEN_OWN
 }
+
+/** "Remover UBS" é uma ação do próprio responsável sobre o vínculo dele: só aparece com sessão, uma UBS selecionada e agindo por si. */
+fun canRemoveUnit(state: PatientState, selected: PatientHealthUnit?): Boolean = state.session != null && selected != null && state.actingFor == null

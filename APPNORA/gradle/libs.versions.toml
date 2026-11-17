@@ -9,6 +9,10 @@ androidxJunit = "1.3.0"
 androidxEspresso = "3.7.0"
 androidxTestRunner = "1.7.0"
 screenshot = "0.0.1-alpha16"
+credentials = "1.6.0"
+googleid = "1.2.1"
+firebaseBom = "35.2.0"
+googleServices = "4.6.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -25,8 +29,14 @@ androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", vers
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-compose-tooling = { module = "androidx.compose.ui:ui-tooling" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
+google-googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 screenshot = { id = "com.android.compose.screenshot", version.ref = "screenshot" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

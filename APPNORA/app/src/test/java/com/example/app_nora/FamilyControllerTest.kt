@@ -443,6 +443,20 @@ class FamilyControllerTest {
         assertFalse(controller.state.records.loading)
     }
 
+    @Test fun aForbiddenAttendanceReadWhileActingRereadsTheLinks() = runBlocking {
+        val api = FamilyFakeApi()
+        val controller = withDependent(api)
+        controller.switchActing("dep-1")
+        assertEquals(1, api.callsOf("own.dependents").size)
+        // A equipe encerrou o vínculo: a participação do dependente (também da Jornada) responde 403 e os vínculos precisam ser relidos.
+        api.links = mutableListOf(link("dep-1", "ended", "unit-b", "UBS B"))
+        api.depFailure = failure(403, "forbidden", ApiContext.UNIT)
+        controller.loadAttendance()
+        assertEquals("os vínculos são relidos", 2, api.callsOf("own.dependents").size)
+        assertNull("sem vínculo aprovado volta a agir por si", controller.state.actingFor)
+        assertFalse(controller.state.attendanceLoading)
+    }
+
     @Test fun aForbiddenAvailabilityReadThatEndsTheLinkDoesNotLeaveTheDependentsErrorOnTheOwnView() = runBlocking {
         val api = FamilyFakeApi()
         val controller = withDependent(api)

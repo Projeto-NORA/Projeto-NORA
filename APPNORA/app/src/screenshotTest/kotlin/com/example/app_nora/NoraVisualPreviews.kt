@@ -29,6 +29,9 @@ import com.example.app_nora.ui.FlashScreen
 import com.example.app_nora.ui.LocalClockMillis
 import com.example.app_nora.ui.NoraPatientContent
 import com.example.app_nora.ui.NoraTheme
+import com.example.app_nora.ui.GoogleActions
+import com.example.app_nora.ui.StepList
+import com.example.app_nora.ui.UnitAboutCard
 
 // Visual fixtures only: never instantiated by the application or sent to an API.
 // The clock is fixed so countdowns and "next appointment" never change between runs.
@@ -488,3 +491,54 @@ fun BookingActingDark() = PlainScreen(Appearance.DARK) {
     BookingScreen(booking().copy(units = listOf(norte), selectedUnitId = norte.id, family = FamilyState(listOf(mariaLink)), actingFor = mariaLink.id),
         {}, {}, {}, { _, _ -> }, {}, {}, actingName = "Maria · fixture visual")
 }
+
+// ---- Atendimento da UBS, passos de uma operação e conta Google ---------------------------------------------------
+
+private val aboutFixture = UnitProfile(centro.id, true,
+    listOf(OpeningInterval(1, "08:00", "12:00"), OpeningInterval(1, "13:00", "17:00"), OpeningInterval(2, "08:00", "17:00"),
+        OpeningInterval(3, "08:00", "12:00"), OpeningInterval(4, "08:00", "17:00"), OpeningInterval(5, "08:00", "12:00"), OpeningInterval(6, "08:00", "11:00")),
+    "Vacinação\nCurativos\nTeste do pezinho (agendar na recepção)", listOf(Specialty("s1", "Clínica Geral · fixture"), Specialty("s2", "Pediatria · fixture"),
+        Specialty("s3", "Ginecologia · fixture")), at(-3_600))
+
+@PreviewTest
+@Preview(name = "49 Atendimento da UBS horario por dia clara", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun UnitAboutLight() = PlainScreen(Appearance.LIGHT) { UnitAboutCard(centro.name, AboutState(aboutFixture), onRetry = {}, today = 1) }
+
+@PreviewTest
+@Preview(name = "50 Atendimento nao informado escura", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun UnitAboutNotInformedDark() = PlainScreen(Appearance.DARK) {
+    UnitAboutCard(centro.name, AboutState(UnitProfile(centro.id, false, emptyList(), null, emptyList(), null)), onRetry = {}, today = 1)
+}
+
+@PreviewTest
+@Preview(name = "51 Atendimento carregando e falha clara", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun UnitAboutLoadingAndErrorLight() = PlainScreen(Appearance.LIGHT) {
+    UnitAboutCard(centro.name, AboutState(loading = true), onRetry = {}, today = 1)
+    UnitAboutCard(norte.name, AboutState(error = "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."), onRetry = {}, today = 1)
+}
+
+@PreviewTest
+@Preview(name = "52 Entrada com botao do Google escura", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun LoginGoogleDark() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, PatientState(address = "https://unidade.example.test"), onLogin = { _, _ -> },
+        google = GoogleActions(webClientId = "cliente-web-fixture-visual"))
+}
+
+@PreviewTest
+@Preview(name = "53 Passos concluido atual e falho clara", widthDp = 400, heightDp = 700, locale = "pt-rBR")
+@Composable
+fun StepListLight() = PlainScreen(Appearance.LIGHT) {
+    StepList(ProgressSteps().begin("Abrindo o Google…").begin("Entrando no NORA…"))
+    StepList(ProgressSteps().begin("Abrindo o Google…").begin("Vinculando a conta Google…").fail("Vinculando a conta Google…"))
+}
+
+@PreviewTest
+@Preview(name = "54 Configuracoes com conta Google vinculada escura", widthDp = 400, heightDp = 2900, locale = "pt-rBR")
+@Composable
+fun SettingsGoogleLinkedDark() = NoraPatientContent(UserSettings(Appearance.DARK), {},
+    connected(emptyList()).copy(google = GoogleState(GoogleStatus(true, true, "paciente@gmail.example"))),
+    initiallyShowSettings = true, google = GoogleActions(webClientId = "cliente-web-fixture-visual"))

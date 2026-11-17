@@ -56,6 +56,27 @@ internal class FamilyFakeApi : PatientApi {
     var changeFailure: Throwable? = null
     var dependentOffersResult = listOf<DependentOffers>()
 
+    // Agendamento e oferta do próprio paciente (falha única, para os testes de 409)
+    var ownSlots = listOf<AvailableSlot>()
+    var ownFailure: Throwable? = null
+
+    // Serviços e horários da UBS
+    val aboutByUnit = mutableMapOf<String, UnitProfile>()
+    var aboutFailure: Throwable? = null
+    var aboutGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    // Google
+    var googleStatusValue = GoogleStatus(true, false, null)
+    var googleFailure: Throwable? = null
+    var googleLoginFailure: Throwable? = null
+    val googleIdTokens = mutableListOf<String>()
+
+    // Push
+    var pushEnabledValue = true
+    var pushFailure: Throwable? = null
+    var pushRemoveFailure: Throwable? = null
+    var pushRemoveGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     // E-mail
     var suggestion: EmailSuggestion? = null
     var suggestionFailure: Throwable? = null
@@ -82,12 +103,34 @@ internal class FamilyFakeApi : PatientApi {
     override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) { calls += "own.cancelQueue $unitId $entryId" }
     override suspend fun attendance(token: String, unitId: String): UnitAttendance { calls += "own.attendance $unitId"; return UnitAttendance(1, 0, 0, 0.0, 1.0, 12) }
     override suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long): List<AvailableSlot> {
-        calls += "own.availability $unitId $specialtyId"; return emptyList()
+        calls += "own.availability $unitId $specialtyId"; return ownSlots
     }
     override suspend fun bookAppointment(token: String, unitId: String, professionalId: String, specialtyId: String, startsAt: String): PatientAppointment {
-        calls += "own.book $unitId"; error("não esperado")
+        calls += "own.book $unitId"; ownFailure?.let { throw it }; error("não esperado")
     }
-    override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean): OfferResponse { calls += "own.respond $unitId $id"; return OfferResponse(true, "x") }
+    override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean): OfferResponse {
+        calls += "own.respond $unitId $id"; ownFailure?.let { throw it }; return OfferResponse(true, "x")
+    }
+
+    // ---- serviços e horários, Google e push
+    override suspend fun unitAbout(token: String, unitId: String): UnitProfile {
+        calls += "own.about $unitId"; aboutGate?.await(); aboutFailure?.let { throw it }
+        return aboutByUnit[unitId] ?: UnitProfile(unitId, false, emptyList(), null, emptyList(), null)
+    }
+    override suspend fun loginWithGoogle(idToken: String, deviceName: String?): PatientSession {
+        calls += "own.googleLogin"; googleIdTokens += idToken; googleLoginFailure?.let { throw it }
+        return PatientSession("token-google", "2099-01-01T00:00:00Z", PatientUser("patient-id", "Paciente de teste"))
+    }
+    override suspend fun googleStatus(token: String): GoogleStatus { calls += "own.googleStatus"; googleFailure?.let { throw it }; return googleStatusValue }
+    override suspend fun linkGoogle(token: String, idToken: String) {
+        calls += "own.googleLink"; googleIdTokens += idToken; googleFailure?.let { throw it }; googleStatusValue = GoogleStatus(true, true, "paciente@gmail.example")
+    }
+    override suspend fun unlinkGoogle(token: String) { calls += "own.googleUnlink"; googleFailure?.let { throw it }; googleStatusValue = GoogleStatus(true, false, null) }
+    override suspend fun pushEnabled(token: String): Boolean { calls += "own.pushEnabled"; return pushEnabledValue }
+    override suspend fun registerPushToken(token: String, pushToken: String) { calls += "own.pushRegister $pushToken"; pushFailure?.let { throw it } }
+    override suspend fun removePushToken(token: String, pushToken: String) {
+        calls += "own.pushRemove $pushToken"; pushRemoveGate?.await(); pushRemoveFailure?.let { throw it }
+    }
 
     // ---- dependente
     private fun depGate() { depFailure?.let { throw it } }

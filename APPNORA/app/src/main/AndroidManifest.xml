@@ -28,6 +28,20 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-visible authenticated patient connection presence until logout or removal of the app task" />
         </service>
+        <!-- Push do servidor (FCM): só é chamado com app/google-services.json no build. -->
+        <service
+            android:name=".api.NoraMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="nora_push" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_presence" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

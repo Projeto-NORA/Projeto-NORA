@@ -16,3 +16,6 @@
 local.properties
 # Native Layoutlib render outputs; gallery copies live under the root .build/.
 /app/src/screenshotTestDebug/reference/
+
+# Configuração do Firebase (push): fora do Git
+/app/google-services.json
