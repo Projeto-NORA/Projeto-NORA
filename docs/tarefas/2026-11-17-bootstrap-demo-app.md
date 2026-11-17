@@ -25,11 +25,14 @@ Banco da demo com a UBS, a especialidade e um paciente com conta, e o app do emu
 
 ## Checklist
 
-- [ ] Comando `--demo-bootstrap` em `tests/Nora.Api.Checks` (idempotente, pelos serviços e rotas reais).
-- [ ] Rodar contra o banco da demo e conferir o resultado.
-- [ ] Entrar no app do emulador com o paciente criado.
-- [ ] Registrar o que foi feito e o que falta.
+- [x] Comando `--demo-bootstrap` em `tests/Nora.Api.Checks` (idempotente, pelos serviços e rotas reais).
+- [x] Rodar contra o banco da demo e conferir o resultado.
+- [x] Entrar no app do emulador com o paciente criado.
+- [x] Registrar o que foi feito e o que falta.
 
 ## Estado
 
-- 2026-11-17: tarefa registrada; implementação começando.
+- 2026-11-17: tarefa registrada.
+- `tests/Nora.Api.Checks/DemoBootstrap.cs` (`--demo-bootstrap`) criou, pelo host da API em processo contra `nora_demo`: a especialidade Clínica geral, a UBS Escola Centro, contas de demonstração (Secretaria, administrador da UBS e o paciente Maria Souza), o cadastro de referência, o vínculo do paciente e o acesso à UBS para os administradores OBS que já existiam, inclusive o do usuário. Senhas aleatórias em `%LOCALAPPDATA%\NORA\demo\acesso-demo.txt`, fora do Git. Idempotente.
+- O app do emulador estava conectado a uma API de teste de outra sessão (`--client-fixture`, porta 62489, pasta `nora-app-emulator-setup-f5c52d`). Combinado com essa sessão por mensagem, saí da conta de teste, troquei o endereço para `http://10.0.2.2:5080` e entrei como a paciente da demo (tela "Olá, Maria"), só por `adb input`, sem abrir, fechar nem reinstalar o emulador. A fixture e o PostgreSQL dela não foram tocados.
+- Ainda não existem profissional, consultório e grade na UBS Escola Centro, então o paciente ainda não vê horários para agendar. O administrador monta isso no OBS, como no roteiro.
