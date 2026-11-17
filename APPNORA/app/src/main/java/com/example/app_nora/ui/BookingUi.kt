@@ -62,7 +62,7 @@ internal fun PresenceConfirmation(appointment: PatientAppointment, now: Long, bu
 @Composable
 private fun BookingRules(actingName: String?) {
     SectionCard("Como funciona", "Regras do agendamento pelo aplicativo") {
-        MutedText("Você pode marcar horários de 24 horas até 90 dias à frente.")
+        MutedText("Você pode marcar qualquer horário livre, em qualquer data: não há antecedência mínima nem máxima.")
         MutedText(bookingLimitRuleText(actingName))
         MutedText("A consulta vale na hora: não há aprovação da unidade. Nada é cancelado por falta de confirmação de presença.")
     }
@@ -137,14 +137,16 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
 
     val chosen = specialtyId ?: return
     val now = remember(unit.id, chosen, weekIndex) { clock() }
-    val weekCount = remember(now) { bookingWeekCount(now) }
     val week = remember(now, weekIndex) { bookingWeek(now, weekIndex) }
+    var pickingDate by rememberSaveable(unit.id, subject, specialtyId) { mutableStateOf(false) }
     val result = patient.availability?.takeIf { it.unitId == unit.id && it.specialtyId == chosen && it.week == weekIndex }
-    SectionCard("3. Escolha o dia e o horário", week?.let { "Semana de ${formatWeekRange(it)}" } ?: "Fora do período de agendamento") {
+    SectionCard("3. Escolha o dia e o horário", week?.let { "Semana de ${formatWeekRange(it)}" } ?: "Escolha uma data") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { weekIndex-- }, enabled = weekIndex > 0, modifier = Modifier.weight(1f)) { Text("Semana anterior") }
-            OutlinedButton(onClick = { weekIndex++ }, enabled = weekIndex + 1 < weekCount, modifier = Modifier.weight(1f)) { Text("Próxima semana") }
+            OutlinedButton(onClick = { weekIndex++ }, modifier = Modifier.weight(1f)) { Text("Próxima semana") }
         }
+        OutlinedButton(onClick = { pickingDate = true }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Escolher outra data") }
+        if (pickingDate) BookingDatePicker(now, onPick = { dayStart -> weekIndex = bookingWeekIndexFor(dayStart, now); pickingDate = false }, onDismiss = { pickingDate = false })
         if (result == null) {
             if (patient.availabilityLoading) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -156,8 +158,7 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
         } else {
             val days = remember(result, now) { groupSlotsByDay(result.slots, now) }
             if (days.isEmpty()) {
-                MutedText("Nenhum horário livre nesta semana para esta especialidade nesta UBS." +
-                    if (weekIndex + 1 < weekCount) " Veja a próxima semana." else "")
+                MutedText("Nenhum horário livre nesta semana para esta especialidade nesta UBS. Veja a próxima semana ou escolha outra data.")
             } else {
                 val shown = days.firstOrNull { it.dayStart == chosenDay } ?: days.first()
                 Text("Dia", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
@@ -205,4 +206,20 @@ internal fun BookedCard(unitName: String, appointment: PatientAppointment, onOpe
         Button(onClick = onOpenAppointments, modifier = Modifier.fillMaxWidth()) { Text("Ver minhas consultas") }
         OutlinedButton(onClick = onAnother, modifier = Modifier.fillMaxWidth()) { Text("Agendar outra especialidade") }
     }
+}
+
+/** Seletor de data do agendamento: só hoje em diante, até o ano 2100; devolve o início do dia escolhido no calendário do aparelho. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookingDatePicker(now: Long, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+    val today = java.util.Calendar.getInstance().apply { timeInMillis = now }.get(java.util.Calendar.YEAR)
+    val state = rememberDatePickerState(selectableDates = object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean = isDayBookable(localDayFromPicker(utcTimeMillis), now)
+        override fun isSelectableYear(year: Int): Boolean = year in today..2100
+    })
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onPick(localDayFromPicker(it)) } }, enabled = state.selectedDateMillis != null) { Text("Ver horários") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    ) { DatePicker(state = state) }
 }

@@ -112,7 +112,7 @@ interface PatientApi {
     suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact = throw ApiFailure(501, "Remoção indisponível.")
     suspend fun changePassword(token: String, currentPassword: String, newPassword: String): Unit = throw ApiFailure(501, "Troca de senha indisponível.")
     suspend fun specialties(token: String): List<Specialty> = throw ApiFailure(501, "Especialidades indisponíveis.")
-    /** Horários livres no intervalo [fromMillis, toMillis); o servidor ainda recorta a janela de 24 h a 90 dias. */
+    /** Horários livres no intervalo [fromMillis, toMillis); o servidor só recorta o que já começou (não há antecedência mínima nem máxima). */
     suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long): List<AvailableSlot> =
         throw ApiFailure(501, "Horários indisponíveis.")
     suspend fun bookAppointment(token: String, unitId: String, professionalId: String, specialtyId: String, startsAt: String): PatientAppointment =

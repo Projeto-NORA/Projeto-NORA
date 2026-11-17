@@ -7,7 +7,7 @@ A Fase 3 fechou o grupo 3 (P-030, P-036 e P-037 resolvidas; commits `69dc3ef`, `
 **Fechado na Fase 3.**
 
 - Agenda pelo catálogo: a Secretaria mantém a lista única de especialidades da rede; o administrador da UBS cadastra profissionais e consultórios, monta a grade semanal e lança bloqueios por data (o atendente só lê). Com ao menos um profissional ativo a UBS passa a marcar pelo catálogo, só em horários livres da grade.
-- Agendamento e presença pelo paciente: o app marca de 24 h a 90 dias antes, com no máximo uma consulta futura marcada pelo app por especialidade na rede, e confirma presença de 48 h a 2 h antes da consulta.
+- Agendamento e presença pelo paciente: o app marca qualquer horário livre e futuro, sem antecedência mínima nem máxima (decisão de 2026-11-17; antes era de 24 h a 90 dias), com no máximo uma consulta futura marcada pelo app por especialidade na rede, e confirma presença de 48 h a 2 h antes da consulta.
 - Capacidade (ocupação da grade) por UBS e na rede, consultórios ativos da UBS no OBS, metas da rede com sobrescrita por UBS (status cumprida, perto, fora ou sem dado) e alertas avaliados pela API nos cinco critérios decididos, no OBS e na Secretaria.
 - Comunicados da Secretaria para equipes e pacientes, por rede, região ou UBS, com leituras; Jornada com exames e vacinas lançados pelo OBS e lidos pelo paciente.
 - Família: o responsável pede o vínculo com um dependente numa UBS, a equipe aprova ou recusa, e o responsável age pelo dependente naquela UBS (consultas, agendamento, presença, fila, Vaga Relâmpago, Jornada e participação); o dependente sem conta também recebe ofertas.

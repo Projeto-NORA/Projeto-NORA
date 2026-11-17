@@ -340,7 +340,7 @@ public sealed class NoraApiClient : IDisposable
             "slot-unavailable" => "Esse horário não está mais livre. Escolha outro horário da lista.",
             "patient-overlap" => "O paciente já tem uma consulta que cruza este horário. Escolha outro horário ou cancele a outra consulta.",
             "specialty-limit" => "O paciente já tem uma consulta futura marcada pelo aplicativo nesta especialidade.",
-            "booking-window" => "O agendamento pelo aplicativo vale de 24 horas até 90 dias antes do horário.",
+            "booking-window" => "Esse horário já começou ou passou. Escolha outro horário.",
             "confirmation-window" => "A presença é confirmada de 48 horas até 2 horas antes da consulta.",
             "family-link-closed" => "Este pedido já foi decidido, cancelado ou encerrado por outra pessoa. Atualize a lista.",
             "dependent-inactive" => "O cadastro do dependente está desativado nesta UBS. Reative o cadastro dele antes de aprovar o vínculo.",

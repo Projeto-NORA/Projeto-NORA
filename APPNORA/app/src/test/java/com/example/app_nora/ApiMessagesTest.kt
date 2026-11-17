@@ -60,7 +60,7 @@ class ApiMessagesTest {
         for (code in codes) assertEquals(code, knownProblemCode(code))
         val texts = codes.map { failureMessage(409, it, ApiContext.BOOKING) }
         assertEquals(codes.size, texts.toSet().size)
-        assertTrue(texts[0].contains("24 horas") && texts[0].contains("90 dias"))
+        assertTrue(texts[0].contains("já começou ou passou") && !texts[0].contains("24 horas") && !texts[0].contains("90 dias"))
         assertTrue(texts[1].contains("nesta especialidade") && texts[1].contains("UBS"))
         assertTrue(texts[2].contains("ocupado"))
         assertTrue(texts[3].contains("mesmo horário"))

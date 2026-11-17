@@ -111,7 +111,7 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         GOOGLE_ALREADY_LINKED -> "Esta conta Google já está vinculada a outra conta do NORA. Use outra conta Google ou procure a equipe da UBS."
         INVALID_CURRENT_PASSWORD -> "A senha atual está incorreta."
         PASSWORD_CHANGE_REQUIRED -> PASSWORD_CHANGE_REQUIRED_MESSAGE
-        BOOKING_WINDOW -> "Só é possível marcar de 24 horas até 90 dias antes do horário. Escolha outro horário."
+        BOOKING_WINDOW -> "Esse horário já começou ou passou. Escolha outro horário."
         SPECIALTY_LIMIT ->
             if (acting) "Esta pessoa já tem uma consulta futura marcada pelo app nesta especialidade. Cancele essa consulta ou aguarde a data dela para marcar outra."
             else "Você já tem uma consulta futura marcada pelo app nesta especialidade, em alguma das suas UBS. " +

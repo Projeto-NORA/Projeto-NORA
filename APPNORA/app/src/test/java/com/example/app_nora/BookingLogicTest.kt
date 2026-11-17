@@ -11,7 +11,7 @@ class BookingLogicTest {
     private val utc: TimeZone = TimeZone.getTimeZone("UTC")
     private val hour = 3_600_000L
     private val day = 24 * hour
-    // Segunda-feira, 12:00 UTC: a janela abre na terça às 12:00 e fecha 90 dias depois.
+    // Segunda-feira, 12:00 UTC. Não há janela de agendamento: qualquer horário futuro, em qualquer data, pode ser marcado.
     private val now = requireNotNull(parseInstantMillis("2026-11-16T12:00:00Z"))
 
     private fun slot(startMillis: Long, professional: String = "Ana", id: String = "p1") =
@@ -22,51 +22,70 @@ class BookingLogicTest {
 
     // ---- Janela de agendamento ----------------------------------------------------------------------------
 
-    @Test fun bookingWindowIncludesBothLimits() {
-        assertFalse(isBookable(now + 24 * hour - 1, now))
-        assertTrue(isBookable(now + 24 * hour, now))
-        assertTrue(isBookable(now + 90 * day, now))
-        assertFalse(isBookable(now + 90 * day + 1, now))
+    @Test fun anyFutureTimeIsBookableAndOnlyThePastIsNot() {
         assertFalse(isBookable(now - 1, now))
-        assertTrue(isBookable(now + 30 * day, now))
+        assertFalse(isBookable(now, now))
+        assertTrue(isBookable(now + 1, now))
+        assertTrue(isBookable(now + hour, now))
+        assertTrue(isBookable(now + 24 * hour, now))
+        assertTrue(isBookable(now + 90 * day + 1, now))
+        assertTrue(isBookable(now + 500 * day, now))
     }
 
-    @Test fun firstWeekStartsExactlyWhereTheWindowOpensAndLastEndsWhereItCloses() {
+    @Test fun firstWeekStartsNowAndEndsAtTheNextWeekBoundary() {
         val first = requireNotNull(bookingWeek(now, 0, utc))
-        assertEquals(now + 24 * hour, first.fromMillis)
-        // A janela abre na terça 17/11 às 12:00; a semana tem sete dias a partir de 17/11 e termina na meia-noite de 24/11.
-        assertEquals(requireNotNull(parseInstantMillis("2026-11-24T00:00:00Z")), first.toMillis)
+        assertEquals(now, first.fromMillis)
+        // A semana 0 começa agora (segunda 16/11 12:00) e termina na meia-noite de 23/11: sete dias do calendário a partir de hoje.
+        assertEquals(requireNotNull(parseInstantMillis("2026-11-23T00:00:00Z")), first.toMillis)
         val second = requireNotNull(bookingWeek(now, 1, utc))
         assertEquals(first.toMillis, second.fromMillis)
         assertEquals(second.fromMillis + 7 * day, second.toMillis)
-        val count = bookingWeekCount(now, utc)
-        val last = requireNotNull(bookingWeek(now, count - 1, utc))
-        assertEquals(now + 90 * day, last.toMillis)
-        assertNull(bookingWeek(now, count, utc))
         assertNull(bookingWeek(now, -1, utc))
     }
 
-    @Test fun weeksCoverTheWholeWindowWithoutGapsOrOverlaps() {
-        val count = bookingWeekCount(now, utc)
-        assertEquals(13, count) // 89 dias de janela: a primeira semana começa pela abertura e a última termina no 90º dia
-        var previousEnd = now + 24 * hour
-        for (index in 0 until count) {
+    @Test fun thereIsNoLastWeekAndWeeksNeverLeaveGapsOrOverlaps() {
+        val far = requireNotNull(bookingWeek(now, 70, utc)) // quase 500 dias à frente
+        assertEquals(requireNotNull(parseInstantMillis("2026-11-16T00:00:00Z")) + 490 * day, far.fromMillis)
+        assertEquals(far.fromMillis + 7 * day, far.toMillis)
+        var previousEnd = now
+        for (index in 0 until 100) {
             val week = requireNotNull(bookingWeek(now, index, utc))
             assertEquals(previousEnd, week.fromMillis)
             assertTrue(week.toMillis - week.fromMillis <= 7 * day)
             previousEnd = week.toMillis
         }
-        assertEquals(now + 90 * day, previousEnd)
-        // Cada requisição cabe com folga no limite de 92 dias do servidor.
-        for (index in 0 until count) assertTrue(requireNotNull(bookingWeek(now, index, utc)).let { it.toMillis - it.fromMillis < 92 * day })
+    }
+
+    @Test fun weekIndexForADateFindsTheWeekThatContainsIt() {
+        assertEquals(0, bookingWeekIndexFor(now, now, utc))
+        assertEquals(0, bookingWeekIndexFor(now - 5 * day, now, utc)) // dia que já passou: semana de hoje
+        assertEquals(0, bookingWeekIndexFor(now + 6 * day, now, utc)) // 22/11
+        assertEquals(1, bookingWeekIndexFor(now + 7 * day, now, utc)) // 23/11
+        assertEquals(71, bookingWeekIndexFor(now + 500 * day, now, utc))
+        // Para qualquer dia até quase dois anos à frente, a semana indicada contém o dia.
+        for (offset in 0..700) {
+            val date = now + offset * day
+            val week = requireNotNull(bookingWeek(now, bookingWeekIndexFor(date, now, utc), utc))
+            assertTrue("dia +$offset fora da semana ${week.index}", date >= week.fromMillis && date < week.toMillis)
+        }
+    }
+
+    @Test fun pickerDatesBecomeTheSameDayOnTheDeviceCalendar() {
+        val saoPaulo = TimeZone.getTimeZone("America/Sao_Paulo")
+        val picked = requireNotNull(parseInstantMillis("2026-12-25T00:00:00Z")) // o seletor devolve a meia-noite UTC do dia
+        assertEquals(picked, localDayFromPicker(picked, utc))
+        // Meia-noite local de 25/12 em São Paulo (UTC-3) é 03:00 UTC.
+        assertEquals(requireNotNull(parseInstantMillis("2026-12-25T03:00:00Z")), localDayFromPicker(picked, saoPaulo))
+        assertTrue(isDayBookable(localDayFromPicker(requireNotNull(parseInstantMillis("2026-11-16T00:00:00Z")), utc), now, utc)) // hoje
+        assertFalse(isDayBookable(localDayFromPicker(requireNotNull(parseInstantMillis("2026-11-15T00:00:00Z")), utc), now, utc)) // ontem
     }
 
     @Test fun weeksFollowTheDeviceCalendarDay() {
         val saoPaulo = TimeZone.getTimeZone("America/Sao_Paulo")
         val first = requireNotNull(bookingWeek(now, 0, saoPaulo))
-        assertEquals(now + 24 * hour, first.fromMillis)
-        // 17/11 09:00 em São Paulo; a semana termina na meia-noite local de 24/11 (03:00 UTC).
-        assertEquals(requireNotNull(parseInstantMillis("2026-11-24T03:00:00Z")), first.toMillis)
+        assertEquals(now, first.fromMillis)
+        // 16/11 09:00 em São Paulo; a semana termina na meia-noite local de 23/11 (03:00 UTC).
+        assertEquals(requireNotNull(parseInstantMillis("2026-11-23T03:00:00Z")), first.toMillis)
     }
 
     // ---- Horários por dia -----------------------------------------------------------------------------------
@@ -84,13 +103,14 @@ class BookingLogicTest {
         assertEquals(listOf(tuesday + hour, tuesday + hour, tuesday + 3 * hour), days[0].slots.map { it.startsAtMillis })
     }
 
-    @Test fun slotsOutsideTheWindowOrUnreadableAreNeverOffered() {
-        val ok = slot(now + 24 * hour)
-        val tooSoon = slot(now + 24 * hour - 60_000)
-        val tooFar = slot(now + 90 * day + 60_000)
+    @Test fun slotsThatAlreadyStartedOrAreUnreadableAreNeverOffered() {
+        val soon = slot(now + 60_000) // faltando um minuto: vale, não há antecedência mínima
+        val far = slot(now + 500 * day) // quase 500 dias: vale, não há antecedência máxima
+        val started = slot(now - 60_000)
+        val startsNow = slot(now)
         val broken = AvailableSlot("sem-data", "sem-data", "p1", "Dra. Ana", "s1", "Cardiologia")
-        val days = groupSlotsByDay(listOf(tooFar, broken, ok, tooSoon), now, utc)
-        assertEquals(listOf(ok), days.single().slots)
+        val days = groupSlotsByDay(listOf(far, broken, started, startsNow, soon), now, utc)
+        assertEquals(listOf(soon, far), days.flatMap { it.slots })
         assertTrue(groupSlotsByDay(emptyList(), now, utc).isEmpty())
     }
 

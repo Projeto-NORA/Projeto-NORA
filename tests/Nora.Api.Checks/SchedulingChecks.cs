@@ -398,33 +398,38 @@ internal static class SchedulingChecks
         });
 
         // ======== 6. Agendamento pelo paciente ========
-        await Check("Paciente: disponibilidade só de 24 h a 90 dias; outro paciente, UBS não vinculada e sem sessão são recusados", async () =>
+        await Check("Paciente: disponibilidade de qualquer horário livre e futuro, sem antecedência mínima nem máxima; outro paciente, UBS não vinculada e sem sessão são recusados", async () =>
         {
-            // Terça: 08:30 (11:30Z, 23,5 h à frente), 09:00 (12:00Z = exatamente 24 h) e 09:30. O paciente não vê o de 23,5 h; a equipe vê.
+            // Terça: 08:30 (11:30Z, 23,5 h à frente), 09:00 (12:00Z = exatamente 24 h) e 09:30. Paciente e equipe veem os três: não há antecedência mínima.
             const string tueFrom = "2026-11-17T00:00:00Z", tueTo = "2026-11-18T00:00:00Z";
             Require((await Slots(f.Attendant, u1, tueFrom, tueTo, cardiology)).Select(StartOf).SequenceEqual(["11:30", "12:00", "12:30"]), "A equipe vê o atendimento de 23,5 h.");
-            Require((await Slots(f.Patients[1], u1, tueFrom, tueTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00", "12:30"]), "O paciente só vê atendimentos a partir de 24 h (limite incluído).");
-            // 90 dias: domingo 2027-02-14 09:00 local = 12:00Z = agora + 90 dias exatos; o de 09:30 passa do limite.
-            Require((await Slots(f.Patients[1], u1, "2027-02-14T00:00:00Z", "2027-02-15T00:00:00Z", cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00"]), "O paciente vê o atendimento de exatamente 90 dias e não o seguinte.");
-            Require((await Slots(f.Attendant, u1, "2027-02-14T00:00:00Z", "2027-02-15T00:00:00Z", cardiology)).Count == 2, "A equipe não tem limite de 90 dias na disponibilidade.");
-            Require((await Slots(f.Patients[1], u1, "2027-02-15T00:00:00Z", "2027-02-16T00:00:00Z", cardiology, null, "patient")).Count == 0, "Depois de 90 dias não há atendimento para o paciente.");
+            Require((await Slots(f.Patients[1], u1, tueFrom, tueTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(["11:30", "12:00", "12:30"]), "O paciente vê o mesmo que a equipe, inclusive o atendimento de 23,5 h.");
+            // Domingo 2027-02-14 09:00 local = 12:00Z = agora + 90 dias exatos: o paciente vê o atendimento dessa data e o seguinte (não há antecedência máxima).
+            Require((await Slots(f.Patients[1], u1, "2027-02-14T00:00:00Z", "2027-02-15T00:00:00Z", cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00", "12:30"]), "O paciente vê os atendimentos de 90 dias e não só o primeiro.");
+            Require((await Slots(f.Attendant, u1, "2027-02-14T00:00:00Z", "2027-02-15T00:00:00Z", cardiology)).Count == 2, "A equipe também não tem limite de 90 dias na disponibilidade.");
+            // 498 dias depois de T0 é uma terça-feira (2028-03-28): o paciente vê os mesmos atendimentos que a equipe, quase 500 dias adiante.
+            var farDay = T0.AddDays(498); Require(farDay.DayOfWeek == DayOfWeek.Tuesday, "498 dias depois de T0 deveria ser terça-feira.");
+            string farFrom = farDay.ToString("yyyy-MM-dd") + "T00:00:00Z", farTo = farDay.AddDays(1).ToString("yyyy-MM-dd") + "T00:00:00Z";
+            var farStaff = (await Slots(f.Attendant, u1, farFrom, farTo, cardiology)).Select(StartOf).ToList();
+            Require(farStaff.Count > 0 && (await Slots(f.Patients[1], u1, farFrom, farTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(farStaff), "Quase 500 dias à frente o paciente vê os atendimentos livres, como a equipe.");
             using (var other = await f.Patients[2].GetAsync($"/api/patient/units/{u2}/availability?from={tueFrom}&to={tueTo}&specialtyId={cardiology}")) Expect(other, 403);
             using (var anonymous = await f.Anonymous.GetAsync($"/api/patient/units/{u1}/availability?from={tueFrom}&to={tueTo}&specialtyId={cardiology}")) Expect(anonymous, 401);
             using (var staff = await f.Attendant.GetAsync($"/api/patient/units/{u1}/availability?from={tueFrom}&to={tueTo}&specialtyId={cardiology}")) Expect(staff, 403);
             using (var badRequest = await f.Patients[1].GetAsync($"/api/patient/units/{u1}/availability?from={tueTo}&to={tueFrom}&specialtyId={cardiology}")) Expect(badRequest, 400);
             // Atendimento ocupado some também para o paciente.
-            Require((await Slots(f.Patients[1], u1, WedFrom, WedTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00"]), "O paciente vê o mesmo que a equipe (menos o que está a menos de 24 h).");
+            Require((await Slots(f.Patients[1], u1, WedFrom, WedTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00"]), "O paciente vê o mesmo que a equipe.");
         });
 
 
         Task<HttpResponseMessage> Book(int patient, Guid unit, Guid professional, Guid specialty, string startsAt) =>
             f.Patients[patient].PostAsJsonAsync($"/api/patient/units/{unit}/appointments", new { professionalId = professional, specialtyId = specialty, startsAt });
 
-        await Check("Paciente agenda: vale na hora, source patient, bordas de 24 h e de 90 dias, uma por especialidade na rede, outra UBS, cancelamento libera e consultas da equipe não contam", async () =>
+        await Check("Paciente agenda: vale na hora, source patient, só o passado é recusado (sem antecedência mínima nem máxima), uma por especialidade na rede, outra UBS, cancelamento libera e consultas da equipe não contam", async () =>
         {
-            // Janela inferior: 11:30Z (23,5 h) recusa; 12:00Z (24 h exatas) vale; com o relógio 1 s adiante o de 24 h exatas já não vale.
-            using (var tooSoon = await Book(1, u1, ana, cardiology, "2026-11-17T11:30:00Z")) await ExpectProblem(tooSoon, 409, "booking-window");
-            f.Clock.Set(T0.AddSeconds(1)); using (var oneSecondLate = await Book(1, u1, ana, cardiology, "2026-11-17T12:00:00Z")) await ExpectProblem(oneSecondLate, 409, "booking-window"); f.Clock.Set(T0);
+            // Só o passado é recusado pela janela: um horário que já passou ou que começa agora (T0 = 12:00Z). Um horário um segundo adiante já passa pela janela e é julgado pela grade.
+            using (var past = await Book(1, u1, ana, cardiology, "2026-11-16T11:30:00Z")) await ExpectProblem(past, 409, "booking-window");
+            using (var startsNow = await Book(1, u1, ana, cardiology, "2026-11-16T12:00:00Z")) await ExpectProblem(startsNow, 409, "booking-window");
+            using (var oneSecondAhead = await Book(1, u1, ana, cardiology, "2026-11-16T12:00:01Z")) await ExpectProblem(oneSecondAhead, 409, "slot-unavailable");
             Require(await f.UnitScalarAsync<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE booked_by='patient'") == 0, "Recusas não gravam consulta.");
             Guid tueAppointment;
             using (var tue = await Book(1, u1, ana, cardiology, "2026-11-17T12:00:00Z"))
@@ -433,7 +438,7 @@ internal static class SchedulingChecks
                 Require(body.GetProperty("bookedBy").GetString() == "patient" && body.GetProperty("status").GetString() == "scheduled" && body.GetProperty("cpf").GetString() == Cpf(1) && body.GetProperty("confirmedAt").ValueKind == JsonValueKind.Null && body.GetProperty("professionalId").GetGuid() == ana, "Consulta do paciente incorreta.");
             }
             Require(await f.UnitScalarAsync<string>(u1, "SELECT source FROM nora_unit.appointment_events WHERE appointment_id=$1", tueAppointment) == "patient" && await f.UnitScalarAsync<Guid>(u1, "SELECT room_id FROM nora_unit.appointments WHERE id=$1", tueAppointment) == room1, "Evento 'patient' e consultório da consulta.");
-            Require((await Slots(f.Patients[2], u1, "2026-11-17T00:00:00Z", "2026-11-18T00:00:00Z", cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:30"]), "O horário reservado sai da lista dos demais pacientes.");
+            Require((await Slots(f.Patients[2], u1, "2026-11-17T00:00:00Z", "2026-11-18T00:00:00Z", cardiology, null, "patient")).Select(StartOf).SequenceEqual(["11:30", "12:30"]), "O horário reservado (12:00) sai da lista dos demais pacientes e o de 11:30, antes escondido por estar a menos de 24 h, aparece.");
             // Limite: P1 já tem Cardiologia marcada pelo app; outra na mesma UBS e na outra UBS é recusada; outra especialidade passa.
             using (var second = await Book(1, u1, ana, cardiology, "2026-11-17T12:30:00Z")) await ExpectProblem(second, 409, "specialty-limit");
             using (var otherUnit = await Book(1, u2, f.Carla, cardiology, "2026-11-22T12:00:00Z")) await ExpectProblem(otherUnit, 409, "specialty-limit");
@@ -445,10 +450,10 @@ internal static class SchedulingChecks
             using (var blockedAgain = await Book(1, u1, ana, cardiology, "2026-11-22T12:30:00Z")) await ExpectProblem(blockedAgain, 409, "specialty-limit");
             // Consulta marcada pela equipe não conta no limite: P2 tem Cardiologia da equipe (quarta 11:00) e marca pelo app.
             using (var staffDoesNotCount = await Book(2, u1, ana, cardiology, "2026-11-29T12:00:00Z")) Expect(staffDoesNotCount, 201);
-            // 90 dias: 12:30Z do domingo 2027-02-14 passa do limite; o de 12:00Z, no instante exato, vale; com o relógio 1 s antes passaria de 90 dias.
-            using (var tooFar = await Book(3, u1, ana, cardiology, "2027-02-14T12:30:00Z")) await ExpectProblem(tooFar, 409, "booking-window");
-            f.Clock.Set(T0.AddSeconds(-1)); using (var justFar = await Book(3, u1, ana, cardiology, "2027-02-14T12:00:00Z")) await ExpectProblem(justFar, 409, "booking-window"); f.Clock.Set(T0);
-            using (var ninety = await Book(3, u1, ana, cardiology, "2027-02-14T12:00:00Z")) Expect(ninety, 201);
+            // Sem antecedência mínima: 11:30Z da terça (23,5 h à frente) vale. Sem antecedência máxima: 12:30Z do domingo 2027-02-14 (mais de 90 dias) e uma terça a 498 dias (quase 500) valem.
+            using (var soonEnough = await Book(12, u1, ana, cardiology, "2026-11-17T11:30:00Z")) Expect(soonEnough, 201);
+            using (var beyondNinety = await Book(3, u1, ana, cardiology, "2027-02-14T12:30:00Z")) Expect(beyondNinety, 201);
+            using (var nearlyFiveHundred = await Book(13, u1, ana, cardiology, T0.AddDays(498).ToString("yyyy-MM-dd") + "T12:00:00Z")) Expect(nearlyFiveHundred, 201);
             // Autorização e validação.
             using (var notLinked = await Book(2, u2, f.Carla, clinical, "2026-11-17T12:30:00Z")) Expect(notLinked, 403);
             using (var anonymous = await f.Anonymous.PostAsJsonAsync($"/api/patient/units/{u1}/appointments", new { professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-24T12:00:00Z" })) Expect(anonymous, 401);
@@ -462,7 +467,7 @@ internal static class SchedulingChecks
             using (var list = await f.Attendant.GetAsync($"/api/obs/units/{u1}/appointments?from=2026-11-01T00:00:00Z&to=2027-03-01T00:00:00Z"))
             {
                 Expect(list, 200); var items = (await Read(list)).EnumerateArray().ToList();
-                Require(items.Count(i => i.GetProperty("bookedBy").GetString() == "patient") == 3 && items.Count(i => i.GetProperty("bookedBy").GetString() == "staff") >= 3, "A listagem do OBS traz bookedBy (patient, staff).");
+                Require(items.Count(i => i.GetProperty("bookedBy").GetString() == "patient") == 4 && items.Count(i => i.GetProperty("bookedBy").GetString() == "staff") >= 3, "A listagem do OBS traz bookedBy (patient, staff); a consulta de 2028 fica fora do período pedido.");
             }
         });
 
@@ -789,8 +794,8 @@ internal static class SchedulingChecks
             using (var grant = await f.Municipal.PutAsync($"/api/municipal/staff/{attendant.Id}/units/{f.Unit1}", null)) Expect(grant, 204);
             // A atendente só entra em computador ativado da UBS dela.
             await ObsDeviceHelper.ActivateAndLoginAsync(f.Admin, f.Attendant, f.Unit1, "atendente@example.test", Password);
-            // P1, P4 e P5 vivem nas duas primeiras UBS; os demais só na UBS 1.
-            foreach (var number in Enumerable.Range(1, 11))
+            // P1, P4 e P5 vivem nas duas primeiras UBS; os demais só na UBS 1 (P12 e P13 existem só para as provas de marcação sem antecedência mínima nem máxima).
+            foreach (var number in Enumerable.Range(1, 13))
             {
                 var units = number is 1 or 4 or 5 ? new[] { f.Unit1, f.Unit2 } : [f.Unit1];
                 await accounts.ProvisionAsync("patient", "patient", new($"Paciente Agenda {number}", Cpf(number), $"agenda{number}@example.test", Password));

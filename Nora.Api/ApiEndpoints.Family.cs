@@ -51,7 +51,7 @@ internal static partial class ApiEndpoints
             return Results.Ok(await access.ExecuteGuardianAsync(session, dependentId, unitId, cpf => dao.ConfirmAsync(unitId, cpf, id, ct, session.User.Id), ct));
         }).AddEndpointFilter(new SchedulingRateLimitFilter(SchedulingRateLimiter.Confirmation));
         patient.MapGet(d + "/availability", async (Guid dependentId, Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, HttpContext context, UnitAccessService access, SchedulingService service, CancellationToken ct) =>
-            Results.Ok(new { slots = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, _ => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, true, ct), ct) }))
+            Results.Ok(new { slots = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, _ => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, ct), ct) }))
             .AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
         patient.MapGet(d + "/waiting-list", async (Guid dependentId, Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
             Results.Ok(new { entries = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }))

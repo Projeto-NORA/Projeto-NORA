@@ -63,7 +63,7 @@ internal static partial class ApiEndpoints
         });
 
         obs.MapGet("/obs/units/{unitId:guid}/availability", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, HttpContext context, UnitAccessService access, SchedulingService service, CancellationToken ct) =>
-            Results.Ok(new { slots = await access.ExecuteAsync(Session(context), unitId, () => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, false, ct), ct) }));
+            Results.Ok(new { slots = await access.ExecuteAsync(Session(context), unitId, () => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, ct), ct) }));
         obs.MapGet("/obs/units/{unitId:guid}/active-rooms", async (Guid unitId, HttpContext context, UnitAccessService access, SchedulingService service, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => service.ReadActiveRoomsAsync(unitId, ct), ct, read: true)));
         obs.MapGet("/obs/units/{unitId:guid}/alerts", async (Guid unitId, HttpContext context, UnitAccessService access, AlertService alerts, CancellationToken ct) =>
@@ -101,7 +101,7 @@ internal static partial class ApiEndpoints
         var patient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient"));
         patient.MapGet("/patient/specialties", async (SpecialtyDao specialties, CancellationToken ct) => Results.Ok(new { specialties = await specialties.ListAsync(true, ct) }));
         patient.MapGet("/patient/units/{unitId:guid}/availability", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, HttpContext context, UnitAccessService access, SchedulingService service, CancellationToken ct) =>
-            Results.Ok(new { slots = await access.ExecutePatientAsync(Session(context), unitId, _ => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, true, ct), ct) }));
+            Results.Ok(new { slots = await access.ExecutePatientAsync(Session(context), unitId, _ => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, ct), ct) }));
         patient.MapPost("/patient/units/{unitId:guid}/appointments", async (Guid unitId, PatientBookingRequest request, HttpContext context, SchedulingService service, CancellationToken ct) =>
             Results.Json(await service.PatientBookAsync(Session(context), unitId, request, ct), statusCode: StatusCodes.Status201Created))
             .AddEndpointFilter(new SchedulingRateLimitFilter(SchedulingRateLimiter.Booking));
