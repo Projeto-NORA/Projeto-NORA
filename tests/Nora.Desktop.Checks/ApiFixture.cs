@@ -108,6 +108,9 @@ internal static partial class Program
             LastBearer = request.Headers.Authorization?.Parameter;
             var path = request.RequestUri!.AbsolutePath;
             Requests.Add(request.Method + " " + path);
+            var deviceHeader = request.Headers.TryGetValues("X-Nora-Device", out var headerValues) ? headerValues.Single() : null;
+            DeviceHeaders.Add(deviceHeader);
+            if (deviceHeader is not null) DeviceHeaderHosts.Add(request.RequestUri.Host);
             if (path == "/api/auth/login")
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
@@ -115,14 +118,16 @@ internal static partial class Program
                 Scope = body.RootElement.GetProperty("scope").GetString()!;
                 Require(!string.IsNullOrEmpty(body.RootElement.GetProperty("password").GetString()), "Senha não enviada.");
                 var accountName = UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture";
-                return Reply(new LoginSession("fixture-token", DateTimeOffset.UtcNow.AddHours(1), new(AccountId, accountName, Scope == "obs" ? ObsRole : "manager", Scope, MustChangePassword)));
+                return BuildLogin(request, body.RootElement, accountName);
             }
             if (request.Method == HttpMethod.Get && path == "/api/address/cep/01001000")
             {
                 CepLookups++;
                 return Reply(new AddressInfo("01001000", "Praça da Sé", null, null, "Sé", "São Paulo", "SP", "3550308"));
             }
+            if (await HandleDevicePublicAsync(request, path, cancellationToken) is { } devicePublic) return devicePublic;
             Require(LastBearer == "fixture-token", "Rota autenticada sem bearer.");
+            if (RejectDeviceSession(request) is { } deviceRejected) return deviceRejected;
             if (path == "/api/auth/password" && request.Method == HttpMethod.Post)
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
@@ -136,6 +141,8 @@ internal static partial class Program
             if (request.Method == HttpMethod.Get && PauseReads != null) await PauseReads.Task.WaitAsync(cancellationToken);
             if (request.Method == HttpMethod.Get && (FailReads || UnauthorizedReads))
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
+            if (path == "/api/auth/me" && request.Method == HttpMethod.Get)
+                return Reply(new AccountUser(AccountId, UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture", Scope == "obs" ? ObsRole : "manager", Scope, MustChangePassword));
             if (path == "/api/auth/logout") { LogoutCalled = true; return FailLogout ? new(HttpStatusCode.InternalServerError) { Content = new StringContent("private-server-secret") } : new(HttpStatusCode.NoContent); }
             // As próximas leituras da Jornada ficam retidas até o teste liberá-las (ignoram o cancelamento, como um servidor lento).
             if (HoldNextHealthQueries > 0 && request.Method == HttpMethod.Post && path.EndsWith("/health-records/query", StringComparison.Ordinal))
@@ -167,6 +174,7 @@ internal static partial class Program
                 var method = request.Method;
                 if (HandleUnitScheduling(request, unitId, rest, payload) is { } scheduled) return scheduled;
                 if (HandleUnitCommunity(request, unitId, rest, payload) is { } community) return community;
+                if (HandleUnitRound(request, unitId, rest, payload) is { } round) return round;
                 if (route == "registry")
                 {
                     if (method == HttpMethod.Get) return Reply(state.Registry.ToArray());
@@ -388,7 +396,8 @@ internal static partial class Program
                 SummaryQueries.Add(query);
                 if (FailNetwork503) return Problem(HttpStatusCode.ServiceUnavailable, "service-unavailable");
                 var pending = units.Count(unit => unit.DatabasePending);
-                return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending));
+                return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending,
+                    ApprovalCounters?.Awaiting, ApprovalCounters?.Approved, ApprovalCounters?.Timeout, ApprovalCounters?.Discarded));
             }
             using (var schedulingBody = request.Content is null ? null : JsonDocument.Parse(await request.Content.ReadAsStringAsync(cancellationToken)))
                 if (HandleMunicipalScheduling(request, path, query, schedulingBody) is { } municipalScheduled) return municipalScheduled;

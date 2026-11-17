@@ -18,10 +18,11 @@ public partial class ShellWindow : Window
     private readonly ThemeService themes;
     private readonly FullScreenService fullScreen;
     public ShellViewModel ViewModel { get; }
-    public ShellWindow(DesktopProfile profile, string? storageRoot = null, NoraApiClient? api = null)
+    /// <param name="devices">Armazenamento do computador do OBS; o OBS real passa o dele, os testes e a Secretaria não passam nada.</param>
+    public ShellWindow(DesktopProfile profile, string? storageRoot = null, NoraApiClient? api = null, IObsDeviceStore? devices = null)
     {
         themes = new ThemeService(Application.Current);
-        ViewModel = new ShellViewModel(profile, new PreferencesService(profile.Id, storageRoot), themes, api);
+        ViewModel = new ShellViewModel(profile, new PreferencesService(profile.Id, storageRoot), themes, api, devices);
         InitializeComponent();
         DataContext = ViewModel;
         fullScreen = new(this);
@@ -29,7 +30,13 @@ public partial class ShellWindow : Window
         StateChanged += (_, _) => ApplyWindowCorners();
         ViewModel.PropertyChanged += OnPreferenceChanged;
         PreviewKeyDown += OnKeyDown;
-        Loaded += (_, _) => { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); };
+        Loaded += async (_, _) =>
+        {
+            fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners();
+            // Abertura do OBS: confere o computador e restaura a sessão guardada (sem armazenamento de computador, não faz nada).
+            try { await ViewModel.Workspace.OpenAsync(); }
+            catch (Exception error) when (error is not OutOfMemoryException) { ViewModel.Workspace.ReportUnexpected(error); }
+        };
         Closing += OnClosing;
         Closed += (_, _) => { ViewModel.PropertyChanged -= OnPreferenceChanged; ViewModel.Workspace.Dispose(); themes.Dispose(); };
     }

@@ -82,6 +82,8 @@ public sealed record ScheduleBlockList(ScheduleBlock[] Blocks);
 public sealed record AvailableSlot(DateTimeOffset StartsAt, DateTimeOffset EndsAt, Guid ProfessionalId, string ProfessionalName, Guid SpecialtyId, string SpecialtyName, Guid RoomId, string RoomName)
 {
     [JsonIgnore] public string Display => $"{StartsAt.ToLocalTime().ToString("ddd dd/MM", DisplayFormat.Culture)} · {StartsAt.ToLocalTime():HH:mm}–{EndsAt.ToLocalTime():HH:mm} · {RoomName}";
+    [JsonIgnore] public string DateDisplay => StartsAt.ToLocalTime().ToString("ddd dd/MM/yyyy", DisplayFormat.Culture);
+    [JsonIgnore] public string TimeDisplay => $"{StartsAt.ToLocalTime():HH:mm}–{EndsAt.ToLocalTime():HH:mm}";
 }
 public sealed record AvailabilityList(AvailableSlot[] Slots);
 

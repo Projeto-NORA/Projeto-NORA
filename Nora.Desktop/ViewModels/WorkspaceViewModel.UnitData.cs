@@ -23,6 +23,10 @@ public enum UnitScope
     Alerts = 1024,
     /// <summary>Pedidos de família pendentes e vínculos aprovados da UBS (aba Família); só ela os lê.</summary>
     Family = 2048,
+    /// <summary>Atendimento ao público (horário e serviços) e estado da aprovação das vagas; lido nas Configurações, nas Vagas e na troca de UBS.</summary>
+    Profile = 4096,
+    /// <summary>Computadores do OBS da UBS (só o administrador lê); aba Configurações.</summary>
+    Devices = 8192,
     Everything = Registry | Queue | Slots | Today | ActiveRooms
 }
 
@@ -58,6 +62,8 @@ public sealed partial class WorkspaceViewModel
         public DateTimeOffset AlertsAt { get; init; }
         public Tolerant<FamilyLinkPages>? FamilyPending { get; init; }
         public Tolerant<FamilyLinkPages>? FamilyApproved { get; init; }
+        public Tolerant<UnitProfile>? Profile { get; init; }
+        public Tolerant<ObsDevice[]>? Devices { get; init; }
     }
 
     private static async Task<Tolerant<T>> ReadTolerantAsync<T>(Func<Task<T>> read)
@@ -71,11 +77,11 @@ public sealed partial class WorkspaceViewModel
         "home" => UnitScope.Everything,
         "patients" => UnitScope.Registry,
         "queue" => UnitScope.Queue,
-        "slots" => UnitScope.Slots,
+        "slots" => UnitScope.Slots | UnitScope.Profile,
         "agenda" => UnitScope.Agenda,
         "indicators" => UnitScope.Metrics,
         "alerts" => UnitScope.Alerts,
-        "unit-settings" => UnitScope.Catalog | UnitScope.Setup,
+        "unit-settings" => UnitScope.Catalog | UnitScope.Setup | UnitScope.Profile | UnitScope.Devices,
         "family" => UnitScope.Family,
         _ => UnitScope.None
     };
@@ -122,7 +128,10 @@ public sealed partial class WorkspaceViewModel
         // Leitura tolerante: se falhar, a aba diz que não conseguiu ler em vez de ficar em "Carregando…".
         var familyPending = scope.HasFlag(UnitScope.Family) ? ReadTolerantAsync(() => api.FamilyLinksAsync(unit.Id, "pending")) : null;
         var familyApproved = scope.HasFlag(UnitScope.Family) ? ReadTolerantAsync(() => api.FamilyLinksAsync(unit.Id, "approved")) : null;
-        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved }.OfType<Task>());
+        // Atendimento ao público (todos da equipe leem) e computadores (só o administrador): leituras tolerantes, uma falha não derruba a UBS.
+        var profileRead = scope.HasFlag(UnitScope.Profile) ? ReadTolerantAsync(() => api.UnitProfileAsync(unit.Id)) : null;
+        var devicesRead = scope.HasFlag(UnitScope.Devices) && IsAdministrator ? ReadTolerantAsync(() => api.ObsDevicesAsync(unit.Id)) : null;
+        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved, profileRead, devicesRead }.OfType<Task>());
         return new UnitSnapshot
         {
             Registry = registry is null ? null : await registry,
@@ -147,7 +156,9 @@ public sealed partial class WorkspaceViewModel
             Alerts = alerts is null ? null : await alerts,
             AlertsAt = alertsAt,
             FamilyPending = familyPending is null ? null : await familyPending,
-            FamilyApproved = familyApproved is null ? null : await familyApproved
+            FamilyApproved = familyApproved is null ? null : await familyApproved,
+            Profile = profileRead is null ? null : await profileRead,
+            Devices = devicesRead is null ? null : await devicesRead
         };
     }
 
@@ -163,7 +174,9 @@ public sealed partial class WorkspaceViewModel
     {
         if (data.Registry is { } registry) ApplyRegistry(registry);
         if (data.Queue is { } queue) ApplyQueue(queue);
-        if (data.Slots is { } slots) { Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); }
+        if (data.Slots is { } slots) { Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots(); }
+        if (data.Profile is { } unitProfileRead) ApplyProfile(unitProfileRead);
+        if (data.Devices is { } deviceRead) ApplyDevices(deviceRead);
         if (data.Today is { } today) SetTodayOverview(data.TodayDate, today);
         if (data.Month is { } month && data.MonthKey == (selectedAgendaDate.Year, selectedAgendaDate.Month)) SetMonthCache(data.MonthKey, month);
         // Uma resposta de um filtro que já mudou não altera a tela.
@@ -174,6 +187,7 @@ public sealed partial class WorkspaceViewModel
         if (data.Capacity is { } capacity) ApplyPanelCapacity(capacity);
         if (data.Alerts is { } alerts) ApplyUnitAlerts(alerts, data.AlertsAt);
         if (data.FamilyPending is not null || data.FamilyApproved is not null) ApplyFamily(data.FamilyPending, data.FamilyApproved);
+        if (CallNextOpen) RebuildCallNextOptions(); else NotifyCallNext();
         NotifyUnitCounts();
     }
 

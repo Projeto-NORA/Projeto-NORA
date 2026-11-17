@@ -6,13 +6,37 @@
     <views:ObsUnitNoticeView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,24"><StackPanel IsEnabled="{Binding CanEditDraft}">
       <TextBlock Text="Vagas Relâmpago da UBS" FontSize="24" FontWeight="SemiBold" />
-      <TextBlock Text="Para criar uma vaga, selecione uma consulta cancelada com início no futuro na Agenda e confirme o reaproveitamento." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
+      <TextBlock Text="Para criar uma vaga, selecione uma consulta cancelada com início no futuro na Agenda e confirme o reaproveitamento. As vagas também nascem do Chamar próximo da Fila e, com a aprovação ligada, de cada cancelamento." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
       <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <Button Content="Atualizar vagas da UBS" Click="OnLoad" IsEnabled="{Binding HasActiveObsUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <!-- Aprovação das vagas reaproveitadas: aparece com a chave ligada nas Configurações da UBS ou enquanto houver vaga aguardando. -->
+      <Border Visibility="{Binding ShowAwaitingSlots, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,16" AutomationProperties.Name="Vagas aguardando aprovação">
+        <StackPanel>
+          <TextBlock Text="{Binding AwaitingSlotsTitle}" FontSize="19" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite" />
+          <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,10" Text="Com a aprovação ligada, cada cancelamento gera uma vaga que só é oferecida depois que alguém da equipe aprovar. Sem aprovação até 1 h antes da consulta, ela fecha." />
+          <DataGrid ItemsSource="{Binding AwaitingSlots}" SelectedItem="{Binding SelectedAwaitingSlot}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="260" AutomationProperties.Name="Vagas aguardando aprovação da equipe">
+            <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
+              <DataGridTextColumn Header="Profissional" Binding="{Binding Professional}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
+              <DataGridTextColumn Header="Horário" Binding="{Binding TimeDisplay}" Width="1.4*" MinWidth="130" ElementStyle="{StaticResource CellText}" />
+              <DataGridTextColumn Header="Origem" Binding="{Binding SourceDisplay}" Width="2*" MinWidth="200" ElementStyle="{StaticResource CellText}" />
+              <DataGridTextColumn Header="Prazo" Binding="{Binding ApprovalDeadlineDisplay}" Width="130" ElementStyle="{StaticResource CellText}" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Text="{Binding AwaitingSlotsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding AwaitingSlotsState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+          <WrapPanel Margin="0,12,0,0">
+            <Button Content="Aprovar e ofertar" Click="OnApprove" IsEnabled="{Binding CanDecideSlotApproval}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" ToolTip="Pede confirmação. A vaga passa a ser oferecida ao 1º da fila." ToolTipService.ShowOnDisabled="True" />
+            <Button Content="Descartar" Click="OnDiscard" IsEnabled="{Binding CanDecideSlotApproval}" Margin="0,0,8,8" ToolTip="Pede confirmação. A vaga fecha sem ser oferecida." ToolTipService.ShowOnDisabled="True" />
+          </WrapPanel>
+          <ItemsControl ItemsSource="{Binding SlotSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" AutomationProperties.Name="Passos da aprovação" />
+        </StackPanel>
+      </Border>
+      <TextBlock Text="Todas as vagas" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
       <DataGrid ItemsSource="{Binding UnitLightningSlots}" SelectedItem="{Binding SelectedUnitSlot}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Vagas da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da vaga, com as ofertas já feitas.">
         <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
         <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>
-        <DataGrid.Columns><DataGridTextColumn Header="Horário" Binding="{Binding TimeDisplay}" Width="1.6*" MinWidth="130" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="80" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Profissional" Binding="{Binding Professional}" Width="*" MinWidth="80" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Criada em" Binding="{Binding CreatedAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="90" ElementStyle="{StaticResource CellText}" /></DataGrid.Columns>
+        <DataGrid.Columns><DataGridTextColumn Header="Horário" Binding="{Binding TimeDisplay}" Width="1.6*" MinWidth="130" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="80" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Profissional" Binding="{Binding Professional}" Width="*" MinWidth="80" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Origem" Binding="{Binding OriginDisplay}" Width="130" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Criada em" Binding="{Binding CreatedAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" /><DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="1.1*" MinWidth="130" ElementStyle="{StaticResource CellText}" /></DataGrid.Columns>
       </DataGrid>
       <TextBlock Text="Nenhuma vaga criada nesta UBS." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding HasNoUnitSlots, Converter={StaticResource BoolVisibility}}" />
     </StackPanel></Border>

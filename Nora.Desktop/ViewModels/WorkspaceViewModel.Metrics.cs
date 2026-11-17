@@ -181,7 +181,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Falha de uma consulta pedida por filtro: sempre aparece na faixa comum e marca os números anteriores como desatualizados.</summary>
     private void ReportNetworkFailure(NoraApiException error)
     {
-        if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); return; }
+        if (error.Unauthorized) { SignOutRejected(error.Message); return; }
         if (error.Code == "password-change-required") { EnterPasswordChange(); return; }
         metricsFailed = true;
         refreshFailed = true; refreshErrorText = error.Message;

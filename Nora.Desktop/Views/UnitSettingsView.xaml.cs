@@ -12,6 +12,26 @@ public partial class UnitSettingsView : UserControl
     private WorkspaceViewModel? Workspace => DataContext as WorkspaceViewModel;
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadCatalogAsync(); }
 
+    private async void OnSaveProfile(object sender, RoutedEventArgs e) { if (Workspace is { CanSaveProfile: true } vm) await vm.SaveProfileAsync(); }
+    private async void OnToggleSlotApproval(object sender, RoutedEventArgs e)
+    {
+        if (Workspace is not { CanToggleSlotApproval: true } vm) return;
+        if (!Confirmation.Ask(Window.GetWindow(this), "Aprovação das vagas", vm.SlotApprovalConfirmationText)) return;
+        await vm.ToggleSlotApprovalAsync();
+    }
+    private async void OnRefreshDevices(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadDevicesAsync(); }
+    private async void OnActivateThisComputer(object sender, RoutedEventArgs e) { if (Workspace is { CanActivateThisComputer: true } vm) await vm.ActivateThisComputerAsync(); }
+    private async void OnCreateDeviceCode(object sender, RoutedEventArgs e) { if (Workspace is { CanCreateDeviceCode: true } vm) await vm.CreateDeviceCodeAsync(); }
+    private async void OnIssueDeviceCode(object sender, RoutedEventArgs e) { if (Workspace is { CanIssueNewDeviceCode: true } vm) await vm.IssueNewDeviceCodeAsync(); }
+    private async void OnRevokeDevice(object sender, RoutedEventArgs e)
+    {
+        if (Workspace is not { CanRevokeDevice: true } vm) return;
+        if (!Confirmation.Ask(Window.GetWindow(this), "Revogar computador", vm.RevokeConfirmationText)) return;
+        await vm.RevokeDeviceAsync();
+    }
+    private void OnCopyIssuedCode(object sender, RoutedEventArgs e) => Workspace?.CopyIssuedCode();
+    private void OnCloseIssuedCode(object sender, RoutedEventArgs e) => Workspace?.CloseIssuedCode();
+
     private void OnNewProfessional(object sender, RoutedEventArgs e) => Workspace?.NewProfessionalDraft();
     private void OnEditProfessional(object sender, RoutedEventArgs e) => Workspace?.EditSelectedProfessional();
     private void OnSpecialtyChoice(object sender, RoutedEventArgs e) => Workspace?.SpecialtyChoiceChanged();

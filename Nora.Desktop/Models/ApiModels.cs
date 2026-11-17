@@ -4,13 +4,15 @@ using Nora.Desktop.Services;
 namespace Nora.Desktop.Models;
 
 public sealed record AccountUser(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false);
-public sealed record LoginSession(string Token, DateTimeOffset ExpiresAt, AccountUser User);
+/// <summary>Resposta do login. <c>KeepSignedIn</c> e <c>Device</c> só vêm da API nova (computador do OBS); sem eles a sessão é a de sempre.</summary>
+public sealed record LoginSession(string Token, DateTimeOffset ExpiresAt, AccountUser User, bool KeepSignedIn = false, DeviceSummary? Device = null);
 public sealed record AddressInfo(string Cep, string Street, string? Number, string? Complement, string? Neighborhood, string City, string State, string? Ibge = null)
 {
     public string Display => $"{Street}{(string.IsNullOrWhiteSpace(Number) ? "" : ", " + Number)} · {Neighborhood ?? "Bairro não informado"} · {City}/{State}";
 }
 public sealed record LightningCohort(int Days, long OpenSlots, long AcceptedOffers, long RegisteredSlots, long CreatedOffers, long DeclinedOffers, long ExpiredOffers, long PendingOffers, long CancelledOffers);
-public sealed record MunicipalSummary(long Patients, long WaitingPatients, long OpenSlots, long AcceptedOffers, long? RegisteredSlots = null, long? CreatedOffers = null, long? DeclinedOffers = null, long? ExpiredOffers = null, long? PendingOffers = null, long? CancelledOffers = null, LightningCohort[]? LightningCohorts = null, long? InactivePatients = null, long? WaitingEntries = null, long? UnitsWithoutDatabase = null);
+public sealed record MunicipalSummary(long Patients, long WaitingPatients, long OpenSlots, long AcceptedOffers, long? RegisteredSlots = null, long? CreatedOffers = null, long? DeclinedOffers = null, long? ExpiredOffers = null, long? PendingOffers = null, long? CancelledOffers = null, LightningCohort[]? LightningCohorts = null, long? InactivePatients = null, long? WaitingEntries = null, long? UnitsWithoutDatabase = null,
+    long? AwaitingApprovalSlots = null, long? ApprovedSlots = null, long? ApprovalTimeoutSlots = null, long? DiscardedSlots = null);
 
 public sealed record HealthUnit(Guid Id, string Name, string Region, string Address, double Latitude, double Longitude, string? DatabaseState = null)
 {
@@ -109,11 +111,35 @@ public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, s
     public string EnteredAtDisplay => EnteredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     public string StatusDisplay => Status switch { "waiting" => "Aguardando", "offered" => "Oferta em andamento", "completed" => "Concluída", "cancelled" => "Cancelada", _ => Status };
 }
-public sealed record UnitLightningSlot(Guid Id, Guid AppointmentId, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status, DateTimeOffset CreatedAt)
+public sealed record UnitLightningSlot(Guid Id, Guid? AppointmentId, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status, DateTimeOffset CreatedAt,
+    string Origin = "staff", DateTimeOffset? ApprovalDeadline = null, DateTimeOffset? DecidedAt = null, string? DecidedByName = null, string? ClosedReason = null, SlotSource? Source = null)
 {
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string CreatedAtDisplay => CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
-    public string StatusDisplay => Status switch { "open" => "Aberta", "offered" => "Ofertada", "accepted" => "Aceita", "closed" => "Encerrada", _ => Status };
+    [JsonIgnore] public bool IsAwaitingApproval => Status == "awaiting_approval";
+    /// <summary>Quem criou a vaga: o cancelamento de uma consulta, a equipe pelo botão Gerar ou o "Chamar próximo".</summary>
+    public string OriginDisplay => Origin switch { "cancellation" => "Cancelamento", "call-next" => "Chamar próximo", "staff" => "Gerada pela equipe", _ => Origin };
+    public string StatusDisplay => Status switch
+    {
+        "awaiting_approval" => "Aguardando aprovação",
+        "open" => "Aberta",
+        "offered" => "Ofertada",
+        "accepted" => "Aceita",
+        "closed" => ClosedReason switch
+        {
+            "approval-timeout" => "Fechada sem aprovação",
+            "discarded" => "Descartada",
+            "conflict" => "Fechada: horário ocupado",
+            "too-late" => "Fechada: faltavam menos de 10 min",
+            _ => "Encerrada"
+        },
+        _ => Status
+    };
+    /// <summary>"Veio da consulta de Maria, cancelada em 14/11 09:10 pelo paciente"; vazio para o "Chamar próximo".</summary>
+    [JsonIgnore] public string SourceDisplay => Source?.Display ?? "";
+    [JsonIgnore] public string ApprovalDeadlineDisplay => ApprovalDeadline is { } at ? $"Aprovar até {at.ToLocalTime():dd/MM HH:mm}" : "";
+    /// <summary>Profissional, especialidade e horário numa linha só, para o painel de aprovação.</summary>
+    [JsonIgnore] public string SummaryDisplay => $"{Specialty} · {Professional} · {TimeDisplay}";
 }
 /// <summary>Uma oferta de uma Vaga Relâmpago (GET .../lightning-slots/{id}/offers): sem CPF, na ordem em que foram feitas.</summary>
 public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, DateTimeOffset ExpiresAt)

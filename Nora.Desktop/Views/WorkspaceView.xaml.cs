@@ -34,6 +34,15 @@ public partial class WorkspaceView : UserControl
         LoginPassword.Clear();
         await vm.LoginAsync(password);
     }
+    private async void OnActivate(object sender, RoutedEventArgs args)
+    {
+        if (DataContext is WorkspaceViewModel { CanActivateWithCode: true } vm) await vm.ActivateWithCodeAsync();
+    }
+    private void OnActivationKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.Enter) return;
+        OnActivate(sender, args); args.Handled = true;
+    }
     private void OnLoginKeyDown(object sender, KeyEventArgs args)
     {
         if (args.Key != Key.Enter) return;

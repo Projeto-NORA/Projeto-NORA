@@ -20,6 +20,104 @@
     <DockPanel Margin="0,0,0,14"><Button DockPanel.Dock="Right" Content="Atualizar configurações" Click="OnRefresh" IsEnabled="{Binding HasActiveObsUnit}" />
       <StackPanel><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel></DockPanel>
 
+    <!-- Atendimento ao público: horário de funcionamento por dia, serviços e especialidades da grade. O administrador edita; a equipe lê. -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Atendimento ao público">
+      <StackPanel>
+        <TextBlock Text="Atendimento ao público" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="O aplicativo do paciente mostra estes horários e serviços para cada UBS vinculada. Cada dia pode ter até dois intervalos (por exemplo, manhã e tarde); dia fechado não tem intervalo." />
+        <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,12" AutomationProperties.Name="Atendimento somente em leitura" Visibility="{Binding ShowProfileReadOnlyNotice, Converter={StaticResource BoolVisibility}}">
+          <TextBlock Text="{Binding ProfileReadOnlyNotice}" TextWrapping="Wrap" />
+        </Border>
+        <TextBlock Text="{Binding ProfileState}" Style="{StaticResource Muted}" Margin="0,0,0,10" Visibility="{Binding ProfileState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <ItemsControl ItemsSource="{Binding OpeningDays}" IsEnabled="{Binding CanEditProfile}" AutomationProperties.Name="Horário de funcionamento por dia da semana">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="0,0,0,6">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="96" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <CheckBox Grid.Column="1" Content="Fechado" IsChecked="{Binding IsClosed}" VerticalAlignment="Center" ToolTip="Marque para dia sem atendimento ao público." />
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Visibility="{Binding HasIntervals, Converter={StaticResource BoolVisibility}}">
+                    <TextBlock Text="Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Abre, primeiro intervalo, HH:mm" />
+                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,18,0" Text="{Binding Closes1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Fecha, primeiro intervalo, HH:mm" />
+                    <TextBlock Text="e Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Abre, segundo intervalo, HH:mm, opcional" />
+                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0" Text="{Binding Closes2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Fecha, segundo intervalo, HH:mm, opcional" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="{Binding Error}" Style="{StaticResource FieldError}" Margin="236,2,0,4" Visibility="{Binding Error, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="Serviços oferecidos" Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
+        <TextBox Text="{Binding UnitServices, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditProfile}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="96" MaxHeight="200" AutomationProperties.Name="Serviços oferecidos pela UBS" ToolTip="Texto livre, até 1.000 caracteres; quebras de linha são permitidas." />
+        <DockPanel Margin="0,-6,0,8"><TextBlock DockPanel.Dock="Right" Text="{Binding ServicesCounter}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.Name="Contador de caracteres dos serviços" />
+          <TextBlock Text="{Binding ServicesError}" Style="{StaticResource FieldError}" Margin="0" Visibility="{Binding ServicesError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" /></DockPanel>
+        <TextBlock Text="Especialidades com horário na grade" Style="{StaticResource FieldLabel}" />
+        <TextBlock Text="{Binding ProfileSpecialtiesText}" Margin="0,4,0,0" TextWrapping="Wrap" AutomationProperties.Name="Especialidades com horário na grade" />
+        <TextBlock Text="{Binding ProfileSpecialtiesHint}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,12" />
+        <TextBlock Text="{Binding ProfileUpdatedLabel}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding ProfileUpdatedLabel, Converter={StaticResource TextVisibility}}" />
+        <Button Content="Salvar atendimento ao público" Click="OnSaveProfile" IsEnabled="{Binding CanSaveProfile}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava horários e serviços de uma vez." ToolTipService.ShowOnDisabled="True" />
+        <ItemsControl ItemsSource="{Binding ProfileSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do salvamento" />
+      </StackPanel>
+    </Border>
+
+    <!-- Aprovação das vagas reaproveitadas (opcional, por UBS). -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Aprovação das vagas reaproveitadas">
+      <StackPanel>
+        <TextBlock Text="Aprovação das vagas reaproveitadas" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Opcional. Com a aprovação ligada, a vaga gerada por um cancelamento fica aguardando a equipe no OBS antes de ser oferecida. A aprovação libera a vaga para oferta; ela não confirma o atendimento." />
+        <TextBlock Text="{Binding SlotApprovalState}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Estado da aprovação das vagas" />
+        <Button Content="{Binding SlotApprovalToggleLabel}" Click="OnToggleSlotApproval" IsEnabled="{Binding CanToggleSlotApproval}" HorizontalAlignment="Left" ToolTip="Só o administrador da UBS liga ou desliga. Pede confirmação." ToolTipService.ShowOnDisabled="True" />
+        <ItemsControl ItemsSource="{Binding SlotApprovalSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do salvamento da aprovação das vagas" />
+      </StackPanel>
+    </Border>
+
+    <!-- Computadores do OBS (P-014): só o administrador vê e opera; a atendente só entra em computador ativado. -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Computadores" Visibility="{Binding ShowDevicesSection, Converter={StaticResource BoolVisibility}}">
+      <StackPanel>
+        <DockPanel><Button DockPanel.Dock="Right" Content="Atualizar computadores" Click="OnRefreshDevices" IsEnabled="{Binding CanManageDevices}" ToolTip="Lê de novo a lista de computadores desta UBS." />
+          <TextBlock Text="Computadores" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="A atendente só entra em computadores ativados aqui; o administrador entra em qualquer um. A ativação vale até ser revogada e não há limite de computadores. O segredo fica só no próprio computador e a API guarda apenas o hash." />
+        <DataGrid ItemsSource="{Binding ObsDevices}" SelectedItem="{Binding SelectedObsDevice}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Computadores da UBS">
+          <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Nome" Binding="{Binding NameDisplay}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="150" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Ativado em" Binding="{Binding ActivatedDisplay}" Width="140" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Último acesso" Binding="{Binding LastLoginDisplay}" Width="140" ElementStyle="{StaticResource CellText}" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Text="{Binding DevicesState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding DevicesState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <ItemsControl ItemsSource="{Binding DeviceSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos da ação nos computadores" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Content="Gerar novo código" Click="OnIssueDeviceCode" IsEnabled="{Binding CanIssueNewDeviceCode}" Margin="0,0,8,8" ToolTip="Gera outro código para o computador selecionado; o anterior deixa de valer." ToolTipService.ShowOnDisabled="True" />
+          <Button Content="Revogar computador selecionado" Click="OnRevokeDevice" IsEnabled="{Binding CanRevokeDevice}" Margin="0,0,8,8" ToolTip="Pede confirmação. As sessões abertas nele são encerradas." ToolTipService.ShowOnDisabled="True" />
+        </WrapPanel>
+        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
+          <StackPanel IsEnabled="{Binding CanManageDevices}" MaxWidth="520" HorizontalAlignment="Left">
+            <TextBlock Text="Novo computador" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <TextBlock Text="Nome do computador" Style="{StaticResource FieldLabel}" />
+            <TextBox Text="{Binding DeviceDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="60" AutomationProperties.Name="Nome do computador" ToolTip="Por exemplo, Recepção 1. De 1 a 60 caracteres." />
+            <TextBlock Text="{Binding DeviceNameError}" Style="{StaticResource FieldError}" Visibility="{Binding DeviceNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+            <WrapPanel>
+              <Button Content="Ativar este computador" Click="OnActivateThisComputer" IsEnabled="{Binding CanActivateThisComputer}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" Visibility="{Binding ShowActivateThisComputer, Converter={StaticResource BoolVisibility}}" ToolTip="Ativa este computador para a UBS ativa e guarda a ativação só aqui." ToolTipService.ShowOnDisabled="True" />
+              <Button Content="Gerar código para outro computador" Click="OnCreateDeviceCode" IsEnabled="{Binding CanCreateDeviceCode}" Margin="0,0,8,8" ToolTip="Gera um código de 15 minutos, de uso único, para digitar na tela de entrada do outro computador." ToolTipService.ShowOnDisabled="True" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+        <!-- O código aparece uma única vez e some ao fechar o painel; não fica guardado. -->
+        <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,12,0,0" Visibility="{Binding HasIssuedCode, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Código de ativação gerado">
+          <StackPanel>
+            <TextBlock Text="{Binding IssuedCodeTitle}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding IssuedCodeText}" FontSize="36" FontWeight="Bold" FontFamily="Consolas" Margin="0,8,0,4" TextWrapping="NoWrap" AutomationProperties.Name="Código de ativação" />
+            <TextBlock Text="{Binding IssuedCodeValidity}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,10" />
+            <WrapPanel><Button Content="Copiar código" Click="OnCopyIssuedCode" Margin="0,0,8,0" /><Button Content="Fechar" Click="OnCloseIssuedCode" /></WrapPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
     <!-- Profissionais -->
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Profissionais">
       <StackPanel>

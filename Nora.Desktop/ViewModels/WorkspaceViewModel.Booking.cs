@@ -162,7 +162,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Falha de uma consulta pedida por filtro: encerra a sessão, pede a troca de senha ou aparece na faixa comum e marca os dados como desatualizados.</summary>
     private void ReportFilterFailure(NoraApiException error, Action markFailed)
     {
-        if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); return; }
+        if (error.Unauthorized) { SignOutRejected(error.Message); return; }
         if (error.Code == "password-change-required") { EnterPasswordChange(); return; }
         markFailed();
         refreshFailed = true; refreshErrorText = error.Message;

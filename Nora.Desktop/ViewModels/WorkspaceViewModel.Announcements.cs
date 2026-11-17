@@ -56,14 +56,14 @@ public sealed partial class WorkspaceViewModel
     public int UnreadAnnouncementCount => unreadAnnouncements;
     public bool ShowAnnouncements => IsAuthenticated && IsOperational && Section == "announcements";
     public string AnnouncementsState => !IsAuthenticated ? "Entre na conta para ler os comunicados."
-        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Use Atualizar dados para tentar de novo." : "Carregando os comunicados…")
+        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Use Atualizar comunicados para tentar de novo." : "Carregando os comunicados…")
         : Announcements.Count == 0 ? "Nenhum comunicado em vigor para as UBS desta conta." : "";
     public string AnnouncementsSummary => !announcementsLoaded ? ""
         : unreadAnnouncements == 0 ? (Announcements.Count == 1 ? "1 comunicado, todos lidos." : $"{Announcements.Count} comunicados, todos lidos.")
         : unreadAnnouncements == 1 ? $"{Announcements.Count} comunicados em vigor, 1 não lido." : $"{Announcements.Count} comunicados em vigor, {unreadAnnouncements} não lidos.";
     public string AnnouncementsFootnote => announcementsReadAt is not { } at ? ""
         : announcementsFailed ? $"A última leitura não concluiu; a lista é da leitura das {at:HH:mm}."
-        : $"Atualizado às {at:HH:mm}. Encerrados e vencidos saem ao abrir esta aba ou em Atualizar dados.";
+        : $"Atualizado às {at:HH:mm}. Encerrados e vencidos saem ao abrir esta aba ou em Atualizar comunicados.";
 
     private static readonly string[] AnnouncementNames = [nameof(UnreadAnnouncementCount), nameof(AnnouncementsState), nameof(AnnouncementsSummary), nameof(AnnouncementsFootnote)];
     private void NotifyAnnouncements()
@@ -136,7 +136,7 @@ public sealed partial class WorkspaceViewModel
         return expired.Length > 0;
     }
 
-    /// <summary>Parte do ciclo da UBS e da atualização manual: leitura incremental por padrão; completa no clique em Atualizar dados, ao abrir a aba e quando a lista de UBS mudou.</summary>
+    /// <summary>Parte do ciclo da UBS e da atualização manual: leitura incremental por padrão; completa no clique em Atualizar comunicados, ao abrir a aba e quando a lista de UBS mudou.</summary>
     private Task RefreshAnnouncementsAsync(bool manual) => ReadAnnouncementsAsync(manual || announcementsFullDue || !announcementsLoaded);
 
     /// <summary>Botão Atualizar da aba: leitura completa.</summary>

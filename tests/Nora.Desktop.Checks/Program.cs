@@ -160,6 +160,7 @@ internal static partial class Program
             RunInterfaceChecks(application, root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);
+            RunRoundEndToEndChecks(root, args);
             if (args.Contains("--secretaria-gallery")) RunSecretaryGallery(root, args);
             if (args.Contains("--map-online")) RunOnlineMapCheck(root);
             if (args.Contains("--changed-secretaria")) RunChangedSecretaryScreens(root, args);

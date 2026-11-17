@@ -88,10 +88,10 @@ public sealed class ShellViewModel : ObservableObject
     public ICommand AppearanceCommand { get; }
     public ICommand ToggleSidebarCommand { get; }
     public ICommand RestoreCommand { get; }
-    public ShellViewModel(DesktopProfile profile, PreferencesService storage, ThemeService themes, NoraApiClient? api = null)
+    public ShellViewModel(DesktopProfile profile, PreferencesService storage, ThemeService themes, NoraApiClient? api = null, IObsDeviceStore? devices = null)
     {
         Profile = profile;
-        Workspace = new(profile, api);
+        Workspace = new(profile, api, devices);
         Workspace.PropertyChanged += (_, change) =>
         {
             if (change.PropertyName == nameof(WorkspaceViewModel.UnreadAnnouncementCount)) { SetBadge("announcements", Workspace.UnreadAnnouncementCount); return; }

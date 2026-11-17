@@ -89,7 +89,7 @@ internal static partial class Program
                 (HttpMethod.Post, $"api/obs/units/{unit}/appointments", HttpStatusCode.Conflict, "conflict", "Horário em conflito"),
                 (HttpMethod.Patch, $"api/obs/units/{unit}/appointments/{Guid.NewGuid()}/status", HttpStatusCode.Conflict, "conflict", "já foi alterada"),
                 (HttpMethod.Post, $"api/obs/units/{unit}/waiting-list", HttpStatusCode.Conflict, "conflict", "já está na fila desta especialidade"),
-                (HttpMethod.Post, $"api/obs/units/{unit}/lightning-slots", HttpStatusCode.Conflict, "conflict", "Vaga Relâmpago gerada"),
+                (HttpMethod.Post, $"api/obs/units/{unit}/lightning-slots", HttpStatusCode.Conflict, "conflict", "Já existe uma vaga para esta consulta"),
                 (HttpMethod.Get, $"api/obs/units/{unit}/waiting-list", HttpStatusCode.ServiceUnavailable, "service-unavailable", "indisponível"),
                 (HttpMethod.Get, "api/municipal/summary", HttpStatusCode.ServiceUnavailable, null, "indisponível"),
                 (HttpMethod.Get, "api/obs/units", HttpStatusCode.TooManyRequests, "too-many-requests", "Muitas tentativas"),
@@ -329,6 +329,7 @@ internal static partial class Program
         RunSecretariaSchedulingChecks(application, storageRoot, args);
         RunCommunityChecks(application, storageRoot, args);
         RunReviewFixesChecks(application, storageRoot, args);
+        RunRoundChecks(application, storageRoot, args);
         RunReviewLoop2Checks(storageRoot, args);
         RunAgendaAndQueueChecks(application, storageRoot, args);
         RunMessageChecks(application, storageRoot, args);

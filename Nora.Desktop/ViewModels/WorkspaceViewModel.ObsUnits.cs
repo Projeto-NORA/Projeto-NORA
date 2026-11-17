@@ -168,7 +168,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
     private async Task ActivateUnitAsync(HealthUnit unit)
     {
-        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics | UnitScope.Catalog);
+        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics | UnitScope.Catalog | UnitScope.Profile);
         if (disposed || !IsAuthenticated) return;
         if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
         ActiveObsUnit = unit;
@@ -305,7 +305,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda, fila e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily();
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices(); ClearCallNext();
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
     }
 

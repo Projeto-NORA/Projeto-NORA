@@ -55,17 +55,17 @@ public sealed partial class WorkspaceViewModel
     public bool NoSpecialtyChoices => ProfessionalSpecialtyChoices.Count == 0;
     public bool HasActiveProfessional => catalogLoaded && !catalogFailed && Professionals.Any(item => item.IsActive);
     public string ProfessionalsState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os profissionais."
-        : catalogFailed ? "Não foi possível ler os profissionais agora. Use Atualizar para tentar de novo."
+        : catalogFailed ? "Não foi possível ler os profissionais agora. Use Atualizar configurações para tentar de novo."
         : !catalogLoaded ? "Carregando os profissionais…"
         : Professionals.Count == 0 ? "Nenhum profissional cadastrado. Enquanto não houver profissional ativo, a agenda aceita especialidade e profissional em texto livre." : "";
     public string RoomsState => !HasActiveObsUnit ? "Escolha uma UBS para ver os consultórios."
-        : setupFailed ? "Não foi possível ler os consultórios agora. Use Atualizar para tentar de novo."
+        : setupFailed ? "Não foi possível ler os consultórios agora. Use Atualizar configurações para tentar de novo."
         : !setupLoaded ? "Carregando os consultórios…" : Rooms.Count == 0 ? "Nenhum consultório cadastrado." : "";
     public string ScheduleState => !HasActiveObsUnit ? "Escolha uma UBS para ver a grade."
-        : setupFailed ? "Não foi possível ler a grade agora. Use Atualizar para tentar de novo."
+        : setupFailed ? "Não foi possível ler a grade agora. Use Atualizar configurações para tentar de novo."
         : !setupLoaded ? "Carregando a grade…" : ScheduleRows.Count == 0 ? "Nenhum horário na grade. Sem grade, a UBS não oferece horários livres." : "";
     public string BlocksState => !HasActiveObsUnit ? "Escolha uma UBS para ver os bloqueios."
-        : setupFailed ? "Não foi possível ler os bloqueios agora. Use Atualizar para tentar de novo."
+        : setupFailed ? "Não foi possível ler os bloqueios agora. Use Atualizar configurações para tentar de novo."
         : !setupLoaded ? "Carregando os bloqueios…" : ScheduleBlocks.Count == 0 ? "Nenhum bloqueio nos próximos 12 meses." : "";
     private bool CatalogDue => catalogAttemptedAt is null || DateTimeOffset.Now - catalogAttemptedAt >= CatalogRefreshAge;
 
@@ -494,8 +494,12 @@ public sealed partial class WorkspaceViewModel
     public Task LoadCatalogAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar as configurações.");
-        await LoadUnitScopeAsync(unit, UnitScope.Catalog | UnitScope.Setup);
-        if (ActiveObsUnit?.Id == unit.Id) Say(catalogFailed || setupFailed ? MessageKind.Error : MessageKind.Success, catalogFailed || setupFailed ? "Parte das configurações não pôde ser lida agora. O que já estava na tela foi mantido." : "Configurações da UBS atualizadas.");
+        // O botão Atualizar configurações refaz também o atendimento ao público (os campos voltam ao que está gravado) e, para o administrador, a lista de computadores.
+        forceProfileEditors = true;
+        try { await LoadUnitScopeAsync(unit, UnitScope.Catalog | UnitScope.Setup | UnitScope.Profile | UnitScope.Devices); }
+        finally { forceProfileEditors = false; }
+        var failed = catalogFailed || setupFailed || profileFailed || (IsAdministrator && devicesFailed);
+        if (ActiveObsUnit?.Id == unit.Id) Say(failed ? MessageKind.Error : MessageKind.Success, failed ? "Parte das configurações não pôde ser lida agora. O que já estava na tela foi mantido." : "Configurações da UBS atualizadas.");
     });
 
     /// <summary>Depois de uma alteração do catálogo: relê o que mudou e, se o agendamento tem especialidade e profissional escolhidos, busca os horários de novo (a grade ou os bloqueios podem ter mudado).</summary>

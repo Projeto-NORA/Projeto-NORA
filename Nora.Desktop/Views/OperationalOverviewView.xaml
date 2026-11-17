@@ -81,6 +81,13 @@
       </Border>
     </Grid>
 
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="{Binding HasAwaitingSlots, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Vagas aguardando aprovação">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock Text="Vagas aguardando aprovação" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="{Binding PanelAwaitingText}" Style="{StaticResource Muted}" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite" /><TextBlock Text="Cada vaga só é oferecida depois que alguém da equipe aprovar; sem aprovação até 1 h antes da consulta, ela fecha." Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
+        <Button Grid.Column="1" Content="Ver vagas" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="slots" VerticalAlignment="Center" Margin="18,0,0,0" />
+      </Grid>
+    </Border>
+
     <Border Style="{StaticResource Card}" Margin="0,0,0,24">
       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <StackPanel><TextBlock Text="Fluxo da unidade" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="Pacientes cadastrados, fila e vagas relâmpago disponíveis neste momento." Style="{StaticResource Muted}" Margin="0,6,0,0" /></StackPanel>

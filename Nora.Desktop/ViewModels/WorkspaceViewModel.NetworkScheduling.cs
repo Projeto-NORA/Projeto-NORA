@@ -315,7 +315,10 @@ public sealed partial class WorkspaceViewModel
     {
         if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar os alertas.");
         await LoadNetworkAlertsCoreAsync();
-        if (!networkAlertsFailed) Say(MessageKind.Success, NetworkAlerts.Count == 0 ? "Alertas avaliados: nenhum alerta neste filtro." : $"Alertas avaliados: {NetworkAlerts.Count}.");
+        if (networkAlertsFailed) return;
+        // Leitura concluída pelo botão: a falha anterior (e o aviso de dados antigos que ela deixou) deixa de valer, como já acontece nas leituras por filtro.
+        RecoverFromRefreshFailure(); MarkFresh();
+        Say(MessageKind.Success, NetworkAlerts.Count == 0 ? "Alertas avaliados: nenhum alerta neste filtro." : $"Alertas avaliados: {NetworkAlerts.Count}.");
     });
 
     /// <summary>Uma requisição por mudança de filtro: a anterior é cancelada e só a mais nova altera a tela.</summary>

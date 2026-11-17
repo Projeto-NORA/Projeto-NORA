@@ -92,6 +92,7 @@ public sealed partial class WorkspaceViewModel
     {
         UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false;
         WaitingPatient = null; SelectedWaitingEntry = null; SelectedUnitSlot = null; WaitingSpecialty = "";
+        AwaitingSlots.Clear(); SelectedAwaitingSlot = null; SlotSteps.Clear();
         NotifyUnitCounts();
     }
 }

@@ -124,6 +124,9 @@ public sealed partial class WorkspaceViewModel
             if (!CatalogDue) scope &= ~UnitScope.Catalog;
             if (setupLoaded && !CatalogDue) scope &= ~UnitScope.Setup;
         }
+        // Atendimento ao público e computadores mudam pouco: depois da primeira leitura bem-sucedida só são lidos de novo a cada 5 minutos (e no botão Atualizar).
+        if (profileLoaded && !CatalogDue) scope &= ~UnitScope.Profile;
+        if (devicesLoaded && !CatalogDue) scope &= ~UnitScope.Devices;
         if (scope.HasFlag(UnitScope.Alerts) && !AlertsDue) scope &= ~UnitScope.Alerts;
         return scope;
     }
@@ -201,7 +204,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Falha de uma consulta pedida por filtro: sempre aparece na faixa comum e marca os números anteriores como desatualizados.</summary>
     private void ReportUnitMetricsFailure(NoraApiException error)
     {
-        if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); return; }
+        if (error.Unauthorized) { SignOutRejected(error.Message); return; }
         if (error.Code == "password-change-required") { EnterPasswordChange(); return; }
         unitMetricsFailed = true;
         refreshFailed = true; refreshErrorText = error.Message;

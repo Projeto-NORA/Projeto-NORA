@@ -18,7 +18,7 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
         <TextBlock Text="Ainda sem dados" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="Vagas reaproveitadas com confirmação clínica continuam sem dado na API: o aceite da oferta não confirma o atendimento, e nada disso é calculado ou simulado. A capacidade das agendas está na aba Capacidade e as metas em Relatórios e metas." />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="A aprovação da equipe libera a vaga reaproveitada para oferta, e o aceite da oferta não confirma o atendimento; a taxa de reaproveitamento ainda não é calculada nem simulada. Os cartões de aprovação estão na aba Vaga Relâmpago, a capacidade das agendas na aba Capacidade e as metas em Relatórios e metas." />
       </StackPanel>
     </Border>
   </StackPanel>

@@ -41,7 +41,7 @@ public sealed partial class WorkspaceViewModel
     {
         if (disposed || !IsAuthenticated) return false;
         if (error.Code == "password-change-required") { EnterPasswordChange(); return true; }
-        if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); return true; }
+        if (error.Unauthorized) { SignOutRejected(error.Message); return true; }
         return false;
     }
 
@@ -53,11 +53,22 @@ public sealed partial class WorkspaceViewModel
             UnitPatientRecord patient when ObsRegistry.Contains(patient) => BuildUnitPatientDetails(patient),
             UnitWaitingEntry entry when UnitWaitingList.Contains(entry) => BuildWaitingDetails(entry),
             AppointmentInfo appointment when Appointments.Contains(appointment) => BuildAppointmentDetails(appointment),
-            UnitLightningSlot slot when UnitLightningSlots.Contains(slot) => new(slot.Specialty, "Vaga Relâmpago da UBS", [
-                new("Especialidade", slot.Specialty), new("Profissional", slot.Professional), new("Horário", slot.TimeDisplay),
-                new("Situação", slot.StatusDisplay), new("Criada em", slot.CreatedAtDisplay)]),
+            UnitLightningSlot slot when UnitLightningSlots.Contains(slot) => new(slot.Specialty, "Vaga Relâmpago da UBS", BuildSlotFields(slot)),
             _ => null
         };
+    }
+
+    private static IReadOnlyList<DetailField> BuildSlotFields(UnitLightningSlot slot)
+    {
+        var fields = new List<DetailField>
+        {
+            new("Especialidade", slot.Specialty), new("Profissional", slot.Professional), new("Horário", slot.TimeDisplay),
+            new("Situação", slot.StatusDisplay), new("Origem", slot.OriginDisplay), new("Criada em", slot.CreatedAtDisplay)
+        };
+        if (slot.Source is not null) fields.Add(new("Consulta de origem", slot.SourceDisplay));
+        if (slot.ApprovalDeadline is not null) fields.Add(new("Prazo de aprovação", slot.ApprovalDeadlineDisplay));
+        if (slot.DecidedAt is { } decidedAt) fields.Add(new("Decidida em", $"{decidedAt.ToLocalTime():dd/MM/yyyy HH:mm}{(string.IsNullOrWhiteSpace(slot.DecidedByName) ? "" : " por " + slot.DecidedByName)}"));
+        return fields;
     }
 
     private static ItemDetails BuildAppointmentDetails(AppointmentInfo appointment) => new(appointment.PatientName, "Consulta da UBS", [

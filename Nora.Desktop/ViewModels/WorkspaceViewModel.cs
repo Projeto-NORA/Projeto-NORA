@@ -34,14 +34,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
         nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
         nameof(CanEditCatalog), nameof(CanChangeProfessional), nameof(CanChangeRoom), nameof(CanChangeSchedule), nameof(CanChangeBlock), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
-        nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders)
+        nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders),
+        nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
+        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(CanToggleSlotApproval), nameof(CanDecideSlotApproval), nameof(CanCallNextSearch), nameof(CanCallNextOffer), nameof(CanOpenCallNext)
     ];
     private static readonly string[] SessionDependents =
     [
         nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
         nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState),
         nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
-        nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement)
+        nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement),
+        nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(ShowDevicesSection), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
+        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(CanToggleSlotApproval), nameof(CanDecideSlotApproval), nameof(CanCallNextSearch), nameof(CanCallNextOffer), nameof(CanOpenCallNext), nameof(ShowProfileReadOnlyNotice)
     ];
     private static readonly string[] SectionDependents =
     [
@@ -50,10 +54,15 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(PageTitle), nameof(PageSubtitle)
     ];
 
-    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null)
+    /// <param name="devices">Armazenamento do computador do OBS (ativação e sessão guardada). Nulo na Secretaria e nos testes que não usam computador: nada é lido nem gravado.</param>
+    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null)
     {
         this.profile = profile;
         this.api = api ?? new();
+        this.devices = profile.IsMunicipal ? null : devices;
+        this.clipboard = clipboard ?? new WindowsClipboardService();
+        OpeningSteps.CollectionChanged += (_, _) => Notify(nameof(HasOpeningSteps));
+        EnsureOpeningDays();
         refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         refreshTimer.Tick += OnRefreshTimer;
         endpoint = Environment.GetEnvironmentVariable("NORA_API_URL") ?? "";
@@ -192,6 +201,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public string ExpiredOffersCount => summary?.ExpiredOffers?.ToString() ?? "—";
     public string PendingOffersCount => summary?.PendingOffers?.ToString() ?? "—";
     public string CancelledOffersCount => summary?.CancelledOffers?.ToString() ?? "—";
+    // Aprovação das vagas reaproveitadas: API antiga sem os campos mostra "Indisponível" (nunca zero), e sem resumo carregado mostra "—".
+    private string SummaryCount(long? value) => value is { } count ? DisplayFormat.Count(count) : summary is null ? "—" : "Indisponível";
+    public string AwaitingApprovalSlotsCount => SummaryCount(summary?.AwaitingApprovalSlots);
+    public string ApprovedSlotsCount => SummaryCount(summary?.ApprovedSlots);
+    public string ApprovalTimeoutSlotsCount => SummaryCount(summary?.ApprovalTimeoutSlots);
+    public string DiscardedSlotsCount => SummaryCount(summary?.DiscardedSlots);
     public static IReadOnlyList<PeriodOption> LightningPeriodOptions { get; } =
         [new(0, "Todo o histórico"), new(7, "Últimos 7 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias")];
     public int LightningPeriodDays
@@ -217,7 +232,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] LightningNames =
         [nameof(CanFilterLightning), nameof(LightningOpen), nameof(LightningAccepted), nameof(LightningRegistered), nameof(LightningCreated), nameof(LightningDeclined), nameof(LightningExpired), nameof(LightningPending), nameof(LightningCancelled)];
     private static readonly string[] SummaryNames =
-        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
+        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(AwaitingApprovalSlotsCount), nameof(ApprovedSlotsCount), nameof(ApprovalTimeoutSlotsCount), nameof(DiscardedSlotsCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
     private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); }
     public bool CanExportSummary => IsAuthenticated && summary != null;
     public string SummaryReceivedLabel => summaryReceivedAt is { } time ? $"Recebido em {time.ToLocalTime():dd/MM/yyyy HH:mm:ss}" : "Nenhum resumo carregado";
@@ -244,7 +259,18 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         if (string.IsNullOrWhiteSpace(Identifier) || string.IsNullOrWhiteSpace(password)) throw new NoraApiException("Informe seu CPF ou e-mail e sua senha.");
         if (!BrazilianDataValidator.IsValidLoginIdentifier(Identifier)) throw new NoraApiException("Informe um CPF válido ou um e-mail válido para entrar.");
         api.Configure(Endpoint);
-        var session = await api.LoginAsync(profile.Id, Identifier.Trim(), password);
+        // A credencial do computador (só no OBS) vai no login e em toda requisição, mas apenas ao mesmo endereço de API para o qual foi ativada.
+        if (devices is not null && ReadStoredDevice() is not null) ApplyDeviceCredential();
+        var sentCredential = api.SendsDeviceCredential;
+        LoginSession session;
+        try { session = await api.LoginAsync(profile.Id, Identifier.Trim(), password, keepSignedIn && sentCredential); }
+        catch (NoraApiException error) when (error.Code == "device-required" && sentCredential && devices is not null)
+        {
+            // A API recusou a atendente por falta de computador válido: confere este computador para a tela não seguir dizendo "ativado" (revogado, ou reativado em outra máquina) nem esconder o campo do código.
+            if (await ConfirmDeviceAsync() == DeviceCheck.Revoked) throw new NoraApiException(RevokedNotice);
+            throw;
+        }
+        await ApplyLoginDeviceAsync(session, sentCredential);
         user = session.User;
         mustChangePassword = session.User.MustChangePassword;
         NotifySession(); Notify(nameof(MustChangePassword));
@@ -264,6 +290,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     private async Task LogoutAsync()
     {
+        devices?.DeleteSession();
         try { await api.LogoutAsync(); }
         catch (NoraApiException error)
         {
@@ -329,7 +356,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             catch (NoraApiException error)
             {
                 if (error.Code == "password-change-required" && IsAuthenticated) { EnterPasswordChange(); return; }
-                if (error.Unauthorized && IsAuthenticated) SignOut();
+                if (error.Unauthorized && IsAuthenticated) { SignOutRejected(error.Message); return; }
                 Say(MessageKind.Error, error.Message);
             }
             finally { gate.Release(); }
@@ -357,7 +384,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             {
                 if (disposed) return;
                 if (error.Code == "password-change-required") EnterPasswordChange();
-                else if (error.Unauthorized) { SignOut(); Say(MessageKind.Error, error.Message); }
+                else if (error.Unauthorized) SignOutRejected(error.Message);
                 else RegisterRefreshFailure(error.Message, show: true);
             }
             finally { gate.Release(); }
@@ -413,7 +440,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         summary = null; summaryReceivedAt = null; LightningPeriodDays = 0;
         ClearRefreshState();
         NotifySummary();
-        ClearObsUnits(); ClearStaff(); ClearUnits(); ClearMunicipalScheduling(); ClearAnnouncements(); ClearFamily(); ClearCommunication();
+        ClearObsUnits(); ClearStaff(); ClearUnits(); ClearMunicipalScheduling(); ClearAnnouncements(); ClearFamily(); ClearCommunication(); OpeningSteps.Clear();
     }
 
     private void SignOut()

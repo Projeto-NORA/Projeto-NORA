@@ -58,7 +58,7 @@ public sealed partial class WorkspaceViewModel
 
     public string UnitAlertsState => !IsAuthenticated ? "Entre na conta para consultar os alertas."
         : !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os alertas."
-        : unitAlertsFailed && alertsReadAt is null ? "Não foi possível avaliar os alertas agora. Use Atualizar dados para tentar de novo."
+        : unitAlertsFailed && alertsReadAt is null ? "Não foi possível avaliar os alertas agora. Use Atualizar alertas para tentar de novo."
         : alertsReadAt is null ? "Avaliando os alertas…"
         : UnitAlerts.Count == 0 && unitAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {alertsReadAt:HH:mm}, não havia alerta. Use Atualizar alertas para tentar de novo."
         : UnitAlerts.Count > 0 && unitAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {alertsReadAt:HH:mm}."

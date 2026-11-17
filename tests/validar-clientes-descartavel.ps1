@@ -30,7 +30,7 @@ $noraDirectory = Join-Path $noraRoot ('.build\clients-validation-' + [guid]::New
 New-Item -ItemType Directory -Path $noraDirectory | Out-Null
 $noraData = Join-Path $noraDirectory 'data'
 $noraPreview = if ([IO.Path]::IsPathRooted($PreviewDirectory)) { $PreviewDirectory } else { Join-Path $noraRoot $PreviewDirectory }
-$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_TEST_REGISTRATION', 'NORA_TEST_UNIT_A_CONNECTION', 'NORA_TEST_UNIT_B_CONNECTION', 'NORA_TEST_UNIT_C_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_UNIT_REGISTRY', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
+$noraEnvironmentNames = @('NORA_TEST_CONNECTION', 'NORA_TEST_REGISTRATION', 'NORA_TEST_UNIT_A_CONNECTION', 'NORA_TEST_UNIT_B_CONNECTION', 'NORA_TEST_UNIT_C_CONNECTION', 'NORA_E2E_URL', 'NORA_E2E_UNIT_REGISTRY', 'NORA_E2E_IDENTIFIER', 'NORA_E2E_PASSWORD', 'NORA_E2E_ATTENDANT_IDENTIFIER', 'NORA_E2E_ATTENDANT_PASSWORD', 'JAVA_HOME', 'ANDROID_HOME', 'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME')
 $noraPreviousEnvironment = @{}
 foreach ($noraName in $noraEnvironmentNames) { $noraPreviousEnvironment[$noraName] = [Environment]::GetEnvironmentVariable($noraName, 'Process') }
 $noraStarted = $false
@@ -114,6 +114,9 @@ try {
     $env:NORA_E2E_URL = $noraEndpoint.AbsoluteUri
     $env:NORA_E2E_IDENTIFIER = 'operator@example.test'
     $env:NORA_E2E_PASSWORD = 'Disposable-test-Account!29'
+    # Conta de atendente da fixture (concessão nas três UBS): o E2E de computadores do OBS ativa o computador pelo operador e entra com ela.
+    $env:NORA_E2E_ATTENDANT_IDENTIFIER = 'attendant@example.test'
+    $env:NORA_E2E_ATTENDANT_PASSWORD = 'Disposable-test-Account!29'
     $noraDesktop = Start-NoraCheckProcess 'dotnet' @(('"' + $noraDesktopChecks + '"'), '--preview-dir', ('"' + $noraPreview + '"')) 'desktop'
     try { $noraExitCode = Wait-NoraCheckProcess $noraDesktop $TestTimeoutSeconds 'Checks WPF' } finally { $noraDesktop.Dispose() }
     if ($noraExitCode -ne 0) { throw 'Checks WPF/E2E falharam; confira desktop.stdout.log e desktop.stderr.log.' }

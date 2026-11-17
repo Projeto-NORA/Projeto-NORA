@@ -387,6 +387,29 @@
       <StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" /><ContentControl Content="{Binding}" ContentTemplate="{StaticResource GoalCellTemplate}" Margin="0,10,0,0" /></StackPanel>
     </Border>
   </DataTemplate>
+  <!-- Passo de uma operação demorada: indicador girando na cor da marca enquanto roda, marca de concluído e de falha com a cor e o texto do estado (regra do usuário de 16/11/2026). -->
+  <DataTemplate x:Key="ProgressStepTemplate">
+    <Grid Margin="0,4,0,0" AutomationProperties.Name="{Binding AutomationText}">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <Path x:Name="Spinner" Data="M 8,1.5 A 6.5,6.5 0 1 1 1.5,8" Stroke="{DynamicResource BrandBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5" Visibility="Collapsed">
+        <Path.RenderTransform><RotateTransform x:Name="SpinnerRotation" Angle="0" /></Path.RenderTransform>
+      </Path>
+      <TextBlock x:Name="DoneMark" Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+      <TextBlock x:Name="FailedMark" Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource ErrorBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+      <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center" />
+    </Grid>
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding IsRunning}" Value="True">
+        <Setter TargetName="Spinner" Property="Visibility" Value="Visible" />
+        <DataTrigger.EnterActions>
+          <BeginStoryboard x:Name="SpinStory"><Storyboard><DoubleAnimation Storyboard.TargetName="SpinnerRotation" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:1" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard>
+        </DataTrigger.EnterActions>
+        <DataTrigger.ExitActions><StopStoryboard BeginStoryboardName="SpinStory" /></DataTrigger.ExitActions>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsDone}" Value="True"><Setter TargetName="DoneMark" Property="Visibility" Value="Visible" /></DataTrigger>
+      <DataTrigger Binding="{Binding IsFailed}" Value="True"><Setter TargetName="FailedMark" Property="Visibility" Value="Visible" /></DataTrigger>
+    </DataTemplate.Triggers>
+  </DataTemplate>
   <ItemsPanelTemplate x:Key="ThreeColumnPanel"><UniformGrid Columns="3" /></ItemsPanelTemplate>
   <ItemsPanelTemplate x:Key="FourColumnPanel"><UniformGrid Columns="4" /></ItemsPanelTemplate>
 </ResourceDictionary>
