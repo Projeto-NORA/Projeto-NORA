@@ -36,7 +36,8 @@
 - [x] App: score em pontos e faixas, textos da prioridade.
 - [x] Scripts e roteiro sem CPF da equipe.
 - [x] Revisão em loop (volta de correção dos achados confirmados em 2026-11-17, abaixo).
-- [ ] Validação completa (API, desktop, E2E, Android) e merge + push na `main`: API, desktop, E2E desktop com banco (184/184) e Android (testes locais, lint e instrumentados 46/48 com 2 pulados por assumption, conforme `execucao.md`) rodaram; falta só o merge na `main` e a publicação (P-055).
+- [x] Revisão adversarial em loop até uma volta sem achados: 8 voltas (1 a 7 com achados corrigidos, 8 limpa nas quatro lentes).
+- [x] Validação completa (API, desktop, E2E, Android) e merge + push na `main` (2026-11-18, P-055 resolvida): API 273 PASS, desktop 181/181, E2E desktop com banco 184/184, Android 295 testes locais, lint sem erros, 55/55 prévias e instrumentados 46/48 com 2 pulados por assumption (`execucao.md`).
 - [ ] Hospedagem no Render + Neon, guiada no navegador (P-049, aberta).
 - [x] PENDENCIAS atualizado (P-051, P-052, P-053, P-054 resolvidas ou encerradas; P-055 e P-049 abertas).
 
@@ -49,7 +50,9 @@
   - App: "Escolher outra data" seleciona o dia escolhido e avisa quando ele não tem horário (`shownDay`, `isWantedDayEmpty`; teste local `theDayPickedInThePickerIsTheDayShownAndAnEmptyPickedDayIsReported`).
   - Documentação: versões de migração (central 022, UBS 017), prioridade por pontos, login da equipe só por e-mail, roteiro de recuperação do Render (log do filtro de host, teste de IP por comportamento), Blueprint `render.yaml`, ordem dos itens paginados, `--demo-bootstrap`, P-052 e P-053 em Resolvidas.
 - Resultados reais desta volta: `NORA.slnx` Release 0 erros e 0 avisos; suíte `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55810): HTTP 34/34, fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores do OBS 13/13, chamar próximo 8/8, serviços e horários 7/7, conflito entre UBS 7/7, aprovação das vagas 8/8, caixa de saída 5/5, volta à fila 5/5, desempenho 6/6, fechamento 16/16, bancos por UBS PASS (o script avisou no fim que o cluster não confirmou o encerramento; o cluster foi parado à mão); desktop `Nora.Desktop.Checks` 181/181; Android `testDebugUnitTest` 294 testes, 0 falhas, `lintDebug` 0 erros e 7 avisos (nenhum nos arquivos alterados); `gradlew --stop` feito.
-- Falta: merge e push na `main` e a hospedagem (P-049). O E2E desktop com banco (184/184) e os instrumentados no emulador (46 aprovados, 2 pulados por assumption) rodaram em 2026-11-18, ver `execucao.md`.
+- Voltas 2 a 7 (2026-11-18): seções abaixo. A volta 8 rodou as quatro lentes (servidor, segurança, clientes e documentação) sobre `1247e15` e nenhuma achou defeito novo: o loop fechou. A validação final depois da volta 7 deu API 273 PASS, desktop 181/181, E2E desktop com banco 184/184, Android 295 testes locais com lint sem erros, 55/55 prévias e instrumentados 46/48 (2 pulados por assumption).
+- Merge na `main` e push feitos em 2026-11-18 (P-055 resolvida).
+- Falta: a hospedagem no Render + Neon (P-049), guiada no navegador do app; o usuário escolheu uma conta do Neon própria do NORA, separada da oliverTech.
 
 ## Correções da revisão (2026-11-18)
 
