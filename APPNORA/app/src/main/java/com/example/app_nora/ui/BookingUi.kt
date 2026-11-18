@@ -116,7 +116,8 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     val subject = patient.actingFor
     var specialtyId by rememberSaveable(unit.id, subject) { mutableStateOf(initialSpecialtyId) }
     var weekIndex by rememberSaveable(unit.id, subject, specialtyId) { mutableIntStateOf(0) }
-    var chosenDay by rememberSaveable(unit.id, subject, specialtyId, weekIndex) { mutableStateOf<Long?>(null) }
+    // O dia pedido não é recomeçado pela troca de semana: "Escolher outra data" muda a semana e o dia juntos (os botões de semana, sim, o limpam).
+    var chosenDay by rememberSaveable(unit.id, subject, specialtyId) { mutableStateOf<Long?>(null) }
     var confirming by remember(unit.id, subject) { mutableStateOf<AvailableSlot?>(null) }
     // Uma leitura por mudança de UBS, pessoa, especialidade ou semana; atualizar a tela não repete a requisição.
     LaunchedEffect(unit.id, subject, specialtyId, weekIndex, patient.session.token) {
@@ -131,7 +132,7 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                 if (!patient.specialtiesLoading) OutlinedButton(onClick = onOpenBooking, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
             }
             specialties.isEmpty() -> MutedText("A rede ainda não tem especialidades disponíveis para agendamento.")
-            else -> specialties.forEach { item -> ChoiceRow(item.name, item.id == specialtyId, !patient.busy) { specialtyId = item.id; weekIndex = 0 } }
+            else -> specialties.forEach { item -> ChoiceRow(item.name, item.id == specialtyId, !patient.busy) { specialtyId = item.id; weekIndex = 0; chosenDay = null } }
         }
     }
 
@@ -142,11 +143,11 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     val result = patient.availability?.takeIf { it.unitId == unit.id && it.specialtyId == chosen && it.week == weekIndex }
     SectionCard("3. Escolha o dia e o horário", week?.let { "Semana de ${formatWeekRange(it)}" } ?: "Escolha uma data") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { weekIndex-- }, enabled = weekIndex > 0, modifier = Modifier.weight(1f)) { Text("Semana anterior") }
-            OutlinedButton(onClick = { weekIndex++ }, modifier = Modifier.weight(1f)) { Text("Próxima semana") }
+            OutlinedButton(onClick = { weekIndex--; chosenDay = null }, enabled = weekIndex > 0, modifier = Modifier.weight(1f)) { Text("Semana anterior") }
+            OutlinedButton(onClick = { weekIndex++; chosenDay = null }, enabled = bookingWeek(now, weekIndex + 1) != null, modifier = Modifier.weight(1f)) { Text("Próxima semana") }
         }
         OutlinedButton(onClick = { pickingDate = true }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Escolher outra data") }
-        if (pickingDate) BookingDatePicker(now, onPick = { dayStart -> weekIndex = bookingWeekIndexFor(dayStart, now); pickingDate = false }, onDismiss = { pickingDate = false })
+        if (pickingDate) BookingDatePicker(now, onPick = { dayStart -> weekIndex = bookingWeekIndexFor(dayStart, now); chosenDay = dayStart; pickingDate = false }, onDismiss = { pickingDate = false })
         if (result == null) {
             if (patient.availabilityLoading) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -160,7 +161,8 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
             if (days.isEmpty()) {
                 MutedText("Nenhum horário livre nesta semana para esta especialidade nesta UBS. Veja a próxima semana ou escolha outra data.")
             } else {
-                val shown = days.firstOrNull { it.dayStart == chosenDay } ?: days.first()
+                val shown = shownDay(days, chosenDay)
+                if (isWantedDayEmpty(days, chosenDay)) MutedText("Nenhum horário livre em ${formatDayLabel(chosenDay!!)}; veja os outros dias da semana.")
                 Text("Dia", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 days.forEach { day ->
                     ChoiceRow("${formatDayLabel(day.dayStart)} · ${countLabel(day.slots.size, "horário", "horários")}",
@@ -208,14 +210,15 @@ internal fun BookedCard(unitName: String, appointment: PatientAppointment, onOpe
     }
 }
 
-/** Seletor de data do agendamento: só hoje em diante, até o ano 2100; devolve o início do dia escolhido no calendário do aparelho. */
+/** Seletor de data do agendamento: só de hoje até o teto de [BOOKING_HORIZON_YEARS] anos do servidor; devolve o início do dia escolhido no calendário do aparelho. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BookingDatePicker(now: Long, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
     val today = java.util.Calendar.getInstance().apply { timeInMillis = now }.get(java.util.Calendar.YEAR)
+    val lastYear = java.util.Calendar.getInstance().apply { timeInMillis = bookingHorizon(now) }.get(java.util.Calendar.YEAR)
     val state = rememberDatePickerState(selectableDates = object : SelectableDates {
         override fun isSelectableDate(utcTimeMillis: Long): Boolean = isDayBookable(localDayFromPicker(utcTimeMillis), now)
-        override fun isSelectableYear(year: Int): Boolean = year in today..2100
+        override fun isSelectableYear(year: Int): Boolean = year in today..lastYear
     })
     DatePickerDialog(
         onDismissRequest = onDismiss,

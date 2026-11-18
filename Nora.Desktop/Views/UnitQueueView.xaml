@@ -45,10 +45,10 @@
           <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
         <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>
         <DataGrid.Columns>
-            <DataGridTextColumn Header="Ordem de oferta" Binding="{Binding PositionDisplay}" Width="128" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Ordem de oferta" Binding="{Binding PositionDisplay}" SortMemberPath="OfferSort" Width="128" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="1.5*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" Width="120" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" SortMemberPath="ScoreSort" Width="120" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Espera" Binding="{Binding WaitDisplay}" Width="82" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Entrada" Binding="{Binding EnteredAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="104" ElementStyle="{StaticResource CellText}" />

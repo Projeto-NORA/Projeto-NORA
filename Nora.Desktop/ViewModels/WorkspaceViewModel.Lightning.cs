@@ -17,8 +17,8 @@ public sealed partial class WorkspaceViewModel
     private bool unitQueueLoaded, unitSlotsLoaded;
     private const string HistoryRestartedNotice = "O histórico carregado foi reiniciado porque muitos itens foram encerrados desde a última leitura. Use Carregar mais histórico para ver os mais antigos.";
     // Histórico paginado (P4): a API devolve todos os itens ativos e as encerradas mais recentes; o resto vem por "Carregar mais histórico". O ciclo de 20 s relê só a primeira página e preserva o que já foi carregado (ver HistoryPager).
-    private readonly HistoryPager<UnitWaitingEntry, long> queuePager = new(entry => entry.Id, entry => entry.IsActive);
-    private readonly HistoryPager<UnitLightningSlot, Guid> slotsPager = new(slot => slot.Id, slot => slot.IsActive);
+    private readonly HistoryPager<UnitWaitingEntry, long> queuePager = new(entry => entry.Id, entry => entry.IsActive, entry => entry with { Status = "closed", Position = 0, WaitDisplay = "—" });
+    private readonly HistoryPager<UnitLightningSlot, Guid> slotsPager = new(slot => slot.Id, slot => slot.IsActive, slot => slot with { Status = "closed", ClosedReason = null });
     private string queueHistoryNotice = "", slotsHistoryNotice = "";
     public UnitPatientRecord? WaitingPatient { get => waitingPatient; set { waitingPatient = value; Notify(); } }
     public UnitWaitingEntry? SelectedWaitingEntry { get => selectedWaitingEntry; set { selectedWaitingEntry = value; Notify(); Notify(nameof(CanCancelWaitingEntry)); } }

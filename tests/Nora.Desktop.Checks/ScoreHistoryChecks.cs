@@ -51,6 +51,14 @@ internal static partial class Program
             Require(!restarted && Ids(shown).SequenceEqual([29, 30]) && !pager.HasMore, "Página sem cursor é o histórico inteiro.");
             pager.Clear();
             Require(pager.Shown.Count == 0 && !pager.HasMore, "Limpar deveria esquecer tudo.");
+            // Entrada ativa e antiga que é encerrada: sai da primeira página (mais antiga que as encerradas dela) e não pode sumir; vira "Encerrada" e continua depois do histórico carregado.
+            var closing = new HistoryPager<UnitWaitingEntry, long>(entry => entry.Id, entry => entry.IsActive, entry => entry with { Status = "closed" });
+            closing.ApplyPage([Item(2, true), Item(10), Item(9)], "c9", out restarted);
+            closing.ApplyOlder([Item(8), Item(7)], "c7");
+            shown = closing.ApplyPage([Item(11), Item(10), Item(9)], "c9", out restarted);
+            Require(!restarted && Ids(shown).SequenceEqual([2, 7, 8, 9, 10, 11]) && shown.Single(item => item.Id == 2) is { IsActive: false, Status: "closed", StatusDisplay: "Encerrada" } && closing.Cursor == "c7", "A entrada ativa encerrada não pode sumir da lista: " + string.Join(",", Ids(shown)));
+            shown = closing.ApplyPage([Item(11), Item(10), Item(9)], "c9", out restarted);
+            Require(Ids(shown).SequenceEqual([2, 7, 8, 9, 10, 11]) && shown.Count(item => item.Id == 2) == 1, "O ciclo seguinte deveria manter a entrada encerrada, sem duplicar.");
         });
 
         Check("Fila OBS: ordem de oferta da API (mais pontos primeiro, empate pela entrada), coluna Score, texto da prioridade e ficha; sem os campos novos o cliente calcula", () =>
@@ -73,6 +81,9 @@ internal static partial class Program
                 Require(vm.UnitWaitingList.Single(item => item.PatientName == "Edu Santos") is { PositionDisplay: "—", ScoreDisplay: "100 · Baixo" }, "A entrada encerrada não tem ordem de oferta, mas mostra o score.");
                 var grid = GridNamed(content, "Fila por especialidade da UBS");
                 Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["Ordem de oferta", "Paciente", "Especialidade", "Score", "Espera", "Entrada", "Situação"]), "Colunas da fila divergem do esperado.");
+                Require(grid.Columns.Single(column => column.Header?.ToString() == "Score").SortMemberPath == "ScoreSort" && grid.Columns.Single(column => column.Header?.ToString() == "Ordem de oferta").SortMemberPath == "OfferSort", "Score e Ordem de oferta ordenariam pelo texto.");
+                var byScore = vm.UnitWaitingList.OrderBy(item => item.ScoreSort).Select(item => item.PatientName).ToArray();
+                Require(byScore[0] == "Edu Santos" && byScore[^1] == "Diego Reis" && vm.UnitWaitingList.Single(item => item.PatientName == "Edu Santos").OfferSort == int.MaxValue, "A chave numérica do score deveria ordenar 100 antes de 1000 (e a encerrada sem ordem vai por último na ordem de oferta): " + string.Join(",", byScore));
                 var texts = VisibleTexts(content);
                 Require(texts.Contains("Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento. A ordem de oferta, o score e o tempo de espera são atualizados a cada leitura."), "A Fila deveria explicar a prioridade pelo score.");
                 Require(!texts.Any(text => text.Contains("pela ordem de entrada entre as entradas ativas", StringComparison.Ordinal)), "O texto antigo (só ordem de entrada) continua na tela.");
@@ -116,6 +127,7 @@ internal static partial class Program
                 Require(button.IsEnabled && AutomationProperties.GetName(button) == "Carregar mais histórico da fila", "O botão deveria existir e estar habilitado.");
                 var firstPageIds = Ids();
                 Click(window, content, "Carregar mais histórico", 1280, 1500);
+                Require(FindActionButton(content, "Carregar mais histórico").IsEnabled, "Depois de carregar mais, o botão deveria continuar habilitado (havia mais histórico), sem esperar o ciclo de 20 s.");
                 Require(Ids().SequenceEqual([3, 4, 5, 6, 7, 8, 9, 10]) && fixture.HistoryReads[^1].StartsWith("waiting-list?historyBefore=", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success && vm.Message == "Histórico da fila ampliado.", "Carregar mais deveria acrescentar as 3 encerradas seguintes: " + string.Join(",", Ids()));
                 NoDuplicates("depois de carregar mais");
                 // Ciclo de 20 s sem mudança: nada é recriado e o histórico carregado continua.
@@ -211,8 +223,11 @@ internal static partial class Program
                     Require(!vm.IsAuthenticated && vm.Message.StartsWith("Informe um e-mail válido", StringComparison.Ordinal) && fixture.Requests.Count == before, "E-mail sem formato deveria ser recusado antes do envio.");
                     vm.Identifier = "  "; Pump(vm.LoginAsync("isolated-test-password"));
                     Require(vm.Message == "Informe seu e-mail e sua senha." && fixture.Requests.Count == before, "Campo vazio: " + vm.Message);
-                    vm.Identifier = "fixture@example.invalid"; Pump(vm.LoginAsync("isolated-test-password"));
-                    Require(vm.IsAuthenticated && fixture.LoginIdentifier == "fixture@example.invalid", "O e-mail válido deveria entrar.");
+                    Require(BrazilianDataValidator.IsLoginEmail("admin@localhost") && !BrazilianDataValidator.IsValidEmail("admin@localhost") && !BrazilianDataValidator.IsLoginEmail(FixtureCpf) && !BrazilianDataValidator.IsLoginEmail("sem-arroba"), "A entrada aceita o e-mail sem ponto no domínio (como a API); o cadastro continua exigindo.");
+                    // O OBS entra com e-mail de domínio completo; o Painel, com o sem ponto que o --provision e a API aceitam.
+                    var identifier = municipal ? "admin@localhost" : "fixture@example.invalid";
+                    vm.Identifier = identifier; Pump(vm.LoginAsync("isolated-test-password"));
+                    Require(vm.IsAuthenticated && fixture.LoginIdentifier == identifier, "O e-mail válido deveria entrar: " + vm.Message);
                 }
                 finally { CloseWindow(window); }
             }

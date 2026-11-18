@@ -52,7 +52,7 @@ public sealed class UnitRegistryReadService(UnitPatientRegistryDao registry, Uni
 
     internal static PatientAttendance Attendance(PatientTally tally)
     {
-        var score = tally.Score; var points = AttendanceScore.Points(score);
+        var score = tally.Score; var points = tally.Points;
         return new(tally.Completed, tally.Missed, tally.CancelledByPatient, MetricsService.Round(tally.Weight), score is { } value ? MetricsService.Round(value) : null, points, AttendanceScore.Band(points), score is not null);
     }
 }

@@ -16,6 +16,11 @@ public sealed partial class SchedulingService
     /// (decisão do usuário de 2026-11-17); para chegar a uma data distante basta pedir um intervalo que a contenha.
     /// </summary>
     public const int MaxAvailabilityDays = 92;
+    /// <summary>
+    /// Teto de data para consultar ou marcar horários: 20 anos à frente. Sem o teto, um pedido perto de 31/12/9999 faz o cálculo da grade estourar o limite de <see cref="DateTime"/> (500); com ele a API responde 400.
+    /// </summary>
+    public const int MaxScheduleHorizonYears = 20;
+    private bool BeyondHorizon(DateTimeOffset moment) => moment > time.GetUtcNow().AddYears(MaxScheduleHorizonYears);
     private static readonly HashSet<string> States = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
     [GeneratedRegex("^[A-Za-z]{2,10}$")] private static partial Regex AcronymPattern();
     [GeneratedRegex("^[A-Za-z0-9./-]{1,20}$")] private static partial Regex CouncilNumberPattern();
@@ -105,7 +110,7 @@ public sealed partial class SchedulingService
     /// </summary>
     public async Task<List<AvailableSlot>> AvailabilityAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, CancellationToken ct)
     {
-        if (specialtyId is not { } id || id == Guid.Empty || professionalId == Guid.Empty || to <= from || to - from > TimeSpan.FromDays(MaxAvailabilityDays)) throw new ApiInputException();
+        if (specialtyId is not { } id || id == Guid.Empty || professionalId == Guid.Empty || to <= from || to - from > TimeSpan.FromDays(MaxAvailabilityDays) || BeyondHorizon(to)) throw new ApiInputException();
         var specialty = (await specialties.FindAsync([id], ct)).GetValueOrDefault(id) ?? throw new ApiInputException();
         var now = time.GetUtcNow();
         var lower = now.AddTicks(1);
@@ -164,7 +169,7 @@ public sealed partial class SchedulingService
         if (request.ProfessionalId is not { } professional || professional == Guid.Empty || request.SpecialtyId is not { } specialtyId || specialtyId == Guid.Empty) throw new ApiCodedException(StatusCodes.Status400BadRequest, "catalog-required");
         var cpf = AccountService.NormalizeCpf(request.Cpf);
         var start = request.StartsAt.ToUniversalTime();
-        if (!AccountService.ValidCpf(cpf) || start <= time.GetUtcNow()) throw new ApiInputException();
+        if (!AccountService.ValidCpf(cpf) || start <= time.GetUtcNow() || BeyondHorizon(start)) throw new ApiInputException();
         var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, request.EndsAt == default ? null : request.EndsAt, "staff", engine, ct, null, beforeInsert);
@@ -205,6 +210,7 @@ public sealed partial class SchedulingService
     {
         var cpf = cpfLock.Cpf; var now = time.GetUtcNow();
         if (start <= now) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
+        if (BeyondHorizon(start)) throw new ApiInputException();
         foreach (var unit in await limitUnits())
             if (await dao.CountPatientBookingsAsync(unit, cpf, specialty.Id, now, ct) > 0) throw new ApiCodedException(StatusCodes.Status409Conflict, "specialty-limit");
         return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, null, "patient", engine, ct, guardianId, (from, to) => crossUnit.EnsureFreeAsync(cpfLock, unitId, from, to, ct));

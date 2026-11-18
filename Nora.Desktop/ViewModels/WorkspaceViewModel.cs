@@ -32,7 +32,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(CanReadUnitRegistry),
         nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment), nameof(CanCreateLightning),
         nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
-        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
+        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanLoadMoreQueueHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
         nameof(CanEditCatalog), nameof(CanChangeProfessional), nameof(CanChangeRoom), nameof(CanChangeSchedule), nameof(CanChangeBlock), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders),
         nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
@@ -41,7 +41,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] SessionDependents =
     [
         nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
-        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState),
+        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState), nameof(CanLoadMoreQueueHistory), nameof(CanLoadMoreSlotsHistory),
         nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement),
         nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(ShowDevicesSection), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
@@ -257,7 +257,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public Task LoginAsync(string password) => RunAsync(async () =>
     {
         if (string.IsNullOrWhiteSpace(Identifier) || string.IsNullOrWhiteSpace(password)) throw new NoraApiException("Informe seu e-mail e sua senha.");
-        if (!BrazilianDataValidator.IsValidEmail(Identifier)) throw new NoraApiException("Informe um e-mail válido para entrar (nome@dominio.com).");
+        if (!BrazilianDataValidator.IsLoginEmail(Identifier)) throw new NoraApiException("Informe um e-mail válido para entrar (nome@dominio.com).");
         api.Configure(Endpoint);
         // A credencial do computador (só no OBS) vai no login e em toda requisição, mas apenas ao mesmo endereço de API para o qual foi ativada.
         if (devices is not null && ReadStoredDevice() is not null) ApplyDeviceCredential();

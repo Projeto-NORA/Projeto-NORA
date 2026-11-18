@@ -22,8 +22,9 @@ internal const val ATTENDANCE_BANDS =
     "O score vai de 0 a 1000: Baixo (0 a 299), Regular (300 a 599), Bom (600 a 799) e Excelente (800 a 1000). " +
         "Quem ainda não tem consulta encerrada começa em 1000."
 /** Efeito do score, igual ao texto do contrato: ordem das ofertas de Vaga Relâmpago, sem mexer na prioridade clínica. */
-internal fun attendancePriorityText(name: String?): String =
+internal fun attendancePriorityText(name: String?, severalUnits: Boolean = false): String =
     "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. " +
+        (if (severalUnits) "A ordem usa o score de cada UBS (veja o detalhe por UBS), não o número somado em destaque. " else "") +
         "O score não muda a prioridade clínica nem o direito ${if (name == null) "" else "de $name "}ao atendimento."
 
 /**
@@ -69,7 +70,7 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
         }
         MutedText(ATTENDANCE_BANDS)
         MutedText(ATTENDANCE_EXPLANATION)
-        MutedText(attendancePriorityText(name))
+        MutedText(attendancePriorityText(name, (units?.size ?: 0) > 1))
         if (patient.session != null && units != null) OutlinedButton(onClick = onRefresh, enabled = !patient.attendanceLoading,
             modifier = Modifier.fillMaxWidth()) {
             Text(if (patient.attendanceLoading) "Atualizando…" else "Atualizar participação")

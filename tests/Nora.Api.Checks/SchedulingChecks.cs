@@ -416,6 +416,9 @@ internal static class SchedulingChecks
             using (var anonymous = await f.Anonymous.GetAsync($"/api/patient/units/{u1}/availability?from={tueFrom}&to={tueTo}&specialtyId={cardiology}")) Expect(anonymous, 401);
             using (var staff = await f.Attendant.GetAsync($"/api/patient/units/{u1}/availability?from={tueFrom}&to={tueTo}&specialtyId={cardiology}")) Expect(staff, 403);
             using (var badRequest = await f.Patients[1].GetAsync($"/api/patient/units/{u1}/availability?from={tueTo}&to={tueFrom}&specialtyId={cardiology}")) Expect(badRequest, 400);
+            // Teto de data (20 anos): um intervalo curto em 31/12/9999 estourava o limite de DateTime na grade (500); agora é 400 para equipe e paciente.
+            foreach (var kind in new[] { "obs", "patient" })
+            { using var beyond = await (kind == "obs" ? f.Attendant : f.Patients[1]).GetAsync($"/api/{kind}/units/{u1}/availability?from=9999-12-01T00:00:00Z&to=9999-12-31T12:00:00Z&specialtyId={cardiology}"); Expect(beyond, 400); }
             // Atendimento ocupado some também para o paciente.
             Require((await Slots(f.Patients[1], u1, WedFrom, WedTo, cardiology, null, "patient")).Select(StartOf).SequenceEqual(["12:00"]), "O paciente vê o mesmo que a equipe.");
         });

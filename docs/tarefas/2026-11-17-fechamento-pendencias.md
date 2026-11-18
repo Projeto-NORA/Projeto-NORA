@@ -30,16 +30,44 @@
 
 ## Checklist
 
-- [ ] Contrato fixo (score em pontos, prioridade, P-053, P4).
-- [ ] Servidor: P-053, score em pontos e prioridade, P3, P4, P5, com testes.
-- [ ] Desktop: Secretaria sem CPF na equipe, entrada por e-mail, score em pontos no OBS, histórico paginado na Fila e na Vaga Relâmpago.
-- [ ] App: score em pontos e faixas, textos da prioridade.
-- [ ] Scripts e roteiro sem CPF da equipe.
-- [ ] Revisão em loop até uma volta sem achados.
-- [ ] Validação completa (API, desktop, E2E, Android) e merge + push na `main`.
-- [ ] Hospedagem no Render + Neon, guiada no navegador.
-- [ ] PENDENCIAS atualizado (P-051, P-052, P-053, P-054, P-055, P-049).
+- [x] Contrato fixo (score em pontos, prioridade, P-053, P4).
+- [x] Servidor: P-053, score em pontos e prioridade, P3, P4, P5, com testes.
+- [x] Desktop: Secretaria sem CPF na equipe, entrada por e-mail, score em pontos no OBS, histórico paginado na Fila e na Vaga Relâmpago.
+- [x] App: score em pontos e faixas, textos da prioridade.
+- [x] Scripts e roteiro sem CPF da equipe.
+- [x] Revisão em loop (volta de correção dos achados confirmados em 2026-11-17, abaixo).
+- [ ] Validação completa (API, desktop, E2E, Android) e merge + push na `main`: API, desktop e testes locais do Android rodaram (abaixo); faltam o E2E desktop com banco, os instrumentados no emulador e o merge (P-055).
+- [ ] Hospedagem no Render + Neon, guiada no navegador (P-049, aberta).
+- [x] PENDENCIAS atualizado (P-051, P-052, P-053, P-054 resolvidas ou encerradas; P-055 e P-049 abertas).
 
 ## Estado
 
-- Decisões recebidas; contrato sendo escrito.
+- Decisões implementadas (HEAD `3dab894`) e, em 2026-11-17, a volta de correção dos achados confirmados da revisão:
+  - `UnitWaitingListDao.ListForObsAsync` e `UnitLightningDao.ListAsync` leem ativas, histórico e pontos num só retrato (transação `REPEATABLE READ`): uma entrada ou vaga que muda de situação entre as consultas não volta nas duas listas.
+  - `SchedulingService`: teto de 20 anos (`MaxScheduleHorizonYears`) em disponibilidade e marcação (equipe e paciente); intervalo em 31/12/9999 responde 400, não 500. Teste na suíte da agenda (`SchedulingChecks`).
+  - Desktop: `CanLoadMoreQueueHistory` e `CanLoadMoreSlotsHistory` entraram em `BusyDependents` e `SessionDependents` (o botão não fica desabilitado até o ciclo de 20 s; teste vermelho antes da correção, verde depois); `HistoryPager` mantém como "Encerrada" o item que estava ativo e saiu da primeira página (teste no pager).
+  - App: "Escolher outra data" seleciona o dia escolhido e avisa quando ele não tem horário (`shownDay`, `isWantedDayEmpty`; teste local `theDayPickedInThePickerIsTheDayShownAndAnEmptyPickedDayIsReported`).
+  - Documentação: versões de migração (central 022, UBS 017), prioridade por pontos, login da equipe só por e-mail, roteiro de recuperação do Render (log do filtro de host, teste de IP por comportamento), Blueprint `render.yaml`, ordem dos itens paginados, `--demo-bootstrap`, P-052 e P-053 em Resolvidas.
+- Resultados reais desta volta: `NORA.slnx` Release 0 erros e 0 avisos; suíte `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55810): HTTP 34/34, fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores do OBS 13/13, chamar próximo 8/8, serviços e horários 7/7, conflito entre UBS 7/7, aprovação das vagas 8/8, caixa de saída 5/5, volta à fila 5/5, desempenho 6/6, fechamento 16/16, bancos por UBS PASS (o script avisou no fim que o cluster não confirmou o encerramento; o cluster foi parado à mão); desktop `Nora.Desktop.Checks` 181/181; Android `testDebugUnitTest` 294 testes, 0 falhas, `lintDebug` 0 erros e 7 avisos (nenhum nos arquivos alterados); `gradlew --stop` feito.
+- Falta: E2E desktop com banco (`validar-clientes-descartavel.ps1`), instrumentados no emulador, merge e push na `main`, e a hospedagem (P-049).
+
+## Correções da revisão (2026-11-18)
+
+Achados confirmados da revisão, corrigidos pela causa raiz:
+
+- **Teto de 20 anos no app.** O seletor de data ia até 2100 e "Próxima semana" não tinha fim, mas o servidor recusa com 400 consultas além de 20 anos. `BookingLogic.kt` ganhou `BOOKING_HORIZON_YEARS` e `bookingHorizon` (20 anos menos um dia de folga para o relógio); `bookingWeek` corta a última semana no teto e não devolve semana além dele, `isDayBookable` recusa dias a partir dele, o seletor usa o ano do teto e "Próxima semana" fica desativada na última semana. Teste `weeksAndDatesStopAtTheServerHorizon` (não compilava antes da correção).
+- **Score somado x ordem da Vaga Relâmpago.** Com mais de uma UBS, `attendancePriorityText` acrescenta que a ordem usa o score de cada UBS (detalhe por UBS), não o número somado; teste em `AttendanceLogicTest`.
+- **Documentação.** README e `api.md` agora mandam migrar o central até a 022 e as UBS até a 017 (README também com a data de 2026-11-17); teto de 20 anos em `api.md`, `app-paciente.md`, `arquitetura.md` e `integracao-back-front.md` (a frase de 24 h a 90 dias ficou marcada como substituída); `hospedagem.md` diz "quatro valores" no Blueprint, que `ALLOWED_HOSTS` é acrescentado depois e quais seções continuam obrigatórias (P-049 ajustada); `configuracoes.md` não diz mais que os desktops aceitam CPF.
+- Resultado: Android `testDebugUnitTest` 295 testes, 0 falhas; `lintDebug` 0 erros e 7 avisos (os mesmos de antes, nenhum nos arquivos alterados); `gradlew --stop` feito. Nada do servidor nem do desktop foi alterado nesta volta, então API e desktop não foram reexecutados.
+
+## Segunda volta da revisão (2026-11-18)
+
+Achados confirmados, corrigidos pela causa raiz:
+
+- **Pontos do score em empate de meio ponto.** `AttendanceScore.Points(completed, missed, weight)` calcula em `decimal` sobre a razão exata (201/400 dá 503 e 203/400 dá 508, que em `double` davam 502 e 507); `PatientTally.Points` (distribuição, prévia, `offerOrder` e score da ficha) usa essa sobrecarga; `Points(double?)` converte para `decimal` antes de multiplicar. Teste na suíte HTTP ("Score em pontos").
+- **`--demo-bootstrap` sem `acesso-demo.txt`.** Se o arquivo (ou a senha nele) sumiu e alguma conta de demonstração já existe, o preparo recusa com mensagem clara, antes de criar qualquer coisa e sem tocar no arquivo; o arquivo só é gravado quando a senha é nova (as três contas acabam de ser criadas com ela). Não rodado contra o banco da demo do usuário (porta 55432, fora do escopo): a recusa foi conferida só por leitura e compilação.
+- **Fila do desktop: ordenação das colunas.** `UnitWaitingEntry.ScoreSort` e `OfferSort` (numéricas) e `SortMemberPath` nas colunas Score e Ordem de oferta; verificação no check "Fila OBS".
+- **App: especialidade já escolhida.** Tocar de novo nela também zera `chosenDay` (`BookingUi.kt`), como os botões de semana. Sem teste de unidade: é estado de composição, sem costura.
+- **Entrada do desktop com e-mail sem ponto no domínio.** `BrazilianDataValidator.IsLoginEmail` (formato da API, sem exigir ponto) passa a validar a tela de entrada; `IsValidEmail` (com ponto) continua nos cadastros. Teste: o Painel Municipal entra com `admin@localhost` no check "Entrada por e-mail".
+- **Documentação.** `api.md`, `arquitetura.md` e `integracao-back-front.md` dizem "ordem de oferta" (mais pontos primeiro) no Chamar próximo; README, `api.md`, `arquitetura.md` e `requisitos-funcionais.md` não tratam mais P-012, P-014 e P-015 como abertas (os parágrafos de 2026-10-08 ficaram marcados como históricos); `execucao.md` lista `--closing-only` e `--demo-bootstrap` e descreve tudo que a suíte sem argumentos cobre.
+- **Resultado:** build Release de `NORA.slnx` 0 erros e 0 avisos; suíte da API (`validar-postgres-descartavel.ps1 -IncludeUnitDatabases`, porta 55812) HTTP 34/34, fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação 16/16, agenda 21/21, Família 21 + 14 + 7 + 5, Google e push 15/15, computadores 13/13, chamar próximo 8/8, serviços 7/7, conflito entre UBS 7/7, aprovação 8/8, e-mail 5/5, volta à fila 5/5, desempenho 6/6, fechamento 16/16; desktop `Nora.Desktop.Checks` 181/181; Android `testDebugUnitTest` 295 testes, 0 falhas, `lintDebug` 0 erros e 7 avisos; `gradlew --stop` feito.

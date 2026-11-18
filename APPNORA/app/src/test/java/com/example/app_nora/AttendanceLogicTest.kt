@@ -110,6 +110,11 @@ class AttendanceLogicTest {
         assertTrue(own, own.contains("empate segue a ordem de entrada na fila"))
         assertTrue(own, own.contains("O score não muda a prioridade clínica nem o direito ao atendimento."))
         assertTrue(attendancePriorityText("Maria Souza").contains("nem o direito de Maria Souza ao atendimento."))
+        // Com mais de uma UBS o número em destaque é a soma; a ordem das ofertas usa o score de cada UBS, e o texto diz isso.
+        assertFalse(own, own.contains("score de cada UBS"))
+        val several = attendancePriorityText(null, severalUnits = true)
+        assertTrue(several, several.contains("A ordem usa o score de cada UBS (veja o detalhe por UBS)"))
+        assertTrue(several, several.contains("O score não muda a prioridade clínica nem o direito ao atendimento."))
     }
 
     @Test fun resultMessageUsesTheServerNumbersWithPlurals() {

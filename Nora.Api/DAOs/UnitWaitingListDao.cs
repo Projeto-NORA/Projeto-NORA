@@ -31,6 +31,8 @@ public sealed class UnitWaitingListDao(UnitDatabaseRouter databases, TimeProvide
     {
         var before = historyBefore is null ? ((DateTimeOffset, long)?)null : DecodeCursor(historyBefore);
         await using var connection = await databases.OpenAsync(unitId, ct);
+        // Um só retrato do banco para as ativas, o histórico e os pontos: sem ele, uma entrada que muda de 'offered' para 'completed' entre as consultas voltaria nas duas listas.
+        await using var snapshot = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
         var entries = new List<(UnitWaitingEntry Entry, string Group)>();
         if (before is null)
         {

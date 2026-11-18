@@ -118,9 +118,12 @@ public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, s
     [JsonIgnore] public string PositionDisplay => Position > 0 ? $"{Position}º" : "—";
     /// <summary>"742 · Bom"; "—" quando a API não trouxe os pontos.</summary>
     [JsonIgnore] public string ScoreDisplay => Points is { } points ? $"{points} · {DisplayFormat.BandLabel(Band ?? DisplayFormat.BandFor(points))}" : "—";
+    /// <summary>Chaves numéricas das colunas Score e Ordem de oferta: o texto ("1000 · Excelente", "10º") ordenaria pela letra, não pelo valor.</summary>
+    [JsonIgnore] public int ScoreSort => Points ?? -1;
+    [JsonIgnore] public int OfferSort => Position > 0 ? Position : int.MaxValue;
     [JsonIgnore] public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string EnteredAtDisplay => EnteredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
-    public string StatusDisplay => Status switch { "waiting" => "Aguardando", "offered" => "Oferta em andamento", "completed" => "Concluída", "cancelled" => "Cancelada", _ => Status };
+    public string StatusDisplay => Status switch { "waiting" => "Aguardando", "offered" => "Oferta em andamento", "completed" => "Concluída", "cancelled" => "Cancelada", "closed" => "Encerrada", _ => Status };
 }
 public sealed record UnitLightningSlot(Guid Id, Guid? AppointmentId, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status, DateTimeOffset CreatedAt,
     string Origin = "staff", DateTimeOffset? ApprovalDeadline = null, DateTimeOffset? DecidedAt = null, string? DecidedByName = null, string? ClosedReason = null, SlotSource? Source = null)

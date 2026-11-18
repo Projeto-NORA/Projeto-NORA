@@ -54,7 +54,7 @@ internal sealed class UnitMetricsData
 internal readonly record struct PatientTally(long Completed, long Missed, long CancelledByPatient, double Weight)
 {
     public double? Score => AttendanceScore.Compute(Completed, Missed, Weight);
-    public int Points => AttendanceScore.Points(Score);
+    public int Points => AttendanceScore.Points(Completed, Missed, Weight);
 }
 
 /// <summary>Leituras agregadas do banco de uma UBS. O chamador já autorizou o acesso à unidade.</summary>

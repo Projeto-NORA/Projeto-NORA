@@ -59,6 +59,8 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
     {
         var before = historyBefore is null ? ((DateTimeOffset, Guid)?)null : DecodeCursor(historyBefore);
         await using var connection = await databases.OpenAsync(unitId, ct);
+        // Um só retrato do banco para as ativas e o histórico: sem ele, uma vaga que passa de 'offered' para 'accepted' entre as duas consultas voltaria nas duas listas.
+        await using var snapshot = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
         var rows = new List<SlotRow>();
         if (before is null)
         {

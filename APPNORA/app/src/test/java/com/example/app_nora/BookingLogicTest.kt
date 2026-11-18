@@ -43,7 +43,26 @@ class BookingLogicTest {
         assertNull(bookingWeek(now, -1, utc))
     }
 
-    @Test fun thereIsNoLastWeekAndWeeksNeverLeaveGapsOrOverlaps() {
+    @Test fun weeksAndDatesStopAtTheServerHorizon() {
+        val horizon = bookingHorizon(now, utc)
+        assertEquals(requireNotNull(parseInstantMillis("2046-11-15T12:00:00Z")), horizon) // 20 anos menos um dia de folga
+        // A última semana é recortada no teto e a seguinte não existe; nenhuma semana pede o que o servidor recusa (400).
+        val lastIndex = (0..2000).last { bookingWeek(now, it, utc) != null }
+        val last = requireNotNull(bookingWeek(now, lastIndex, utc))
+        assertEquals(horizon, last.toMillis)
+        assertTrue(last.fromMillis < last.toMillis)
+        assertNull(bookingWeek(now, lastIndex + 1, utc))
+        for (index in 0..lastIndex) assertTrue(requireNotNull(bookingWeek(now, index, utc)).toMillis <= horizon)
+        // O seletor de data: o último dia escolhível (o do teto) cabe na última semana; os seguintes não.
+        val lastDay = requireNotNull(parseInstantMillis("2046-11-15T00:00:00Z")) // o dia do teto vale até o meio-dia
+        assertTrue(isDayBookable(lastDay, now, utc))
+        assertTrue(lastDay < horizon)
+        assertEquals(lastIndex, bookingWeekIndexFor(lastDay, now, utc))
+        assertFalse(isDayBookable(requireNotNull(parseInstantMillis("2046-11-16T00:00:00Z")), now, utc))
+        assertFalse(isDayBookable(requireNotNull(parseInstantMillis("2060-03-15T00:00:00Z")), now, utc))
+    }
+
+    @Test fun weeksNeverLeaveGapsOrOverlapsAndGoAsFarAsTheHorizon() {
         val far = requireNotNull(bookingWeek(now, 70, utc)) // quase 500 dias à frente
         assertEquals(requireNotNull(parseInstantMillis("2026-11-16T00:00:00Z")) + 490 * day, far.fromMillis)
         assertEquals(far.fromMillis + 7 * day, far.toMillis)
@@ -101,6 +120,22 @@ class BookingLogicTest {
         // Dentro do dia: início primeiro; Ana e Beto empatam no início e saem por nome.
         assertEquals(listOf("Ana", "Beto", "Zé"), days[0].slots.map { it.professionalName })
         assertEquals(listOf(tuesday + hour, tuesday + hour, tuesday + 3 * hour), days[0].slots.map { it.startsAtMillis })
+    }
+
+    @Test fun theDayPickedInThePickerIsTheDayShownAndAnEmptyPickedDayIsReported() {
+        val tuesday = now + 24 * hour
+        val days = groupSlotsByDay(listOf(slot(tuesday + hour), slot(tuesday + 3 * day + hour), slot(tuesday + 3 * day + 2 * hour)), now, utc)
+        // O dia escolhido no seletor (meia-noite UTC do dia) vira o mesmo início de dia que agrupa os horários.
+        val picked = localDayFromPicker(requireNotNull(parseInstantMillis("2026-11-20T00:00:00Z")), utc)
+        assertEquals(picked, shownDay(days, picked).dayStart)
+        assertEquals(2, shownDay(days, picked).slots.size)
+        assertFalse(isWantedDayEmpty(days, picked))
+        // Sem dia pedido, ou com dia pedido sem horário: mostra o primeiro dia da semana; só no segundo caso há aviso.
+        val empty = localDayFromPicker(requireNotNull(parseInstantMillis("2026-11-19T00:00:00Z")), utc)
+        assertEquals(days.first().dayStart, shownDay(days, null).dayStart)
+        assertEquals(days.first().dayStart, shownDay(days, empty).dayStart)
+        assertFalse(isWantedDayEmpty(days, null))
+        assertTrue(isWantedDayEmpty(days, empty))
     }
 
     @Test fun slotsThatAlreadyStartedOrAreUnreadableAreNeverOffered() {

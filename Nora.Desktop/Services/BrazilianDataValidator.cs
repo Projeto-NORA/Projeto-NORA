@@ -39,12 +39,15 @@ public static class BrazilianDataValidator
         return cpf.Length == 11 ? $"{cpf[..3]}.{cpf[3..6]}.{cpf[6..9]}-{cpf[9..]}" : cpf;
     }
 
-    /// <summary>Formato de e-mail como a API confere: endereço simples, com domínio, até 254 caracteres.</summary>
-    public static bool IsValidEmail(string? value)
+    /// <summary>Formato de e-mail como a API confere ao receber uma conta: endereço simples, até 254 caracteres. Sem exigir ponto no domínio (a API aceita "admin@localhost"); para cadastros novos use <see cref="IsValidEmail"/>, que exige.</summary>
+    public static bool IsLoginEmail(string? value)
     {
         var email = value?.Trim() ?? "";
-        return email.Length is > 0 and <= 254 && MailAddress.TryCreate(email, out var parsed) && parsed.Address == email && parsed.Host.Contains('.');
+        return email.Length is > 0 and <= 254 && MailAddress.TryCreate(email, out var parsed) && parsed.Address == email;
     }
+
+    /// <summary>E-mail para cadastrar: o mesmo formato da API e, além disso, domínio com ponto (nome@dominio.com).</summary>
+    public static bool IsValidEmail(string? value) => IsLoginEmail(value) && MailAddress.TryCreate(value!.Trim(), out var parsed) && parsed.Host.Contains('.');
 
     /// <summary>Telefone: 8 a 15 dígitos, com + opcional no início; espaços, parênteses, hífen e ponto são ignorados.</summary>
     public static bool IsValidPhone(string? value)

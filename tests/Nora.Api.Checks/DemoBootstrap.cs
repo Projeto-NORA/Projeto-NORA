@@ -31,7 +31,13 @@ internal static class DemoBootstrap
         var folder = Environment.GetEnvironmentVariable("NORA_DEMO_FOLDER") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NORA", "demo");
         Directory.CreateDirectory(folder);
         var accessFile = Path.Combine(folder, "acesso-demo.txt");
-        var password = ReadPassword(accessFile) ?? NewPassword();
+        var savedPassword = ReadPassword(accessFile);
+        var password = savedPassword ?? NewPassword();
+        // Sem a senha guardada não dá para reaproveitar contas que já existem (o serviço não redefine senha): uma senha nova não valeria para elas e sobrescreveria o arquivo com um valor inútil.
+        if (savedPassword is null)
+            foreach (var (scope, email) in new[] { ("municipal", ManagerEmail), ("obs", AdminEmail), ("patient", PatientEmail) })
+                if (await FindAsync(connection, "SELECT id FROM nora.accounts WHERE scope=$1 AND email=$2", scope, email) is not null)
+                    throw new InvalidOperationException($"A conta de demonstração {email} já existe, mas a senha não foi encontrada em {accessFile}. Restaure o arquivo (NORA_DEMO_FOLDER aponta para a pasta dele) ou apague as contas de demonstração do banco e rode de novo; o arquivo não foi alterado.");
 
         await using var app = NoraApiHost.Create(new()
         {
@@ -51,8 +57,8 @@ internal static class DemoBootstrap
         var managerId = await EnsureAccount("municipal", "manager", "Secretaria (demonstração)", null, ManagerEmail);
         var adminId = await EnsureAccount("obs", "administrator", "Administrador da UBS (demonstração)", null, AdminEmail);
         var patientId = await EnsureAccount("patient", "patient", "Maria Souza (demonstração)", PatientCpf, PatientEmail);
-        // Grava a senha já aqui: se algo falhar adiante, a próxima execução reaproveita as mesmas contas.
-        File.WriteAllText(accessFile, AccessText(password));
+        // Grava a senha já aqui, só quando ela é nova (as três contas acabaram de ser criadas com ela): se algo falhar adiante, a próxima execução reaproveita as mesmas contas.
+        if (savedPassword is null) File.WriteAllText(accessFile, AccessText(password));
 
         await app.StartAsync();
         var manager = RoundFixture.NewClient(app); var admin = RoundFixture.NewClient(app); var patient = RoundFixture.NewClient(app);
