@@ -51,9 +51,9 @@ public sealed partial class WorkspaceViewModel
     {
         "Nome Z–A" => MatchingObsRegistry().OrderByDescending(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
         "Nome A–Z" => MatchingObsRegistry().OrderBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
-        // Quem ainda não tem participação calculável vai para o fim nas duas direções.
-        "Maior participação" => MatchingObsRegistry().OrderBy(patient => patient.Attendance?.Score is null).ThenByDescending(patient => patient.Attendance?.Score).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
-        "Menor participação" => MatchingObsRegistry().OrderBy(patient => patient.Attendance?.Score is null).ThenBy(patient => patient.Attendance?.Score).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
+        // Pelos pontos do score (0 a 1000; quem nunca teve consulta encerrada tem 1000). Cadastro sem o dado da API (Attendance nulo) vai para o fim nas duas direções.
+        "Maior score" => MatchingObsRegistry().OrderBy(patient => patient.Attendance is null).ThenByDescending(patient => patient.Attendance?.PointsValue).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
+        "Menor score" => MatchingObsRegistry().OrderBy(patient => patient.Attendance is null).ThenBy(patient => patient.Attendance?.PointsValue).ThenBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase),
         _ => MatchingObsRegistry().OrderByDescending(patient => patient.CreatedAt).ThenBy(patient => patient.Cpf, StringComparer.Ordinal)
     };
     private bool MatchesObsSearch(UnitPatientRecord patient)
@@ -247,12 +247,12 @@ public sealed partial class WorkspaceViewModel
 
     private static string CountText(long value, string singular, string plural) => $"{DisplayFormat.Count(value)} {(value == 1 ? singular : plural)}";
 
-    /// <summary>Texto da confirmação de desativar: o que será cancelado (com o número da prévia), que o cancelamento é da unidade e não pesa na participação, e que reativar não restaura nada.</summary>
+    /// <summary>Texto da confirmação de desativar: o que será cancelado (com o número da prévia), que o cancelamento é da unidade e não pesa no score, e que reativar não restaura nada.</summary>
     public static string DeactivationConfirmationText(string patientName, DeactivationPreview preview)
     {
         var appointments = preview.FutureAppointments == 0 ? "Este paciente não tem consultas futuras nesta UBS para cancelar."
             : $"{(preview.FutureAppointments == 1 ? "1 consulta futura será cancelada" : $"{DisplayFormat.Count(preview.FutureAppointments)} consultas futuras serão canceladas")}, e o horário volta a ficar livre.";
-        var cancellation = preview.FutureAppointments == 0 ? "" : "\n\nEsses cancelamentos contam como da unidade: não pesam na participação do paciente.";
+        var cancellation = preview.FutureAppointments == 0 ? "" : "\n\nEsses cancelamentos contam como da unidade: não pesam no score do paciente.";
         var queue = preview.ActiveWaitingEntries == 0 ? "Ele não tem entrada ativa na fila."
             : $"{CountText(preview.ActiveWaitingEntries, "entrada ativa na fila será encerrada", "entradas ativas na fila serão encerradas")}, junto com as ofertas pendentes.";
         return $"Desativar {patientName} somente nesta UBS?\n\n{appointments}{cancellation}\n\n{queue}\n\nReativar depois não restaura nada do que foi cancelado.";
@@ -281,7 +281,7 @@ public sealed partial class WorkspaceViewModel
         if (!active) scope |= UnitScope.Agenda | UnitScope.Today;
         var cancelled = preview is null ? "entradas, ofertas pendentes e consultas futuras foram canceladas"
             : preview.FutureAppointments == 0 ? "entradas e ofertas pendentes foram canceladas; não havia consultas futuras"
-            : $"{CountText(preview.FutureAppointments, "consulta futura foi cancelada", "consultas futuras foram canceladas")} (não pesam na participação), além das entradas e ofertas pendentes";
+            : $"{CountText(preview.FutureAppointments, "consulta futura foi cancelada", "consultas futuras foram canceladas")} (não pesam no score), além das entradas e ofertas pendentes";
         await ReloadAfterChangeAsync(unit, scope, active ? "Paciente reativado nesta UBS. Entradas e consultas canceladas não são restauradas." : $"Paciente desativado nesta UBS; {cancelled}.");
         if (ActiveObsUnit?.Id == unit.Id) SelectedObsRegistry = ObsRegistry.FirstOrDefault(item => item.Cpf == patient.Cpf);
     });

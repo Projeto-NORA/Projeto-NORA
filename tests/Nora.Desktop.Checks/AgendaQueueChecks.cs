@@ -155,7 +155,7 @@ internal static partial class Program
                 Require(vm.QueueWaitingCount == "4", "Contagem de aguardando deveria considerar só entradas ativas.");
                 var content = Layout(window, 1280, 740);
                 var grid = Descendants<DataGrid>(content).Single(item => AutomationProperties.GetName(item) == "Fila por especialidade da UBS");
-                Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["Posição", "Paciente", "Especialidade", "Espera", "Entrada", "Situação"]), "Colunas da fila divergem do esperado.");
+                Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["Ordem de oferta", "Paciente", "Especialidade", "Score", "Espera", "Entrada", "Situação"]), "Colunas da fila divergem do esperado.");
                 var firstRow = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
                 Require(Descendants<TextBlock>(firstRow).Any(text => text.Text == "1º") && Descendants<TextBlock>(firstRow).Any(text => text.Text == "3h 0min"), "Posição e espera não aparecem na linha.");
                 var cancel = FindActionButton(content, "Cancelar entrada");
@@ -205,7 +205,7 @@ internal static partial class Program
                     var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
                     AssertModalDetails(window, expected, () => grid.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = Control.MouseDoubleClickEvent, Source = row }), useEscape: false);
                     AssertModalDetails(window, expected, () => grid.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(grid)!, Environment.TickCount, Key.Enter) { RoutedEvent = Keyboard.PreviewKeyDownEvent }), useEscape: true);
-                    if (route == "queue") Require(expected.Fields.Any(field => field.Label == "Posição na especialidade" && field.Value == "1º") && expected.Fields.Any(field => field.Label == "Tempo de espera"), "Ficha da fila sem posição e espera.");
+                    if (route == "queue") Require(expected.Fields.Any(field => field.Label == "Ordem de oferta na especialidade" && field.Value == "1º") && expected.Fields.Any(field => field.Label == "Tempo de espera"), "Ficha da fila sem posição e espera.");
                     else
                     {
                         Require(expected.Fields.Any(field => field.Label == "Criada em" && field.Value == vm.UnitLightningSlots.Single().CreatedAtDisplay), "Ficha da vaga sem a data de criação.");

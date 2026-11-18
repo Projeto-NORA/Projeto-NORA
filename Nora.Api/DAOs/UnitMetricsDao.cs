@@ -50,7 +50,12 @@ internal sealed class UnitMetricsData
     public SpecialtyData Specialty(string key) => Specialties.TryGetValue(key, out var data) ? data : Specialties[key] = new();
 }
 
-internal readonly record struct PatientTally(long Completed, long Missed, long CancelledByPatient, double Weight);
+/// <summary>Contagens de comparecimento de um CPF. O valor padrão (sem consulta encerrada) vale 1000 pontos.</summary>
+internal readonly record struct PatientTally(long Completed, long Missed, long CancelledByPatient, double Weight)
+{
+    public double? Score => AttendanceScore.Compute(Completed, Missed, Weight);
+    public int Points => AttendanceScore.Points(Score);
+}
 
 /// <summary>Leituras agregadas do banco de uma UBS. O chamador já autorizou o acesso à unidade.</summary>
 public sealed partial class UnitMetricsDao
@@ -168,13 +173,22 @@ public sealed partial class UnitMetricsDao
     internal async Task<Dictionary<string, PatientTally>> ReadAttendanceAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, string cpf, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
+        return await ReadAttendanceAsync(connection, from, to, cpf == "" ? [] : [cpf], ct);
+    }
+
+    /// <summary>
+    /// Mesma consulta sobre uma conexão da UBS que o chamador já tem aberta (a escolha da Vaga Relâmpago e a ordem de oferta da fila rodam dentro da própria transação). <paramref name="cpfs"/> vazio = todos os pacientes;
+    /// CPF sem consulta encerrada na janela não aparece (use <c>GetValueOrDefault</c>: o padrão vale 1000 pontos).
+    /// </summary>
+    internal static async Task<Dictionary<string, PatientTally>> ReadAttendanceAsync(NpgsqlConnection connection, DateTimeOffset from, DateTimeOffset to, string[] cpfs, CancellationToken ct)
+    {
         await using var query = new NpgsqlCommand($"""
             SELECT a.cpf, a.status, e.id IS NOT NULL, {LeadMicros}, count(*)
             FROM nora_unit.appointments a {CancelledByPatientJoin}
-            WHERE a.starts_at >= $1 AND a.starts_at < $2 AND a.status IN ('completed','missed','cancelled') AND ($3 = '' OR a.cpf=$3)
+            WHERE a.starts_at >= $1 AND a.starts_at < $2 AND a.status IN ('completed','missed','cancelled') AND (cardinality($3::text[]) = 0 OR a.cpf = ANY($3::text[]))
             GROUP BY 1,2,3,4
             """, connection);
-        query.Parameters.AddWithValue(from.ToUniversalTime()); query.Parameters.AddWithValue(to.ToUniversalTime()); query.Parameters.AddWithValue(cpf);
+        query.Parameters.AddWithValue(from.ToUniversalTime()); query.Parameters.AddWithValue(to.ToUniversalTime()); query.Parameters.AddWithValue(cpfs);
         await using var reader = await query.ExecuteReaderAsync(ct);
         var result = new Dictionary<string, PatientTally>(StringComparer.Ordinal);
         while (await reader.ReadAsync(ct))

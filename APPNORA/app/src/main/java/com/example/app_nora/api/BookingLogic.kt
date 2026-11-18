@@ -170,7 +170,7 @@ fun bookingLimitRuleText(actingName: String?): String =
         (if (actingName == null) "todas as suas UBS" else "as UBS de $actingName") + ". Ao cancelar, " +
         (if (actingName == null) "você libera" else "libera") + " outra."
 
-/** Aviso do diálogo de marcação; o cancelamento pesa no índice de comparecimento de quem tem a consulta (o dependente, se for o caso). */
+/** Aviso do diálogo de marcação; o cancelamento pesa no score de comparecimento de quem tem a consulta (o dependente, se for o caso). */
 fun bookingCancelWarningText(actingName: String?): String =
-    "Se precisar cancelar, o cancelamento conta no " + (if (actingName == null) "seu índice" else "índice") + " de comparecimento" +
+    "Se precisar cancelar, o cancelamento conta no " + (if (actingName == null) "seu score" else "score") + " de comparecimento" +
         (if (actingName == null) "" else " de $actingName") + " conforme a antecedência."

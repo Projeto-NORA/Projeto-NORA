@@ -99,7 +99,7 @@ class PatientActionsTest {
         controller.loadAttendance()
         assertEquals(2, api.attendanceCalls)
         assertEquals(3, controller.state.unitData[unitA.id]?.attendance?.completed)
-        assertEquals(73, summarizeAttendance(controller.state.units, controller.state.unitData).percent)
+        assertEquals(727, summarizeAttendance(controller.state.units, controller.state.unitData).points)
         assertFalse(controller.state.busy); assertFalse(controller.state.attendanceLoading)
         assertNull(controller.state.message)
         controller.loadAttendance()
@@ -116,7 +116,7 @@ class PatientActionsTest {
         controller.signIn()
         controller.loadAttendance()
         val summary = summarizeAttendance(controller.state.units, controller.state.unitData)
-        assertEquals(100, summary.percent)
+        assertEquals(1000, summary.points)
         assertEquals(1, summary.answeredUnits); assertEquals(1, summary.failedUnits)
         assertTrue(controller.state.unitData[unitB.id]?.attendanceFailed == true)
         assertNull("Falha de leitura é silenciosa; a tela avisa", controller.state.message)
@@ -125,15 +125,16 @@ class PatientActionsTest {
         api.attendanceFailures.clear(); api.attendance[unitB.id] = score(0, 1, 0, 0.0, 0.0)
         controller.loadAttendance()
         assertFalse(controller.state.unitData[unitB.id]?.attendanceFailed == true)
-        assertEquals(67, summarizeAttendance(controller.state.units, controller.state.unitData).percent)
+        assertEquals(667, summarizeAttendance(controller.state.units, controller.state.unitData).points)
     }
 
-    @Test fun attendanceOfASingleUnitWithoutClosedAppointmentsHasNoPercent() = runBlocking {
+    @Test fun attendanceOfASingleUnitWithoutClosedAppointmentsHasMaximumPointsAndNoHistory() = runBlocking {
         val api = FakeApi().apply { units = listOf(unitA); attendance[unitA.id] = score(0, 0, 0, 0.0, null) }
         val controller = controller(api)
         controller.signIn()
         controller.loadAttendance()
-        assertNull(summarizeAttendance(controller.state.units, controller.state.unitData).percent)
+        val summary = summarizeAttendance(controller.state.units, controller.state.unitData)
+        assertEquals(1000, summary.points); assertFalse(summary.hasHistory)
     }
 
     @Test fun attendanceUnauthorizedEndsTheSessionAndTransportFailuresDoNot() = runBlocking {

@@ -138,7 +138,7 @@ try {
     # Uma conta por vez, cada uma com seu marcador: se a segunda falhar, a próxima execução não repete a primeira.
     foreach ($conta in @(@{ Marca = $contaMunicipal; Escopo = 'municipal'; Nome = 'da Secretaria (Painel Municipal)' }, @{ Marca = $contaObs; Escopo = 'obs'; Nome = 'do administrador da UBS (OBS)' })) {
         if (Test-Path $conta.Marca) { continue }
-        Write-Host ("      Criando a conta {0}. Na primeira pergunta responda: {1}. Use CPF válido e uma senha que você lembre." -f $conta.Nome, $conta.Escopo) -ForegroundColor Yellow
+        Write-Host ("      Criando a conta {0}. Na primeira pergunta responda: {1}; depois informe nome, e-mail e uma senha que você lembre (a equipe entra só por e-mail, sem CPF)." -f $conta.Nome, $conta.Escopo) -ForegroundColor Yellow
         & dotnet $dll --provision
         if ($LASTEXITCODE -ne 0) { throw ("Falha ao criar a conta {0}. Rode o script de novo: ele recomeça desta conta." -f $conta.Nome) }
         Set-Content $conta.Marca (Get-Date -Format 's')

@@ -10,13 +10,12 @@ public sealed class StaffAccountService(StaffAccountDao dao, IPasswordHasher<Acc
     public Task<StaffAccount> CreateAsync(Guid actorId, CreateStaffRequest request, CancellationToken ct)
     {
         var fullName = request.FullName?.Trim() ?? "";
-        var cpf = AccountService.NormalizeCpf(request.Cpf);
         var email = request.Email?.Trim().ToLowerInvariant() ?? "";
-        if (request.Role is not ("attendant" or "administrator") || fullName.Length is < 2 or > 160 || fullName.Any(char.IsControl) || !AccountService.ValidCpf(cpf) ||
+        if (request.Role is not ("attendant" or "administrator") || fullName.Length is < 2 or > 160 || fullName.Any(char.IsControl) ||
             email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || request.Password is null || request.Password.Length is < 8 or > 256)
             throw new ApiInputException();
-        var account = new Account(new(Guid.Empty, fullName, request.Role, "obs"), cpf, email, "");
-        return dao.CreateAsync(actorId, request.Role, new(fullName, cpf, email), passwords.HashPassword(account, request.Password), ct);
+        var account = new Account(new(Guid.Empty, fullName, request.Role, "obs"), "", email, "");
+        return dao.CreateAsync(actorId, request.Role, new(fullName, email), passwords.HashPassword(account, request.Password), ct);
     }
 
     public Task SetActiveAsync(Guid actorId, Guid id, SetStaffActiveRequest request, CancellationToken ct) =>

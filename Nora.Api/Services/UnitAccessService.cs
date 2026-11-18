@@ -15,7 +15,7 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
     /// <summary>
     /// Confere sob bloqueio compartilhado (<c>FOR SHARE</c> em conta e sessão) que a conta está ativa, a sessão vale e não há troca de senha
     /// pendente. Quem desativa a conta, redefine a senha ou revoga a sessão precisa do bloqueio exclusivo e, por isso, espera a operação
-    /// terminar. Devolve o CPF da conta. Conta/sessão inválidas → 401; troca obrigatória pendente → 403 password-change-required.
+    /// terminar. Devolve o CPF da conta (vazio na equipe, que não tem CPF). Conta/sessão inválidas → 401; troca obrigatória pendente → 403 password-change-required.
     /// </summary>
     internal async Task<string> RevalidateAsync(NpgsqlConnection connection, SessionInfo session, CancellationToken ct)
     {
@@ -23,7 +23,7 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         await using var reader = await query.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) throw new ApiUnauthorizedException();
         if (reader.GetBoolean(1)) throw new ApiCodedException(StatusCodes.Status403Forbidden, "password-change-required");
-        return reader.GetString(0);
+        return reader.IsDBNull(0) ? "" : reader.GetString(0);
     }
 
     /// <param name="requireActiveRegistry">Exige cadastro ativo do CPF na UBS (padrão). A prévia da remoção do vínculo passa falso, como a própria remoção, que funciona com o cadastro desativado.</param>

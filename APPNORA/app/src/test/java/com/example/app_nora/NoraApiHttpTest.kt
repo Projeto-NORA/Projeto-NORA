@@ -120,7 +120,34 @@ class NoraApiHttpTest {
         assertEquals("Bearer token-x", lastAuthorization)
         route("/api/patient/units/$unitId/attendance", 200,
             """{"completed":0,"missed":0,"cancelledByPatient":0,"cancellationWeight":0,"score":null,"windowMonths":12}""")
-        assertNull(api().attendance("token-x", unitId).score)
+        val none = api().attendance("token-x", unitId)
+        assertNull(none.score)
+        // Servidor antigo, sem os campos de pontos: saem do score (nulo vale 1000, sem histórico).
+        assertEquals(755, value.points); assertEquals(AttendanceBand.GOOD, value.band); assertTrue(value.hasHistory)
+        assertEquals(1000, none.points); assertEquals(AttendanceBand.EXCELLENT, none.band); assertFalse(none.hasHistory)
+    }
+
+    @Test fun attendanceReadsPointsBandAndHistoryFromTheServer() = runBlocking {
+        route("/api/patient/units/$unitId/attendance", 200,
+            """{"completed":2,"missed":3,"cancelledByPatient":0,"cancellationWeight":0,"score":0.4,"windowMonths":12,"points":400,"band":"regular","hasHistory":true}""")
+        val regular = api().attendance("t", unitId)
+        assertEquals(400, regular.points); assertEquals(AttendanceBand.REGULAR, regular.band); assertTrue(regular.hasHistory)
+        route("/api/patient/units/$unitId/attendance", 200,
+            """{"completed":0,"missed":0,"cancelledByPatient":0,"cancellationWeight":0,"score":null,"windowMonths":12,"points":1000,"band":"excellent","hasHistory":false}""")
+        val fresh = api().attendance("t", unitId)
+        assertNull(fresh.score); assertEquals(1000, fresh.points); assertEquals(AttendanceBand.EXCELLENT, fresh.band); assertFalse(fresh.hasHistory)
+        // Faixas nas bordas e valor desconhecido: a faixa desconhecida deriva dos pontos, e pontos fora da escala são aparados.
+        for ((points, wire, expected) in listOf(Triple(299, "low", AttendanceBand.LOW), Triple(300, "regular", AttendanceBand.REGULAR),
+            Triple(599, "regular", AttendanceBand.REGULAR), Triple(600, "good", AttendanceBand.GOOD),
+            Triple(799, "good", AttendanceBand.GOOD), Triple(800, "excellent", AttendanceBand.EXCELLENT))) {
+            route("/api/patient/units/$unitId/attendance", 200,
+                """{"completed":1,"missed":1,"cancelledByPatient":0,"cancellationWeight":0,"score":0.5,"windowMonths":12,"points":$points,"band":"$wire","hasHistory":true}""")
+            assertEquals(expected, api().attendance("t", unitId).band)
+        }
+        route("/api/patient/units/$unitId/attendance", 200,
+            """{"completed":1,"missed":1,"cancelledByPatient":0,"cancellationWeight":0,"score":0.5,"windowMonths":12,"points":5000,"band":"platinum","hasHistory":true}""")
+        val odd = api().attendance("t", unitId)
+        assertEquals(1000, odd.points); assertEquals(AttendanceBand.EXCELLENT, odd.band)
     }
 
     @Test fun leavingTheQueueSendsConfirmedAndAcceptsNoContent() = runBlocking {
@@ -370,7 +397,9 @@ class NoraApiHttpTest {
         assertTrue(api().dependentRespondOffer("t", dependentId, unitId, offerId, true).accepted)
         assertEquals("""{"accept":true}""", lastBody)
         route("$dependentBase/attendance", 200, """{"completed":1,"missed":0,"cancelledByPatient":0,"cancellationWeight":0.0,"score":1.0,"windowMonths":12}""")
-        assertEquals(1.0, api().dependentAttendance("t", dependentId, unitId).score!!, 0.0)
+        val depValue = api().dependentAttendance("t", dependentId, unitId)
+        assertEquals(1.0, depValue.score!!, 0.0)
+        assertEquals(1000, depValue.points); assertEquals(AttendanceBand.EXCELLENT, depValue.band)
         assertEquals("$dependentBase/attendance", lastUri)
     }
 

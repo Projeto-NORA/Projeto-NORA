@@ -10,6 +10,7 @@ public partial class UnitLightningSlotsView : UserControl
 {
     public UnitLightningSlotsView() => InitializeComponent();
     private async void OnLoad(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadUnitLightningSlotsAsync(); }
+    private async void OnMoreHistory(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel { CanLoadMoreSlotsHistory: true } vm) await vm.LoadMoreSlotsHistoryAsync(); }
     private async void OnApprove(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel { CanDecideSlotApproval: true } vm) return;

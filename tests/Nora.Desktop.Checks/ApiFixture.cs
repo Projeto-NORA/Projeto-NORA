@@ -74,7 +74,15 @@ internal static partial class Program
         public List<System.Collections.Specialized.NameValueCollection> SummaryQueries { get; } = [];
         public List<HistoryEvent> History { get; } = [];
         public List<StaffAccount> StaffAccounts { get; } = [new(StaffId, "Equipe Fixture", "attendant", "equipe@example.test", true, false)];
-        public (string FullName, string Cpf, string Email, string Role, string Password)? LastStaffCreate { get; private set; }
+        public (string FullName, string Email, string Role, string Password)? LastStaffCreate { get; private set; }
+        /// <summary>Corpo cru do último POST /api/municipal/staff: os testes conferem que nenhum CPF foi enviado.</summary>
+        public string? LastStaffCreateBody { get; private set; }
+        /// <summary>Tamanho da página de encerrados de GET .../waiting-list e .../lightning-slots (o servidor usa 100 por padrão).</summary>
+        public int HistoryPageSize { get; set; } = 100;
+        /// <summary>Simula a API antiga da fila: sem points, band e offerOrder (o cliente calcula a ordem).</summary>
+        public bool OmitWaitingScore { get; set; }
+        /// <summary>Leituras de GET .../waiting-list e .../lightning-slots (com a query), na ordem em que chegaram.</summary>
+        public List<string> HistoryReads { get; } = [];
         public string? LastStaffPassword { get; private set; }
 
         public HealthUnit AddUnit(HealthUnit unit) { units.Add(unit); State(unit.Id); return unit; }
@@ -84,10 +92,10 @@ internal static partial class Program
         public UnitPatientRecord AddRegistry(Guid unitId, UnitPatientRecord record) { State(unitId).Registry.Add(record); return record; }
         public UnitPatientRecord AddRegistry(Guid unitId, string name, string cpf = "52998224725", string? email = null, string? phone = null, bool active = true)
             => AddRegistry(unitId, new UnitPatientRecord(cpf, name, email ?? $"{name.Split(' ')[0].ToLowerInvariant()}@example.test", phone, null, active, false, DateTimeOffset.UtcNow));
-        public UnitWaitingEntry AddWaiting(Guid unitId, string cpf, string name, string specialty, DateTimeOffset enteredAt, string status = "waiting")
+        public UnitWaitingEntry AddWaiting(Guid unitId, string cpf, string name, string specialty, DateTimeOffset enteredAt, string status = "waiting", int? points = null)
         {
             var state = State(unitId);
-            var entry = new UnitWaitingEntry(state.Waiting.Count + 1, cpf, name, specialty, enteredAt, status);
+            var entry = new UnitWaitingEntry(state.Waiting.Count + 1, cpf, name, specialty, enteredAt, status, points);
             state.Waiting.Add(entry); return entry;
         }
         public AppointmentInfo AddAppointment(Guid unitId, string status, DateTimeOffset startsAt, string cpf = "52998224725", string name = "Paciente Fixture", string specialty = "Clínica", string professional = "Profissional")
@@ -220,7 +228,7 @@ internal static partial class Program
                 }
                 if (route == "waiting-list")
                 {
-                    if (method == HttpMethod.Get) return Reply(state.Waiting.ToArray());
+                    if (method == HttpMethod.Get) return WaitingPage(state, request);
                     var cpf = payload!.RootElement.GetProperty("cpf").GetString()!; var specialty = payload.RootElement.GetProperty("specialty").GetString()!;
                     if (state.Waiting.Any(item => item.Cpf == cpf && item.IsActive && string.Equals(item.Specialty, specialty, StringComparison.OrdinalIgnoreCase))) return Problem(HttpStatusCode.Conflict, "conflict");
                     var name = state.Registry.Single(item => item.Cpf == cpf).FullName;
@@ -253,7 +261,7 @@ internal static partial class Program
                 }
                 if (route == "lightning-slots")
                 {
-                    if (method == HttpMethod.Get) return Reply(state.Slots.ToArray());
+                    if (method == HttpMethod.Get) return SlotsPage(state, request);
                     var appointment = state.Appointments.Single(item => item.Id == payload!.RootElement.GetProperty("appointmentId").GetGuid());
                     if (state.Slots.Any(item => item.AppointmentId == appointment.Id)) return Problem(HttpStatusCode.Conflict, "conflict");
                     var slot = new UnitLightningSlot(Guid.NewGuid(), appointment.Id, appointment.Specialty, appointment.Professional, appointment.StartsAt, appointment.EndsAt, "open", DateTimeOffset.UtcNow);
@@ -285,6 +293,45 @@ internal static partial class Program
             throw new InvalidOperationException("Rota de UBS inesperada da fixture: " + request.Method + " " + route);
         }
 
+        /// <summary>
+        /// Simula o formato novo de GET .../waiting-list: <c>{ items, historyCursor }</c> com todas as entradas ativas e até <see cref="HistoryPageSize"/> encerradas (as mais recentes primeiro; a posição na lista
+        /// é a ordem de encerramento). Com <c>?historyBefore=</c> só as encerradas mais antigas que o cursor. Os itens saem na ordem da lista. Pontos e ordem de oferta saem como no servidor (mais pontos primeiro, empate pela entrada).
+        /// </summary>
+        private HttpResponseMessage WaitingPage(UnitState state, HttpRequestMessage request)
+        {
+            HistoryReads.Add("waiting-list" + request.RequestUri!.Query);
+            var (indexes, cursor) = HistorySlice(state.Waiting.Select((entry, index) => (entry.IsActive, index)).ToArray(), request);
+            var order = new Dictionary<long, int>(); var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in state.Waiting.Where(entry => entry.IsActive).OrderByDescending(entry => entry.Points ?? 1000).ThenBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id))
+                order[entry.Id] = counters[entry.Specialty.Trim()] = counters.GetValueOrDefault(entry.Specialty.Trim()) + 1;
+            var items = indexes.Select(index => state.Waiting[index]).Select(entry =>
+            {
+                if (OmitWaitingScore) return entry with { Points = null, Band = null, OfferOrder = null };
+                var points = entry.Points ?? 1000;
+                return entry with { Points = points, Band = Nora.Desktop.Services.DisplayFormat.BandFor(points), OfferOrder = order.TryGetValue(entry.Id, out var position) ? position : null };
+            }).ToArray();
+            return Reply(new { items, historyCursor = cursor });
+        }
+
+        private HttpResponseMessage SlotsPage(UnitState state, HttpRequestMessage request)
+        {
+            HistoryReads.Add("lightning-slots" + request.RequestUri!.Query);
+            var (indexes, cursor) = HistorySlice(state.Slots.Select((slot, index) => (slot.IsActive, index)).ToArray(), request);
+            return Reply(new { items = indexes.Select(index => state.Slots[index]).ToArray(), historyCursor = cursor });
+        }
+
+        /// <summary>Escolhe os índices da página: ativos (só na primeira página) e os encerrados mais recentes (maior índice primeiro) até <see cref="HistoryPageSize"/>; cursor = "h" + índice do mais antigo devolvido, se sobrarem mais.</summary>
+        private (int[] Indexes, string? Cursor) HistorySlice((bool Active, int Index)[] all, HttpRequestMessage request)
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            var before = query["historyBefore"] is { } text ? int.Parse(text[1..], CultureInfo.InvariantCulture) : int.MaxValue;
+            var limit = int.TryParse(query["historyLimit"], out var requested) ? requested : HistoryPageSize;
+            var closed = all.Where(item => !item.Active && item.Index < before).OrderByDescending(item => item.Index).ToArray();
+            var taken = closed.Take(limit).Select(item => item.Index).ToArray();
+            var indexes = (query["historyBefore"] is null ? all.Where(item => item.Active).Select(item => item.Index) : []).Concat(taken).OrderBy(index => index).ToArray();
+            return (indexes, closed.Length > taken.Length ? "h" + taken[^1].ToString(CultureInfo.InvariantCulture) : null);
+        }
+
         private async Task<HttpResponseMessage> HandleMunicipalAsync(HttpRequestMessage request, string path, CancellationToken cancellationToken)
         {
             var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
@@ -293,10 +340,11 @@ internal static partial class Program
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
                 var root = body.RootElement;
-                var fullName = root.GetProperty("fullName").GetString()!; var cpf = root.GetProperty("cpf").GetString()!; var email = root.GetProperty("email").GetString()!;
+                LastStaffCreateBody = root.GetRawText();
+                var fullName = root.GetProperty("fullName").GetString()!; var email = root.GetProperty("email").GetString()!;
                 var role = root.GetProperty("role").GetString()!; var password = root.GetProperty("password").GetString()!;
-                LastStaffCreate = (fullName, cpf, email, role, password);
-                if (role is not ("attendant" or "administrator") || fullName.Trim().Length < 2 || !Nora.Desktop.Services.BrazilianDataValidator.IsValidCpf(cpf) || !Nora.Desktop.Services.BrazilianDataValidator.IsValidEmail(email) || password.Length is < 8 or > 256)
+                LastStaffCreate = (fullName, email, role, password);
+                if (role is not ("attendant" or "administrator") || fullName.Trim().Length < 2 || !Nora.Desktop.Services.BrazilianDataValidator.IsValidEmail(email) || password.Length is < 8 or > 256)
                     return Problem(HttpStatusCode.BadRequest, "invalid-input");
                 if (StaffAccounts.Any(item => item.Email == email)) return Problem(HttpStatusCode.Conflict, "conflict");
                 var created = new StaffAccount(Guid.NewGuid(), fullName, role, email, true, true);

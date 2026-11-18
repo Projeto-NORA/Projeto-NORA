@@ -48,7 +48,7 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
             DateTimeOffset? start = null, end = null;
             if (startsAt is { } requested && professionalId is { } professional && await FreeSlotAsync(unit, specialty, professional, requested.ToUniversalTime(), ct) is { } slot)
             { start = requested.ToUniversalTime(); end = new DateTimeOffset(slot.End, TimeSpan.Zero); }
-            return new CallNextPreview(await LightningEligibility.PreviewAsync(unit, specialty.Name, eligible, ct, start, end) is { } next ? new(next.EntryId, next.Name, next.EnteredAt) : null);
+            return new CallNextPreview(await LightningEligibility.PreviewAsync(unit, specialty.Name, eligible, time.GetUtcNow(), ct, start, end) is { } next ? new(next.EntryId, next.Name, next.EnteredAt) : null);
         }, ct, read: true);
     }
 
@@ -79,7 +79,7 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
             // O atendimento escolhido tem de ser exatamente um horário livre da grade agora (ocupado, bloqueado ou segurado por vaga → slot-unavailable).
             if (await FreeSlotAsync(unit, specialty, professionalId, start, ct) is not { } slot) throw new ApiCodedException(StatusCodes.Status409Conflict, "slot-unavailable");
             var end = new DateTimeOffset(slot.End, TimeSpan.Zero);
-            if (await LightningEligibility.PickAsync(unit, specialty.Name, eligible, start, end, ct) is not { } entryId) throw new ApiCodedException(StatusCodes.Status409Conflict, "queue-empty");
+            if (await LightningEligibility.PickAsync(unit, specialty.Name, eligible, start, end, now, ct) is not { } entryId) throw new ApiCodedException(StatusCodes.Status409Conflict, "queue-empty");
             string patientName;
             await using (var read = new NpgsqlCommand("SELECT p.full_name FROM nora_unit.waiting_list q JOIN nora_unit.patient_registry p ON p.cpf=q.cpf WHERE q.id=$1", unit))
             { read.Parameters.AddWithValue(entryId); patientName = (string)(await read.ExecuteScalarAsync(ct))!; }

@@ -19,8 +19,8 @@ internal static class DemoBootstrap
 {
     private const string UnitName = "UBS Escola Centro", SpecialtyName = "Clínica geral";
     private const string ManagerEmail = "secretaria.demo@example.test", AdminEmail = "admin.demo@example.test", PatientEmail = "paciente.demo@example.test";
-    // CPFs fictícios que passam na verificação dos dígitos (exemplos públicos de teste).
-    private const string ManagerCpf = "39053344705", AdminCpf = "16899535009", PatientCpf = "12345678909";
+    // CPF fictício do paciente, que passa na verificação dos dígitos (exemplo público de teste). A equipe (Secretaria e OBS) não tem CPF: entra só por e-mail.
+    private const string PatientCpf = "12345678909";
     private const string PasswordLabel = "Senha (todas as contas de demonstração): ";
 
     public static async Task<int> RunAsync(string root)
@@ -43,13 +43,13 @@ internal static class DemoBootstrap
         await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
         var accounts = app.Services.GetRequiredService<AccountService>();
 
-        async Task<Guid> EnsureAccount(string scope, string role, string name, string cpf, string email)
+        async Task<Guid> EnsureAccount(string scope, string role, string name, string? cpf, string email)
         {
             if (await FindAsync(connection, "SELECT id FROM nora.accounts WHERE scope=$1 AND email=$2", scope, email) is { } id) return id;
-            return (await accounts.ProvisionAsync(scope, role, new(name, cpf, email, password))).Id;
+            return (cpf is null ? await accounts.ProvisionStaffAsync(scope, role, name, email, password) : await accounts.ProvisionAsync(scope, role, new(name, cpf, email, password))).Id;
         }
-        var managerId = await EnsureAccount("municipal", "manager", "Secretaria (demonstração)", ManagerCpf, ManagerEmail);
-        var adminId = await EnsureAccount("obs", "administrator", "Administrador da UBS (demonstração)", AdminCpf, AdminEmail);
+        var managerId = await EnsureAccount("municipal", "manager", "Secretaria (demonstração)", null, ManagerEmail);
+        var adminId = await EnsureAccount("obs", "administrator", "Administrador da UBS (demonstração)", null, AdminEmail);
         var patientId = await EnsureAccount("patient", "patient", "Maria Souza (demonstração)", PatientCpf, PatientEmail);
         // Grava a senha já aqui: se algo falhar adiante, a próxima execução reaproveita as mesmas contas.
         File.WriteAllText(accessFile, AccessText(password));

@@ -58,16 +58,18 @@ internal static class WorkflowChecks
                 using var response = await anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "obs", identifier = accountRequest.Email, password = "invalid" });
                 Expect(response, 401);
             });
-            await Check("Login por e-mail e CPF formatado no mesmo escopo", async () =>
+            await Check("Login da equipe só por e-mail (maiúsculas valem); CPF, formatado ou não, é recusado como credencial inválida", async () =>
             {
                 await Login(obs, "obs", accountRequest.Email, password);
-                using var byCpf = Client(app);
-                await Login(byCpf, "obs", "529.982.247-25", password);
-                using var response = await byCpf.GetAsync("/api/auth/me");
+                using var byEmail = Client(app);
+                await Login(byEmail, "obs", accountRequest.Email.ToUpperInvariant(), password);
+                using var response = await byEmail.GetAsync("/api/auth/me");
                 Expect(response, 200);
                 using var json = await Json(response);
                 Require(json.RootElement.GetProperty("scope").GetString() == "obs", "Escopo divergente.");
                 Require(!json.RootElement.TryGetProperty("passwordHash", out _), "Hash de senha exposto.");
+                foreach (var cpf in new[] { "529.982.247-25", "52998224725" })
+                { using var byCpf = await anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "obs", identifier = cpf, password }); Expect(byCpf, 401); }
             });
             await Check("Municipal isolado e sem acesso nominal", async () =>
             {
@@ -176,7 +178,7 @@ internal static class WorkflowChecks
                 using var nextBody = await Json(nextWaiting); var nextId = nextBody.RootElement.GetProperty("id").GetInt64();
                 using (var withoutConfirm = await obs.PostAsJsonAsync($"{waitingPath}/{waitingId}/cancel", new { confirmed = false })) Expect(withoutConfirm, 400);
                 using (var waitingList = await obs.GetAsync(waitingPath))
-                { Expect(waitingList, 200); using var listBody = await Json(waitingList); var entries = listBody.RootElement.EnumerateArray().ToArray(); Require(entries.Length == 2 && entries[0].GetProperty("id").GetInt64() == waitingId && entries[1].GetProperty("id").GetInt64() == nextId && entries[0].GetProperty("status").GetString() == "waiting", "Ordem de entrada ou confirmação não foram preservadas."); }
+                { Expect(waitingList, 200); using var listBody = await Json(waitingList); var entries = listBody.RootElement.GetProperty("items").EnumerateArray().ToArray(); Require(entries.Length == 2 && entries[0].GetProperty("id").GetInt64() == waitingId && entries[1].GetProperty("id").GetInt64() == nextId && entries[0].GetProperty("status").GetString() == "waiting", "Ordem de entrada ou confirmação não foram preservadas."); }
                 using (var confirmedCancel = await obs.PostAsJsonAsync($"{waitingPath}/{waitingId}/cancel", new { confirmed = true })) Expect(confirmedCancel, 204);
                 await using (var unitDb = await app.Services.GetRequiredService<UnitDatabaseRouter>().OpenAsync(unitId))
                 await using (var waitingAudit = new Npgsql.NpgsqlCommand("SELECT count(*) FROM nora_unit.waiting_list_events WHERE entry_id=$1 AND actor_id=$2", unitDb))
@@ -312,7 +314,7 @@ internal static class WorkflowChecks
                     await using (var linkSecond = database.Command(await database.OpenAsync(), "INSERT INTO nora.patient_units(patient_id,unit_id) VALUES($1,$2)", secondId, unitId))
                     { await using var ownedConnection = linkSecond.Connection!; await linkSecond.ExecuteNonQueryAsync(); }
                     var waiting = new UnitWaitingListDao(app.Services.GetRequiredService<UnitDatabaseRouter>(), clock);
-                    await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(1), "Dermatologia"), default);
+                    var firstDermEntry = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(1), "Dermatologia"), default);
                     var earlierEligible = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Cardiologia"), default);
                     var laterEligible = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(1), "Cardiologia"), default);
                     var slotStart = clock.GetUtcNow().AddDays(5);
@@ -354,14 +356,15 @@ internal static class WorkflowChecks
                     await schedule.ChangeStatusAsync(unitId, actor, dermSource.Id, new AppointmentStatusRequest("cancelled", true), default);
                     using var dermSlot = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/lightning-slots", new { appointmentId = dermSource.Id, confirmed = true }); Expect(dermSlot, 201);
                     Guid firstDermOffer;
-                    using (var firstDerm = await patient.GetAsync(offersPath))
+                    // Prioridade por pontos: o Cpf(1) cancelou a própria consulta com pouca antecedência e não tem nenhuma concluída (0 ponto); o Cpf(2) não tem histórico (1000). A vaga vai primeiro ao Cpf(2), mesmo o Cpf(1) tendo entrado antes.
+                    using (var firstDerm = await secondPatient.GetAsync(offersPath))
                     { Expect(firstDerm, 200); using var firstDermBody = await Json(firstDerm); firstDermOffer = firstDermBody.RootElement.GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("specialty").GetString() == "Dermatologia" && o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
-                    using (var decline = await patient.PostAsJsonAsync($"{offersPath}/{firstDermOffer}/respond", new { accept = false })) Expect(decline, 200);
+                    using (var decline = await secondPatient.PostAsJsonAsync($"{offersPath}/{firstDermOffer}/respond", new { accept = false })) Expect(decline, 200);
                     Guid secondDermOffer;
-                    using (var secondDermList = await secondPatient.GetAsync(offersPath))
+                    using (var secondDermList = await patient.GetAsync(offersPath))
                     { Expect(secondDermList, 200); using var secondDermBody = await Json(secondDermList); secondDermOffer = secondDermBody.RootElement.GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("specialty").GetString() == "Dermatologia" && o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
-                    using (var cancelWaiting = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/waiting-list/{secondDerm.Id}/cancel", new { confirmed = true })) Expect(cancelWaiting, 204);
-                    using (var staleOffer = await secondPatient.PostAsJsonAsync($"{offersPath}/{secondDermOffer}/respond", new { accept = true })) Expect(staleOffer, 409);
+                    using (var cancelWaiting = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/waiting-list/{firstDermEntry.Id}/cancel", new { confirmed = true })) Expect(cancelWaiting, 204);
+                    using (var staleOffer = await patient.PostAsJsonAsync($"{offersPath}/{secondDermOffer}/respond", new { accept = true })) Expect(staleOffer, 409);
                     // R-030: o vencimento da 1ª oferta devolveu o Cpf(2) à fila na mesma posição; ele continua com a mesma entrada (uma nova inclusão seria 409) e a próxima vaga vai a ela.
                     await using (var stillWaiting = new Npgsql.NpgsqlCommand("SELECT status FROM nora_unit.waiting_list WHERE id=$1", unitDb))
                     { stillWaiting.Parameters.AddWithValue(earlierEligible.Id); Require(await stillWaiting.ExecuteScalarAsync() as string == "waiting", "Quem deixou a oferta vencer deveria ter voltado à fila (waiting)."); }
@@ -390,7 +393,7 @@ internal static class WorkflowChecks
                         using (var oldOverview = await patient.GetAsync("/api/patient/overview")) Expect(oldOverview, 403);
                         using var networkSummary = await municipal.GetAsync($"/api/municipal/summary?unitId={unitId}"); Expect(networkSummary, 200);
                         using var networkBody = await Json(networkSummary); var network = networkBody.RootElement;
-                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 3 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes (R-030: quem recusou ou deixou vencer continua na fila, então Cpf(1) e Cpf(2) somam aos que já aguardavam): " + network);
+                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 2 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes (R-030: quem recusou ou deixou vencer continua na fila, então o Cpf(2) soma aos que já aguardavam; o Cpf(1) aceitou a Cardiologia e cancelou a Dermatologia): " + network);
                     }
                     finally { app.Configuration["Nora:LegacyGlobalWorkflow:Enabled"] = "true"; }
                     using (var revoke = await municipal.DeleteAsync($"/api/municipal/staff/{staffId}/units/{unitId}")) Expect(revoke, 204);
@@ -938,7 +941,7 @@ internal static class WorkflowChecks
         {
             checks++;
             try { await action(); Console.WriteLine($"PASS [PostgreSQL] {name}"); }
-            catch (Exception error) { failures++; Console.WriteLine($"FAIL [PostgreSQL] {name}: {error.Message}"); }
+            catch (Exception error) { failures++; Console.WriteLine($"FAIL [PostgreSQL] {name}: {error.Message}"); if (Environment.GetEnvironmentVariable("NORA_CHECK_TRACE") == "1") Console.WriteLine(error.StackTrace); }
         }
 
         async Task<bool> Online(HttpClient obs, Guid id)

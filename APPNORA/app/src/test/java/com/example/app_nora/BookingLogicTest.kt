@@ -191,12 +191,12 @@ class BookingLogicTest {
 
     @Test fun bookingTextsSpeakAboutTheDependentWhenActingForOne() {
         assertTrue(bookingLimitRuleText(null).contains("todas as suas UBS"))
-        assertTrue(bookingCancelWarningText(null).contains("no seu índice de comparecimento"))
+        assertTrue(bookingCancelWarningText(null).contains("no seu score de comparecimento"))
         val limit = bookingLimitRuleText("Maria Souza")
         assertTrue(limit, limit.contains("somando as UBS de Maria Souza"))
         assertFalse(limit, limit.contains("suas"))
         val cancel = bookingCancelWarningText("Maria Souza")
-        assertTrue(cancel, cancel.contains("no índice de comparecimento de Maria Souza"))
+        assertTrue(cancel, cancel.contains("no score de comparecimento de Maria Souza"))
         assertFalse(cancel, cancel.contains("seu "))
     }
 

@@ -113,7 +113,8 @@ internal static partial class Program
                     // Painel: espera média e série de 7 dias vêm da API real (nenhuma oferta foi aceita, então a espera é —); participação vem junto do cadastro.
                     Require(vm.HasActiveObsUnit && vm.PanelChart.Days.Count == 7 && vm.PanelWaitValue == "—" && vm.PanelWaitHint.Contains("Nenhuma entrada saiu da fila"), $"Painel não leu os indicadores da UBS pela API real: {vm.PanelWaitValue} / {vm.PanelWaitHint}");
                     Require(vm.ObsRegistry.All(p => p.Attendance is not null) && vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").Attendance is { Completed: 0, Missed: 0, CancelledByPatient: 0, Score: null }, "O cadastro de referência não trouxe a participação de cada paciente (nula sem consulta encerrada).");
-                    Require(vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").ParticipationDisplay == "—", "Participação sem dado deveria aparecer como —.");
+                    Require(vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").Attendance is { Points: 1000, Band: "excellent", HasHistory: false }, "O cadastro sem consulta encerrada deveria vir com 1000 pontos, faixa excelente e sem histórico.");
+                    Require(vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").ScoreDisplay == "1000 · sem consultas encerradas ainda", "Score sem consulta encerrada deveria aparecer como 1000 · sem consultas encerradas ainda.");
                     // Ficha da vaga: as ofertas vêm da rota real.
                     var offersTask = vm.BuildDetailsAsync(vm.UnitLightningSlots.First(item => item.AppointmentId == consultation!.Id)); Pump(offersTask);
                     Require(offersTask.Result?.Fields.Any(field => field.Group == "Ofertas da vaga") == true, "A ficha da vaga não leu as ofertas pela API real: " + vm.Message);
@@ -303,7 +304,7 @@ internal static partial class Program
     {
         var content = Layout(window, 980, 640);
         Input(content, "Endereço da API").Text = address;
-        Input(content, "CPF ou e-mail").Text = identifier;
+        Input(content, "E-mail").Text = identifier;
         Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha de acesso").Password = password;
         InvokeButton(FindActionButton(content, "Entrar")); PumpUntil(() => !window.ViewModel.Workspace.IsBusy);
     }

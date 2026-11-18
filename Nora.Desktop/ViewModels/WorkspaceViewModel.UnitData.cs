@@ -39,8 +39,8 @@ public sealed partial class WorkspaceViewModel
     private sealed class UnitSnapshot
     {
         public UnitPatientRecord[]? Registry { get; init; }
-        public UnitWaitingEntry[]? Queue { get; init; }
-        public UnitLightningSlot[]? Slots { get; init; }
+        public WaitingListPage? Queue { get; init; }
+        public LightningSlotPage? Slots { get; init; }
         public AppointmentInfo[]? Today { get; init; }
         public DateTime TodayDate { get; init; }
         public AppointmentInfo[]? Month { get; init; }
@@ -174,7 +174,7 @@ public sealed partial class WorkspaceViewModel
     {
         if (data.Registry is { } registry) ApplyRegistry(registry);
         if (data.Queue is { } queue) ApplyQueue(queue);
-        if (data.Slots is { } slots) { Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots(); }
+        if (data.Slots is { } slots) ApplySlots(slots);
         if (data.Profile is { } unitProfileRead) ApplyProfile(unitProfileRead);
         if (data.Devices is { } deviceRead) ApplyDevices(deviceRead);
         if (data.Today is { } today) SetTodayOverview(data.TodayDate, today);
@@ -202,29 +202,54 @@ public sealed partial class WorkspaceViewModel
         AppointmentPatient = appointmentCpf is null ? null : ObsRegistry.FirstOrDefault(p => p.Cpf == appointmentCpf);
     }
 
-    private void ApplyQueue(UnitWaitingEntry[] entries)
+    /// <summary>Leitura da primeira página da fila (o ciclo de 20 s e as ações): junta com o histórico já carregado em vez de recomeçá-lo.</summary>
+    private void ApplyQueue(WaitingListPage page)
+    {
+        var merged = queuePager.ApplyPage(page.Items, page.HistoryCursor, out var restarted);
+        queueHistoryNotice = restarted ? HistoryRestartedNotice : "";
+        ShowQueueList(merged);
+    }
+
+    private void ShowQueueList(IReadOnlyList<UnitWaitingEntry> entries)
     {
         var selectedId = SelectedWaitingEntry?.Id;
         var changed = Replace(UnitWaitingList, DecorateQueue(entries, DateTimeOffset.Now));
         unitQueueLoaded = true;
         if (changed) SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId);
+        Notify(nameof(CanLoadMoreQueueHistory)); Notify(nameof(QueueHistoryState));
     }
 
-    /// <summary>Posição = ordem de entrada entre as entradas ativas da mesma especialidade (como o servidor distribui); espera = tempo desde a entrada.</summary>
-    private static UnitWaitingEntry[] DecorateQueue(UnitWaitingEntry[] entries, DateTimeOffset now)
+    private void ApplySlots(LightningSlotPage page)
+    {
+        var merged = slotsPager.ApplyPage(page.Items, page.HistoryCursor, out var restarted);
+        slotsHistoryNotice = restarted ? HistoryRestartedNotice : "";
+        ShowSlotList(merged);
+    }
+
+    private void ShowSlotList(IReadOnlyList<UnitLightningSlot> slots)
+    {
+        Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots();
+        Notify(nameof(CanLoadMoreSlotsHistory)); Notify(nameof(SlotsHistoryState));
+    }
+
+    /// <summary>
+    /// Posição = a ordem de oferta que a API devolve (<c>offerOrder</c>: mais pontos primeiro, empate pela entrada na fila). Sem ela (API antiga) o cliente calcula a mesma ordem
+    /// com os pontos que vierem, ou só pela entrada. Espera = tempo desde a entrada.
+    /// </summary>
+    private static UnitWaitingEntry[] DecorateQueue(IReadOnlyList<UnitWaitingEntry> entries, DateTimeOffset now)
     {
         var next = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var positions = new Dictionary<long, int>();
-        foreach (var entry in entries.Where(entry => entry.IsActive).OrderBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id))
+        foreach (var entry in entries.Where(entry => entry.IsActive).OrderByDescending(entry => entry.Points ?? 0).ThenBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id))
         {
             var key = entry.Specialty.Trim();
             positions[entry.Id] = next[key] = next.GetValueOrDefault(key) + 1;
         }
-        var result = new UnitWaitingEntry[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
+        var result = new UnitWaitingEntry[entries.Count];
+        for (var index = 0; index < entries.Count; index++)
         {
             var entry = entries[index];
-            result[index] = positions.TryGetValue(entry.Id, out var position) ? entry with { Position = position, WaitDisplay = FormatWait(now - entry.EnteredAt) } : entry;
+            result[index] = entry.IsActive ? entry with { Position = entry.OfferOrder ?? positions.GetValueOrDefault(entry.Id), WaitDisplay = FormatWait(now - entry.EnteredAt) } : entry;
         }
         return result;
     }

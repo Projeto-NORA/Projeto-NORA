@@ -25,13 +25,6 @@ public static class BrazilianDataValidator
         return true;
     }
 
-    public static bool IsValidLoginIdentifier(string? value)
-    {
-        var identifier = value?.Trim() ?? "";
-        if (identifier.Contains('@')) return MailAddress.TryCreate(identifier, out var email) && email.Address == identifier;
-        return IsValidCpf(identifier);
-    }
-
     public static string NormalizeCep(string? value)
     {
         value ??= "";

@@ -54,11 +54,19 @@ public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string
     [JsonIgnore] public string UnitDisplay => string.IsNullOrWhiteSpace(UnitName) ? "—" : UnitName;
 }
 
-/// <summary>Participação do paciente na UBS nos últimos 12 meses (só vem na listagem do OBS): concluídas, faltas e cancelamentos feitos por ele, com o peso somado dos cancelamentos.</summary>
-public sealed record UnitAttendance(long Completed, long Missed, long CancelledByPatient, double CancellationWeight, double? Score)
+/// <summary>
+/// Participação do paciente na UBS nos últimos 12 meses (só vem na listagem do OBS): concluídas, faltas e cancelamentos feitos por ele, com o peso somado dos cancelamentos.
+/// <c>Points</c> (0 a 1000), <c>Band</c> e <c>HasHistory</c> são o score em pontos; sem eles (API antiga) saem do <c>Score</c> pelo mesmo cálculo.
+/// </summary>
+public sealed record UnitAttendance(long Completed, long Missed, long CancelledByPatient, double CancellationWeight, double? Score, int? Points = null, string? Band = null, bool? HasHistory = null)
 {
-    public string ScoreDisplay => DisplayFormat.Percent(Score);
-    public string CancelledDisplay => CancelledByPatient == 0 ? "Nenhum feito pelo paciente" : $"{(CancelledByPatient == 1 ? "1 feito" : CancelledByPatient + " feitos")} pelo paciente (peso somado {CancellationWeight.ToString("0.##", DisplayFormat.Culture)})";
+    [JsonIgnore] public bool HasHistoryValue => HasHistory ?? Score is not null;
+    [JsonIgnore] public int PointsValue => Points ?? DisplayFormat.PointsFromScore(Score);
+    [JsonIgnore] public string BandValue => Band ?? DisplayFormat.BandFor(PointsValue);
+    [JsonIgnore] public string BandDisplay => DisplayFormat.BandLabel(BandValue);
+    /// <summary>"742 · Bom", ou "1000 · sem consultas encerradas ainda".</summary>
+    [JsonIgnore] public string ScoreDisplay => DisplayFormat.ScoreText(PointsValue, BandValue, HasHistoryValue);
+    [JsonIgnore] public string CancelledDisplay => CancelledByPatient == 0 ? "Nenhum feito pelo paciente" : $"{(CancelledByPatient == 1 ? "1 feito" : CancelledByPatient + " feitos")} pelo paciente (peso somado {CancellationWeight.ToString("0.##", DisplayFormat.Culture)})";
 }
 
 public sealed record UnitPatientRecord(string Cpf, string FullName, string Email, string? Phone = null, AddressInfo? Address = null, bool IsActive = true, bool IsOnline = false, DateTimeOffset? CreatedAt = null, UnitAttendance? Attendance = null)
@@ -68,8 +76,8 @@ public sealed record UnitPatientRecord(string Cpf, string FullName, string Email
     public string PhoneDisplay => string.IsNullOrWhiteSpace(Phone) ? "Telefone não informado" : Phone;
     public string PresenceDisplay => IsOnline ? "Online no aplicativo" : "Offline no aplicativo";
     public string CreatedAtDisplay => CreatedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Data não informada";
-    /// <summary>"—" quando a API não trouxe o dado ou o paciente não tem consulta encerrada nos últimos 12 meses.</summary>
-    public string ParticipationDisplay => DisplayFormat.Percent(Attendance?.Score);
+    /// <summary>Score em pontos e faixa ("742 · Bom"); "—" quando a API não trouxe o dado.</summary>
+    public string ScoreDisplay => Attendance?.ScoreDisplay ?? "—";
 }
 
 public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status,
@@ -99,14 +107,17 @@ public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, st
     }
 }
 
-public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, string Specialty, DateTimeOffset EnteredAt, string Status)
+/// <summary><c>Points</c>, <c>Band</c> e <c>OfferOrder</c> vêm da API (score do CPF na UBS e posição na ordem de oferta da especialidade); sem eles a ordem é calculada pelo cliente.</summary>
+public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, string Specialty, DateTimeOffset EnteredAt, string Status, int? Points = null, string? Band = null, int? OfferOrder = null)
 {
-    /// <summary>Posição entre as entradas ativas da mesma especialidade; calculada pelo cliente a cada leitura.</summary>
+    /// <summary>Posição na ordem de oferta da especialidade (mais pontos primeiro, empate pela entrada): a da API, ou calculada pelo cliente quando ela não vem.</summary>
     [JsonIgnore] public int Position { get; init; }
     /// <summary>Tempo desde a entrada, calculado na leitura (sem temporizador próprio).</summary>
     [JsonIgnore] public string WaitDisplay { get; init; } = "—";
     [JsonIgnore] public bool IsActive => Status is "waiting" or "offered";
     [JsonIgnore] public string PositionDisplay => Position > 0 ? $"{Position}º" : "—";
+    /// <summary>"742 · Bom"; "—" quando a API não trouxe os pontos.</summary>
+    [JsonIgnore] public string ScoreDisplay => Points is { } points ? $"{points} · {DisplayFormat.BandLabel(Band ?? DisplayFormat.BandFor(points))}" : "—";
     [JsonIgnore] public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string EnteredAtDisplay => EnteredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     public string StatusDisplay => Status switch { "waiting" => "Aguardando", "offered" => "Oferta em andamento", "completed" => "Concluída", "cancelled" => "Cancelada", _ => Status };
@@ -117,6 +128,8 @@ public sealed record UnitLightningSlot(Guid Id, Guid? AppointmentId, string Spec
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string CreatedAtDisplay => CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
     [JsonIgnore] public bool IsAwaitingApproval => Status == "awaiting_approval";
+    /// <summary>Vaga ainda em andamento (aguardando aprovação, aberta ou ofertada); as demais são histórico.</summary>
+    [JsonIgnore] public bool IsActive => Status is "awaiting_approval" or "open" or "offered";
     /// <summary>Quem criou a vaga: o cancelamento de uma consulta, a equipe pelo botão Gerar ou o "Chamar próximo".</summary>
     public string OriginDisplay => Origin switch { "cancellation" => "Cancelamento", "call-next" => "Chamar próximo", "staff" => "Gerada pela equipe", _ => Origin };
     public string StatusDisplay => Status switch
@@ -147,3 +160,8 @@ public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, D
     public string StatusDisplay => Status switch { "pending" => "Aguardando resposta", "accepted" => "Aceita", "declined" => "Recusada", "expired" => "Expirada", "cancelled" => "Cancelada", _ => Status };
     public string ExpiresAtDisplay => ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 }
+
+/// <summary>Resposta de GET .../waiting-list: todas as entradas ativas, mais as encerradas mais recentes. <c>HistoryCursor</c> não nulo = há encerradas mais antigas (peça com <c>?historyBefore=</c>).</summary>
+public sealed record WaitingListPage(UnitWaitingEntry[] Items, string? HistoryCursor = null);
+/// <summary>Resposta de GET .../lightning-slots, no mesmo formato da fila.</summary>
+public sealed record LightningSlotPage(UnitLightningSlot[] Items, string? HistoryCursor = null);

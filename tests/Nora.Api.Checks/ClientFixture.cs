@@ -53,13 +53,13 @@ internal static class ClientFixture
             await app.Services.GetRequiredService<MigrationDao>().MigrateAsync();
             var accounts = app.Services.GetRequiredService<AccountService>();
             const string password = "Disposable-test-Account!29";
-            var operatorAccount = new CreatePatientRequest("Operador de teste", "52998224725", "operator@example.test", password);
-            var operatorUser = await accounts.ProvisionAsync("obs", "administrator", operatorAccount);
-            var managerUser = await accounts.ProvisionAsync("municipal", "manager", operatorAccount);
+            // A equipe (OBS e Secretaria) não tem CPF: entra só por e-mail (P-053).
+            var operatorUser = await accounts.ProvisionStaffAsync("obs", "administrator", "Operador de teste", "operator@example.test", password);
+            var managerUser = await accounts.ProvisionStaffAsync("municipal", "manager", "Operador de teste", "operator@example.test", password);
             if (registrationTest)
             {
                 // Atendente sintética do E2E de computadores do OBS: só entra em computador ativado (a exigência fica ligada) e tem concessão nas três UBS.
-                var attendantUser = await accounts.ProvisionAsync("obs", "attendant", new("Atendente de teste", "11144477735", "attendant@example.test", password));
+                var attendantUser = await accounts.ProvisionStaffAsync("obs", "attendant", "Atendente de teste", "attendant@example.test", password);
                 var units = app.Services.GetRequiredService<HealthUnitService>();
                 var unitRecords = app.Services.GetRequiredService<HealthUnitDao>();
                 var registry = app.Services.GetRequiredService<UnitPatientRegistryDao>();
@@ -91,7 +91,7 @@ internal static class ClientFixture
             {
                 // Esta fixture histórica habilita rotas globais somente no ambiente de teste.
                 using var http = new HttpClient { BaseAddress = new(address) };
-                var login = await app.Services.GetRequiredService<AuthService>().LoginAsync(new("obs", operatorAccount.Email, password), default);
+                var login = await app.Services.GetRequiredService<AuthService>().LoginAsync(new("obs", "operator@example.test", password), default);
                 http.DefaultRequestHeaders.Authorization = new("Bearer", login!.Token);
                 using var response = await System.Net.Http.Json.HttpClientJsonExtensions.PostAsJsonAsync(http, "/api/patients", new CreatePatientRequest("Paciente de teste Android", "12345678143", "patient1@example.test", password));
                 response.EnsureSuccessStatusCode();
@@ -100,7 +100,7 @@ internal static class ClientFixture
                 await workflow.AddQueueAsync(new(patient!.Id), default);
                 await workflow.AddSlotAsync(new("Vaga de teste Android"), default);
             }
-            File.WriteAllText(metadata, JsonSerializer.Serialize(new { address, port = new Uri(address).Port, schema }));
+            File.WriteAllText(metadata, JsonSerializer.Serialize(new { address, port = new Uri(address).Port, schema, identifier = "operator@example.test", attendantIdentifier = "attendant@example.test" }));
             Console.WriteLine("Fixture PostgreSQL/API pronta; dados sintéticos, metadata em .build/client-fixture.json.");
             while (!File.Exists(stop)) await Task.Delay(500);
             return 0;

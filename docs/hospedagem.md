@@ -96,11 +96,11 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
 
 ### 2. Preparar o banco a partir do seu computador
 
-A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell:
+A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell. O `--provision` pergunta escopo, nome, e-mail e senha: **a equipe (Secretaria e OBS) não tem CPF e entra só por e-mail**; as contas que já existiam perdem o CPF na migração 022:
 
 ```powershell
 $env:ConnectionStrings__Nora = "Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require"
-dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 021)
+dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 022)
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "municipal": conta da Secretaria
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs": administrador da primeira UBS
 ```

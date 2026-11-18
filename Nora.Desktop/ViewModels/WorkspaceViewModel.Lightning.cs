@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Nora.Desktop.Generics;
 using Nora.Desktop.Models;
 using Nora.Desktop.Services;
 
@@ -14,6 +15,11 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<UnitWaitingEntry> UnitWaitingList { get; } = [];
     public ObservableCollection<UnitLightningSlot> UnitLightningSlots { get; } = [];
     private bool unitQueueLoaded, unitSlotsLoaded;
+    private const string HistoryRestartedNotice = "O histórico carregado foi reiniciado porque muitos itens foram encerrados desde a última leitura. Use Carregar mais histórico para ver os mais antigos.";
+    // Histórico paginado (P4): a API devolve todos os itens ativos e as encerradas mais recentes; o resto vem por "Carregar mais histórico". O ciclo de 20 s relê só a primeira página e preserva o que já foi carregado (ver HistoryPager).
+    private readonly HistoryPager<UnitWaitingEntry, long> queuePager = new(entry => entry.Id, entry => entry.IsActive);
+    private readonly HistoryPager<UnitLightningSlot, Guid> slotsPager = new(slot => slot.Id, slot => slot.IsActive);
+    private string queueHistoryNotice = "", slotsHistoryNotice = "";
     public UnitPatientRecord? WaitingPatient { get => waitingPatient; set { waitingPatient = value; Notify(); } }
     public UnitWaitingEntry? SelectedWaitingEntry { get => selectedWaitingEntry; set { selectedWaitingEntry = value; Notify(); Notify(nameof(CanCancelWaitingEntry)); } }
     public UnitLightningSlot? SelectedUnitSlot { get => selectedUnitSlot; set { selectedUnitSlot = value; Notify(); } }
@@ -21,6 +27,12 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Cancelar só vale para entrada ainda ativa (aguardando ou com oferta em andamento).</summary>
     public bool CanCancelWaitingEntry => CanOperate && SelectedWaitingEntry?.IsActive == true;
     public bool HasNoWaitingEntries => HasActiveObsUnit && unitQueueLoaded && UnitWaitingList.Count == 0;
+    public bool CanLoadMoreQueueHistory => CanOperate && HasActiveObsUnit && queuePager.HasMore;
+    public bool CanLoadMoreSlotsHistory => CanOperate && HasActiveObsUnit && slotsPager.HasMore;
+    public string QueueHistoryState => HistoryText(unitQueueLoaded, queuePager.HasMore, queueHistoryNotice, "entradas encerradas");
+    public string SlotsHistoryState => HistoryText(unitSlotsLoaded, slotsPager.HasMore, slotsHistoryNotice, "vagas encerradas");
+    private string HistoryText(bool loaded, bool hasMore, string notice, string what) =>
+        !HasActiveObsUnit || !loaded ? "" : ((notice.Length > 0 ? notice + " " : "") + (hasMore ? $"Há {what} mais antigas: use Carregar mais histórico." : "")).Trim();
     public bool HasNoUnitSlots => HasActiveObsUnit && unitSlotsLoaded && UnitLightningSlots.Count == 0;
 
     private void ReselectSlot() { if (selectedUnitSlot is { } slot) SelectedUnitSlot = UnitLightningSlots.FirstOrDefault(item => item.Id == slot.Id); }
@@ -62,6 +74,30 @@ public sealed partial class WorkspaceViewModel
         if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, "Vagas da UBS atualizadas.");
     });
 
+    /// <summary>Pede à API as entradas encerradas mais antigas que as já carregadas e as acrescenta ao fim da lista, sem repetir nenhuma.</summary>
+    public Task LoadMoreQueueHistoryAsync() => RunAsync(async () =>
+    {
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar a fila.");
+        if (queuePager.Cursor is not { } cursor) return;
+        var page = await api.UnitWaitingListAsync(unit.Id, cursor);
+        if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
+        queueHistoryNotice = "";
+        ShowQueueList(queuePager.ApplyOlder(page.Items, page.HistoryCursor));
+        Say(MessageKind.Success, queuePager.HasMore ? "Histórico da fila ampliado." : "Todo o histórico da fila está na lista.");
+    });
+
+    /// <summary>Igual à fila: acrescenta as vagas encerradas mais antigas às já carregadas.</summary>
+    public Task LoadMoreSlotsHistoryAsync() => RunAsync(async () =>
+    {
+        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar vagas.");
+        if (slotsPager.Cursor is not { } cursor) return;
+        var page = await api.UnitLightningSlotsAsync(unit.Id, cursor);
+        if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
+        slotsHistoryNotice = "";
+        ShowSlotList(slotsPager.ApplyOlder(page.Items, page.HistoryCursor));
+        Say(MessageKind.Success, slotsPager.HasMore ? "Histórico das vagas ampliado." : "Todo o histórico das vagas está na lista.");
+    });
+
     public Task CreateUnitLightningSlotAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de criar a vaga.");
@@ -91,8 +127,10 @@ public sealed partial class WorkspaceViewModel
     private void ClearUnitLightningData()
     {
         UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false;
+        queuePager.Clear(); slotsPager.Clear(); queueHistoryNotice = slotsHistoryNotice = "";
         WaitingPatient = null; SelectedWaitingEntry = null; SelectedUnitSlot = null; WaitingSpecialty = "";
         AwaitingSlots.Clear(); SelectedAwaitingSlot = null; SlotSteps.Clear();
         NotifyUnitCounts();
+        foreach (var name in new[] { nameof(CanLoadMoreQueueHistory), nameof(CanLoadMoreSlotsHistory), nameof(QueueHistoryState), nameof(SlotsHistoryState) }) Notify(name);
     }
 }

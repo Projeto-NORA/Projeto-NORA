@@ -45,7 +45,7 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
             while (await reader.ReadAsync(ct)) slots.Add((reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.GetFieldValue<DateTimeOffset>(3)));
         foreach (var slot in slots)
         {
-            if (await LightningEligibility.PickAsync(connection, slot.Specialty, eligible, slot.Start, slot.End, ct, slot.Id) is not { } chosen) continue;
+            if (await LightningEligibility.PickAsync(connection, slot.Specialty, eligible, slot.Start, slot.End, now, ct, slot.Id) is not { } chosen) continue;
             await ExecuteAsync(connection, "INSERT INTO nora_unit.lightning_offers(id,slot_id,entry_id,expires_at,status) VALUES($1,$2,$3,$4,'pending')", ct, Guid.NewGuid(), slot.Id, chosen, now.AddMinutes(10));
             await ExecuteAsync(connection, "UPDATE nora_unit.waiting_list SET status='offered' WHERE id=$1", ct, chosen);
             await ExecuteAsync(connection, "UPDATE nora_unit.lightning_slots SET status='offered' WHERE id=$1", ct, slot.Id);

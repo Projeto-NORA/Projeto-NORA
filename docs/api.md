@@ -10,7 +10,7 @@ Migrações centrais incorporadas 001_accounts.sql a 021_cross_unit_email.sql (a
 
 Configure ConnectionStrings__Nora no ambiente do processo ou ConnectionStrings:Nora em user-secrets. Nora__Schema é opcional (padrão nora). Nunca versionar conexão com senha. Instância de uso: PostgreSQL 18, usuário postgres; conexão/provisionamento definitivo ainda em P-012.
 
-Após build Release, scripts/iniciar-local.ps1 -ProvisionAccounts solicita senha PostgreSQL oculta, cria base nora se ausente, aplica migrações e pede provisionamento OBS/Municipal. Nome aprovado: Mateus Todeschini Monteiro. A equipe registra o paciente na UBS pelo OBS; o próprio paciente cria sua conta após confirmar o e-mail registrado. Não há seed pessoal. O banco armazena hash PBKDF2 ASP.NET Identity; contas duplicadas são preservadas e retornam conflito.
+Após build Release, scripts/iniciar-local.ps1 -ProvisionAccounts solicita senha PostgreSQL oculta, cria base nora se ausente, aplica migrações e pede provisionamento OBS/Municipal (nome, e-mail e senha; a equipe não tem CPF). Nome aprovado: Mateus Todeschini Monteiro. A equipe registra o paciente na UBS pelo OBS; o próprio paciente cria sua conta após confirmar o e-mail registrado. Não há seed pessoal. O banco armazena hash PBKDF2 ASP.NET Identity; contas duplicadas são preservadas e retornam conflito.
 
 ```powershell
 dotnet build NORA.slnx --configuration Release -m:1 --disable-build-servers
@@ -25,7 +25,7 @@ O bootstrap lê configuração pelo diretório da DLL, independentemente da past
 
 ## Sessões e autorização
 
-Login recebe scope (obs/municipal/patient), identifier (CPF ou e-mail) e password. CPF formatado é normalizado e tem os dígitos verificadores conferidos; e-mail vai para minúsculas e tem formato conferido. Essa validação não consulta nem comprova uma identidade perante a Receita Federal. CPF/e-mail são únicos dentro do escopo, permitindo contas separadas.
+Login recebe scope (obs/municipal/patient), identifier e password. **Equipe (`obs` e `municipal`) entra só por e-mail** (P-053: contas de equipe não têm CPF; um CPF como identificador recebe o mesmo 401 de credencial inválida, sem revelar nada). **Paciente entra por CPF ou e-mail.** CPF formatado é normalizado e tem os dígitos verificadores conferidos; e-mail vai para minúsculas e tem formato conferido. Essa validação não consulta nem comprova uma identidade perante a Receita Federal. E-mail é único dentro do escopo (e o CPF do paciente também), permitindo contas separadas.
 
 Token aleatório opaco dura8h, usa header Authorization: Bearer <token>; somente SHA256 fica no banco. Logout revoga sessão. Clientes guardam token/identidade em memória, exigindo novo login ao reabrir. Login limitado a30 tentativas por minuto/IP. O usuário devolvido no login e em `GET /api/auth/me` traz `mustChangePassword`: enquanto for verdadeiro (conta criada ou redefinida pela Secretaria com senha provisória), toda rota autenticada, exceto `GET /api/auth/me`, `POST /api/auth/logout` e `POST /api/auth/password`, responde 403 com `code` `password-change-required`. Todo executor de operação sobre uma UBS (OBS, leitura nominal da Secretaria, ações do paciente, ações do responsável pelo dependente e remoção de vínculo) repete, dentro da transação central, a revalidação de conta e sessão com `FOR SHARE` em ambas as linhas: conta ativa, sessão não revogada nem vencida e sem troca de senha pendente. Uma requisição já autenticada que esteja em andamento faz a desativação da conta, a redefinição de senha ou a revogação da sessão esperarem o seu fim; uma requisição que começa depois disso é recusada com 401 (conta ou sessão inválidas) ou 403 `password-change-required` (troca obrigatória pendente). OBS aceita atendente/administrador autorizado à unidade; Municipal pode consultar dados identificáveis e agregados da rede; paciente acessa somente seus dados nas unidades vinculadas.
 
@@ -64,13 +64,13 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | GET /api/patient/units | Paciente | 200 objeto `units` com nome, região, endereço e coordenadas apenas das unidades vinculadas ao paciente autenticado e com banco pronto (pendentes e de schema desatualizado são omitidas); 503 se o banco de uma UBS pronta estiver fora do ar |
 | GET /api/patient/overview | Paciente | 200 user/queue/offers próprios |
 | POST /api/offers/{id}/respond | Paciente | 200 accept booleano explícito;409 repetida/vencida |
-| GET /api/obs/units/{unitId}/registry | OBS autorizado à UBS | Lista os cadastros de referência da unidade no banco próprio, cada um com `attendance` (score dos últimos 12 meses) |
+| GET /api/obs/units/{unitId}/registry | OBS autorizado à UBS | Lista os cadastros de referência da unidade no banco próprio, cada um com `attendance` (score dos últimos 12 meses, com `points`, `band` e `hasHistory`: ver "Score em pontos e prioridade na Vaga Relâmpago") |
 | GET /api/obs/units/{unitId}/metrics?from=&to= | OBS autorizado à UBS | 200 indicadores da UBS na janela (consultas, espera, vagas, especialidades, série diária) |
 | GET /api/obs/units/{unitId}/lightning-slots/{slotId}/offers | OBS autorizado à UBS | 200 ofertas da vaga em ordem cronológica: id, patientName, status, expiresAt (sem CPF); 404 vaga inexistente |
 | POST /api/obs/units/{unitId}/registry | OBS autorizado à UBS | Cadastra CPF, nome e e-mail de referência; registra o autor |
 | GET /api/obs/units | OBS | Lista unidades concedidas à conta autenticada |
-| GET /api/municipal/staff | Municipal | Lista contas OBS, ativas e inativas: id, fullName, role, email, isActive, mustChangePassword |
-| POST /api/municipal/staff | Municipal limitado (30 por 10 min/IP) | 201 conta OBS criada com senha provisória e troca obrigatória; 409 CPF/e-mail duplicado |
+| GET /api/municipal/staff | Municipal | Lista contas OBS, ativas e inativas: id, fullName, role, email, isActive, mustChangePassword (sem CPF) |
+| POST /api/municipal/staff | Municipal limitado (30 por 10 min/IP) | corpo `{ fullName, email, password, role }` (um `cpf` enviado é ignorado); 201 conta OBS criada com senha provisória e troca obrigatória; 409 e-mail duplicado |
 | PATCH /api/municipal/staff/{id}/active | Municipal limitado | 204; `isActive` e `confirmed: true` obrigatórios; desativar revoga as sessões e preserva as concessões |
 | POST /api/municipal/staff/{id}/password | Municipal limitado | 204; `password` e `confirmed: true`; nova senha provisória com troca obrigatória e sessões revogadas |
 | GET /api/municipal/staff/{id}/units | Municipal | Lista unidades concedidas à conta OBS |
@@ -83,7 +83,7 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | GET /api/municipal/summary | Municipal | 200 patients/inactivePatients/waitingPatients/waitingEntries/unitsWithoutDatabase/openSlots/acceptedOffers e contagens agregadas de vagas e ofertas; sem indivíduos |
 | GET /api/municipal/metrics?from=&to=&unitId=&region=&specialty= | Municipal | 200 indicadores da rede (totais, por UBS, por região, por especialidade, série diária) |
 | GET /api/municipal/history?from=&to=&unitId=&limit=&before= | Municipal | 200 histórico de ações da gestão, mais recentes primeiro |
-| GET /api/patient/units/{unitId}/attendance | Paciente vinculado | 200 score do próprio paciente nos últimos 12 meses |
+| GET /api/patient/units/{unitId}/attendance | Paciente vinculado | 200 score do próprio paciente nos últimos 12 meses (com `points`, `band`, `hasHistory`) |
 | POST /api/patient/units/{unitId}/waiting-list/{id}/cancel | Paciente vinculado | 204; `confirmed: true`; só a própria entrada ativa |
 | POST /api/patient/units/{unitId}/unlink | Paciente vinculado limitado (10 por 10 min por conta autenticada) | 200 `cancelledAppointments` e `cancelledEntries`; remove o vínculo |
 | GET /api/patient/units/{unitId}/unlink-preview | Paciente vinculado (60 por 10 min por conta autenticada) | 200 `futureAppointments` e `activeWaitingEntries`: o que a remoção cancelaria agora; não grava nada |
@@ -180,7 +180,7 @@ A verificação de conflito é feita dentro do banco da UBS; sobreposições ent
 
 ## Preparação da fila por UBS
 
-A migração de UBS 006 prepara uma fila persistida por CPF e especialidade no próprio banco da unidade. As rotas `GET/POST /api/obs/units/{unitId}/waiting-list` listam ou incluem entradas; `POST /api/obs/units/{unitId}/waiting-list/{id}/cancel` exige `confirmed: true`. Apenas contas OBS com acesso à UBS podem operar, e inclusão e cancelamento registram autoria. A mesma pessoa pode aguardar especialidades diferentes, mas não pode ter duas entradas ativas para a mesma especialidade na mesma UBS. A fila é ordenada por data de entrada e identificador.
+A migração de UBS 006 prepara uma fila persistida por CPF e especialidade no próprio banco da unidade. As rotas `GET/POST /api/obs/units/{unitId}/waiting-list` listam ou incluem entradas; `POST /api/obs/units/{unitId}/waiting-list/{id}/cancel` exige `confirmed: true`. Apenas contas OBS com acesso à UBS podem operar, e inclusão e cancelamento registram autoria. A mesma pessoa pode aguardar especialidades diferentes, mas não pode ter duas entradas ativas para a mesma especialidade na mesma UBS. A fila é ordenada por data de entrada e identificador; a ordem em que as ofertas da Vaga Relâmpago são feitas segue os pontos de score (ver "Score em pontos e prioridade na Vaga Relâmpago").
 
 A tela de fila do OBS e o acompanhamento do paciente usam essa fila por unidade. As rotas globais antigas estão bloqueadas por padrão. A validação completa do fluxo ainda está em andamento; não iniciar testes oficiais.
 
@@ -344,7 +344,7 @@ Resposta da rede: `from`, `to`; `totals` (`appointments`, `waiting`, `lightning`
 
 ## Score por paciente
 
-`GET /api/obs/units/{unitId}/registry` traz em cada registro `attendance` (`completed`, `missed`, `cancelledByPatient`, `cancellationWeight`, `score`), calculado em uma única consulta agrupada. A janela é a dos últimos 12 meses pela data marcada, sem limite superior (cancelamentos futuros entram). Paciente sem consulta encerrada recebe contagens zeradas e `score` nulo. A rota municipal de cadastro não recebe o campo. `GET /api/patient/units/{unitId}/attendance` devolve o mesmo cálculo só do próprio paciente (CPF da sessão), com `windowMonths` 12.
+`GET /api/obs/units/{unitId}/registry` traz em cada registro `attendance` (`completed`, `missed`, `cancelledByPatient`, `cancellationWeight`, `score`), calculado em uma única consulta agrupada. A janela é a dos últimos 12 meses pela data marcada, sem limite superior (cancelamentos futuros entram). Paciente sem consulta encerrada recebe contagens zeradas, `score` nulo, `points` 1000 e `hasHistory` falso. A rota municipal de cadastro não recebe o campo. `GET /api/patient/units/{unitId}/attendance` devolve o mesmo cálculo só do próprio paciente (CPF da sessão), com `windowMonths` 12.
 
 ## Histórico de ações
 
@@ -354,7 +354,7 @@ Resposta da rede: `from`, `to`; `totals` (`appointments`, `waiting`, `lightning`
 
 `POST /api/auth/password` (qualquer perfil) recebe `{ "currentPassword": "...", "newPassword": "..." }`. Senha atual incorreta → 400 com `code` `invalid-current-password` (não 401: os clientes encerram a sessão em 401); nova senha fora de 8 a 256 caracteres ou igual à atual → 400. Em caso de sucesso (204) grava o hash, limpa `must_change_password` e revoga as outras sessões da conta; a atual continua.
 
-A Secretaria cria contas de atendente ou administrador em `POST /api/municipal/staff` com `{ "fullName", "cpf", "email", "password", "role" }` (`role` `attendant` ou `administrator`; mesmas validações de CPF, e-mail e senha do provisionamento; duplicidade → 409). A conta nasce com `must_change_password` verdadeiro: a senha é provisória. `PATCH /api/municipal/staff/{id}/active` recebe `{ "isActive": bool, "confirmed": true }` (`confirmed` obrigatório e verdadeiro); desativar revoga as sessões e impede o login, e as concessões de UBS são preservadas. `POST /api/municipal/staff/{id}/password` recebe `{ "password": "...", "confirmed": true }`, define uma nova senha provisória e revoga as sessões; é a recuperação de contas OBS, que não têm e-mail de recuperação. Cada ação grava um evento em `staff_account_events` na mesma transação. As três rotas respondem 404 para contas que não sejam OBS.
+A Secretaria cria contas de atendente ou administrador em `POST /api/municipal/staff` com `{ "fullName", "email", "password", "role" }` (`role` `attendant` ou `administrator`; mesmas validações de e-mail e senha do provisionamento; um `cpf` enviado é ignorado; duplicidade de e-mail no escopo → 409). A conta nasce com `must_change_password` verdadeiro: a senha é provisória. `PATCH /api/municipal/staff/{id}/active` recebe `{ "isActive": bool, "confirmed": true }` (`confirmed` obrigatório e verdadeiro); desativar revoga as sessões e impede o login, e as concessões de UBS são preservadas. `POST /api/municipal/staff/{id}/password` recebe `{ "password": "...", "confirmed": true }`, define uma nova senha provisória e revoga as sessões; é a recuperação de contas OBS, que não têm e-mail de recuperação. Cada ação grava um evento em `staff_account_events` na mesma transação. As três rotas respondem 404 para contas que não sejam OBS.
 
 ## Ações do paciente na UBS
 
@@ -647,7 +647,7 @@ O administrador da UBS liga e desliga (`health_units.slot_approval_since`, nulo 
 | `PUT /api/obs/units/{unitId}/slot-approval` | só o administrador da UBS | `{enabled, confirmed:true}` → 200 `{enabled, since, updatedByName}`; ligar mantém o `since` se já estava ligada (idempotente), desligar zera; `confirmed` falso ou ausente → 400 |
 | `POST /api/obs/units/{unitId}/lightning-slots/{slotId}/approve` | OBS da UBS | `{confirmed:true}` → 200 vaga `open` (com `decidedAt/decidedByName`) e então redistribui. Não aguardando → 409 `conflict`; falta ≤ 1 h → fecha (`approval-timeout`, gravado) e 409 `approval-expired`; horário reocupado (consulta ativa ou vaga aberta/ofertada do profissional) → fecha (`conflict`, gravado) e 409 `slot-unavailable`; outra UBS ou inexistente → 404 |
 | `POST /api/obs/units/{unitId}/lightning-slots/{slotId}/discard` | OBS da UBS | `{confirmed:true}` → 200 vaga `closed` (`discarded`); não aguardando → 409 |
-| `GET /api/obs/units/{unitId}/lightning-slots` | como antes | cada item com os campos novos; continua um array |
+| `GET /api/obs/units/{unitId}/lightning-slots` | como antes | cada item com os campos novos; **desde 2026-11-17 devolve `{ items, historyCursor }`** (ver "Histórico paginado das listas do OBS") |
 
 **Worker (`UnitLightningDispatcher.AdvanceAsync`, a cada 15 s e depois das ações).** Na transação da UBS, sob o lock da fila e **antes** da distribuição: (1) fecha as propostas com `starts_at <= agora + 1 h` (`approval-timeout`); (2) com a chave ligada, insere as propostas das consultas `cancelled` com `starts_at > agora + 1 h`, sem vaga, cujo evento `cancelled` é `>= slot_approval_since` e sem consulta ativa nem vaga aberta/ofertada do mesmo profissional cruzando o horário (até 200 por passe, o resto no seguinte, `ON CONFLICT (appointment_id) DO NOTHING`); (3) o fechamento de vagas abertas a menos de 10 minutos passa a gravar `too-late`. Vaga `awaiting_approval` nunca é selecionada para oferta. Latência da proposta: até 15 s (as ações que já chamam `TryAdvanceAsync` antecipam).
 
@@ -667,4 +667,40 @@ Defeito corrigido: se o commit central falhava depois do commit da UBS, o e-mail
 
 ### Verificação
 
-`tests/Nora.Api.Checks` (cada parte só com `NORA_TEST_CONNECTION`; opções de uma parte só): `ObsDeviceChecks` (`--devices-only`), `CallNextChecks` (`--call-next-only`), `UnitProfileChecks` (`--unit-profile-only`), `CrossUnitChecks` (`--cross-unit-only`), `SlotApprovalChecks` (`--slot-approval-only`) e `EmailOutboxChecks` (`--email-outbox-only`). `RoundFixture.cs` sobe a API de teste (relógio de teste, UBS com banco próprio, clientes com IP de origem próprio por `X-Forwarded-For` de um proxy confiável) e `ObsDeviceHelper.cs` ativa um computador pelo administrador para as suítes que entram como atendente (`FamilyChecks.Fixture` e `SchedulingChecks.Fixture`). Os hosts de `PlatformChecks`, `CommunityChecks`, `ReviewChecks` e o legado de `WorkflowChecks`, que têm atendentes incidentais sem UBS, rodam com `Nora:ObsDevices:RequireForAttendants=false`. `ClientFixture` (E2E dos clientes) ganhou a conta OBS `attendant@example.test` (mesma senha do operador), com concessão nas três UBS, e a exigência de computador **ligada**.
+`tests/Nora.Api.Checks` (cada parte só com `NORA_TEST_CONNECTION`; opções de uma parte só): `ObsDeviceChecks` (`--devices-only`), `CallNextChecks` (`--call-next-only`), `UnitProfileChecks` (`--unit-profile-only`), `CrossUnitChecks` (`--cross-unit-only`), `ClosingChecks` (`--closing-only`), `SlotApprovalChecks` (`--slot-approval-only`) e `EmailOutboxChecks` (`--email-outbox-only`). `RoundFixture.cs` sobe a API de teste (relógio de teste, UBS com banco próprio, clientes com IP de origem próprio por `X-Forwarded-For` de um proxy confiável) e `ObsDeviceHelper.cs` ativa um computador pelo administrador para as suítes que entram como atendente (`FamilyChecks.Fixture` e `SchedulingChecks.Fixture`). Os hosts de `PlatformChecks`, `CommunityChecks`, `ReviewChecks` e o legado de `WorkflowChecks`, que têm atendentes incidentais sem UBS, rodam com `Nora:ObsDevices:RequireForAttendants=false`. `ClientFixture` (E2E dos clientes) ganhou a conta OBS `attendant@example.test` (mesma senha do operador), com concessão nas três UBS, e a exigência de computador **ligada**.
+
+## Fechamento das pendências (2026-11-17)
+
+### Score em pontos e prioridade na Vaga Relâmpago
+
+O cálculo de comparecimento é o de sempre (`concluídas ÷ (concluídas + faltas + pesos dos cancelamentos do paciente)`, últimos 12 meses pela data marcada). Os campos abaixo são **aditivos**: `completed`, `missed`, `cancelledByPatient`, `cancellationWeight` e `score` continuam iguais.
+
+- `points`: inteiro de 0 a 1000 = `round(score × 1000)`, meio para cima, sobre a razão exata (antes do arredondamento de quatro casas do `score`). **Sem consulta encerrada** (`score` nulo) vale **1000**: quem nunca faltou começa no máximo.
+- `band`: `low` (0–299), `regular` (300–599), `good` (600–799), `excellent` (800–1000).
+- `hasHistory`: `false` quando `score` é nulo; senão `true`.
+
+Onde entram: `attendance` de cada item de `GET /api/obs/units/{unitId}/registry`; o corpo de `GET /api/patient/units/{unitId}/attendance` e da rota do responsável (`/api/patient/dependents/{dependentId}/units/{unitId}/attendance`); cada item de `GET /api/obs/units/{unitId}/waiting-list` (`points`, `band`). Indicadores, `metrics` e o Painel Municipal não mudam. Código: `AttendanceScore.Points` e `AttendanceScore.Band`.
+
+**Prioridade.** Entre os elegíveis da mesma especialidade, a oferta vai primeiro a quem tem **mais pontos**; empate pela ordem de entrada (`entered_at`, depois `id`). Os pontos são calculados **no banco da própria UBS** (uma consulta agrupada só sobre os CPFs candidatos, na mesma transação). A escolha é uma só, `LightningEligibility.PickAsync` (distribuição automática e Chamar próximo), e a prévia `GET .../waiting-list/next` usa a mesma ordem (`PreviewAsync`). O resto não muda: recusa e vencimento devolvem a pessoa à fila na mesma `entered_at` (R-030), a mesma vaga não volta a quem já passou por ela, e deixar a oferta vencer **não baixa** o score. O score não muda a prioridade clínica nem o direito ao atendimento.
+
+`GET /api/obs/units/{unitId}/waiting-list` ganhou `offerOrder`: a posição (1, 2, 3…) da entrada ativa (`waiting` ou `offered`) na ordem de oferta da **sua especialidade** (especialidade comparada sem diferenciar maiúsculas e espaços nas pontas); **nulo** nas entradas encerradas. A posição vale mesmo para quem ainda não tem conta ou acesso (é a ordem da fila, não a elegibilidade).
+
+### Histórico paginado das listas do OBS (P4)
+
+`GET /api/obs/units/{unitId}/waiting-list` e `GET /api/obs/units/{unitId}/lightning-slots` devolvem **`{ "items": [...], "historyCursor": "..."|null }`** (camelCase):
+
+- `items` = **todas** as entradas ou vagas ativas (fila: `waiting`, `offered`; vagas: `open`, `offered`, `awaiting_approval`) mais até `historyLimit` encerradas (fila: `completed`, `cancelled`; vagas: `accepted`, `closed`); `historyLimit` de 1 a 500, padrão 100; fora disso → 400 `invalid-input`.
+- As encerradas escolhidas são as **mais recentes** (fila: `entered_at` e depois `id`, decrescente; vagas: `created_at` e depois `id`). Dentro da resposta os itens saem na **ordem de antes** (do mais antigo ao mais novo: `entered_at, id` na fila e `created_at, id` nas vagas), então o cliente pode juntar páginas e reordenar pelo mesmo critério.
+- `historyCursor` é nulo quando não há mais encerradas. Senão é um valor opaco (base64 de URL; o cliente não o interpreta). Para a página seguinte: `?historyBefore=<cursor>` (escapado na URL; `&historyLimit=` continua valendo). A resposta traz **só encerradas mais antigas que o cursor, sem os ativos**, mais o `historyCursor` seguinte. Cursor inválido → 400. O cursor é a posição `(instante, chave)` do último item devolvido, usada como limite exclusivo: nada se repete nem se perde entre as páginas, mesmo com itens novos entrando e com datas iguais.
+- Cada item da fila: `id`, `cpf`, `patientName`, `specialty`, `enteredAt`, `status`, `points`, `band`, `offerOrder`. Cada item das vagas é o `UnitLightningSlot` de sempre. As rotas do paciente e do responsável não mudam (`{ entries }` e `{ offers }`).
+
+### Contas de equipe sem CPF (P-053)
+
+Migração central **022**: `accounts.cpf` aceita nulo, o CPF de todas as contas `obs` e `municipal` é **apagado**, e `CHECK (scope <> 'patient' OR cpf IS NOT NULL)` mantém o CPF do paciente obrigatório (`UNIQUE(scope, cpf)` continua: nulos não colidem). Login da equipe só por e-mail (ver Autenticação). `POST /api/municipal/staff`: `{ fullName, email, password, role }`; duplicidade só por e-mail (409); nenhuma resposta de equipe traz `cpf`. `--provision` pergunta escopo, nome, e-mail e senha (**sem CPF**). `AccountService.ProvisionStaffAsync` cria conta de equipe sem CPF (`ProvisionAsync` para `obs`/`municipal` ignora o CPF recebido). `UnitAccessService.RevalidateAsync` devolve CPF vazio para a equipe.
+
+### Otimizações P3 e P5
+
+- **P3:** `UnitRegistryReadService.ListAsync` recebe a conexão central do executor (`connection =>` em `ExecuteAsync`) e lê a presença nela, em vez de abrir uma segunda. A listagem da Secretaria (sem executor com conexão) abre a própria.
+- **P5:** migração de UBS **017** (`UnitSchema.ExpectedVersion` = 17): `waiting_list(cpf, entered_at, id)` para as leituras por CPF (app do paciente e responsável, agora com consulta própria `WHERE q.cpf=$1`) e `waiting_list(entered_at DESC, id DESC)` para a página de histórico. Rode `--migrate-all-units`; uma UBS sem a 017 responde 503 `unit-database-outdated`. Medições em [desempenho](desempenho.md).
+
+Testes: `ClosingChecks` (`--closing-only`).

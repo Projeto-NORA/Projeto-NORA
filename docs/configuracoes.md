@@ -44,6 +44,8 @@ Quando a API confirma uma resposta de oferta e a atualização posterior falha, 
 
 A API não tem tela de preferências: tudo vem da configuração do processo (`appsettings.json` ao lado da DLL, user-secrets ou variáveis de ambiente, com `__` no lugar de `:`, como `Nora__Maintenance__Enabled`). Segredos (conexão com senha, chaves HMAC, senha do SMTP, credencial da conta de serviço do Firebase) ficam fora do Git. Os contratos e os efeitos de cada chave estão em [API](api.md).
 
+**Contas iniciais (sem CPF).** `Nora.Api --provision` (só em terminal interativo) pergunta escopo (`obs` ou `municipal`), nome, e-mail e senha, **sem CPF**: a equipe (Secretaria e OBS) não tem CPF desde a migração central 022 (P-053) e entra só por e-mail e senha. Contas de equipe que já existiam perderam o CPF nessa migração. O paciente continua com CPF obrigatório.
+
 | Chave | Padrão | Uso |
 | --- | --- | --- |
 | `ConnectionStrings:Nora` | nenhum | conexão do banco central (no ambiente, `ConnectionStrings__Nora`) |

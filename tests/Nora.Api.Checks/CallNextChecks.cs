@@ -95,7 +95,7 @@ internal static class CallNextChecks
             f.Clock.Advance(TimeSpan.FromSeconds(1)); // a distribuição segue a ordem de criação das vagas
             slot2 = (await CallOk(attendant, t2)).GetProperty("slot").GetProperty("id").GetGuid();
             Ensure(await Offers(slot2) == "Paciente 5:pending", "A segunda chamada pula quem já tem oferta pendente e vai ao 5º.");
-            using (var list = await f.Admin.GetAsync($"/api/obs/units/{u1}/lightning-slots")) { Expect(list, 200); Ensure((await Read(list)).EnumerateArray().Count(item => item.GetProperty("origin").GetString() == "call-next") == 2, "A lista de vagas traz a origem."); }
+            using (var list = await f.Admin.GetAsync($"/api/obs/units/{u1}/lightning-slots")) { Expect(list, 200); Ensure((await Read(list)).GetProperty("items").EnumerateArray().Count(item => item.GetProperty("origin").GetString() == "call-next") == 2, "A lista de vagas traz a origem."); }
         });
 
         await suite.Check("Recusar ou deixar vencer: o horário segue sozinho para os próximos da fila; aceitar cria a consulta com professional_id, specialty_id e room_id (booked_by lightning)", async () =>

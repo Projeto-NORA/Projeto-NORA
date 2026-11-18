@@ -1,0 +1,38 @@
+# Blueprint do Render para a API do NORA (guia completo em docs/hospedagem.md).
+# No Render: New → Blueprint → escolha este repositório. Os valores "sync: false" são pedidos na tela (segredos que
+# só você conhece); os "generateValue" o Render gera sozinho, aleatórios, e nunca aparecem no Git.
+services:
+  - type: web
+    name: nora-api
+    runtime: docker
+    plan: free
+    region: virginia        # mesma região do banco no Neon (AWS US East, N. Virginia)
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/live
+    envVars:
+      # Conexão do Neon no formato do Npgsql, conexão direta (sem "-pooler"):
+      # Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require
+      - key: ConnectionStrings__Nora
+        sync: false
+      # Chaves internas dos códigos de cadastro, recuperação de senha e troca de e-mail (aleatórias, geradas pelo Render).
+      - key: Nora__Registration__HashKey
+        generateValue: true
+      - key: Nora__PasswordReset__HashKey
+        generateValue: true
+      - key: Nora__EmailChange__HashKey
+        generateValue: true
+      # E-mail pelo Brevo na porta 2525 (o Render grátis bloqueia 25, 465 e 587).
+      - key: Nora__Smtp__Host
+        value: smtp-relay.brevo.com
+      - key: Nora__Smtp__Port
+        value: "2525"
+      - key: Nora__Smtp__Username
+        sync: false        # o login SMTP que o Brevo mostra
+      - key: Nora__Smtp__Password
+        sync: false        # a chave SMTP do Brevo (não é a senha da conta)
+      - key: Nora__Smtp__FromAddress
+        sync: false        # o remetente validado no Brevo
+      # Proxy interno do Render: sem isto todos os usuários dividiriam o limite de tentativas de login.
+      - key: Nora__ForwardedHeaders__KnownNetworks
+        value: 10.0.0.0/8

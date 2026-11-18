@@ -60,7 +60,7 @@ internal static partial class ApiEndpoints
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context), ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => registry.ListAsync(unitId, true, ct), ct, read: true)));
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, connection => registry.ListAsync(unitId, true, connection, ct), ct, read: true)));
         obs.MapGet("/obs/units/{unitId:guid}/metrics", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, MetricsService metrics, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => metrics.ReadUnitAsync(unitId, from, to, ct), ct)));
         obs.MapPost("/obs/units/{unitId:guid}/registry", async (Guid unitId, UnitPatientRecord request, HttpContext context, UnitAccessService access, UnitPatientRegistryDao registry, CancellationToken ct) =>
@@ -101,8 +101,8 @@ internal static partial class ApiEndpoints
             var session = Session(context);
             return Results.Ok(await access.ExecuteAsync(session, unitId, () => appointments.ChangeStatusAsync(unitId, session.User.Id, id, request, ct), ct));
         });
-        obs.MapGet("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListAsync(unitId, ct), ct, read: true)));
+        obs.MapGet("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, int? historyLimit, string? historyBefore, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListForObsAsync(unitId, PageCursor.Limit(historyLimit), historyBefore, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, AddUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -117,8 +117,8 @@ internal static partial class ApiEndpoints
             await lightningService.TryAdvanceAsync(unitId, ct);
             return Results.NoContent();
         });
-        obs.MapGet("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, ct), ct, read: true)));
+        obs.MapGet("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, int? historyLimit, string? historyBefore, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
+            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, PageCursor.Limit(historyLimit), historyBefore, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, CreateUnitLightningSlotRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
         {
             var session = Session(context);
@@ -244,7 +244,7 @@ internal static partial class ApiEndpoints
         });
         municipal.MapGet("/units", async (HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListAsync(ct)));
         municipal.MapGet("/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => registry.ListAsync(unitId, false, ct), ct)));
+            Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => registry.ListAsync(unitId, false, null, ct), ct)));
         municipal.MapGet("/units/{unitId:guid}/appointments", async (Guid unitId, DateTimeOffset from, DateTimeOffset to, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
             Results.Ok(await access.ExecuteManagementReadAsync(Session(context), unitId, () => appointments.ListAsync(unitId, from, to, null, ct), ct, "appointment_read")));
         // Cada cadastro cria um banco: mesmo limitador da nova tentativa (compartilhado por IP).

@@ -256,8 +256,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     public Task LoginAsync(string password) => RunAsync(async () =>
     {
-        if (string.IsNullOrWhiteSpace(Identifier) || string.IsNullOrWhiteSpace(password)) throw new NoraApiException("Informe seu CPF ou e-mail e sua senha.");
-        if (!BrazilianDataValidator.IsValidLoginIdentifier(Identifier)) throw new NoraApiException("Informe um CPF válido ou um e-mail válido para entrar.");
+        if (string.IsNullOrWhiteSpace(Identifier) || string.IsNullOrWhiteSpace(password)) throw new NoraApiException("Informe seu e-mail e sua senha.");
+        if (!BrazilianDataValidator.IsValidEmail(Identifier)) throw new NoraApiException("Informe um e-mail válido para entrar (nome@dominio.com).");
         api.Configure(Endpoint);
         // A credencial do computador (só no OBS) vai no login e em toda requisição, mas apenas ao mesmo endereço de API para o qual foi ativada.
         if (devices is not null && ReadStoredDevice() is not null) ApplyDeviceCredential();

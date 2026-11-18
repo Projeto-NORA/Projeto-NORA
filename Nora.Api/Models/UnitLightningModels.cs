@@ -25,3 +25,5 @@ public sealed record CallNextCandidate(long EntryId, string PatientName, DateTim
 public sealed record CallNextPreview(CallNextCandidate? Next);
 public sealed record CallNextOffer(Guid Id, string PatientName, DateTimeOffset ExpiresAt);
 public sealed record CallNextResult(UnitLightningSlot Slot, CallNextOffer Offer);
+/// <summary>Resposta de <c>GET /api/obs/units/{unitId}/lightning-slots</c>: todas as vagas ativas mais uma página do histórico; <c>HistoryCursor</c> nulo = não há mais encerradas.</summary>
+public sealed record UnitLightningSlotPage(List<UnitLightningSlot> Items, string? HistoryCursor);

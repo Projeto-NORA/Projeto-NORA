@@ -20,6 +20,7 @@ internal static partial class Program
         RunUnitProfileChecks(storageRoot, args);
         RunSlotApprovalChecks(storageRoot, args);
         RunRetryTextsChecks(storageRoot, args);
+        RunScoreHistoryChecks(storageRoot, args);
     }
 
     /// <summary>Janela do OBS com o armazenamento do computador numa pasta de teste; espera a abertura (conferência do computador e sessão guardada) terminar.</summary>
@@ -457,7 +458,7 @@ internal static partial class Program
             var next = await api.NextInQueueAsync(unit.Id, specialty.Id);
             Require(next is null || (next.EntryId > 0 && next.PatientName.Length > 0), "A prévia do 1º da fila veio num formato inesperado.");
             var slots = await api.UnitLightningSlotsAsync(unit.Id);
-            Require(slots.All(slot => slot.Origin.Length > 0 && slot.Status.Length > 0), "As vagas deveriam trazer origem e situação.");
+            Require(slots.Items.All(slot => slot.Origin.Length > 0 && slot.Status.Length > 0), "As vagas deveriam trazer origem e situação.");
             // Computadores: a lista da UBS é lida pelo administrador.
             _ = await api.ObsDevicesAsync(unit.Id);
             // Chamar próximo com profissional desconhecido é recusado com mensagem e status, nunca com falha genérica.

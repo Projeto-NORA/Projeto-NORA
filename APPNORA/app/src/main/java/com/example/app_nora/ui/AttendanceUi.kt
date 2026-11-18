@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -13,15 +14,21 @@ import com.example.app_nora.api.*
 
 /** Explicação única da conta, em linguagem simples, igual à regra do servidor (docs/api.md). */
 internal const val ATTENDANCE_EXPLANATION =
-    "Como é calculado: cada consulta concluída aumenta o índice e cada falta o reduz. Cancelar pelo aplicativo reduz " +
+    "Como é calculado: cada consulta concluída aumenta o score e cada falta o reduz. Cancelar pelo aplicativo reduz " +
         "menos quanto mais cedo for feito: com 4 dias ou mais de antecedência não reduz, e com menos de 1 hora vale " +
         "como falta. Cancelamentos feitos pela unidade não contam."
-internal const val ATTENDANCE_NOT_PRIORITY =
-    "O índice não altera fila, prioridade clínica nem seu direito ao atendimento."
+/** Escala do score: pontos de 0 a 1000 e as quatro faixas (iguais às do servidor e do OBS). */
+internal const val ATTENDANCE_BANDS =
+    "O score vai de 0 a 1000: Baixo (0 a 299), Regular (300 a 599), Bom (600 a 799) e Excelente (800 a 1000). " +
+        "Quem ainda não tem consulta encerrada começa em 1000."
+/** Efeito do score, igual ao texto do contrato: ordem das ofertas de Vaga Relâmpago, sem mexer na prioridade clínica. */
+internal fun attendancePriorityText(name: String?): String =
+    "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. " +
+        "O score não muda a prioridade clínica nem o direito ${if (name == null) "" else "de $name "}ao atendimento."
 
 /**
- * Índice de comparecimento, geral e por UBS, com os números que o compõem: do próprio paciente ou, agindo por um dependente, dele
- * (o servidor conta nos cancelamentos os feitos pelo aplicativo na conta do dependente, por ele ou pelo responsável).
+ * Score de comparecimento (0 a 1000, com faixa), geral e por UBS, com os números que o compõem: do próprio paciente ou, agindo por um
+ * dependente, dele (o servidor conta nos cancelamentos os feitos pelo aplicativo na conta do dependente, por ele ou pelo responsável).
  */
 @Composable
 internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
@@ -30,10 +37,10 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
     val units = patient.units
     val name = patient.actingLink()?.let(::dependentDisplayName)
     val participation = if (name == null) "sua participação" else "a participação de $name"
-    SectionCard("Índice de Jornada", (if (name == null) "Seu comparecimento" else "Comparecimento de $name") +
+    SectionCard("Score de Jornada", (if (name == null) "Seu comparecimento" else "Comparecimento de $name") +
         " nos últimos ${summary.windowMonths} meses") {
         when {
-            patient.session == null -> MutedText("Entre na sua conta para ver seu índice.")
+            patient.session == null -> MutedText("Entre na sua conta para ver seu score.")
             units == null -> MutedText(if (patient.loadingUnits) "Carregando suas UBS…"
                 else "Não foi possível carregar suas UBS. Atualize para tentar novamente.")
             units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro.")
@@ -42,14 +49,8 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
                     else "${participation.replaceFirstChar { it.uppercase() }} ainda não foi consultada.")
             summary.answeredUnits == 0 -> MutedText("Não foi possível consultar $participation. Atualize para tentar novamente.")
             else -> {
-                val percent = summary.percent
-                if (percent == null) {
-                    Text("Ainda não há consultas encerradas nos últimos ${summary.windowMonths} meses",
-                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                } else {
-                    Text("$percent%", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clearAndSetSemantics { contentDescription = "Comparecimento de $percent por cento" })
+                ScoreHeadline(summary.points, summary.band, summary.hasHistory, name)
+                if (summary.hasHistory) {
                     Text("Consultas concluídas: ${summary.completed}")
                     Text("Faltas: ${summary.missed}")
                     Text("${if (name == null) "Cancelamentos feitos por você" else "Cancelamentos pelo aplicativo"}: ${summary.cancelledByPatient}")
@@ -66,13 +67,42 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
                 }
             }
         }
+        MutedText(ATTENDANCE_BANDS)
         MutedText(ATTENDANCE_EXPLANATION)
-        MutedText(if (name == null) ATTENDANCE_NOT_PRIORITY
-            else "O índice não altera fila, prioridade clínica nem o direito de $name ao atendimento.")
+        MutedText(attendancePriorityText(name))
         if (patient.session != null && units != null) OutlinedButton(onClick = onRefresh, enabled = !patient.attendanceLoading,
             modifier = Modifier.fillMaxWidth()) {
             Text(if (patient.attendanceLoading) "Atualizando…" else "Atualizar participação")
         }
+    }
+}
+
+/** Cor da faixa; o rótulo escrito sempre acompanha, então a cor nunca é a única informação. */
+@Composable
+private fun bandColor(band: AttendanceBand) =
+    if (band == AttendanceBand.LOW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+
+/**
+ * Número do score em destaque, com "de 1000" e a faixa por extenso. Sem histórico mostra "1000 · sem consultas encerradas
+ * ainda"; agindo por um dependente a descrição falada traz o nome dele.
+ */
+@Composable
+private fun ScoreHeadline(points: Int, band: AttendanceBand, hasHistory: Boolean, name: String?) {
+    val owner = if (name == null) "Score" else "Score de $name"
+    val spoken = "$owner: $points de $SCORE_MAX_POINTS pontos, faixa ${band.label}" +
+        (if (hasHistory) "" else ", sem consultas encerradas ainda")
+    Column(Modifier.clearAndSetSemantics { contentDescription = spoken }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (hasHistory) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("$points", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.ExtraBold, color = bandColor(band))
+                Text("de $SCORE_MAX_POINTS", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+            }
+        } else {
+            Text(attendancePointsText(points, false), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold,
+                color = bandColor(band))
+        }
+        Text("Faixa ${band.label}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = bandColor(band))
     }
 }
 
@@ -84,9 +114,8 @@ private fun UnitAttendanceRow(unit: PatientHealthUnit, snapshot: UnitSnapshot?) 
         if (value == null) {
             MutedText(if (snapshot?.attendanceFailed == true) "Esta UBS não respondeu." else "Ainda não consultada.")
         } else {
-            val percent = attendancePercent(attendanceFraction(value.completed, value.missed, value.cancellationWeight))
-            Text(if (percent == null) "Sem consultas encerradas" else "$percent%", fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary)
+            Text("${attendancePointsText(value.points, value.hasHistory)} · ${value.band.label}", fontWeight = FontWeight.Bold,
+                color = bandColor(value.band))
             MutedText("Concluídas: ${value.completed} · Faltas: ${value.missed} · Cancelamentos seus: ${value.cancelledByPatient}")
         }
     }

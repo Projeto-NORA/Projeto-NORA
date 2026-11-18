@@ -10,6 +10,7 @@ public partial class UnitQueueView : UserControl
 {
     public UnitQueueView() => InitializeComponent();
     private async void OnLoad(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadUnitWaitingListAsync(); }
+    private async void OnMoreHistory(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel { CanLoadMoreQueueHistory: true } vm) await vm.LoadMoreQueueHistoryAsync(); }
     private async void OnAdd(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.AddUnitWaitingEntryAsync(); }
     private void OnToggleCallNext(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.ToggleCallNext(); }
     private async void OnCallNextRetryCatalog(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel { CanRetryCallNextCatalog: true } vm) await vm.RetryCallNextCatalogAsync(); }

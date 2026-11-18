@@ -5,4 +5,4 @@ public sealed record HealthUnitRequest(string? Name, string? Region, string? Add
 
 public sealed record StaffAccount(Guid Id, string FullName, string Role, string Email, bool IsActive, bool MustChangePassword);
 /// <summary>Dados já validados para criar uma conta OBS; a senha nunca viaja em texto puro além do serviço (só o hash chega ao DAO).</summary>
-public sealed record StaffAccountDraft(string FullName, string Cpf, string Email);
+public sealed record StaffAccountDraft(string FullName, string Email);

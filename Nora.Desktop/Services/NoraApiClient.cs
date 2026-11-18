@@ -211,10 +211,15 @@ public sealed class NoraApiClient : IDisposable
     public Task<DeactivationPreview> DeactivationPreviewAsync(Guid unitId, string cpf) => SendAsync<DeactivationPreview>(HttpMethod.Post, $"api/obs/units/{unitId}/registry/deactivation-preview", new { cpf });
 
     public Task<AppointmentInfo> ChangeAppointmentStatusAsync(Guid unitId, Guid id, string status, bool confirmed) => SendAsync<AppointmentInfo>(HttpMethod.Patch, $"api/obs/units/{unitId}/appointments/{id}/status", new { status, confirmed });
-    public Task<UnitWaitingEntry[]> UnitWaitingListAsync(Guid unitId) => SendAsync<UnitWaitingEntry[]>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list");
+    /// <summary>Primeira página (todas as entradas ativas e as encerradas mais recentes) ou, com <paramref name="historyBefore"/>, só as encerradas mais antigas que o cursor.</summary>
+    public Task<WaitingListPage> UnitWaitingListAsync(Guid unitId, string? historyBefore = null) =>
+        SendAsync<WaitingListPage>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list{HistoryQuery(historyBefore)}");
     public Task<UnitWaitingEntry> AddUnitWaitingEntryAsync(Guid unitId, string cpf, string specialty) => SendAsync<UnitWaitingEntry>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list", new { cpf, specialty });
     public Task<object> CancelUnitWaitingEntryAsync(Guid unitId, long id) => SendAsync<object>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/{id}/cancel", new { confirmed = true });
-    public Task<UnitLightningSlot[]> UnitLightningSlotsAsync(Guid unitId) => SendAsync<UnitLightningSlot[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots");
+    /// <summary>Mesmo formato da fila: vagas ativas mais as encerradas mais recentes, e <paramref name="historyBefore"/> para as mais antigas.</summary>
+    public Task<LightningSlotPage> UnitLightningSlotsAsync(Guid unitId, string? historyBefore = null) =>
+        SendAsync<LightningSlotPage>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots{HistoryQuery(historyBefore)}");
+    private static string HistoryQuery(string? historyBefore) => string.IsNullOrEmpty(historyBefore) ? "" : "?historyBefore=" + Uri.EscapeDataString(historyBefore);
     public Task<UnitLightningSlot> CreateUnitLightningSlotAsync(Guid unitId, Guid appointmentId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots", new { appointmentId, confirmed = true });
     public Task<UnitSlotOffer[]> UnitSlotOffersAsync(Guid unitId, Guid slotId) => SendAsync<UnitSlotOffer[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots/{slotId}/offers");
     public Task<UnitMetrics> UnitMetricsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellation = default) =>
@@ -222,7 +227,7 @@ public sealed class NoraApiClient : IDisposable
     public Task<UnitPatientRecord[]> UnitRegistryAsync(Guid unitId) => SendAsync<UnitPatientRecord[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/registry");
     public Task<AppointmentInfo[]> UnitAppointmentsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to) => SendAsync<AppointmentInfo[]>(HttpMethod.Get, $"api/municipal/units/{unitId}/appointments?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}");
     public Task<StaffAccount[]> StaffAsync() => SendAsync<StaffAccount[]>(HttpMethod.Get, "api/municipal/staff");
-    public Task<StaffAccount> CreateStaffAsync(string fullName, string cpf, string email, string role, string password) => SendAsync<StaffAccount>(HttpMethod.Post, "api/municipal/staff", new { fullName, cpf, email, password, role });
+    public Task<StaffAccount> CreateStaffAsync(string fullName, string email, string role, string password) => SendAsync<StaffAccount>(HttpMethod.Post, "api/municipal/staff", new { fullName, email, password, role });
     public Task<object> SetStaffActiveAsync(Guid id, bool isActive) => SendAsync<object>(HttpMethod.Patch, $"api/municipal/staff/{id}/active", new { isActive, confirmed = true });
     public Task<object> ResetStaffPasswordAsync(Guid id, string password) => SendAsync<object>(HttpMethod.Post, $"api/municipal/staff/{id}/password", new { password, confirmed = true });
     public Task<HealthUnit> ProvisionUnitDatabaseAsync(Guid id) => SendAsync<HealthUnit>(HttpMethod.Post, $"api/municipal/units/{id}/database");
@@ -317,7 +322,7 @@ public sealed class NoraApiClient : IDisposable
         };
         return kind switch
         {
-            "unauthorized" => authenticated ? "Sua sessão terminou. Entre novamente." : "CPF/e-mail ou senha não conferem.",
+            "unauthorized" => authenticated ? "Sua sessão terminou. Entre novamente." : "E-mail ou senha não conferem.",
             "device-required" => "Este computador não está ativado para a sua UBS. Peça ao administrador da UBS para ativá-lo.",
             "invalid-activation-code" => "Código inválido, vencido ou já usado. Peça um novo código ao administrador da UBS.",
             "device-already-active" => "Este computador já está ativado. Revogue-o antes de ativá-lo para outra UBS.",
@@ -385,10 +390,11 @@ public sealed class NoraApiClient : IDisposable
     private static string InvalidInputMessage(string path)
     {
         if (path.Contains("/devices", StringComparison.Ordinal)) return "Confira o nome do computador: de 1 a 60 caracteres, sem caracteres de controle.";
+        if (path.Contains("historyBefore=", StringComparison.Ordinal)) return "O ponto de partida do histórico não vale mais. Atualize a lista e peça o histórico de novo.";
         if (path.EndsWith("/profile", StringComparison.Ordinal)) return "Confira o atendimento ao público: até dois intervalos por dia, com o fim depois do início e sem sobreposição, e serviços de até 1.000 caracteres.";
         if (path.Contains("/waiting-list/call-next", StringComparison.Ordinal) || path.Contains("/waiting-list/next", StringComparison.Ordinal)) return "Confira a especialidade e o horário escolhidos para o Chamar próximo.";
         if (path == "api/auth/password") return "Confira a nova senha: use de 8 a 256 caracteres, diferente da atual.";
-        if (path == "api/municipal/staff") return "Confira nome, CPF, e-mail, perfil e senha provisória (8 a 256 caracteres).";
+        if (path == "api/municipal/staff") return "Confira nome, e-mail, perfil e senha provisória (8 a 256 caracteres).";
         if (path.StartsWith("api/municipal/staff/", StringComparison.Ordinal) && path.EndsWith("/password", StringComparison.Ordinal)) return "A senha provisória precisa ter de 8 a 256 caracteres.";
         if (path.StartsWith("api/municipal/metrics", StringComparison.Ordinal) || path.StartsWith("api/municipal/history", StringComparison.Ordinal))
             return "Confira o período: o fim deve ser posterior ao início e o intervalo pode ter no máximo 366 dias.";
@@ -429,7 +435,7 @@ public sealed class NoraApiClient : IDisposable
         var create = method == HttpMethod.Post;
         if (path.Contains("/devices/", StringComparison.Ordinal)) return "Este computador já foi revogado ou mudou de situação. Atualize a lista de computadores.";
         if (path.Contains("/lightning-slots/", StringComparison.Ordinal)) return "A vaga já foi decidida por outra pessoa. Atualize as vagas.";
-        if (create && path == "api/municipal/staff") return "Já existe uma conta OBS com este CPF ou e-mail.";
+        if (create && path == "api/municipal/staff") return "Já existe uma conta OBS com este e-mail.";
         if (path == "api/auth/password") return "Não foi possível trocar a senha agora. Entre novamente e tente de novo.";
         if (create && path.EndsWith("/registry", StringComparison.Ordinal)) return "Já existe um cadastro com este CPF nesta UBS.";
         if (path.StartsWith("api/municipal/specialties", StringComparison.Ordinal)) return "Já existe uma especialidade com este nome (maiúsculas, acentos e espaços não diferenciam).";
