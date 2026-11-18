@@ -82,7 +82,7 @@ public sealed partial class WorkspaceViewModel
         var page = await api.UnitWaitingListAsync(unit.Id, cursor);
         if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
         queueHistoryNotice = "";
-        ShowQueueList(queuePager.ApplyOlder(page.Items, page.HistoryCursor));
+        ShowQueueList(queuePager.ApplyOlder(page.Items, page.HistoryCursor), appended: true);
         Say(MessageKind.Success, queuePager.HasMore ? "Histórico da fila ampliado." : "Todo o histórico da fila está na lista.");
     });
 
@@ -94,7 +94,7 @@ public sealed partial class WorkspaceViewModel
         var page = await api.UnitLightningSlotsAsync(unit.Id, cursor);
         if (disposed || !IsAuthenticated || ActiveObsUnit?.Id != unit.Id) return;
         slotsHistoryNotice = "";
-        ShowSlotList(slotsPager.ApplyOlder(page.Items, page.HistoryCursor));
+        ShowSlotList(slotsPager.ApplyOlder(page.Items, page.HistoryCursor), appended: true);
         Say(MessageKind.Success, slotsPager.HasMore ? "Histórico das vagas ampliado." : "Todo o histórico das vagas está na lista.");
     });
 

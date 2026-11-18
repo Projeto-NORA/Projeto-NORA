@@ -152,6 +152,10 @@ internal static class CallNextChecks
             using (var inactiveSpecialty = await Call(attendant, t3, specialty: pediatrics)) Expect(inactiveSpecialty, 400);
             using (var previewInactive = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={pediatrics}")) Expect(previewInactive, 400);
             using (var previewMissing = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next")) Expect(previewMissing, 400);
+            // Teto de 20 anos (mesmo da agenda): perto de 31/12/9999 a grade estourava o limite de DateTime (500); agora é 400 na prévia e na chamada.
+            var farAway = new DateTimeOffset(9999, 12, 31, 12, 0, 0, TimeSpan.Zero);
+            using (var previewFar = await attendant.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={cardiology}&professionalId={ana}&startsAt={Uri.EscapeDataString(farAway.ToString("O"))}")) Expect(previewFar, 400);
+            using (var callFar = await Call(attendant, farAway)) Expect(callFar, 400);
             using (var otherUnit = await Call(attendant, t3, unit: u2)) Expect(otherUnit, 403);
             var onlyU2 = await f.StaffAsync("administrator", 40, [u2]);
             using (var noGrant = await Call(onlyU2.Client, t3)) Expect(noGrant, 403);

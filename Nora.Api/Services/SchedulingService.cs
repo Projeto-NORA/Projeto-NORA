@@ -20,7 +20,7 @@ public sealed partial class SchedulingService
     /// Teto de data para consultar ou marcar horários: 20 anos à frente. Sem o teto, um pedido perto de 31/12/9999 faz o cálculo da grade estourar o limite de <see cref="DateTime"/> (500); com ele a API responde 400.
     /// </summary>
     public const int MaxScheduleHorizonYears = 20;
-    private bool BeyondHorizon(DateTimeOffset moment) => moment > time.GetUtcNow().AddYears(MaxScheduleHorizonYears);
+    internal bool BeyondHorizon(DateTimeOffset moment) => moment > time.GetUtcNow().AddYears(MaxScheduleHorizonYears);
     private static readonly HashSet<string> States = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
     [GeneratedRegex("^[A-Za-z]{2,10}$")] private static partial Regex AcronymPattern();
     [GeneratedRegex("^[A-Za-z0-9./-]{1,20}$")] private static partial Regex CouncilNumberPattern();

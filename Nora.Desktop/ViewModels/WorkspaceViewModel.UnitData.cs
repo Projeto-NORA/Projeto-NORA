@@ -210,10 +210,12 @@ public sealed partial class WorkspaceViewModel
         ShowQueueList(merged);
     }
 
-    private void ShowQueueList(IReadOnlyList<UnitWaitingEntry> entries)
+    /// <param name="appended">Verdadeiro quando a lista só ganhou itens no fim (Carregar mais histórico): nada é recriado e a rolagem da tabela fica onde estava.</param>
+    private void ShowQueueList(IReadOnlyList<UnitWaitingEntry> entries, bool appended = false)
     {
         var selectedId = SelectedWaitingEntry?.Id;
-        var changed = Replace(UnitWaitingList, DecorateQueue(entries, DateTimeOffset.Now));
+        var decorated = DecorateQueue(entries, DateTimeOffset.Now);
+        var changed = appended ? Grow(UnitWaitingList, decorated) : Replace(UnitWaitingList, decorated);
         unitQueueLoaded = true;
         if (changed) SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId);
         Notify(nameof(CanLoadMoreQueueHistory)); Notify(nameof(QueueHistoryState));
@@ -226,9 +228,10 @@ public sealed partial class WorkspaceViewModel
         ShowSlotList(merged);
     }
 
-    private void ShowSlotList(IReadOnlyList<UnitLightningSlot> slots)
+    private void ShowSlotList(IReadOnlyList<UnitLightningSlot> slots, bool appended = false)
     {
-        Replace(UnitLightningSlots, slots); unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots();
+        if (appended) Grow(UnitLightningSlots, slots); else Replace(UnitLightningSlots, slots);
+        unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots();
         Notify(nameof(CanLoadMoreSlotsHistory)); Notify(nameof(SlotsHistoryState));
     }
 
@@ -287,6 +290,23 @@ public sealed partial class WorkspaceViewModel
         destination.Clear();
         foreach (var item in source) destination.Add(item);
         return true;
+    }
+
+    /// <summary>
+    /// Como <see cref="Replace{T}(ObservableCollection{T}, IReadOnlyList{T})"/>, para quando a origem é a lista atual com itens a mais no fim: as linhas existentes só são trocadas se mudaram e o resto é
+    /// acrescentado com Add, sem Clear. O DataGrid não recebe Reset, então rolagem, foco e seleção ficam onde estavam. Se a origem for menor, cai no <c>Replace</c> comum.
+    /// </summary>
+    private static bool Grow<T>(ObservableCollection<T> destination, IReadOnlyList<T> source)
+    {
+        if (source.Count < destination.Count) return Replace(destination, source);
+        var changed = false;
+        for (var index = 0; index < destination.Count; index++)
+        {
+            if (EqualityComparer<T>.Default.Equals(destination[index], source[index])) continue;
+            destination[index] = source[index]; changed = true;
+        }
+        for (var index = destination.Count; index < source.Count; index++) { destination.Add(source[index]); changed = true; }
+        return changed;
     }
     private static bool Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source) => Replace(destination, source as IReadOnlyList<T> ?? source.ToArray());
 }

@@ -40,7 +40,7 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
     public async Task<CallNextPreview> PreviewAsync(SessionInfo session, Guid unitId, Guid? specialtyId, DateTimeOffset? startsAt, Guid? professionalId, CancellationToken ct)
     {
         var specialty = await ActiveSpecialtyAsync(specialtyId, ct);
-        if (startsAt is not null != (professionalId is not null) || professionalId == Guid.Empty) throw new ApiInputException();
+        if (startsAt is not null != (professionalId is not null) || professionalId == Guid.Empty || startsAt is { } far && scheduling.BeyondHorizon(far)) throw new ApiInputException();
         return await access.ExecuteAsync(session, unitId, async connection =>
         {
             var eligible = await LightningEligibility.ReadAsync(central, connection, unitId, ct);
@@ -56,6 +56,7 @@ public sealed class CallNextService(DatabaseHelper central, UnitDatabaseRouter d
     {
         if (request.ProfessionalId is not { } professionalId || professionalId == Guid.Empty || request.StartsAt is not { } requested || !request.Confirmed) throw new ApiInputException();
         var specialty = await ActiveSpecialtyAsync(request.SpecialtyId, ct);
+        if (scheduling.BeyondHorizon(requested)) throw new ApiInputException(); // mesmo teto de 20 anos da agenda: perto de 31/12/9999 a grade estoura o limite de DateTime (500)
         var start = requested.ToUniversalTime();
         return await access.ExecuteAsync(session, unitId, async connection =>
         {

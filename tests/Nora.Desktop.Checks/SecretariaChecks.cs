@@ -147,6 +147,7 @@ internal static partial class Program
                 Require(vm.UnitsWithoutDatabaseCount == 1 && VisibleTexts(content).Any(text => text.StartsWith("1 UBS está fora destes números", StringComparison.Ordinal)), "Aviso de UBS sem base não apareceu.");
                 var ready = fixture.AddUnit("UBS Nova Pronta", "Norte"); Pump(vm.LoadUnitsAsync());
                 vm.SelectedUnit = vm.Units.Single(item => item.Name == "UBS Sem Base"); Pump(vm.ProvisionSelectedUnitDatabaseAsync());
+                Settle(vm); // a releitura da rede depois de criar a base roda em segundo plano: espera terminar antes de conferir o aviso
                 content = Layout(window, 1280, 900);
                 Require(vm.UnitsWithoutDatabaseCount == 0 && !VisibleTexts(content).Any(text => text.Contains("fora destes números")), "O aviso continuou depois de a base ser criada.");
                 _ = ready;

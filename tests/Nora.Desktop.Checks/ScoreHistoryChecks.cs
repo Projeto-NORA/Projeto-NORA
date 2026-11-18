@@ -126,7 +126,13 @@ internal static partial class Program
                 var button = FindActionButton(content, "Carregar mais histórico");
                 Require(button.IsEnabled && AutomationProperties.GetName(button) == "Carregar mais histórico da fila", "O botão deveria existir e estar habilitado.");
                 var firstPageIds = Ids();
+                // Carregar mais só acrescenta no fim: sem Reset, a rolagem, o foco e a seleção da tabela ficam onde estavam.
+                var loadActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+                System.Collections.Specialized.NotifyCollectionChangedEventHandler recordLoad = (_, args) => loadActions.Add(args.Action);
+                vm.UnitWaitingList.CollectionChanged += recordLoad;
                 Click(window, content, "Carregar mais histórico", 1280, 1500);
+                vm.UnitWaitingList.CollectionChanged -= recordLoad;
+                Require(loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Add) && !loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Reset), "Carregar mais deveria acrescentar linhas sem Reset (que leva a tabela ao topo): " + string.Join(",", loadActions));
                 Require(FindActionButton(content, "Carregar mais histórico").IsEnabled, "Depois de carregar mais, o botão deveria continuar habilitado (havia mais histórico), sem esperar o ciclo de 20 s.");
                 Require(Ids().SequenceEqual([3, 4, 5, 6, 7, 8, 9, 10]) && fixture.HistoryReads[^1].StartsWith("waiting-list?historyBefore=", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success && vm.Message == "Histórico da fila ampliado.", "Carregar mais deveria acrescentar as 3 encerradas seguintes: " + string.Join(",", Ids()));
                 NoDuplicates("depois de carregar mais");
@@ -191,7 +197,12 @@ internal static partial class Program
                 var content = Show(window, "slots", 1280, 1800);
                 Require(vm.UnitLightningSlots.Count == 4 && vm.UnitLightningSlots.Count(item => item.IsActive) == 2 && vm.AwaitingSlots.Count == 1 && vm.CanLoadMoreSlotsHistory && vm.SlotsHistoryState == "Há vagas encerradas mais antigas: use Carregar mais histórico.", "A primeira leitura deveria trazer as 2 vagas em andamento e só 2 encerradas: " + vm.UnitLightningSlots.Count);
                 Require(fixture.HistoryReads[^1] == "lightning-slots" && vm.SlotOpenCount == "1", "A leitura inicial das vagas não leva cursor.");
+                var slotActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+                System.Collections.Specialized.NotifyCollectionChangedEventHandler recordSlots = (_, args) => slotActions.Add(args.Action);
+                vm.UnitLightningSlots.CollectionChanged += recordSlots;
                 Click(window, content, "Carregar mais histórico", 1280, 1800);
+                vm.UnitLightningSlots.CollectionChanged -= recordSlots;
+                Require(slotActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Add) && !slotActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Reset), "Carregar mais deveria acrescentar vagas sem Reset (que leva a tabela ao topo): " + string.Join(",", slotActions));
                 Require(vm.UnitLightningSlots.Count == 6 && vm.CanLoadMoreSlotsHistory && fixture.HistoryReads[^1].StartsWith("lightning-slots?historyBefore=", StringComparison.Ordinal) && vm.Message == "Histórico das vagas ampliado.", "Carregar mais deveria acrescentar 2 vagas encerradas: " + vm.UnitLightningSlots.Count);
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(vm.UnitLightningSlots.Count == 6 && vm.UnitLightningSlots.Select(item => item.Id).Distinct().Count() == 6 && vm.AwaitingSlots.Count == 1, "O ciclo deveria preservar o histórico carregado das vagas.");
