@@ -1,0 +1,1688 @@
+{
+ "title": "Layout do app NORA — telas para revisar",
+ "subtitle": "Marque os ajustes que quer em cada tela do app do paciente e escreva suas observações.",
+ "brand": "NORA",
+ "context": "App do paciente (Android)",
+ "download_name": "NORA app - layout marcado.html",
+ "copy_title": "Ajustes de layout do app NORA marcados",
+ "palette": {
+  "light": {
+   "accent": "#0B3B66",
+   "accent-button": "#0B3B66",
+   "on-accent": "#FFFFFF",
+   "accent-soft": "#DCEEFF",
+   "bg": "#F4F8FC",
+   "card": "#FFFFFF",
+   "text": "#152D43",
+   "muted": "#536B80",
+   "line": "#D5E2EC",
+   "track": "#EAF2F8",
+   "functional": "#087FA8",
+   "functional-soft": "#DDF4FA"
+  },
+  "dark": {
+   "accent": "#79BDED",
+   "accent-button": "#79BDED",
+   "on-accent": "#062B47",
+   "accent-soft": "#16466B",
+   "bg": "#081B2B",
+   "card": "#102A40",
+   "text": "#F2F7FB",
+   "muted": "#BDCFDC",
+   "line": "#304B61",
+   "track": "#19374F",
+   "functional": "#70CBE9",
+   "functional-soft": "#14516A"
+  }
+ },
+ "date": "18/11/2026",
+ "intro": [
+  "Cada tela aparece no tema claro e no escuro (botão no topo). Marque o que quer mudar; o que vem marcado como \"Recomendo\" é a minha sugestão, o resto é opcional.",
+  "C = problema ou atenção prioritária, V = design, F = funcionalidade de interface. No fim de cada motivo está se o defeito aparece na foto, foi observado nela ou é hipótese.",
+  "Ao terminar, use \"Salvar cópia marcada (.html)\" ou \"Copiar lista marcada\" e me envie: as marcações viram a próxima tarefa, que implementa o layout."
+ ],
+ "notices": [
+  "As imagens são renders reais do código atual (commit a6f9201, 18/11/2026) com dados sintéticos; palavras como \"fixture\" e listas vazias vêm desses dados de teste, não do layout.",
+  "Foto não comprova funcionamento: cada proposta foi conferida no código por um analista e depois por um revisor que tentou derrubá-la; o que já existia foi retirado.",
+  "Não cobre: aparelho físico, teclado e DPI reais, vários monitores (P-003 e P-007 em docs/PENDENCIAS.md)."
+ ],
+ "screens": [
+  {
+   "id": "app-inicio-desconectado",
+   "code": "APP-INICIO-SEM-CONTA",
+   "title": "Início sem conta",
+   "description": "Primeira tela de quem ainda não entrou: serviços do NORA e acesso à conta.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 01 / 01p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-desconectado-claro.webp",
+    "escuro": "inicio-desconectado-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-SEM-CONTA-V1",
+     "category": "V",
+     "text": "Deixar \"Primeiro acesso?\" e \"Criar conta\" no mesmo tamanho de letra.",
+     "reason": "Na imagem, \"Primeiro acesso?\" está em letra maior e mais leve que \"Criar conta\", que é a ação. As duas partes da mesma frase parecem de famílias diferentes. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoraApp.kt:694-698; android/01 claro"
+    },
+    {
+     "id": "APP-INICIO-SEM-CONTA-F1",
+     "category": "F",
+     "text": "Abaixo de \"Sua saúde, em um só lugar\", listar em uma linha o que dá para fazer no app (ver consultas, acompanhar a fila, receber Vaga Relâmpago).",
+     "reason": "A tela de quem ainda não entrou é só o formulário e uma frase. A apresentação \"Seu cuidado, mais perto.\" existe no código, mas só aparece quando o login não está disponível. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:968-1021; android/01 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-entrada",
+   "code": "APP-ENTRADA",
+   "title": "Entrar na conta",
+   "description": "Entrada do paciente com CPF ou e-mail e senha.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 02 / 03) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "entrada-claro.webp",
+    "escuro": "entrada-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-ENTRADA-C1",
+     "category": "C",
+     "text": "Quando a entrada falhar por CPF, e-mail ou senha, mostrar a mensagem \"CPF, e-mail ou senha inválidos.\" colada aos campos e pintar a borda deles de vermelho.",
+     "reason": "Hoje a mensagem fica em letra pequena e vermelha entre \"Esqueci a senha\" e \"Entrar\", e os campos continuam com a borda normal. Só a cor do texto avisa do erro e não dá para ver de relance o que corrigir. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:638-664 (campos sem isError); android/04 claro e 04p escuro"
+    },
+    {
+     "id": "APP-ENTRADA-C2",
+     "category": "C",
+     "text": "Depois de uma falha na entrada, avisar no campo Senha que ela precisa ser digitada de novo (texto de apoio ou o cursor já nele).",
+     "reason": "O app apaga a senha ao enviar, e o botão \"Entrar\" volta cinza. A pessoa vê a mensagem de erro e um botão que parece desligado, sem saber o motivo. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:532 e 674-675; android/04 claro"
+    },
+    {
+     "id": "APP-ENTRADA-F1",
+     "category": "F",
+     "text": "Conferir se o teclado de e-mail atrapalha quem digita o CPF no campo \"CPF ou e-mail\".",
+     "reason": "O campo abre o teclado de e-mail e a maioria dos pacientes deve entrar pelo CPF. Em alguns aparelhos os números ficam numa segunda tela; depende do teclado instalado. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "NoraApp.kt:641-642"
+    }
+   ],
+   "comparison": {
+    "label": "Com mensagem de erro",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 02 / 03) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "entrada-comp-claro.webp",
+     "escuro": "entrada-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-entrada-google",
+   "code": "APP-ENTRADA-GOOGLE",
+   "title": "Entrar com o Google",
+   "description": "Entrada com o botão \"Continuar com Google\", que só aparece com o client ID configurado (P-042).",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 52p / 52) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "entrada-google-claro.webp",
+    "escuro": "entrada-google-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-ENTRADA-GOOGLE-V1",
+     "category": "V",
+     "text": "Trocar o \"G\" azul de uma cor só pelo logotipo oficial colorido do Google no botão \"Continuar com Google\".",
+     "reason": "O \"G\" é hoje uma letra digitada em azul. As regras de marca do Google pedem o logotipo oficial, e um botão fora do padrão passa menos confiança na hora de entrar. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/GoogleUi.kt:69; android/52p claro e 52 escuro"
+    }
+   ]
+  },
+  {
+   "id": "app-entrada-fonte",
+   "code": "APP-FONTE-130",
+   "title": "Entrada com fonte ampliada (130%)",
+   "description": "A mesma entrada com a fonte do sistema em 130%.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 13 / 13p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "entrada-fonte-claro.webp",
+    "escuro": "entrada-fonte-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-FONTE-130-C1",
+     "category": "C",
+     "text": "Testar a entrada com fonte em 200% e deixar \"Primeiro acesso? Criar conta\" quebrar em duas linhas se não couber.",
+     "reason": "Em 130% a linha cabe. Ela fica numa fileira sem quebra e, com fonte maior, \"Criar conta\" pode ser cortado ou sair do cartão, como já foi resolvido em \"Precisa conectar à sua unidade?\". (hipótese: confirmar no uso real)",
+     "recommended": true,
+     "kind": "hipotese",
+     "evidence": "NoraApp.kt:694-698 (Row sem weight) e 705-709; android/13 claro e 13p escuro"
+    }
+   ]
+  },
+  {
+   "id": "app-inicio",
+   "code": "APP-INICIO",
+   "title": "Início com consulta e oferta",
+   "description": "Tela inicial logada: próxima consulta, acesso rápido, acompanhamento da fila e Vaga Relâmpago pendente.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 05 / 05p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-claro.webp",
+    "escuro": "inicio-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-V1",
+     "category": "V",
+     "text": "Quando houver uma Vaga Relâmpago pendente, mostrar o cartão \"Vaga Relâmpago\" logo abaixo de \"Sua agenda\", antes de \"Acesso rápido\" e de \"Acompanhamento\".",
+     "reason": "É a única coisa com prazo na tela (\"Tempo restante: 09:30\") e hoje só aparece depois de quase duas telas de rolagem. A pessoa pode deixar o prazo passar sem chegar até ela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1099-1146; android/05 claro e 05p escuro"
+    },
+    {
+     "id": "APP-INICIO-V2",
+     "category": "V",
+     "text": "Deixar só \"Confirmar presença\" como botão branco cheio no cartão \"Sua agenda\" e transformar \"Ver minhas consultas\" em botão de contorno, igual a \"Agendar consulta\".",
+     "reason": "Os dois botões brancos são idênticos e disputam a atenção; não fica claro qual é a ação do momento. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "BookingUi.kt:51-52; NoraApp.kt:1088-1096; android/05 claro"
+    },
+    {
+     "id": "APP-INICIO-V3",
+     "category": "V",
+     "text": "Trocar os símbolos de texto do \"Acesso rápido\" (▣ ⌖ ↗ ✦) por ícones desenhados, todos do mesmo tamanho, no estilo da barra de baixo.",
+     "reason": "Os símbolos saem em tamanhos diferentes (a estrela é bem maior que o quadrado e a seta) e não dizem o que fazem: \"↗\" para Jornada, \"⌖\" para UBS. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1101-1114 e 1338-1342; android/05 claro"
+    },
+    {
+     "id": "APP-INICIO-V4",
+     "category": "V",
+     "text": "Tirar a repetição de \"Sua Jornada\" no Início, que aparece no Acesso rápido, no cartão \"Sua Jornada\" e na aba \"Jornada\" da barra de baixo.",
+     "reason": "Três caminhos para o mesmo lugar alongam o Início e empurram para baixo o que muda (fila e oferta). (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:1109 e 1147-1152; android/05 claro"
+    }
+   ],
+   "comparison": {
+    "label": "Com a oferta já aceita",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 05 / 05p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "inicio-comp-claro.webp",
+     "escuro": "inicio-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-inicio-vazio",
+   "code": "APP-INICIO-VAZIO",
+   "title": "Início sem consulta nem oferta",
+   "description": "Início de quem não tem consulta futura nem oportunidade aberta.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 18 / 18p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-vazio-claro.webp",
+    "escuro": "inicio-vazio-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-VAZIO-F1",
+     "category": "F",
+     "text": "No cartão \"Vaga Relâmpago\" vazio, acrescentar uma linha dizendo que a vaga aparece ali e chega um aviso, no mesmo texto da tela Vaga Relâmpago.",
+     "reason": "\"Nenhuma oportunidade aguarda sua resposta.\" não diz se a pessoa precisa fazer algo. A tela Vaga Relâmpago já explica (\"Você não precisa ficar procurando vagas\"), mas o Início não. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:1144; OffersUi.kt:169-172; android/18 claro e 18p escuro"
+    }
+   ]
+  },
+  {
+   "id": "app-inicio-sem-ubs",
+   "code": "APP-INICIO-SEM-UBS",
+   "title": "Início sem UBS vinculada",
+   "description": "Início de quem ainda não tem nenhuma UBS na conta.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 19p / 19) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-sem-ubs-claro.webp",
+    "escuro": "inicio-sem-ubs-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-SEM-UBS-C1",
+     "category": "C",
+     "text": "Sem nenhuma UBS na conta, trocar \"Ver minhas consultas\" e \"Agendar consulta\" do cartão \"Sua agenda\" por um botão que leve a vincular uma UBS.",
+     "reason": "O cartão diz \"Nenhuma UBS vinculada ao seu cadastro.\" e mesmo assim oferece dois botões que levam a telas sem o que mostrar. A ação que resolve (\"Vincular outra UBS\") existe, mas só na tela de UBS. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1083-1096 e 1233; android/19p claro e 19 escuro"
+    },
+    {
+     "id": "APP-INICIO-SEM-UBS-C2",
+     "category": "C",
+     "text": "Trocar \"Escolha uma UBS vinculada para consultar sua situação.\" e \"Nenhuma oportunidade aguarda sua resposta.\" por um texto que diga que primeiro é preciso vincular uma UBS.",
+     "reason": "Sem UBS na conta, pedir que a pessoa escolha uma e dizer que não há ofertas dá a entender que está tudo certo, quando nada vai chegar. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1123 e 1144; android/19p claro"
+    },
+    {
+     "id": "APP-INICIO-SEM-UBS-C3",
+     "category": "C",
+     "text": "Quando as UBS não carregarem, dar uma única saída: o mesmo botão \"Carregar minhas UBS\" também no cartão \"Sua agenda\", em vez do texto \"Toque em Ver minhas consultas para tentar novamente\".",
+     "reason": "O mesmo erro aparece em dois cartões com duas instruções diferentes: tentar de novo por \"Ver minhas consultas\" em um e por \"Carregar minhas UBS\" no outro. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "AppointmentsUi.kt:61-62; NoraApp.kt:1119-1121; android/20 claro e 20p escuro"
+    },
+    {
+     "id": "APP-INICIO-SEM-UBS-V1",
+     "category": "V",
+     "text": "Esconder \"Atualizar acompanhamento\" quando ele estiver desligado (sem UBS ou com as UBS ainda não carregadas).",
+     "reason": "O botão desligado sai quase invisível e não ajuda em nada nesse estado. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1129-1131; android/19p claro e 20 claro"
+    }
+   ],
+   "comparison": {
+    "label": "UBS ainda não carregadas",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 19p / 19) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "inicio-sem-ubs-comp-claro.webp",
+     "escuro": "inicio-sem-ubs-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-inicio-email",
+   "code": "APP-INICIO-EMAIL",
+   "title": "Início com aviso de e-mail da UBS",
+   "description": "Aviso para confirmar o e-mail que a UBS cadastrou.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 46 / 46p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-email-claro.webp",
+    "escuro": "inicio-email-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-EMAIL-C1",
+     "category": "C",
+     "text": "Corrigir \"A UBS UBS Centro…\": não escrever \"A UBS\" quando o nome da unidade já começa com \"UBS\" (ou escrever \"A unidade UBS Centro…\").",
+     "reason": "A palavra sai repetida na primeira linha do aviso. Nomes de unidade que começam com \"UBS\" são o caso comum, então o erro tende a aparecer para o paciente. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/ProfileUi.kt:52 e 78; android/46 claro e 46p escuro"
+    },
+    {
+     "id": "APP-INICIO-EMAIL-V1",
+     "category": "V",
+     "text": "Trocar \"Ver no Perfil\" por um texto que diga a ação, por exemplo \"Revisar e-mail\".",
+     "reason": "\"Ver no Perfil\" não diz que existe uma decisão a tomar, e o aviso, em letra pequena e sem ícone, já é discreto. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "ProfileUi.kt:75-81; android/46 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-inicio-dependente",
+   "code": "APP-INICIO-DEPENDENTE",
+   "title": "Início agindo por um dependente",
+   "description": "Início quando o responsável está agindo por um dependente (Maria).",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 42 / 43) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "inicio-dependente-claro.webp",
+    "escuro": "inicio-dependente-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-INICIO-DEPENDENTE-C1",
+     "category": "C",
+     "text": "Agindo por um dependente, trocar \"Sua próxima consulta\" e \"Sua Jornada\" por títulos com o nome dele, por exemplo \"Próxima consulta de Maria\".",
+     "reason": "A faixa do alto diz que os dados são de Maria, mas os títulos logo abaixo dizem \"Sua\". Quem passa o olho só pelos cartões pode achar que a Pediatria marcada é do próprio responsável. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1069 e 1147; FamilyUi.kt:203-205; android/42 claro e 43 escuro"
+    },
+    {
+     "id": "APP-INICIO-DEPENDENTE-V1",
+     "category": "V",
+     "text": "Encurtar o texto da faixa \"Agindo por\" para algo como \"Os dados desta tela são de Maria (UBS Norte).\"",
+     "reason": "A lista \"Consultas, agendamento, fila, Vaga Relâmpago e Jornada…\" ocupa três linhas em letra pequena, e o essencial (de quem são os dados) se perde no meio. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "FamilyUi.kt:205-206; android/42 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-fila",
+   "code": "APP-FILA",
+   "title": "Acompanhamento da fila",
+   "description": "Fila aguardando, sem oferta, e histórico da fila.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 15 / 15p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "fila-claro.webp",
+    "escuro": "fila-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-FILA-C1",
+     "category": "C",
+     "text": "Mudar o nome ou o destino do botão \"Escolher UBS e consultar\" do cartão \"Acompanhamento\": hoje ele abre a tela Vaga Relâmpago.",
+     "reason": "O nome promete escolher a UBS da fila, mas leva para as oportunidades. Quem quer ver a própria fila em outra UBS vai parar numa tela com outro assunto. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:1128 (onNavigate(PatientDestination.FLASH)); android/15 claro"
+    },
+    {
+     "id": "APP-FILA-V1",
+     "category": "V",
+     "text": "Alinhar \"Sair da fila\" e \"Histórico (1) · Mostrar\" do mesmo jeito e diminuir o vão entre eles.",
+     "reason": "Um link está à esquerda e um pouco para dentro da margem do texto; o outro está centralizado, com um vão grande no meio. O cartão parece desmontado. O mesmo recuo de \"Sair da fila\" aparece no Início. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "QueueUi.kt:24-30; OffersUi.kt:104-108; android/15 claro e 15p escuro; android/05 claro"
+    },
+    {
+     "id": "APP-FILA-F1",
+     "category": "F",
+     "text": "Abaixo de \"Aguardando\", explicar em uma linha o que acontece a seguir, por exemplo \"Quando houver horário, você recebe uma Vaga Relâmpago\".",
+     "reason": "O status sozinho não diz o que a pessoa deve esperar nem que ela não precisa fazer nada. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "QueueUi.kt:37-41; android/15 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-vaga",
+   "code": "APP-VAGA",
+   "title": "Vaga Relâmpago",
+   "description": "Oportunidades com contagem regressiva para aceitar ou recusar.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 16 / 16p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "vaga-claro.webp",
+    "escuro": "vaga-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-VAGA-C1",
+     "category": "C",
+     "text": "Mostrar a contagem com unidades, por exemplo \"Tempo restante: 9 min 30 s\", em vez de \"09:30\".",
+     "reason": "Logo acima vem \"Consulta: 13/11/2026, das 09:00 às 09:30\", e \"09:30\" lido sozinho parece horário. \"00:45\" deixa dúvida se são 45 minutos ou 45 segundos. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "api/PatientLogic.kt:58-65; OffersUi.kt:66-74; android/16 claro e 16p escuro"
+    },
+    {
+     "id": "APP-VAGA-V1",
+     "category": "V",
+     "text": "Com uma única UBS vinculada, esconder o cartão \"Escolha uma UBS\" (e \"Atualizar unidades\") ou reduzi-lo a uma linha com o nome da unidade.",
+     "reason": "Uma escolha com uma só opção ocupa o topo da tela e empurra as ofertas com prazo para baixo. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "OffersUi.kt:150-160; android/16 claro"
+    },
+    {
+     "id": "APP-VAGA-V2",
+     "category": "V",
+     "text": "Em \"Prazo encerrado\", não empilhar \"Esta oportunidade não está mais disponível.\" acima do cartão que já diz \"Você não pode mais responder a esta oportunidade\".",
+     "reason": "As duas frases dizem o mesmo em lugares diferentes e a primeira, solta, não aponta para nenhuma oferta. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "OffersUi.kt:119-123 e 140; api/ApiMessages.kt:48; android/17p claro e 17 escuro"
+    },
+    {
+     "id": "APP-VAGA-F1",
+     "category": "F",
+     "text": "Pôr um botão \"Atualizar\" dentro do cartão \"Prazo encerrado\", junto da frase \"Atualize para ver a situação atual\".",
+     "reason": "O texto pede para atualizar, mas o botão \"Atualizar oportunidades\" fica no fim da tela, depois do histórico. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "OffersUi.kt:121-122 e 179-181; android/17p claro"
+    }
+   ],
+   "comparison": {
+    "label": "Prazo encerrado",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 16 / 16p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "vaga-comp-claro.webp",
+     "escuro": "vaga-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-consultas",
+   "code": "APP-CONSULTAS",
+   "title": "Consultas",
+   "description": "Consultas futuras e anteriores com início, fim e situação.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 21 / 21p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "consultas-claro.webp",
+    "escuro": "consultas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-CONSULTAS-V1",
+     "category": "V",
+     "text": "Mostrar \"Agendada\", \"Concluída\", \"Falta registrada\" e \"Cancelada\" como etiquetas com cor e ícone, e não como uma linha de texto comum.",
+     "reason": "A situação tem hoje o mesmo peso de \"Profissional\" e da data, e é preciso ler linha por linha para achar o que mudou. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "AppointmentsUi.kt:43; android/21 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-V2",
+     "category": "V",
+     "text": "Tirar do topo os botões empilhados \"Atualizar unidades\" e \"Atualizar consultas\" (juntar num só ou passar para um ícone).",
+     "reason": "Ficam entre o texto de explicação e as consultas e empurram a lista para baixo, sem ser o que a pessoa veio fazer. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "AppointmentsUi.kt:33-36; android/21 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-V3",
+     "category": "V",
+     "text": "Trazer \"Para remarcar, procure a equipe da UBS.\" para dentro do cartão, perto de \"Cancelar consulta\".",
+     "reason": "A frase fica solta abaixo do cartão, e quem quer remarcar só a encontra depois de rolar a lista toda. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "AppointmentsUi.kt:56; android/21 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-F1",
+     "category": "F",
+     "text": "Separar a lista em \"Próximas\" e \"Anteriores\", com um título para cada parte.",
+     "reason": "O subtítulo promete \"futuros e anteriores\", mas a lista mistura a Ortopedia agendada com as passadas (11/11, 10/11, 09/11) sem nenhuma divisão. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "AppointmentsUi.kt:37-51; android/21 claro e 21p escuro"
+    }
+   ]
+  },
+  {
+   "id": "app-consultas-presenca",
+   "code": "APP-CONSULTAS-PRESENCA",
+   "title": "Confirmar presença",
+   "description": "Consultas com o botão de confirmar presença e a janela de confirmação.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 33 / 33p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "consultas-presenca-claro.webp",
+    "escuro": "consultas-presenca-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-CONSULTAS-PRESENCA-V1",
+     "category": "V",
+     "text": "Destacar a data e o horário de cada consulta (\"13/11/2026, das 10:00 às 10:30\") e mostrar \"Agendada\" como selo de situação, em vez de linhas de texto do mesmo tamanho",
+     "reason": "Profissional, data, situação e \"Marcada pelo aplicativo\" aparecem com o mesmo peso e só a especialidade está em negrito; quem abre a tela quer saber primeiro quando é a consulta, e a situação se perde no meio do texto. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/AppointmentsUi.kt:41-45; 33 claro, 34p claro"
+    },
+    {
+     "id": "APP-CONSULTAS-PRESENCA-V2",
+     "category": "V",
+     "text": "Juntar \"Atualizar unidades\" e \"Atualizar consultas\" num só botão de atualizar, ou num ícone no topo do cartão",
+     "reason": "Dois botões de contorno, um embaixo do outro, ficam acima da ação principal \"Agendar nova consulta\" e disputam atenção com ela. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AppointmentsUi.kt:33-36; 33 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-PRESENCA-V3",
+     "category": "V",
+     "text": "Alinhar \"Cancelar consulta\" à margem esquerda do texto da consulta e dar a ele a cor de ação de cancelamento (vermelha, como \"Sair da fila\")",
+     "reason": "O botão de texto fica recuado cerca de 12 px em relação ao texto e usa a cor principal, igual a um atalho comum; \"Sair da fila\", na Jornada, usa vermelho. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AppointmentsUi.kt:49-50; QueueUi.kt:24-25; 33 claro, 22 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-PRESENCA-V4",
+     "category": "V",
+     "text": "Levar a frase \"Para remarcar, procure a equipe da UBS.\" para dentro do cartão, perto de \"Cancelar consulta\"",
+     "reason": "Ela fica solta abaixo do cartão, no fim da tela, longe da ação a que se refere. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "AppointmentsUi.kt:57; 33 claro"
+    },
+    {
+     "id": "APP-CONSULTAS-PRESENCA-V5",
+     "category": "V",
+     "text": "Mostrar \"Presença confirmada às 07:30\" com um ícone de confirmado, ou dentro de um selo",
+     "reason": "A confirmação aparece só como texto azul pequeno, parecido com um link, e é o retorno de uma ação que o paciente acabou de fazer. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "BookingUi.kt:45-46; 34p claro"
+    },
+    {
+     "id": "APP-CONSULTAS-PRESENCA-F1",
+     "category": "F",
+     "text": "Separar a lista em \"Próximas\" e \"Anteriores\" e ordenar por data",
+     "reason": "O título promete atendimentos futuros e anteriores, mas a tela mostra 13/11, 22/11 e depois 12/11 misturados, e a de 12/11 (prazo de confirmação já encerrado) continua como \"Agendada\" no meio das futuras. A tela não ordena nada: só repete a ordem recebida. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AppointmentsUi.kt:38 (forEach sem ordenação); 33 claro"
+    }
+   ],
+   "comparison": {
+    "label": "Presença já confirmada",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 33 / 33p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "consultas-presenca-comp-claro.webp",
+     "escuro": "consultas-presenca-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-jornada",
+   "code": "APP-JORNADA",
+   "title": "Jornada com score",
+   "description": "Sua Jornada com o score de 0 a 1000 e as contagens que o formam.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 22 / 22p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "jornada-claro.webp",
+    "escuro": "jornada-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-JORNADA-C1",
+     "category": "C",
+     "text": "Evitar que o chip selecionado seja cortado: \"Consultas\" aparece como \"Consult\"",
+     "reason": "Os três chips dividem a largura por igual e o ícone de confirmado do chip escolhido toma o espaço do texto. Aparece nos dois temas sempre que Consultas está selecionado, que é a aba aberta por padrão. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/JourneyUi.kt:28-34; 22 claro, 22p escuro, 22bp claro"
+    },
+    {
+     "id": "APP-JORNADA-V1",
+     "category": "V",
+     "text": "Mostrar \"Consultas concluídas: 8\", \"Faltas: 1\" e \"Cancelamentos feitos por você: 2\" como três números lado a lado, abaixo do score",
+     "reason": "Hoje são três linhas de texto corrido, maiores que a explicação logo abaixo; contagens lado a lado se leem de relance e ligam visualmente os números ao score. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AttendanceUi.kt:127-131; 22 claro"
+    },
+    {
+     "id": "APP-JORNADA-V2",
+     "category": "V",
+     "text": "Recolher os três parágrafos de explicação (\"O score vai de 0 a 1000...\", \"Como é calculado...\", \"Quem tem score maior...\") num item \"Como o score funciona\" que se abre ao tocar",
+     "reason": "São cerca de 14 linhas sempre abertas, que empurram \"Solicitações de atendimento\" para baixo; quem já entendeu a regra lê tudo de novo a cada visita. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AttendanceUi.kt:144-146; 22 claro, 22bp claro"
+    },
+    {
+     "id": "APP-JORNADA-V3",
+     "category": "V",
+     "text": "Trocar o rótulo \"Atualizar participação\" por \"Atualizar score\" (e as mensagens \"Consultando sua participação…\" do mesmo cartão)",
+     "reason": "O cartão chama a mesma coisa de \"Score de Jornada\", \"comparecimento\" e \"participação\": três palavras para um conceito só. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AttendanceUi.kt:113-115, 149; 22 claro"
+    },
+    {
+     "id": "APP-JORNADA-F1",
+     "category": "F",
+     "text": "Na aba \"Consultas\" da Jornada, mostrar a próxima consulta em vez de só a frase \"Veja as consultas futuras e anteriores na tela Consultas\"",
+     "reason": "A aba selecionada por padrão não traz nenhum dado, só um atalho, enquanto Exames e Vacinas mostram os registros. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "JourneyUi.kt:38-41; 22 claro"
+    }
+   ],
+   "comparison": {
+    "label": "Score baixo",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 22 / 22p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "jornada-comp-claro.webp",
+     "escuro": "jornada-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-jornada-sem-dados",
+   "code": "APP-JORNADA-SEM-DADOS",
+   "title": "Jornada sem consultas encerradas",
+   "description": "Jornada de quem ainda não tem consulta encerrada para calcular o score.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 23p / 23) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "jornada-sem-dados-claro.webp",
+    "escuro": "jornada-sem-dados-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-JORNADA-SEM-DADOS-C1",
+     "category": "C",
+     "text": "Corrigir o chip \"Consult\" cortado, como na Jornada com score",
+     "reason": "É o mesmo corte, visível também nesta tela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "JourneyUi.kt:28-34; 23p claro"
+    },
+    {
+     "id": "APP-JORNADA-SEM-DADOS-V1",
+     "category": "V",
+     "text": "Manter o \"1000\" grande com \"de 1000\", como nas telas com histórico, e passar \"sem consultas encerradas ainda\" para uma linha menor abaixo",
+     "reason": "O título \"1000 · sem consultas encerradas ainda\" quebra em duas linhas, em tamanho menor que o número das outras telas, e foge do padrão do número em destaque. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/AttendanceUi.kt:169-178; 23p claro, 23 escuro"
+    }
+   ]
+  },
+  {
+   "id": "app-jornada-duas-ubs",
+   "code": "APP-JORNADA-DUAS-UBS",
+   "title": "Jornada com duas UBS",
+   "description": "Jornada com duas UBS, uma delas sem resposta.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 24 / 24p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "jornada-duas-ubs-claro.webp",
+    "escuro": "jornada-duas-ubs-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-JORNADA-DUAS-UBS-C1",
+     "category": "C",
+     "text": "Indicar no próprio número em destaque que ele é parcial quando uma UBS não respondeu (por exemplo, \"1000 · parcial\")",
+     "reason": "O \"1000 de 1000\" e a \"Faixa Excelente\" aparecem grandes e com cara de definitivos; o aviso vermelho \"Uma UBS não respondeu e não entrou nesta conta\" vem três linhas depois, abaixo das contagens, e é fácil de pular. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/AttendanceUi.kt:126-135; 24 claro"
+    },
+    {
+     "id": "APP-JORNADA-DUAS-UBS-C2",
+     "category": "C",
+     "text": "Com mais de uma UBS, mostrar o score de cada UBS já aberto, ou chamar o número em destaque de \"Geral\"",
+     "reason": "O próprio texto diz que a ordem das ofertas \"usa o score de cada UBS, não o número somado em destaque\". O número maior da tela é justamente o que não vale para a Vaga Relâmpago, e o que vale fica escondido em \"Ver detalhe por UBS\". (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "AttendanceUi.kt:100, 136-141; 24 claro, 37 claro"
+    },
+    {
+     "id": "APP-JORNADA-DUAS-UBS-V1",
+     "category": "V",
+     "text": "Dar a \"Ver detalhe por UBS\" um ícone de abrir e fechar (seta) e alinhá-lo à esquerda",
+     "reason": "É um botão de texto sem borda, centralizado e sem seta, então não parece algo que se expande. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "AttendanceUi.kt:137-139; 24 claro, 37 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-jornada-exames",
+   "code": "APP-JORNADA-EXAMES",
+   "title": "Jornada — exames",
+   "description": "Aba de exames com a situação de cada pedido.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 37 / 37p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "jornada-exames-claro.webp",
+    "escuro": "jornada-exames-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-JORNADA-EXAMES-V1",
+     "category": "V",
+     "text": "Diferenciar visualmente a situação de cada exame (\"Realizado em 10/11/2026\", \"Solicitado em 11/11/2026\", \"Cancelado\") com um selo de ícone e cor, sempre com o texto",
+     "reason": "As três situações aparecem como texto comum do mesmo tamanho; um exame ainda por fazer (\"Solicitado\") não se distingue de um já feito ou cancelado. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/JourneyUi.kt:61-68; CommunityLogic.kt:84-89; 37 claro"
+    },
+    {
+     "id": "APP-JORNADA-EXAMES-V2",
+     "category": "V",
+     "text": "Separar mais claramente os grupos \"UBS Centro\" e \"UBS Norte\", com mais espaço acima do nome da UBS ou um cabeçalho com fundo",
+     "reason": "O nome da UBS é um texto pequeno logo abaixo da linha divisória do último exame do grupo anterior e parece mais um item da lista. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "JourneyUi.kt:46; 37 claro"
+    },
+    {
+     "id": "APP-JORNADA-EXAMES-V3",
+     "category": "V",
+     "text": "Tirar a linha divisória que fica depois do último registro, logo acima de \"Atualizar exames e vacinas\"",
+     "reason": "A linha fecha a lista e cola no botão, sem separar nada. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "JourneyUi.kt:66; 37 claro"
+    }
+   ],
+   "comparison": {
+    "label": "Sem exames e uma UBS sem resposta",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 37 / 37p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "jornada-exames-comp-claro.webp",
+     "escuro": "jornada-exames-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-jornada-vacinas",
+   "code": "APP-JORNADA-VACINAS",
+   "title": "Jornada — vacinas",
+   "description": "Aba de vacinas com dose e data.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 38p / 38) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "jornada-vacinas-claro.webp",
+    "escuro": "jornada-vacinas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-JORNADA-VACINAS-V1",
+     "category": "V",
+     "text": "Destacar a dose (\"2ª dose\", \"Dose única\", \"Reforço\") separada da data, por exemplo como selo antes de \"aplicada em 15/09/2026\"",
+     "reason": "Dose e data estão na mesma linha, ligadas por um ponto; a dose é o que o paciente procura para saber se está em dia. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/JourneyUi.kt:71-75; 38p claro"
+    },
+    {
+     "id": "APP-JORNADA-VACINAS-V2",
+     "category": "V",
+     "text": "Tirar a linha divisória depois de \"Febre amarela\", logo acima de \"Atualizar exames e vacinas\"",
+     "reason": "É a mesma linha sobrando da aba Exames; o botão fica preso à lista. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "JourneyUi.kt:76; 38p claro"
+    }
+   ]
+  },
+  {
+   "id": "app-agendar",
+   "code": "APP-AGENDAR",
+   "title": "Agendar — especialidade",
+   "description": "Primeiro passo do agendamento: escolher UBS e especialidade.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 29 / 29p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "agendar-claro.webp",
+    "escuro": "agendar-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AGENDAR-V1",
+     "category": "V",
+     "text": "Recolher o cartão \"Como funciona\" num item que se abre ao tocar, ou levá-lo para depois dos passos",
+     "reason": "Três parágrafos de regras abrem a tela e empurram \"1. Escolha a UBS\" para baixo; quem agenda com frequência relê tudo a cada vez. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/BookingUi.kt:62-69, 90; 29 claro"
+    },
+    {
+     "id": "APP-AGENDAR-V2",
+     "category": "V",
+     "text": "Trocar o subtítulo \"Catálogo da rede\" por um texto que diga que nem toda especialidade tem horário em toda UBS",
+     "reason": "\"Catálogo da rede\" é termo interno. A lista é da rede inteira, então o paciente pode escolher uma especialidade e só no passo 3 descobrir que não há horário nesta UBS (como em 31p). (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "BookingUi.kt:127; 29 claro, 31p claro"
+    }
+   ]
+  },
+  {
+   "id": "app-agendar-horarios",
+   "code": "APP-AGENDAR-HORARIOS",
+   "title": "Agendar — horários do dia",
+   "description": "Horários livres por dia e profissional.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 30 / 30p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "agendar-horarios-claro.webp",
+    "escuro": "agendar-horarios-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AGENDAR-HORARIOS-V1",
+     "category": "V",
+     "text": "Nos botões de horário, mostrar o horário em negrito na primeira linha e o profissional na segunda, alinhados à esquerda",
+     "reason": "Hoje \"10:00 às 10:30 · Profissional A\" é uma frase única centralizada, que quebra em duas linhas quando o nome é longo (aqui ampliado pelo texto de teste); horário e profissional em linhas próprias facilitam comparar as opções. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/BookingUi.kt:172-177; 30 claro"
+    },
+    {
+     "id": "APP-AGENDAR-HORARIOS-V2",
+     "category": "V",
+     "text": "Juntar \"Semana anterior\", \"Próxima semana\" e \"Escolher outra data\" numa só linha de navegação, com setas e o período no meio",
+     "reason": "São três botões de navegação, em duas linhas, antes de qualquer horário; o período \"Semana de 12/11 a 18/11\" fica no subtítulo, longe das setas. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "BookingUi.kt:144-149; 30 claro"
+    },
+    {
+     "id": "APP-AGENDAR-HORARIOS-F1",
+     "category": "F",
+     "text": "Na mensagem \"Nenhum horário livre nesta semana...\", oferecer um botão que pula direto para o próximo dia com horário livre",
+     "reason": "Hoje o paciente avança semana a semana sem saber quantas vezes terá de tocar; não existe atalho para o próximo horário livre. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "BookingUi.kt:161-162; 31p claro"
+    }
+   ],
+   "comparison": {
+    "label": "Sem horários livres",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 30 / 30p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "agendar-horarios-comp-claro.webp",
+     "escuro": "agendar-horarios-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-agendada",
+   "code": "APP-AGENDADA",
+   "title": "Consulta marcada pelo app",
+   "description": "Confirmação depois de marcar a consulta.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 32p / 32) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "agendada-claro.webp",
+    "escuro": "agendada-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AGENDADA-V1",
+     "category": "V",
+     "text": "Depois de marcar, trazer o cartão \"Consulta marcada\" para o topo da tela (ou rolar até ele) e esconder \"Como funciona\" e \"1. Escolha a UBS\"",
+     "reason": "O resultado aparece embaixo, depois das regras e da escolha de UBS; o cartão só começa mais ou menos a um telefone de altura do topo e os botões \"Ver minhas consultas\" ficam abaixo da primeira tela. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/BookingUi.kt:90-111; 32p claro"
+    },
+    {
+     "id": "APP-AGENDADA-V2",
+     "category": "V",
+     "text": "Remover a faixa cinza \"Consulta marcada. Ela já vale e aparece em Consultas.\" quando o cartão \"Consulta marcada\" já está na tela, ou dar ao cartão um sinal de sucesso (ícone de confirmado)",
+     "reason": "A mesma informação aparece duas vezes seguidas, e a faixa tem a mesma cor neutra de qualquer outra mensagem, sem sinal de que deu certo. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "BookingUi.kt:106, 110; OffersUi.kt:113-119; 32p claro"
+    },
+    {
+     "id": "APP-AGENDADA-F1",
+     "category": "F",
+     "text": "Trocar \"De 48 horas até 2 horas antes, confirme sua presença\" pela data e hora exatas em que a confirmação abre, como a tela Consultas já faz",
+     "reason": "Consultas já calcula \"a partir de 20/11/2026 às 09:00\" (presenceOpensAt); aqui o paciente precisa fazer a conta sozinho. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "BookingUi.kt:47-48, 207; 32p claro, 33 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-agendar-dependente",
+   "code": "APP-AGENDAR-DEPENDENTE",
+   "title": "Agendar por um dependente",
+   "description": "Agendamento feito pelo responsável em nome de um dependente.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 48p / 48) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "agendar-dependente-claro.webp",
+    "escuro": "agendar-dependente-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AGENDAR-DEPENDENTE-V1",
+     "category": "V",
+     "text": "Dizer para quem a consulta está sendo marcada no diálogo \"Marcar esta consulta?\" (\"Paciente: Maria\") e no cartão \"Consulta marcada\"",
+     "reason": "O diálogo lista especialidade, profissional e unidade, e o nome só aparece dentro da frase sobre o score; o cartão de sucesso recebe apenas o nome da UBS. A faixa \"Agindo por\" fica no alto da tela e rola para fora de vista. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/BookingUi.kt:186-191, 201-202; api/BookingLogic.kt:193-195; FamilyUi.kt:193-205; 48p claro"
+    },
+    {
+     "id": "APP-AGENDAR-DEPENDENTE-V2",
+     "category": "V",
+     "text": "Usar no título o nome de quem será atendido (\"Agendar para Maria\"), como a Jornada já faz com \"Jornada de Maria\"",
+     "reason": "O título continua \"Agendar consulta\" e o nome só aparece nos subtítulos pequenos; a Jornada já troca o título. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "BookingUi.kt:89; JourneyUi.kt:25; 48p claro"
+    },
+    {
+     "id": "APP-AGENDAR-DEPENDENTE-V3",
+     "category": "V",
+     "text": "Quando só existe a UBS do vínculo, mostrar \"UBS Norte\" como informação fixa em vez de um botão de opção único já marcado",
+     "reason": "Uma escolha com uma única opção parece interativa e não é, e ocupa um cartão inteiro. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "BookingUi.kt:96-104; 48p claro"
+    }
+   ]
+  },
+  {
+   "id": "app-avisos",
+   "code": "APP-AVISOS",
+   "title": "Avisos",
+   "description": "Comunicados da Secretaria e oferta para um dependente.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 35 / 35p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "avisos-claro.webp",
+    "escuro": "avisos-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AVISOS-V1",
+     "category": "V",
+     "text": "Transformar o cartão \"Comunicados da rede\" (\"2 comunicados novos\" + \"Atualizar comunicados\") num cabeçalho de seção sem cartão, acima dos comunicados",
+     "reason": "Hoje ele tem a mesma forma dos comunicados e parece mais um aviso; a contagem e o botão são, na verdade, o cabeçalho da lista que vem abaixo. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoticesUi.kt:63-78; 35 claro"
+    },
+    {
+     "id": "APP-AVISOS-V2",
+     "category": "V",
+     "text": "No cartão \"Vaga Relâmpago de um dependente\", usar o nome no título (\"Vaga Relâmpago para Maria\")",
+     "reason": "O título é genérico (\"de um dependente\") e o nome só aparece na linha seguinte; com o nome no título, quem está sendo atendido fica claro de relance. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoticesUi.kt:49; OffersUi.kt:96-97; 35 claro"
+    },
+    {
+     "id": "APP-AVISOS-F1",
+     "category": "F",
+     "text": "Oferecer \"Marcar todos como lidos\" junto da contagem de comunicados novos",
+     "reason": "Cada comunicado não lido tem o próprio botão \"Marcar como lido\" em largura total; com vários comunicados isso vira muitos toques. Não há marcação em lote no app. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "NoticesUi.kt:92; 35 claro"
+    },
+    {
+     "id": "APP-AVISOS-F2",
+     "category": "F",
+     "text": "No estado vazio \"Nenhuma oferta pendente\", explicar em uma linha o que é uma Vaga Relâmpago e que ela aparece aqui sozinha",
+     "reason": "Quem nunca recebeu uma oferta vê só \"Não há Vagas Relâmpago aguardando resposta\" e pode não saber o que esperar. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "NoticesUi.kt:37-39; 36p claro"
+    }
+   ],
+   "comparison": {
+    "label": "Sem comunicados",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 35 / 35p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "avisos-comp-claro.webp",
+     "escuro": "avisos-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-avisos-falha",
+   "code": "APP-AVISOS-FALHA",
+   "title": "Avisos com UBS indisponíveis",
+   "description": "Avisos quando as UBS não responderam, mas os comunicados sim.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 47 / 47p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "avisos-falha-claro.webp",
+    "escuro": "avisos-falha-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-AVISOS-FALHA-C1",
+     "category": "C",
+     "text": "Mostrar a falha do cartão \"Suas UBS\" com aparência de alerta (ícone e cor de erro) e com um título que diga o problema, como \"Vagas Relâmpago indisponíveis\"",
+     "reason": "\"Suas UBS\" com o subtítulo \"Oportunidades da unidade\" e texto cinza parece um cartão informativo comum; na Jornada, uma falha parecida aparece em vermelho. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoticesUi.kt:29-35; AttendanceUi.kt:132-135; 47 claro, 24 claro"
+    },
+    {
+     "id": "APP-AVISOS-FALHA-V1",
+     "category": "V",
+     "text": "Simplificar a frase \"As Vagas Relâmpago dependem delas; os comunicados abaixo não\"",
+     "reason": "A frase explica o funcionamento interno em vez do efeito; \"Não conseguimos ver suas Vagas Relâmpago agora. Os comunicados continuam abaixo.\" diz o mesmo de forma mais simples. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoticesUi.kt:33; 47 claro"
+    }
+   ]
+  },
+  {
+   "id": "app-familia",
+   "code": "APP-FAMILIA",
+   "title": "Família",
+   "description": "Pedidos de vínculo com dependentes e seus estados.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 40 / 40p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "familia-claro.webp",
+    "escuro": "familia-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-FAMILIA-C1",
+     "category": "C",
+     "text": "Aumentar a área de toque das opções \"Você\", \"Maria · ...\", \"UBS Centro\" e \"UBS Norte\" para pelo menos 48 dp de altura, com mais espaço entre uma opção e a próxima.",
+     "reason": "Cada linha tem só a altura do texto, cerca de 35 dp na imagem, e as opções ficam coladas. Com o dedo é fácil marcar a pessoa ou a UBS errada. O docs/design.md pede no mínimo 48 dp. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/FamilyUi.kt:123 e :183 (Row selectable sem altura mínima, RadioButton com onClick = null); android/40.png e 41p.png"
+    },
+    {
+     "id": "APP-FAMILIA-C2",
+     "category": "C",
+     "text": "Quando a pessoa estiver agindo por um dependente, avisar no cartão \"Pedir vínculo com um dependente\" que o pedido sai em nome dela mesma, e não em nome de Maria.",
+     "reason": "Na comparação \"Agindo por Maria\", o formulário continua igual ao de antes. A pessoa pode achar que está pedindo um vínculo para a dependente. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "FamilyUi.kt:45 (RequestCard sempre exibido); android/41p.png"
+    },
+    {
+     "id": "APP-FAMILIA-V1",
+     "category": "V",
+     "text": "Mostrar a situação de cada pedido (\"Aguardando a equipe da UBS\", \"Aprovado\") como etiqueta com ícone: atenção para o pendente e sucesso para o aprovado.",
+     "reason": "Hoje \"Aguardando a equipe da UBS\" aparece no tom do texto comum e \"Aprovado\" no azul-marinho da marca. Quem passa o olho não distingue um estado do outro com rapidez. O tema ainda não tem cores de sucesso e atenção; teriam de ser criadas. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "FamilyUi.kt:142-143 (cor primary só no aprovado); android/40.png e 40p.png"
+    },
+    {
+     "id": "APP-FAMILIA-V2",
+     "category": "V",
+     "text": "Explicar uma vez só que a equipe da UBS confere os documentos. Hoje a ideia aparece no subtítulo de \"Pedir vínculo com um dependente\", no aviso do topo, no cartão pendente e no parágrafo do rodapé.",
+     "reason": "A mesma frase se repete quatro vezes na tela. Isso alonga a rolagem e tira peso do que importa, que é o estado de cada pedido. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "FamilyUi.kt:68, :108, :109 e :147; android/40.png"
+    },
+    {
+     "id": "APP-FAMILIA-V3",
+     "category": "V",
+     "text": "Deixar uma só forma de trocar por quem se age: o cartão \"Agindo por\" no topo ou o botão \"Agir por Maria · ...\" no cartão aprovado. Hoje existem as duas na mesma tela.",
+     "reason": "Os dois controles fazem a mesma coisa e a pessoa pode não saber qual vale. Também alonga o cartão do vínculo. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "FamilyUi.kt:41-43 e :155; android/40.png"
+    }
+   ],
+   "comparison": {
+    "label": "Agindo por um dependente",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 40 / 40p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "familia-comp-claro.webp",
+     "escuro": "familia-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-perfil",
+   "code": "APP-PERFIL",
+   "title": "Perfil e e-mail",
+   "description": "Perfil com a sugestão de e-mail vinda da UBS.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 44 / 44p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "perfil-claro.webp",
+    "escuro": "perfil-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-PERFIL-C1",
+     "category": "C",
+     "text": "Corrigir \"A UBS UBS Centro · ... registrou outro e-mail para você\", que repete a palavra UBS. Usar só o nome da unidade, ou tirar o \"A UBS\" quando o nome já começa com UBS.",
+     "reason": "A palavra aparece duas vezes seguidas no título do cartão e também no aviso do Início. Fica com cara de erro. Os nomes de unidade costumam começar com UBS, então a repetição também aparece com dados reais. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/ProfileUi.kt:52 e :78; android/44.png"
+    },
+    {
+     "id": "APP-PERFIL-C2",
+     "category": "C",
+     "text": "Antes de tocar em \"Trocar e-mail\", trocar \"Para trocar, enviamos um código de 6 dígitos\" por \"vamos enviar um código\".",
+     "reason": "O texto soa como se o código já tivesse sido enviado, mas nada foi enviado ainda. A pessoa pode ir procurar um código que não existe. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "ProfileUi.kt:54 (texto igual antes e depois do envio); android/44.png comparado com 45p.png"
+    },
+    {
+     "id": "APP-PERFIL-C3",
+     "category": "C",
+     "text": "Tirar ou reescrever \"CPF e e-mail não são retornados pelo serviço conectado.\" no cartão \"Minha conta\".",
+     "reason": "É linguagem técnica. Para o paciente, soa como se faltassem dados na conta dele. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "ProfileUi.kt:25; android/44.png"
+    }
+   ],
+   "comparison": {
+    "label": "Código enviado",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 44 / 44p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "perfil-comp-claro.webp",
+     "escuro": "perfil-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-atendimento-ubs",
+   "code": "APP-ATENDIMENTO-UBS",
+   "title": "Atendimento da UBS",
+   "description": "Horário por dia, serviços e especialidades de uma UBS.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 49 / 49p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "atendimento-ubs-claro.webp",
+    "escuro": "atendimento-ubs-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-ATENDIMENTO-UBS-C1",
+     "category": "C",
+     "text": "Trocar \"Sem especialidades com horário na grade\" por um texto simples, como \"A UBS ainda não informou as especialidades\", no mesmo tom dos outros vazios.",
+     "reason": "\"Grade\" é termo da equipe. Os outros dois vazios do cartão (\"Horário não informado pela UBS\" e \"A UBS ainda não informou os serviços\") usam linguagem simples. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "UnitAboutUi.kt:67; android/50p.png"
+    },
+    {
+     "id": "APP-ATENDIMENTO-UBS-V1",
+     "category": "V",
+     "text": "Evitar que \"Segunda-feira · hoje\" e \"08:00 – 12:00 · 13:00 – 17:00\" quebrem em duas linhas. Uma saída é deixar o nome do dia na largura do texto e pôr cada intervalo numa linha própria, alinhada à direita; outra é mostrar o \"hoje\" como etiqueta.",
+     "reason": "A linha divide a largura meio a meio, e as duas metades quebram mesmo com espaço sobrando. A linha mais importante, a de hoje, fica a mais difícil de ler. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/UnitAboutUi.kt:55-59 (weight(1f) nos dois textos); android/49.png"
+    },
+    {
+     "id": "APP-ATENDIMENTO-UBS-V2",
+     "category": "V",
+     "text": "Mostrar os itens de \"Serviços\" como lista com marcador ou etiquetas, como as de \"Especialidades\", e não como linhas soltas em cinza.",
+     "reason": "Em cinza e sem marcador, \"Vacinação\", \"Curativos\" e \"Teste do pezinho\" parecem uma nota de rodapé, e não o conteúdo principal. O texto vem em forma livre da UBS, então a lista só vale se as quebras de linha forem respeitadas. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "UnitAboutUi.kt:64 (MutedText); android/49.png"
+    },
+    {
+     "id": "APP-ATENDIMENTO-UBS-F1",
+     "category": "F",
+     "text": "Mostrar \"Aberta agora\" ou \"Fechada agora\" ao lado do nome da UBS, calculado a partir do horário de hoje.",
+     "reason": "O paciente quer saber se pode ir agora. Hoje ele precisa achar o dia na lista e comparar com o relógio. Não existe esse estado no código. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "UnitAboutUi.kt:50-61 (só lista os dias); android/49.png"
+    }
+   ],
+   "comparison": {
+    "label": "Atendimento não informado",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 49 / 49p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "atendimento-ubs-comp-claro.webp",
+     "escuro": "atendimento-ubs-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-atendimento-falha",
+   "code": "APP-ATENDIMENTO-FALHA",
+   "title": "Atendimento carregando e com falha",
+   "description": "Estados de carregamento e de erro do cartão de atendimento.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 51 / 51p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "atendimento-falha-claro.webp",
+    "escuro": "atendimento-falha-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-ATENDIMENTO-FALHA-C1",
+     "category": "C",
+     "text": "Trocar \"A base de uma UBS está temporariamente indisponível\" por uma mensagem que diga o nome da unidade e use palavras do paciente, como \"Não conseguimos falar com a UBS Norte agora\".",
+     "reason": "O cartão já diz que é a UBS Norte, mas a mensagem fala em \"uma UBS\". E \"base\" é jargão técnico. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/api/ApiMessages.kt:178-179; android/51.png"
+    },
+    {
+     "id": "APP-ATENDIMENTO-FALHA-V1",
+     "category": "V",
+     "text": "Alinhar \"Tentar de novo\" à margem do texto do cartão e dar a ele o mesmo formato de botão com contorno usado em \"Tentar novamente\" na Família.",
+     "reason": "O botão de texto fica recuado em relação à mensagem e parece solto. O formato também é diferente das outras telas. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/UnitAboutUi.kt:37 (TextButton) e FamilyUi.kt:119 (OutlinedButton); android/51.png"
+    }
+   ]
+  },
+  {
+   "id": "app-passos",
+   "code": "APP-PASSOS",
+   "title": "Passos de uma operação",
+   "description": "Lista de passos concluído, atual e falho (operação demorada).",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 53 / 53p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "passos-claro.webp",
+    "escuro": "passos-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-PASSOS-V1",
+     "category": "V",
+     "text": "Alinhar o texto do passo em andamento (\"Entrando no NORA…\") com o texto dos passos concluídos (\"Abrindo o Google\"), com o indicador girando na mesma coluna do ✓ e do ✗.",
+     "reason": "O indicador girando é mais largo que o ✓. Por isso o passo atual começa mais à direita e a lista parece torta. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/ProgressUi.kt:25-31 e :43-45; android/53.png"
+    },
+    {
+     "id": "APP-PASSOS-V2",
+     "category": "V",
+     "text": "Pintar o ✓ dos passos concluídos com a cor de sucesso, ou com um neutro, em vez do azul-marinho da marca.",
+     "reason": "O docs/design.md reserva o verde para sucesso. Em azul, o passo concluído parece um link. O tema ainda não tem um token de sucesso. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "ProgressUi.kt:44 (colorScheme.primary); docs/design.md (Direção comum); android/53.png"
+    }
+   ]
+  },
+  {
+   "id": "app-dialogos",
+   "code": "APP-DIALOGOS",
+   "title": "Diálogos de confirmação",
+   "description": "Diálogo de sair da fila.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 25 / 25p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "dialogos-claro.webp",
+    "escuro": "dialogos-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-DIALOGOS-C1",
+     "category": "C",
+     "text": "Reescrever \"Esses cancelamentos contam na sua participação conforme a antecedência de cada consulta\" dizendo o efeito concreto na pontuação do paciente. O texto só pode ser definido junto com a regra do score.",
+     "reason": "\"Participação\" e \"antecedência\" não dizem ao paciente se ele perde algo, nem quanto. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "UnlinkUi.kt:33; android/26p.png e 26.png"
+    },
+    {
+     "id": "APP-DIALOGOS-V1",
+     "category": "V",
+     "text": "Em \"Remover esta UBS?\", pôr em destaque a linha \"Serão canceladas agora: 2 consultas futuras e 1 solicitação de fila\": em negrito, logo abaixo do título.",
+     "reason": "É a consequência mais séria do diálogo, mas tem o mesmo peso dos outros três parágrafos. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/UnlinkUi.kt:30-31; android/26p.png"
+    },
+    {
+     "id": "APP-DIALOGOS-V2",
+     "category": "V",
+     "text": "Em \"Sair da fila?\", dizer o nome da UBS no lugar de \"nesta UBS\".",
+     "reason": "O diálogo aparece por cima de outras telas, e quem está na fila de mais de uma unidade não sabe de qual vai sair. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/QueueUi.kt:49; android/25.png"
+    }
+   ],
+   "comparison": {
+    "label": "Remover UBS com contagens",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 25 / 25p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "dialogos-comp-claro.webp",
+     "escuro": "dialogos-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-senha",
+   "code": "APP-SENHA",
+   "title": "Alterar senha",
+   "description": "Troca de senha pelo próprio paciente.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 27 / 27p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "senha-claro.webp",
+    "escuro": "senha-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-SENHA-C1",
+     "category": "C",
+     "text": "No primeiro acesso, explicar no campo \"Senha atual\" que é a senha recebida da UBS, por exemplo \"Senha que você recebeu\".",
+     "reason": "Quem nunca criou uma senha pode não saber o que é a \"senha atual\". (hipótese: confirmar no uso real)",
+     "recommended": true,
+     "kind": "hipotese",
+     "evidence": "PasswordUi.kt:80 (mesmo rótulo nos dois modos); android/28p.png"
+    },
+    {
+     "id": "APP-SENHA-C2",
+     "category": "C",
+     "text": "No modo de troca exigida, tirar o \"Voltar ao início\" e oferecer \"Sair da conta\" no lugar.",
+     "reason": "O app diz que a troca é obrigatória, mas mostra um botão de voltar. E quem esqueceu a senha recebida não tem uma saída clara. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoraApp.kt:452-457 (Voltar ao início para PASSWORD, sem olhar o modo exigido); android/28p.png"
+    },
+    {
+     "id": "APP-SENHA-V1",
+     "category": "V",
+     "text": "No primeiro acesso, trocar o fundo vermelho de \"É preciso definir uma nova senha para continuar usando o aplicativo.\" pela cor de informação ou de atenção.",
+     "reason": "Vermelho indica erro, e aqui é um passo esperado. Isso assusta quem acabou de entrar pela primeira vez. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/PasswordUi.kt:73 (errorContainer); android/28p.png"
+    },
+    {
+     "id": "APP-SENHA-F1",
+     "category": "F",
+     "text": "Conferir as regras (mínimo de 8 caracteres, diferente da atual, confirmação igual) enquanto a pessoa digita, com o aviso embaixo de \"Nova senha\" e de \"Confirmar nova senha\".",
+     "reason": "Hoje o erro só aparece depois de tocar em \"Alterar senha\". Antes disso o botão fica cinza e só o subtítulo \"Mínimo de 8 caracteres, diferente da atual\" avisa das regras. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "PasswordUi.kt:48-53 e :97 (validação só no envio); android/27.png"
+    }
+   ],
+   "comparison": {
+    "label": "Troca exigida no primeiro acesso",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 27 / 27p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "senha-comp-claro.webp",
+     "escuro": "senha-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-configuracoes",
+   "code": "APP-CONFIGURACOES",
+   "title": "Configurações",
+   "description": "Aparência, notificações, interface, versão e restauração.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 11 / 11p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "configuracoes-claro.webp",
+    "escuro": "configuracoes-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-CONFIGURACOES-C1",
+     "category": "C",
+     "text": "Deixar o interruptor \"Consultas\" desligado e bloqueado, com a etiqueta \"Em breve\", enquanto o texto disser que \"esta escolha não tem efeito por enquanto\".",
+     "reason": "O interruptor aparece ligado e passa a ideia de que os lembretes estão ativos, e eles não estão. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoraApp.kt:1377; android/11.png e 11p.png"
+    },
+    {
+     "id": "APP-CONFIGURACOES-C2",
+     "category": "C",
+     "text": "Encurtar o parágrafo de \"Notificações\" e tirar os termos técnicos (\"conexão ativa\", notificação fixa \"NORA · conexão ativa\").",
+     "reason": "São sete linhas de texto antes do primeiro interruptor. O paciente não precisa saber como o serviço funciona por dentro. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "NoraApp.kt:1376; android/11.png"
+    },
+    {
+     "id": "APP-CONFIGURACOES-V1",
+     "category": "V",
+     "text": "Juntar \"Conta Google\", \"Alterar senha\" e \"Sair da conta\" num cartão \"Conta\", e deixar \"Sobre o app\" só com a versão.",
+     "reason": "Hoje as formas de entrar ficam no cartão do Google e a senha e a saída ficam em \"Sobre o app\", que vem depois. Ações da conta dentro de \"Sobre o app\" ficam difíceis de achar. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:1394-1413; GoogleUi.kt; android/12p.png e 54p.png"
+    },
+    {
+     "id": "APP-CONFIGURACOES-V2",
+     "category": "V",
+     "text": "Manter \"Perfil\" marcado na barra de baixo enquanto Configurações estiver aberta.",
+     "reason": "Nenhuma aba fica marcada e a pessoa perde a referência de onde está. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "android/12p.png (barra inferior sem aba selecionada)"
+    },
+    {
+     "id": "APP-CONFIGURACOES-F1",
+     "category": "F",
+     "text": "Pôr no cartão \"Notificações\" um botão \"Abrir notificações do Android\" e um aviso de quando elas estão bloqueadas no aparelho.",
+     "reason": "O texto manda a pessoa ir às configurações do Android, mas a tela não leva até lá. O código já sabe se as notificações estão permitidas (areNotificationsEnabled), mas isso não aparece nesta tela. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:1375-1387 (sem atalho); api/LightningNotifier.kt:44 (verificação existente); android/11.png"
+    }
+   ],
+   "comparison": {
+    "label": "Com conta conectada",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 11 / 11p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "configuracoes-comp-claro.webp",
+     "escuro": "configuracoes-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-configuracoes-aparencia",
+   "code": "APP-APARENCIA",
+   "title": "Configurações — aparência",
+   "description": "Topo das Configurações com a escolha Clara, Escura ou Sistema.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 07 / 08) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "configuracoes-aparencia-claro.webp",
+    "escuro": "configuracoes-aparencia-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-APARENCIA-V1",
+     "category": "V",
+     "text": "Usar o mesmo gênero para o nome do app. Hoje a tela diz \"Escolha como a NORA aparece para você\" e, logo abaixo, \"conexão ativa do NORA\" e \"notificações do NORA\".",
+     "reason": "Na mesma tela o app é chamado de \"a NORA\" e de \"o NORA\", o que parece descuido. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoraApp.kt:1354 e :1376; android/07.png e 11.png"
+    },
+    {
+     "id": "APP-APARENCIA-V2",
+     "category": "V",
+     "text": "Tirar o cartão grande \"Seu app, do seu jeito\" ou reduzi-lo, porque o título \"Configurações\" já fica logo acima.",
+     "reason": "São dois títulos seguidos. O cartão ocupa cerca de um quarto da tela antes da primeira escolha. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "NoraApp.kt:443 (ScreenTitle depois do título da tela); android/07.png e 08.png"
+    },
+    {
+     "id": "APP-APARENCIA-F1",
+     "category": "F",
+     "text": "Com \"Sistema\" escolhido, mostrar qual aparência está valendo agora, por exemplo \"Agora: Escura\".",
+     "reason": "Nos dois temas do modo Sistema a tela é igual e não confirma o que o aparelho está usando. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "NoraApp.kt:1355-1372; android/09.png e 10.png"
+    }
+   ],
+   "comparison": {
+    "label": "Modo Sistema",
+    "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 07 / 08) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+    "images": {
+     "claro": "configuracoes-aparencia-comp-claro.webp",
+     "escuro": "configuracoes-aparencia-comp-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "app-configuracoes-google",
+   "code": "APP-CONFIG-GOOGLE",
+   "title": "Configurações com Google vinculado",
+   "description": "Configurações com a conta Google vinculada.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 54p / 54) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "configuracoes-google-claro.webp",
+    "escuro": "configuracoes-google-escuro.webp"
+   },
+   "items": []
+  },
+  {
+   "id": "app-tablet",
+   "code": "APP-TABLET",
+   "title": "Tablet (1000 dp)",
+   "description": "Configurações numa tela larga de tablet.",
+   "evidence": "Prévia Compose renderizada pelo Layoutlib (`NoraVisualPreviews.kt`, prévia 14 / 14p) em 18/11/2026, commit a6f9201 + pares de tema; dados sintéticos (\"fixture visual\"). Só as linhas finais de fundo liso foram cortadas; a tela, reduzida a 540 px, fica centrada numa moldura da cor do cartão. Não é captura de aparelho físico.",
+   "images": {
+    "claro": "tablet-claro.webp",
+    "escuro": "tablet-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "APP-TABLET-V1",
+     "category": "V",
+     "text": "Em telas largas, usar duas colunas de cartões (por exemplo Aparência e Interface de um lado, Notificações do outro), em vez de uma coluna de 640 dp no meio.",
+     "reason": "Cerca de dois quintos da largura ficam vazios, um quinto de cada lado, e a página continua tão longa quanto no celular. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/NoraApp.kt:431 (widthIn(max = 640.dp)); android/14.png e 14p.png"
+    }
+   ]
+  }
+ ],
+ "general_items": [
+  {
+   "id": "GERAL-C1",
+   "category": "C",
+   "text": "Usar o mesmo componente de aviso para falha parcial ou total em todas as telas, com ícone, cor de erro e texto",
+   "reason": "A Jornada mostra \"Uma UBS não respondeu\" em vermelho, mas Avisos (\"Não foi possível carregar suas UBS\"), Agendar (\"Não foi possível consultar os horários\") e a aba de exames/vacinas (\"Não foi possível carregar as UBS\") usam texto cinza comum. O mesmo tipo de problema tem aparências diferentes. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "JourneyUi.kt:36-40; AttendanceUi.kt:119-124, 132-135; NoticesUi.kt:31-34; BookingUi.kt:99, 156; 24, 47 claro"
+  },
+  {
+   "id": "GERAL-C2",
+   "category": "C",
+   "text": "Revisar os textos técnicos que o paciente vê: \"base de uma UBS\", \"horário na grade\", \"serviço conectado\", \"conexão ativa\".",
+   "reason": "O público é o paciente do SUS. Esses termos vêm do sistema e não dizem a ele o que fazer. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "ApiMessages.kt:178; UnitAboutUi.kt:67; ProfileUi.kt:25; NoraApp.kt:1376"
+  },
+  {
+   "id": "GERAL-V1",
+   "category": "V",
+   "text": "Criar uma única etiqueta de situação, com cor, ícone e texto, para os estados das telas do paciente: \"Agendada\", \"Aguardando\", \"Oferta enviada\", \"Prazo encerrado\", \"Cancelada\".",
+   "reason": "Hoje cada tela escreve a situação como texto comum, em pesos diferentes. Uma etiqueta igual em todas mostra de relance o que está acontecendo, sem depender só da cor. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "QueueUi.kt:39; AppointmentsUi.kt:43; OffersUi.kt:120; NoraApp.kt:1077; android/05, 15, 17p, 21"
+  },
+  {
+   "id": "GERAL-V2",
+   "category": "V",
+   "text": "Dar a mesma aparência às ações que desfazem algo: \"Sair da fila\" é vermelho e \"Cancelar consulta\" é azul, igual a um link comum.",
+   "reason": "As duas tiram a pessoa de algo (fila ou consulta) e as duas pedem confirmação, mas só uma avisa pela cor que é uma ação de risco. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "QueueUi.kt:25; AppointmentsUi.kt:49-50; android/05 claro e 21 claro"
+  },
+  {
+   "id": "GERAL-V3",
+   "category": "V",
+   "text": "Dar à mensagem de resultado (ActionMessage) uma variante de sucesso e outra de erro, com ícone",
+   "reason": "Toda mensagem sai na mesma faixa cinza-azulada, seja \"Consulta marcada\" ou uma falha; o paciente não sabe de relance se deu certo. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "APPNORA/app/src/main/java/com/example/app_nora/ui/OffersUi.kt:111-119; 32p claro"
+  },
+  {
+   "id": "GERAL-V4",
+   "category": "V",
+   "text": "Criar um selo de situação único (ícone e texto) para \"Agendada\", \"Aguardando\", \"Realizado\", \"Solicitado\" e \"Cancelado\"",
+   "reason": "Em Consultas, Jornada (fila, exames) e Consulta marcada a situação é texto corrido de pesos diferentes (às vezes negrito, às vezes não); um selo único facilita a leitura e deixa as telas consistentes. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "AppointmentsUi.kt:44; QueueUi.kt:40; JourneyUi.kt:64; BookingUi.kt:206; 33, 22, 37, 32p claro"
+  },
+  {
+   "id": "GERAL-V5",
+   "category": "V",
+   "text": "Padronizar as ações de texto que desfazem algo (\"Cancelar consulta\", \"Sair da fila\") na mesma cor e no mesmo alinhamento com o texto do cartão",
+   "reason": "\"Sair da fila\" é vermelho e \"Cancelar consulta\" usa a cor principal. Os dois ficam recuados em relação ao texto por causa do espaçamento padrão do botão de texto. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "AppointmentsUi.kt:50; QueueUi.kt:24-25; 33 e 22 claro"
+  },
+  {
+   "id": "GERAL-V6",
+   "category": "V",
+   "text": "Conferir num aparelho real a sombra dos cartões no tema claro: em alguns cartões aparece uma segunda borda clara por baixo, como uma folha empilhada",
+   "reason": "Aparece em \"Score de Jornada\" (22, 23p, 24, 38p), \"Solicitações de atendimento\" (22), \"Consulta marcada\" (32p) e \"Horário especial no feriado\" (35, 47), e quase não aparece no escuro nem em outros cartões. Pode ser só efeito do gerador de imagens, mas se acontecer no aparelho parece defeito. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "NoraApp.kt:1439-1446 (elevação 6 dp); 22, 23p, 24, 32p, 35, 47 claro"
+  },
+  {
+   "id": "GERAL-V7",
+   "category": "V",
+   "text": "Adotar um padrão único de bloco recolhível para as explicações longas, no agendamento (\"Como funciona\") e no score (as três explicações)",
+   "reason": "As duas explicações ficam sempre abertas e ocupam boa parte da primeira tela nas duas áreas mais usadas; um componente só garante o mesmo comportamento nas duas. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "BookingUi.kt:62-69; AttendanceUi.kt:144-146; 29 e 22 claro"
+  },
+  {
+   "id": "GERAL-V8",
+   "category": "V",
+   "text": "Padronizar o formato dos botões. \"Alterar senha\" na tela de senha tem cantos de 16 dp e 52 dp de altura, \"Sair da conta\" tem 52 dp, e os outros botões do Perfil e das Configurações são pílulas mais baixas.",
+   "reason": "Na comparação entre Perfil, Configurações e Alterar senha, botões do mesmo tipo têm alturas e cantos diferentes. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "PasswordUi.kt:98; ProfileUi.kt:33; NoraApp.kt:1408; android/27.png, 44.png e 12p.png"
+  },
+  {
+   "id": "GERAL-V9",
+   "category": "V",
+   "text": "Usar uma palavra só para repetir uma ação: hoje há \"Tentar de novo\" no Atendimento e na Conta Google e \"Tentar novamente\" na Família, cada um num formato de botão.",
+   "reason": "A mesma ação aparece com nome e formato diferentes, conforme a tela. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "UnitAboutUi.kt:37; GoogleUi.kt:~100; FamilyUi.kt:119"
+  },
+  {
+   "id": "GERAL-V10",
+   "category": "V",
+   "text": "Criar no tema as cores de sucesso e de atenção, que ainda não existem, e usá-las nos estados que deram certo (\"Aprovado\", o ✓ dos passos) e nos que esperam alguém (\"Aguardando a equipe da UBS\"), como pede o docs/design.md.",
+   "reason": "Hoje o azul-marinho da marca marca tanto os links quanto os estados bons, e o NoraTheme.kt só tem tons de azul, turquesa e erro. Isso enfraquece a leitura do estado. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "NoraTheme.kt:20-34 (sem token de sucesso ou atenção); FamilyUi.kt:143; ProgressUi.kt:44; docs/design.md (Direção comum)"
+  },
+  {
+   "id": "GERAL-V11",
+   "category": "V",
+   "text": "No tema escuro, conferir o contraste dos botões desligados, como \"Entrar\" e \"Atualizar acompanhamento\".",
+   "reason": "O texto cinza-azulado sobre o fundo azul-escuro fica bem apagado. É estado desligado, mas a pessoa tem de adivinhar o que o botão faz antes de preencher os campos. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "NoraApp.kt:677-679; android/03 escuro e 01p escuro"
+  },
+  {
+   "id": "GERAL-V12",
+   "category": "V",
+   "text": "No tema escuro, reforçar a borda dos botões vermelhos (\"Sair da conta\", \"Cancelar pedido\", \"Encerrar vínculo\").",
+   "reason": "A borda vermelha com 55% de opacidade perde força no fundo azul-escuro e fica mais cinza que vermelha. O texto continua legível, mas o contorno deixa de sinalizar cuidado. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "ProfileUi.kt:35; FamilyUi.kt:150 e :158; android/40p.png"
+  },
+  {
+   "id": "GERAL-V13",
+   "category": "V",
+   "text": "Conferir num aparelho real a sombra dos cartões no tema claro: no render aparece uma segunda faixa cinza sob o cartão \"Minha conta\".",
+   "reason": "A faixa dupla faz o cartão parecer duas camadas descasadas. Pode ser só efeito do render. (hipótese: confirmar no uso real)",
+   "recommended": false,
+   "kind": "hipotese",
+   "evidence": "NoraApp.kt:1445-1446 (SectionCard); android/44.png"
+  },
+  {
+   "id": "GERAL-F1",
+   "category": "F",
+   "text": "Trocar os vários botões \"Atualizar…\" (acompanhamento, unidades, consultas, oportunidades) pelo gesto de puxar a tela para baixo, deixando um botão só onde ele resolve um erro.",
+   "reason": "As telas somam até três botões de contorno, de largura cheia, só para recarregar, e o app não tem o gesto de puxar para atualizar (não há nenhum uso no código). (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "NoraApp.kt:1129; AppointmentsUi.kt:33-36; OffersUi.kt:159 e 179; android/05, 16, 21"
+  }
+ ]
+}

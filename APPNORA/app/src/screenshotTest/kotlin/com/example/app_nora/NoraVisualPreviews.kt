@@ -549,3 +549,363 @@ fun StepListLight() = PlainScreen(Appearance.LIGHT) {
 fun SettingsGoogleLinkedDark() = NoraPatientContent(UserSettings(Appearance.DARK), {},
     connected(emptyList()).copy(google = GoogleState(GoogleStatus(true, true, "paciente@gmail.example"))),
     initiallyShowSettings = true, google = GoogleActions(webClientId = "cliente-web-fixture-visual"))
+
+// ---- Par de tema oposto para o relatório de layout -------------------------------------------------------
+// Mesma tela e mesmo estado da prévia de número igual, no outro tema. Existem para o relatório de layout mostrar
+// cada tela em claro e escuro (docs/tarefas/2026-11-18-relatorios-layout.md); também pegam regressão de contraste.
+
+@PreviewTest
+@Preview(name = "01p Par escuro de 01", widthDp = 400, heightDp = 2100, locale = "pt-rBR")
+@Composable
+fun HomeDisconnectedLightThemePair() = NoraPatientContent(UserSettings(Appearance.DARK), {}, onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "04p Par escuro de 04", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun LoginErrorLightThemePair() = NoraPatientContent(UserSettings(Appearance.DARK), {},
+    PatientState(address = "https://unidade.example.test", message = "CPF, e-mail ou senha inválidos."), onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "05p Par escuro de 05", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun PatientPendingLightThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(
+        offers = listOf(offer("o1", "Cardiologia · fixture visual", 570)),
+        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "offered")),
+        appointments = listOf(nextAppointment)))
+}
+
+@PreviewTest
+@Preview(name = "06p Par claro de 06", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun PatientAcceptedDarkThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.LIGHT), {}, connected(
+        offers = listOf(offer("o1", "Cardiologia · fixture visual", -60, "accepted")),
+        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "completed")),
+        appointments = listOf(nextAppointment)))
+}
+
+@PreviewTest
+@Preview(name = "11p Par escuro de 11", widthDp = 400, heightDp = 2500, locale = "pt-rBR")
+@Composable
+fun SettingsCompleteLightThemePair() = NoraPatientContent(UserSettings(Appearance.DARK), {}, initiallyShowSettings = true)
+
+@PreviewTest
+@Preview(name = "12p Par claro de 12", widthDp = 400, heightDp = 2500, locale = "pt-rBR")
+@Composable
+fun SettingsCompleteDarkThemePair() = NoraPatientContent(UserSettings(Appearance.LIGHT), {}, connected(emptyList()), initiallyShowSettings = true)
+
+@PreviewTest
+@Preview(name = "13p Par escuro de 13", widthDp = 400, heightDp = 1100, locale = "pt-rBR", fontScale = 1.3f)
+@Composable
+fun LoginLargeFontThemePair() = NoraPatientContent(UserSettings(Appearance.DARK), {},
+    PatientState(address = "https://unidade.example.test"), onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "14p Par escuro de 14", widthDp = 1000, heightDp = 1000, locale = "pt-rBR")
+@Composable
+fun SettingsTabletThemePair() = NoraPatientContent(UserSettings(Appearance.DARK), {}, initiallyShowSettings = true)
+
+@PreviewTest
+@Preview(name = "15p Par escuro de 15", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun PatientWaitingLightThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(emptyList(),
+        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"),
+            UnitQueueEntry(2, "Clínica geral · fixture visual", at(-864_000), "completed"))))
+}
+
+@PreviewTest
+@Preview(name = "16p Par escuro de 16", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun FlashCountdownLightThemePair() = PlainScreen(Appearance.DARK) {
+    FlashScreen(connected(listOf(offer("o1", "Cardiologia · fixture visual", 570), offer("o2", "Dermatologia · fixture visual", 45),
+        offer("o3", "Clínica geral · fixture visual", -3_600, "accepted"))), {}, {}, {}, { _, _ -> })
+}
+
+@PreviewTest
+@Preview(name = "17p Par claro de 17", widthDp = 400, heightDp = 1300, locale = "pt-rBR")
+@Composable
+fun FlashExpiredDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    FlashScreen(connected(listOf(offer("o1", "Cardiologia · fixture visual", -30),
+        offer("o2", "Dermatologia · fixture visual", -7_200, "declined")), message = "Esta oportunidade não está mais disponível."),
+        {}, {}, {}, { _, _ -> })
+}
+
+@PreviewTest
+@Preview(name = "18p Par escuro de 18", widthDp = 400, heightDp = 1800, locale = "pt-rBR")
+@Composable
+fun HomeNoAppointmentLightThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(emptyList(), appointments = emptyList()))
+}
+
+@PreviewTest
+@Preview(name = "19p Par claro de 19", widthDp = 400, heightDp = 1800, locale = "pt-rBR")
+@Composable
+fun HomeNoUnitsDarkThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.LIGHT), {}, PatientState(address = "https://unidade.example.test",
+        session = session(), units = emptyList()))
+}
+
+@PreviewTest
+@Preview(name = "20p Par escuro de 20", widthDp = 400, heightDp = 1800, locale = "pt-rBR")
+@Composable
+fun HomeUnitsNotLoadedLightThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, PatientState(address = "https://unidade.example.test", session = session()))
+}
+
+@PreviewTest
+@Preview(name = "21p Par escuro de 21", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun AppointmentsLightThemePair() = PlainScreen(Appearance.DARK) {
+    AppointmentsScreen(connected(emptyList(), appointments = listOf(nextAppointment,
+        PatientAppointment("ap-2", "Clínica · fixture visual", "Profissional · fixture visual", at(-86_400), at(-84_600), "completed"),
+        PatientAppointment("ap-3", "Pediatria · fixture visual", "Profissional · fixture visual", at(-172_800), at(-171_000), "missed"),
+        PatientAppointment("ap-4", "Exame · fixture visual", "Profissional · fixture visual", at(-259_200), at(-257_400), "cancelled"))),
+        {}, {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "22p Par escuro de 22", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun JourneyWithScoreLightThemePair() = PlainScreen(Appearance.DARK) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(8, 1, 2, 0.5, 0.84, 12),
+        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"))), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "22bp Par claro de 22b", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun JourneyLowScoreDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(1, 4, 2, 1.0, 0.1667, 12)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "23p Par claro de 23", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun JourneyNoDataDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(0, 0, 0, 0.0, null, 12)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "24p Par escuro de 24", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun JourneyOneUnitDownLightThemePair() = PlainScreen(Appearance.DARK) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(5, 0, 0, 0.0, 1.0, 12), norte to null, failed = setOf(norte.id)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "25p Par escuro de 25", widthDp = 400, heightDp = 700, locale = "pt-rBR")
+@Composable
+fun LeaveQueueDialogLightThemePair() = PlainScreen(Appearance.DARK) {
+    LeaveQueueDialog(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "offered"), {}, {})
+}
+
+@PreviewTest
+@Preview(name = "26p Par claro de 26", widthDp = 400, heightDp = 900, locale = "pt-rBR")
+@Composable
+fun UnlinkDialogDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    UnlinkDialog("UBS Centro · fixture visual", UnlinkImpact(2, 1), loading = false, busy = false, onConfirm = {}, onDismiss = {})
+}
+
+@PreviewTest
+@Preview(name = "27p Par escuro de 27", widthDp = 400, heightDp = 1000, locale = "pt-rBR")
+@Composable
+fun ChangePasswordLightThemePair() = PlainScreen(Appearance.DARK) { ChangePasswordScreen(required = false) { _, _ -> } }
+
+@PreviewTest
+@Preview(name = "28p Par claro de 28", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun ChangePasswordRequiredDarkThemePair() = PlainScreen(Appearance.LIGHT) { ChangePasswordScreen(required = true) { _, _ -> } }
+
+@PreviewTest
+@Preview(name = "29p Par escuro de 29", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun BookingSpecialtyLightThemePair() = PlainScreen(Appearance.DARK) { BookingScreen(booking(), {}, {}, {}, { _, _ -> }, {}, {}) }
+
+@PreviewTest
+@Preview(name = "30p Par escuro de 30", widthDp = 400, heightDp = 2300, locale = "pt-rBR")
+@Composable
+fun BookingTimesLightThemePair() = PlainScreen(Appearance.DARK) {
+    BookingScreen(booking(listOf(freeSlot(90_000, "Profissional A · fixture visual", "p1"), freeSlot(93_600, "Profissional B · fixture visual", "p2"),
+        freeSlot(97_200, "Profissional A · fixture visual", "p1"), freeSlot(176_400, "Profissional A · fixture visual", "p1"))),
+        {}, {}, {}, { _, _ -> }, {}, {}, initialSpecialtyId = cardiologyFixture.id)
+}
+
+@PreviewTest
+@Preview(name = "31p Par claro de 31", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun BookingNoTimesDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    BookingScreen(booking(emptyList()), {}, {}, {}, { _, _ -> }, {}, {}, initialSpecialtyId = cardiologyFixture.id)
+}
+
+@PreviewTest
+@Preview(name = "32p Par claro de 32", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun BookingDoneDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    BookingScreen(booking(emptyList(), BookedAppointment(centro.id, PatientAppointment("ap-9", "Cardiologia · fixture visual",
+        "Profissional A · fixture visual", at(90_000), at(91_800), "scheduled", bookedBy = "patient")),
+        message = "Consulta marcada. Ela já vale e aparece em Consultas."), {}, {}, {}, { _, _ -> }, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "33p Par escuro de 33", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun AppointmentsPresenceLightThemePair() = PlainScreen(Appearance.DARK) {
+    AppointmentsScreen(connected(emptyList(), appointments = listOf(
+        appointmentFixture("ap-1", 86_400 + 3_600, bookedBy = "patient"),
+        appointmentFixture("ap-2", 864_000),
+        appointmentFixture("ap-3", 3_600))), {}, {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "34p Par claro de 34", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun AppointmentsConfirmedDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    AppointmentsScreen(connected(emptyList(), appointments = listOf(
+        appointmentFixture("ap-1", 86_400 + 3_600, confirmedAt = at(-5_400), bookedBy = "patient"),
+        appointmentFixture("ap-2", 172_800 + 7_200, confirmedAt = at(-3_600)).copy(bookedBy = "lightning"))), {}, {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "35p Par escuro de 35", widthDp = 400, heightDp = 2500, locale = "pt-rBR")
+@Composable
+fun NoticesWithAnnouncementsLightThemePair() = PlainScreen(Appearance.DARK) {
+    NoticesScreen(communityState(
+        listOf(fixtureAnnouncement("c1", 3, "Campanha de vacinação contra a gripe", "A campanha começa na segunda-feira.\nLeve o cartão de vacinação."),
+            fixtureAnnouncement("c2", 2, "Horário especial no feriado", "As UBS atendem das 8h às 12h.", isRead = true),
+            fixtureAnnouncement("c3", 1, "Obras na UBS Centro", "A entrada principal ficará fechada. Use a entrada lateral.")),
+        dependentOffers = listOf(DependentOffers(mariaLink.id, norte.id, norte.name, "Maria · fixture visual",
+            listOf(offer("d1", "Pediatria · fixture visual", 420))))), {}, { _, _ -> }, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "36p Par claro de 36", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun NoticesEmptyDarkThemePair() = PlainScreen(Appearance.LIGHT) { NoticesScreen(communityState(emptyList()), {}, { _, _ -> }, {}, {}) }
+
+@PreviewTest
+@Preview(name = "37p Par escuro de 37", widthDp = 400, heightDp = 2300, locale = "pt-rBR")
+@Composable
+fun JourneyExamsLightThemePair() = PlainScreen(Appearance.DARK) {
+    JourneyScreen(journeyState(centroRecords, second = UnitRecords(norte.id, norte.name,
+        listOf(ExamRecord("e9", "Glicemia · fixture visual", "done", at(-500_000), "2026-11-13", null)), emptyList())), {}, {}, {},
+        initialSection = JourneySection.EXAMS)
+}
+
+@PreviewTest
+@Preview(name = "38p Par claro de 38", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun JourneyVaccinesDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(journeyState(centroRecords), {}, {}, {}, initialSection = JourneySection.VACCINES)
+}
+
+@PreviewTest
+@Preview(name = "39p Par claro de 39", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun JourneyEmptyDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    JourneyScreen(journeyState(UnitRecords(centro.id, centro.name, emptyList(), emptyList()), second = null).let {
+        it.copy(units = listOf(centro, norte), unitData = it.unitData + (norte.id to UnitSnapshot(recordsFailed = true)))
+    }, {}, {}, {}, initialSection = JourneySection.EXAMS)
+}
+
+@PreviewTest
+@Preview(name = "40p Par escuro de 40", widthDp = 400, heightDp = 3000, locale = "pt-rBR")
+@Composable
+fun FamilyListLightThemePair() = PlainScreen(Appearance.DARK) {
+    FamilyScreen(familyState(pendingLink, mariaLink, rejectedLink,
+        message = "Pedido enviado. A equipe da UBS vai conferir os documentos e a resposta aparece aqui."), initialCatalog = catalogFixture)
+}
+
+@PreviewTest
+@Preview(name = "41p Par claro de 41", widthDp = 400, heightDp = 2600, locale = "pt-rBR")
+@Composable
+fun FamilyActingDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    FamilyScreen(familyState(mariaLink, actingFor = mariaLink.id), initialCatalog = catalogFixture)
+}
+
+@PreviewTest
+@Preview(name = "44p Par escuro de 44", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun ProfileEmailLightThemePair() = PlainScreen(Appearance.DARK) {
+    ProfileScreen(PatientState(address = "https://unidade.example.test", session = session(), email = EmailState(emailFixture)), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "45p Par claro de 45", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun ProfileEmailCodeDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    ProfileScreen(PatientState(address = "https://unidade.example.test", session = session(),
+        email = EmailState(emailFixture, codeSentFor = emailFixture.id),
+        message = "Enviamos um código de 6 dígitos para m***@example.test."), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "46p Par escuro de 46", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Composable
+fun HomeEmailNoticeLightThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(emptyList(), appointments = listOf(nextAppointment))
+        .copy(email = EmailState(emailFixture)))
+}
+
+@PreviewTest
+@Preview(name = "47p Par escuro de 47", widthDp = 400, heightDp = 1800, locale = "pt-rBR")
+@Composable
+fun NoticesUnitsFailedLightThemePair() = PlainScreen(Appearance.DARK) {
+    NoticesScreen(communityState(
+        listOf(fixtureAnnouncement("c1", 2, "Campanha de vacinação contra a gripe", "A campanha começa na segunda-feira."),
+            fixtureAnnouncement("c2", 1, "Horário especial no feriado", "As UBS atendem das 8h às 12h.", isRead = true)))
+        .copy(units = null, selectedUnitId = null, unitData = emptyMap()), {}, { _, _ -> }, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "48p Par claro de 48", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun BookingActingDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    BookingScreen(booking().copy(units = listOf(norte), selectedUnitId = norte.id, family = FamilyState(listOf(mariaLink)), actingFor = mariaLink.id),
+        {}, {}, {}, { _, _ -> }, {}, {}, actingName = "Maria · fixture visual")
+}
+
+@PreviewTest
+@Preview(name = "49p Par escuro de 49", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun UnitAboutLightThemePair() = PlainScreen(Appearance.DARK) { UnitAboutCard(centro.name, AboutState(aboutFixture), onRetry = {}, today = 1) }
+
+@PreviewTest
+@Preview(name = "50p Par claro de 50", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun UnitAboutNotInformedDarkThemePair() = PlainScreen(Appearance.LIGHT) {
+    UnitAboutCard(centro.name, AboutState(UnitProfile(centro.id, false, emptyList(), null, emptyList(), null)), onRetry = {}, today = 1)
+}
+
+@PreviewTest
+@Preview(name = "51p Par escuro de 51", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun UnitAboutLoadingAndErrorLightThemePair() = PlainScreen(Appearance.DARK) {
+    UnitAboutCard(centro.name, AboutState(loading = true), onRetry = {}, today = 1)
+    UnitAboutCard(norte.name, AboutState(error = "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."), onRetry = {}, today = 1)
+}
+
+@PreviewTest
+@Preview(name = "52p Par claro de 52", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun LoginGoogleDarkThemePair() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.LIGHT), {}, PatientState(address = "https://unidade.example.test"), onLogin = { _, _ -> },
+        google = GoogleActions(webClientId = "cliente-web-fixture-visual"))
+}
+
+@PreviewTest
+@Preview(name = "53p Par escuro de 53", widthDp = 400, heightDp = 700, locale = "pt-rBR")
+@Composable
+fun StepListLightThemePair() = PlainScreen(Appearance.DARK) {
+    StepList(ProgressSteps().begin("Abrindo o Google…").begin("Entrando no NORA…"))
+    StepList(ProgressSteps().begin("Abrindo o Google…").begin("Vinculando a conta Google…").fail("Vinculando a conta Google…"))
+}
+
+@PreviewTest
+@Preview(name = "54p Par claro de 54", widthDp = 400, heightDp = 2900, locale = "pt-rBR")
+@Composable
+fun SettingsGoogleLinkedDarkThemePair() = NoraPatientContent(UserSettings(Appearance.LIGHT), {},
+    connected(emptyList()).copy(google = GoogleState(GoogleStatus(true, true, "paciente@gmail.example"))),
+    initiallyShowSettings = true, google = GoogleActions(webClientId = "cliente-web-fixture-visual"))
+

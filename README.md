@@ -8,7 +8,7 @@ Plataforma NORA para acompanhamento do paciente, operação de unidades de saúd
 - **Nora.Desktop:** biblioteca compartilhada de interface, temas e preferências dos desktops.
 - **Nora.Api:** ASP.NET Core .NET10 com PostgreSQL18, autenticação/sessões, pacientes, fila/ofertas, agregados e erros HTTP padronizados.
 
-A identidade dos desktops usa roxo; o APPNORA do paciente segue a paleta específica branca e azul-marinho. Cartões e navegação inspirados no protótipo foram reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
+Os desktops e o APPNORA usam azul-marinho como marca (os desktops trocaram o roxo inicial em 2026-11-15; tokens em `docs/design.md`). Cartões e navegação inspirados no protótipo foram reconstruídos nas tecnologias nativas. O React do ZIP serve como referência de design; não é a base técnica nem define as regras de negócio finais.
 
 ## Estado em 2026-11-17
 
@@ -24,8 +24,8 @@ A conexão privada e o provisionamento definitivo (P-012) foram encerrados em 20
 
 ## Documentação
 
-- [Galeria de10/10: 83 capturas dos três aplicativos](../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/index.html).
-- [Cobertura visual, imagens principais e resultados](../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md).
+- [Galeria de10/10: 83 capturas dos três aplicativos](../Mateus-Projects/Claude-HTML/Projeto-NORA/galeria/2026-10-10/index.html).
+- [Cobertura visual, imagens principais e resultados](../Mateus-Projects/Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md).
 
 - [Briefing visual original](docs/briefing-visual.md).
 - [Referência visual e padrões de design](docs/design.md).
@@ -107,7 +107,7 @@ As listagens Windows agora compartilham itens com raio de 8 px e intervalo de 3 
 
 Integração de13/10 preserva a galeria do outro computador e as listagens: desktop58/58 com galeria,55/55 com PostgreSQL, Android7/7 locais e15/15 renders/comparações passaram. [Prévias atuais de pacientes/detalhes](docs/galeria/2026-10-13/README.md) e [registro da integração](docs/tarefas/2026-10-13-integracao-main.md). Usuário escolheu ativação do computador + login da secretária com manter conectado; implementação futura e detalhes de isolamento permanecem em P-014.
 
-A [galeria com fotos atualizadas](../../Claude-HTML/Projeto-NORA/galeria/2026-10-13-atualizada/index.html) mantém os83 itens e o site existente:68 fotos Windows substituídas e15 Android preservadas. Correções de captura e do nome no seletor da Fila conferidas em desktop64/64,61/61 com PostgreSQL e navegador14/14; [registro da atualização](docs/tarefas/2026-10-13-atualizar-fotos-galeria.md).
+A [galeria com fotos atualizadas](../Mateus-Projects/Claude-HTML/Projeto-NORA/galeria/2026-10-13-atualizada/index.html) mantém os83 itens e o site existente:68 fotos Windows substituídas e15 Android preservadas. Correções de captura e do nome no seletor da Fila conferidas em desktop64/64,61/61 com PostgreSQL e navegador14/14; [registro da atualização](docs/tarefas/2026-10-13-atualizar-fotos-galeria.md).
 
 ## 2026-11-15 — Integração back x front por UBS
 

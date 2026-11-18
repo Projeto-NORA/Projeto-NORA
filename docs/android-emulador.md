@@ -69,7 +69,7 @@ APK de desenvolvimento: `app/build/outputs/apk/debug/app-debug.apk`. Relatórios
 
 O histórico acima descreve outro computador. Aqui o SDK está em `C:/Users/Pichau/AppData/Local/Android/Sdk`, o AVD é `Medium_Phone_API_37.0` e `-accel-check` informa que a aceleração não está instalada. A tentativa de boot somente leitura não disponibilizou dispositivo; nenhum driver, AVD ou configuração Windows foi alterado. Use o JDK21 em `C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot`: o JBR do Android Studio desta máquina é Java25.
 
-As15 capturas atuais foram renderizadas em Compose/Layoutlib, incluindo Sistema claro/escuro, fonte130% e tablet. A [galeria](../../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md) identifica essa origem e as fixtures de preview. Os15renders/comparações,7unitários, APKs e lint passaram; não houve execução de teste instrumentado nem HTTP/PostgreSQL nesta rodada. P-003 mantém os testes em dispositivo e recriação de sessão. Para reproduzir as capturas sem emulador, veja [execucao.md](execucao.md#galeria-visual-de-10102026).
+As15 capturas atuais foram renderizadas em Compose/Layoutlib, incluindo Sistema claro/escuro, fonte130% e tablet. A [galeria](../../Mateus-Projects/Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md) identifica essa origem e as fixtures de preview. Os15renders/comparações,7unitários, APKs e lint passaram; não houve execução de teste instrumentado nem HTTP/PostgreSQL nesta rodada. P-003 mantém os testes em dispositivo e recriação de sessão. Para reproduzir as capturas sem emulador, veja [execucao.md](execucao.md#galeria-visual-de-10102026).
 
 ## Ambiente Pichau em 16/11/2026
 

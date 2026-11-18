@@ -18,15 +18,26 @@ O arquivo `C:/Users/Pichau/Downloads/NORA Health App Interface.zip` foi consulta
 
 ## Direção comum
 
-Roxo identifica a marca, ação principal e seleção nos aplicativos desktop. Por decisão específica para o app do paciente, o APPNORA usa branco e azul-marinho como base, com acentos azuis e turquesa; os tokens Android estão em `APPNORA/app/src/main/java/com/example/app_nora/ui/NoraTheme.kt`. Verde, amarelo e vermelho ficam reservados aos respectivos estados de sucesso, atenção e erro. Estado deve aparecer também por texto ou símbolo, sem depender apenas da cor. Cards são a unidade principal de leitura, com título, descrição, conteúdo e ação quando realmente disponível.
+Azul-marinho identifica a marca, a ação principal e a seleção nos aplicativos desktop desde 2026-11-15 (`49a22d1`); o roxo do briefing original (`briefing-visual.md`) e da tabela histórica abaixo não está mais no código. O APPNORA usa branco e azul-marinho como base, com acentos azuis e turquesa; os tokens Android estão em `APPNORA/app/src/main/java/com/example/app_nora/ui/NoraTheme.kt` e os do desktop em `Nora.Desktop/Themes/LightTheme.xaml` e `DarkTheme.xaml`. Verde, amarelo e vermelho ficam reservados aos respectivos estados de sucesso, atenção e erro. Estado deve aparecer também por texto ou símbolo, sem depender apenas da cor. Cards são a unidade principal de leitura, com título, descrição, conteúdo e ação quando realmente disponível.
 
 OBS apresenta navegação operacional, listagens e contexto de seleção. Municipal apresenta visão gerencial e áreas analíticas. Ambos compartilham sidebar, tipografia, tokens, Configurações e feedback. O Android adapta os mesmos padrões a toque, conteúdo vertical e navegação curta. Não usar gráficos simulados, totais zero que pareçam consultas reais ou pacientes de demonstração para preencher espaço: a ausência de integração deve aparecer em estados vazios claros.
 
 ## Tokens recomendados
 
-Os valores abaixo são a direção compartilhada comunicada aos implementadores. Os arquivos de tema de cada plataforma são a fonte dos valores efetivamente implementados.
+Os arquivos de tema de cada plataforma são a fonte dos valores implementados. No desktop, hoje (`LightTheme.xaml` / `DarkTheme.xaml`):
 
 | Papel | Clara | Escura |
+| --- | --- | --- |
+| Brand | `#063B7A` | `#1264A3` |
+| BrandText (texto sobre a marca) | `#FFFFFF` | `#FFFFFF` |
+| Background | `#F4F7FB` | `#071B33` |
+| Surface | `#FFFFFF` | `#0C2744` |
+| Text | `#102A43` | `#F4F8FC` |
+| BrandSoft | `#E6F0FA` | `#123A5D` |
+
+A tabela roxa abaixo foi a direção inicial de 2026-10-07 e fica só como histórico; os contrastes do parágrafo de acessibilidade foram calculados sobre ela.
+
+| Papel (histórico) | Clara | Escura |
 | --- | --- | --- |
 | Brand | `#6D28D9` | `#A78BFA` |
 | OnBrand | `#FFFFFF` | `#1A1028` |
@@ -54,7 +65,7 @@ O comportamento deve ser conferido nos três modos de aparência, ao reabrir os 
 
 ## Revisão visual de 10/10/2026
 
-A [galeria atual](../../../Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md) reúne 83 capturas das interfaces reais, com fixtures somente nos testes. A revisão das amostras identificou que o `TextBlock` gerado pelo botão WPF recebia `TextBrush` do estilo implícito, apesar de `PrimaryButton.Foreground` já estar correto. O template do botão principal agora vincula o texto ao `Foreground` do próprio botão; os contrastes efetivos passaram de 2,30/2,48 para 7,10/6,72:1. Duas regressões sobre a árvore renderizada falharam antes e passaram depois.
+A [galeria atual](../../Mateus-Projects/Claude-HTML/Projeto-NORA/galeria/2026-10-10/README.md) reúne 83 capturas das interfaces reais, com fixtures somente nos testes. A revisão das amostras identificou que o `TextBlock` gerado pelo botão WPF recebia `TextBrush` do estilo implícito, apesar de `PrimaryButton.Foreground` já estar correto. O template do botão principal agora vincula o texto ao `Foreground` do próprio botão; os contrastes efetivos passaram de 2,30/2,48 para 7,10/6,72:1. Duas regressões sobre a árvore renderizada falharam antes e passaram depois.
 
 As amostras finais de desktop e Android apresentam cartões, títulos, ações e seleção legíveis; fonte Android 130% e tablet foram inspecionados em Layoutlib. Não equivale a auditoria completa de acessibilidade, uso em celular, teclado físico ou DPI. A barra contextual de atendimentos permanece scaffold; a fila operacional usa a ação real de cancelamento abaixo da tabela. Temas e configurações, incluindo telas longas e sidebar recolhida, podem ser comparados na galeria.
 
@@ -67,3 +78,9 @@ Pacientes, Fila, Vagas e a listagem legada operacional usam o mesmo template de 
 Inputs Windows têm raio de 5 px, menor que os botões/cards. Tooltips têm borda de 6 px e fundo azul claro na aparência Clara, com equivalente legível na Escura. Substituem explicações permanentes da tela e identificam ações pelo mouse. A conta NORA fica no canto inferior da sidebar e abre somente Configurações e Sair da conta; as três barras alternam a sidebar.
 
 As janelas OBS e Municipal preservam a moldura nativa e solicitam cantos pequenos ao DWM no Windows 11 quando restauradas. Maximizada/tela cheia solicita cantos retos. O raio final é definido pelo compositor Windows, não por recorte do conteúdo WPF. Conferência de preferência DWM e render do conteúdo são evidências distintas de captura da moldura na tela.
+
+## Relatórios de layout de 18/11/2026
+
+Dois HTMLs offline mostram cada tela atual nos temas claro e escuro, com ajustes de layout marcáveis (C = problema, V = design, F = funcionalidade de interface) e uma observação por tela: [app do paciente](../../Mateus-Projects/Claude-HTML/Projeto-NORA/Layout%20do%20app%20NORA%202026-11-18.html) e [OBS-NORA e Painel-Municipal](../../Mateus-Projects/Claude-HTML/Projeto-NORA/Layout%20do%20desktop%20NORA%202026-11-18.html). As propostas foram feitas por um analista e conferidas por um revisor adversarial no código e nas imagens; o que já existia foi retirado. As marcações do usuário são a entrada da tarefa que implementa o layout; o relatório sozinho não autoriza mudar nada. Os dados de cada relatório (texto, motivo, tipo da evidência e `arquivo:linha` de cada proposta) ficam em `docs/tarefas/2026-11-18-relatorios-layout/`.
+
+Para refazer as fotos: no desktop, `Nora.Desktop.Checks --preview-dir <pasta> --visual-gallery --secretaria-gallery` (as páginas longas saem em partes de rolagem `-01`, `-02`…); no app, `:app:updateDebugScreenshotTest` e depois `:app:validateDebugScreenshotTest`. As prévias de `NoraVisualPreviews.kt` têm, desde esta data, o par do tema oposto (`NNp Par claro/escuro de NN`, 102 prévias no total), para cada tela existir nos dois temas. Os PNG de referência ficam em `APPNORA/app/src/screenshotTestDebug/reference/`, fora do Git; os nomes passam de 260 caracteres, então copie com Git Bash (`cp`), que aceita caminho longo.

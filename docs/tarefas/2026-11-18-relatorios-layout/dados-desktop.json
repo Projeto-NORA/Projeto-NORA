@@ -1,0 +1,2063 @@
+{
+ "title": "Layout do OBS-NORA e do Painel-Municipal — telas para revisar",
+ "subtitle": "Marque os ajustes que quer em cada tela dos dois softwares desktop e escreva suas observações.",
+ "brand": "NORA",
+ "context": "OBS-NORA e Painel-Municipal (Windows)",
+ "download_name": "NORA desktop - layout marcado.html",
+ "copy_title": "Ajustes de layout do OBS-NORA e do Painel-Municipal marcados",
+ "palette": {
+  "light": {
+   "accent": "#063B7A",
+   "accent-button": "#063B7A",
+   "on-accent": "#FFFFFF",
+   "accent-soft": "#E6F0FA",
+   "bg": "#F4F7FB",
+   "card": "#FFFFFF",
+   "text": "#102A43",
+   "muted": "#4F6478",
+   "line": "#D6E0EA",
+   "track": "#E6F0FA",
+   "functional": "#0B6FA8",
+   "functional-soft": "#E1F0FA"
+  },
+  "dark": {
+   "accent": "#7DB8EC",
+   "accent-button": "#7DB8EC",
+   "on-accent": "#06213F",
+   "accent-soft": "#123A5D",
+   "bg": "#071B33",
+   "card": "#0C2744",
+   "text": "#F4F8FC",
+   "muted": "#B4C6D8",
+   "line": "#24425F",
+   "track": "#123A5D",
+   "functional": "#8CC8F0",
+   "functional-soft": "#16395A"
+  }
+ },
+ "date": "18/11/2026",
+ "intro": [
+  "Cada tela aparece no tema claro e no escuro (botão no topo). Marque o que quer mudar; o que vem marcado como \"Recomendo\" é a minha sugestão, o resto é opcional.",
+  "C = problema ou atenção prioritária, V = design, F = funcionalidade de interface. No fim de cada motivo está se o defeito aparece na foto, foi observado nela ou é hipótese.",
+  "Ao terminar, use \"Salvar cópia marcada (.html)\" ou \"Copiar lista marcada\" e me envie: as marcações viram a próxima tarefa, que implementa o layout."
+ ],
+ "notices": [
+  "As imagens são renders reais do código atual (commit a6f9201, 18/11/2026) com dados sintéticos; palavras como \"fixture\" e listas vazias vêm desses dados de teste, não do layout.",
+  "Foto não comprova funcionamento: cada proposta foi conferida no código por um analista e depois por um revisor que tentou derrubá-la; o que já existia foi retirado.",
+  "Não cobre: aparelho físico, teclado e DPI reais, vários monitores (P-003 e P-007 em docs/PENDENCIAS.md)."
+ ],
+ "screens": [
+  {
+   "id": "obs-entrada",
+   "code": "OBS-ENTRADA",
+   "title": "OBS-NORA · Entrar na conta",
+   "description": "Entrada da equipe da UBS, só por e-mail e senha.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-entrada-claro.webp",
+    "escuro": "obs-entrada-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-ENTRADA-C1",
+     "category": "C",
+     "text": "Trocar o cabeçalho \"Painel da UBS · Visão operacional e prioridades do dia\" por \"Entrar\" enquanto a pessoa ainda não entrou.",
+     "reason": "O título diz que a pessoa está no painel do dia, mas na tela só existe o formulário de entrada. Isso confunde quem abre o programa pela primeira vez. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:32-35; visual-obs-login claro; obs-entrada-sem-ativacao claro"
+    },
+    {
+     "id": "OBS-ENTRADA-C2",
+     "category": "C",
+     "text": "Trocar o texto de apoio \"O formato do e-mail é conferido antes do envio e suas preferências continuam disponíveis em Configurações\" por uma instrução útil, como \"Entre com o e-mail e a senha da sua conta. No primeiro acesso, use a senha provisória que você recebeu\".",
+     "reason": "A frase atual explica como o sistema funciona por dentro e não diz à atendente o que ela precisa fazer. A senha provisória é de fato como as contas da equipe começam. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:25; Nora.Desktop/Views/PasswordChangeRequiredView.xaml:5; visual-obs-login claro"
+    },
+    {
+     "id": "OBS-ENTRADA-V1",
+     "category": "V",
+     "text": "Tirar \"Endereço da API\" do primeiro lugar do formulário. Deixar o campo numa área \"Avançado\" fechada, ou mostrá-lo só quando estiver vazio.",
+     "reason": "É uma configuração técnica que já existe em Configurações, na seção Conexão. Como primeiro campo, ele fica na frente do e-mail e da senha, que são o que a equipe realmente preenche. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:26-27; Nora.Desktop/Views/SettingsView.xaml:71-73; visual-obs-login claro"
+    },
+    {
+     "id": "OBS-ENTRADA-V2",
+     "category": "V",
+     "text": "Limitar a largura do cartão de entrada (cerca de 480 px) e centralizá-lo, em vez de esticar os campos por toda a área.",
+     "reason": "Três campos com mais de 900 px de largura deixam o olho longe do botão \"Entrar\", que fica isolado no canto direito. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:21-47; visual-obs-login claro; obs-entrada-sem-ativacao claro"
+    },
+    {
+     "id": "OBS-ENTRADA-V3",
+     "category": "V",
+     "text": "Pôr a caixa de marcar \"Manter conectado neste computador\" logo ao lado do texto, e não na outra ponta da linha.",
+     "reason": "Com o texto à esquerda e a caixa no canto direito, fica difícil ligar uma coisa à outra. Como ela está desativada nesse estado, quase some no tema claro. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:40 (sem HorizontalAlignment, ao contrário de HealthRecordsView.xaml:40); obs-entrada-sem-ativacao claro"
+    },
+    {
+     "id": "OBS-ENTRADA-F1",
+     "category": "F",
+     "text": "Pôr uma linha curta abaixo de \"Entrar\": \"Esqueceu a senha? Peça uma nova senha provisória à Secretaria de Saúde\".",
+     "reason": "A recuperação de senha por código existe só para o paciente. A equipe tem a senha redefinida pela Secretaria, mas a tela de entrada não diz isso a quem esqueceu a senha. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:20-51 (nenhum aviso de senha); Nora.Desktop/Views/StaffAccountsView.xaml:23-31; docs/api.md:113"
+    }
+   ],
+   "comparison": {
+    "label": "Computador ainda não ativado",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "obs-entrada-sem-ativacao-claro.webp",
+     "escuro": "obs-entrada-sem-ativacao-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-escolha-ubs",
+   "code": "OBS-ESCOLHA-UBS",
+   "title": "OBS-NORA · Escolher a UBS",
+   "description": "Escolha da UBS de trabalho quando a conta tem mais de uma.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-escolha-ubs-claro.webp",
+    "escuro": "obs-escolha-ubs-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-ESCOLHA-UBS-V1",
+     "category": "V",
+     "text": "Dizer a situação uma vez só. Hoje \"Nenhuma unidade selecionada\" aparece no selo do cabeçalho e no selo do banner, e \"Nenhuma UBS confirmada\" aparece no cartão.",
+     "reason": "A mesma informação três vezes na mesma tela faz barulho e não ajuda a pessoa a escolher. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:98; Nora.Desktop/Views/OperationalOverviewView.xaml:14-16,24; obs-painel-escolha-ubs claro"
+    },
+    {
+     "id": "OBS-ESCOLHA-UBS-V2",
+     "category": "V",
+     "text": "Encolher ou esconder o banner \"Sua unidade em um só lugar\" (com o botão \"Atualizar dados\") enquanto não há UBS, para a escolha da UBS subir para o topo.",
+     "reason": "Sem UBS, a única coisa a fazer é escolher a unidade. O banner ocupa cerca de 145 px e empurra a escolha para o meio da tela. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:3-20; obs-painel-escolha-ubs claro"
+    },
+    {
+     "id": "OBS-ESCOLHA-UBS-V3",
+     "category": "V",
+     "text": "Antes de a UBS ser confirmada, recolher o \"Resumo do dia\" e os cartões abaixo dele, que só vão mostrar traços (—).",
+     "reason": "Sete cartões vazios vêm logo depois da escolha da UBS e disputam a atenção com o que a pessoa precisa fazer agora. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:29-48; Nora.Desktop/ViewModels/WorkspaceViewModel.cs:178 (traço sem UBS); obs-painel-escolha-ubs claro"
+    },
+    {
+     "id": "OBS-ESCOLHA-UBS-V4",
+     "category": "V",
+     "text": "Quando a conta tem poucas UBS (aqui, 2), mostrar as unidades como opções visíveis, em cartões ou botões de escolha, em vez de uma lista que precisa ser aberta.",
+     "reason": "Assim a escolha acontece com um clique, e as opções aparecem sem precisar abrir \"UBS Central · Norte\". (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/ObsUnitPickerView.xaml:5-6; obs-painel-escolha-ubs claro"
+    }
+   ]
+  },
+  {
+   "id": "obs-painel",
+   "code": "OBS-PAINEL",
+   "title": "OBS-NORA · Painel da UBS",
+   "description": "Visão operacional do dia: resumo, capacidade, gráfico e atenção da equipe.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-painel-claro.webp",
+    "escuro": "obs-painel-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-PAINEL-C1",
+     "category": "C",
+     "text": "Corrigir a mensagem \"Sucesso: UBS UBS Painel A confirmada\", que repete a palavra \"UBS\".",
+     "reason": "O texto acrescenta \"UBS\" antes do nome, e os nomes das unidades já começam com \"UBS\". O erro aparece a cada troca de unidade. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.ObsUnits.cs:184; obs-painel claro 01"
+    },
+    {
+     "id": "OBS-PAINEL-C2",
+     "category": "C",
+     "text": "Trocar \"Alertas da avaliação da API:\" em \"Atenção da equipe\" por algo como \"Alertas de agora:\".",
+     "reason": "\"API\" é jargão técnico, e quem lê é a equipe da UBS. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.UnitScheduling.cs:78; obs-painel-agenda claro 02"
+    },
+    {
+     "id": "OBS-PAINEL-V1",
+     "category": "V",
+     "text": "Ajustar a altura dos cartões de \"Resumo do dia\" ao conteúdo de cada um, e não ao maior (\"Consultórios ativos\").",
+     "reason": "\"Pacientes aguardando\", \"Faltas\" e outros ficam com cerca de 100 px vazios. Os 7 cartões em 4 colunas ainda deixam um buraco no fim da segunda linha. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:30-48 (UniformGrid); obs-painel claro 01; obs-painel-agenda claro 02"
+    },
+    {
+     "id": "OBS-PAINEL-V2",
+     "category": "V",
+     "text": "Encolher o banner \"Sua unidade em um só lugar\" e o cartão \"UBS da operação\", para \"Resumo do dia\" aparecer sem rolar.",
+     "reason": "Os dois blocos ocupam cerca de 330 px antes do primeiro número, e o nome da UBS já aparece no selo do cabeçalho e no próprio banner. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:3-27; obs-painel claro 01"
+    },
+    {
+     "id": "OBS-PAINEL-V3",
+     "category": "V",
+     "text": "Juntar ou tirar o cartão \"Fluxo da unidade\" do fim da página. O \"na fila\" dele repete \"Pacientes aguardando\", e \"vagas ativas\" pode ir para o resumo.",
+     "reason": "O mesmo número em dois lugares da página faz a pessoa conferir se são coisas diferentes. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:31,91-96 (os dois usam QueueWaitingCount); obs-painel-agenda claro 03"
+    },
+    {
+     "id": "OBS-PAINEL-F1",
+     "category": "F",
+     "text": "Fazer os cartões do resumo levarem à tela certa: \"Pacientes aguardando\" para Fila, \"Consultas agendadas\" e \"Faltas\" para Agenda.",
+     "reason": "Hoje só \"Ver central de alertas\" e \"Ver vagas\" levam a outra tela. Os cartões são só para ler, e quem vê um número alto precisa procurar a tela no menu. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/OperationalOverviewView.xaml:31-36,79,87"
+    }
+   ],
+   "comparison": {
+    "label": "Com a agenda do dia",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "obs-painel-agenda-claro.webp",
+     "escuro": "obs-painel-agenda-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-fila",
+   "code": "OBS-FILA",
+   "title": "OBS-NORA · Fila",
+   "description": "Fila por especialidade com score, posição e ações da entrada selecionada.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-fila-claro.webp",
+    "escuro": "obs-fila-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-FILA-C1",
+     "category": "C",
+     "text": "Trocar o campo de texto livre \"Especialidade\" por uma lista com as especialidades do catálogo da UBS, como já existe em \"Chamar próximo\" e em \"Agendar consulta\".",
+     "reason": "A especialidade é obrigatória, e com texto livre a mesma especialidade entra de jeitos diferentes: na foto da tela \"Chamar próximo\", a fila já mostra \"Cardiologia\" e \"cardiologia\" lado a lado. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:13; Nora.Desktop/ViewModels/WorkspaceViewModel.Lightning.cs:52-53; obs-chamar-proximo-horarios claro 02"
+    },
+    {
+     "id": "OBS-FILA-C2",
+     "category": "C",
+     "text": "Resumir em uma linha o parágrafo fixo \"Quem tem score maior recebe antes as ofertas…\" e levar o resto para uma dica ao passar o mouse.",
+     "reason": "São três linhas de regra que a equipe lê todo dia, e o docs/design.md diz que as dicas substituem as explicações permanentes da tela. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:9; docs/design.md (Ajustes Windows de 2026-10-11); visual-obs-fila-selecionada claro"
+    },
+    {
+     "id": "OBS-FILA-V1",
+     "category": "V",
+     "text": "Dar espaço abaixo da lista de paciente, para o rótulo \"Especialidade\" ficar mais perto do seu campo do que do campo de cima.",
+     "reason": "Hoje o rótulo fica colado na caixa \"Paciente cadastrado na UBS\" e parece pertencer a ela. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:12-13; visual-obs-fila-selecionada claro"
+    },
+    {
+     "id": "OBS-FILA-V2",
+     "category": "V",
+     "text": "Dar a \"Cancelar entrada\" o visual de ação de risco (texto ou borda na cor de erro).",
+     "reason": "O botão tira o paciente da fila, mas tem o mesmo visual de \"Atualizar fila da UBS\". (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:62; visual-obs-fila-selecionada claro"
+    },
+    {
+     "id": "OBS-FILA-V3",
+     "category": "V",
+     "text": "Deixar \"Paciente cadastrado na UBS\", \"Especialidade\" e \"Incluir na fila da UBS\" atrás de um botão \"Incluir na fila…\" ou numa área que abre e fecha, e pôr a tabela em primeiro lugar.",
+     "reason": "O formulário de inclusão fica sempre aberto acima da fila, que é o que a equipe mais consulta. Com poucas entradas isso cabe, mas a tabela perde espaço quando a fila cresce. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:12-15,44; visual-obs-fila-selecionada claro"
+    },
+    {
+     "id": "OBS-FILA-F1",
+     "category": "F",
+     "text": "Pôr acima da tabela um filtro por especialidade e uma busca por nome.",
+     "reason": "Com várias especialidades e dezenas de entradas (o alerta de fila alta dispara com 20 pessoas), achar um paciente obriga a rolar a tabela, e a tela não tem filtro. (hipótese: confirmar no uso real)",
+     "recommended": true,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:44-57 (sem filtro); visual-obs-fila-selecionada claro"
+    }
+   ]
+  },
+  {
+   "id": "obs-chamar-proximo",
+   "code": "OBS-CHAMAR-PROXIMO",
+   "title": "OBS-NORA · Chamar próximo",
+   "description": "Oferta manual de um horário ao próximo da fila.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-chamar-proximo-claro.webp",
+    "escuro": "obs-chamar-proximo-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-CHAMAR-PROXIMO-V1",
+     "category": "V",
+     "text": "Abrir \"Chamar próximo da fila\" ao lado da tabela da fila, ou fechar o formulário de inclusão quando este painel abre.",
+     "reason": "O painel entra entre os botões e a fila e empurra a tabela para baixo da tela. Assim, não dá para conferir a posição de Maria Souza enquanto se escolhe o horário. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:17-44; obs-chamar-proximo-horarios claro 01 e 02"
+    },
+    {
+     "id": "OBS-CHAMAR-PROXIMO-V2",
+     "category": "V",
+     "text": "Quando um passo termina, trocar o texto pelo resultado. Hoje ele continua \"Buscando horários livres…\" e \"Conferindo o 1º da fila…\" ao lado do ✓; poderia virar \"2 horários livres encontrados\" e \"1º da fila conferido\".",
+     "reason": "O ✓ já mostra que o passo acabou, mas as reticências sugerem que ele ainda roda. É um ajuste de acabamento. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Steps.cs:13-22; Nora.Desktop/ViewModels/WorkspaceViewModel.CallNext.cs:165,183; obs-chamar-proximo-horarios claro 01"
+    },
+    {
+     "id": "OBS-CHAMAR-PROXIMO-V3",
+     "category": "V",
+     "text": "Fazer a tabela de horários livres ocupar a mesma largura da tabela da fila, ou alinhar as duas.",
+     "reason": "A largura máxima de 780 px corta a tabela de horários antes da borda do painel, enquanto a fila logo abaixo vai até o fim. Isso deixa a tela desalinhada. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitQueueView.xaml:18; obs-chamar-proximo-horarios claro 02"
+    }
+   ]
+  },
+  {
+   "id": "obs-agenda",
+   "code": "OBS-AGENDA",
+   "title": "OBS-NORA · Agenda",
+   "description": "Períodos, horários e situações da agenda da UBS.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-agenda-claro.webp",
+    "escuro": "obs-agenda-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-AGENDA-C1",
+     "category": "C",
+     "text": "Tirar da legenda a frase \"nenhuma consulta de demonstração é criada nesta tela\".",
+     "reason": "É um aviso de desenvolvimento e não significa nada para a equipe da UBS. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/AgendaView.xaml:46; obs-agenda-catalogo claro 03"
+    },
+    {
+     "id": "OBS-AGENDA-V1",
+     "category": "V",
+     "text": "No modo \"Semana\", destacar na grade os 7 dias da semana mostrada (ou mostrar só esses 7 dias).",
+     "reason": "O título diz \"Semana de 16/11 a 22/11\", mas a grade continua mostrando o mês inteiro e só o dia 18 aparece marcado. A pessoa não vê quais dias a lista abaixo cobre. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Appointments.cs:43,50,108-119; Nora.Desktop/Views/AgendaView.xaml:11; obs-agenda-presenca claro 01"
+    },
+    {
+     "id": "OBS-AGENDA-V2",
+     "category": "V",
+     "text": "Usar as cores de \"Legenda da agenda\" na situação de cada consulta (um selo \"Agendada\" etc.) e criar uma versão escura dessas cores.",
+     "reason": "As cores estão fixas no código: no tema escuro aparecem os mesmos tons pastel claros. A situação na lista é texto simples, então a legenda não corresponde a nada na tela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/AgendaView.xaml:15,46; obs-agenda-catalogo escuro 03; obs-agenda-presenca claro 02"
+    },
+    {
+     "id": "OBS-AGENDA-V3",
+     "category": "V",
+     "text": "Montar cada consulta como uma linha organizada: hora e paciente em destaque; especialidade, profissional e situação ao lado. Hoje são 6 ou 7 linhas empilhadas e sem rótulo.",
+     "reason": "Com tantas linhas por consulta, um dia cheio vira uma lista longa, e \"Clínica\" ou \"Dra. Ana\" soltos não dizem o que são. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/AgendaView.xaml:14-16; obs-agenda-presenca claro 02"
+    },
+    {
+     "id": "OBS-AGENDA-V4",
+     "category": "V",
+     "text": "Quando o dia não tem consultas, mostrar só a frase \"Nenhuma consulta neste dia.\", sem a caixa branca vazia acima dela. Mostrar também a dica \"Selecione uma consulta\" junto dos botões desligados \"Chamar… Gerar Vaga Relâmpago\".",
+     "reason": "A caixa vazia parece um campo quebrado. E os cinco botões desligados não explicam por que não respondem (só \"Gerar Vaga Relâmpago\" tem dica). (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/AgendaView.xaml:13,25-26; obs-agenda-catalogo claro 02"
+    }
+   ],
+   "comparison": {
+    "label": "Confirmação de presença",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "obs-agenda-presenca-claro.webp",
+     "escuro": "obs-agenda-presenca-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-pacientes",
+   "code": "OBS-PACIENTES",
+   "title": "OBS-NORA · Pacientes",
+   "description": "Pesquisa e seleção dos pacientes cadastrados na UBS.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-pacientes-claro.webp",
+    "escuro": "obs-pacientes-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-PACIENTES-V1",
+     "category": "V",
+     "text": "Compactar cada paciente da lista em uma ou duas linhas (nome; e-mail, CPF e telefone numa linha; situação e presença à direita), como descreve o docs/design.md.",
+     "reason": "Hoje cada paciente ocupa 7 linhas (cerca de 150 px), numa lista de no máximo 240 px. Cabe um paciente e meio por vez, e o design já previa a linha de contatos. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:13-14; docs/design.md (Ajustes Windows de 2026-10-11); visual-obs-pacientes-selecao claro"
+    },
+    {
+     "id": "OBS-PACIENTES-V2",
+     "category": "V",
+     "text": "Pôr \"Novo cadastro\" no topo, ao lado do título, e deixar abaixo da lista só as ações sobre o paciente selecionado (\"Ver ficha da UBS\", \"Editar ficha\", \"Desativar nesta UBS\").",
+     "reason": "\"Novo cadastro\" não depende de seleção, mas hoje fica no fim, misturado com as ações do paciente selecionado, e longe do formulário que ele abre. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:16,22; visual-obs-pacientes-selecao claro"
+    },
+    {
+     "id": "OBS-PACIENTES-V3",
+     "category": "V",
+     "text": "Mover o parágrafo \"Quem tem score maior recebe antes as ofertas de Vaga Relâmpago…\" para depois da lista, ou virar dica na linha \"Score (12 meses)\" de cada paciente.",
+     "reason": "Ele fica entre os filtros e a lista que eles controlam e separa uma coisa da outra. A explicação vale aqui, porque a lista mostra o score, mas não precisa ficar no meio. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:12,14; Nora.Desktop/ViewModels/WorkspaceViewModel.Listings.cs (ScorePriorityText); visual-obs-pacientes-selecao claro"
+    },
+    {
+     "id": "OBS-PACIENTES-V4",
+     "category": "V",
+     "text": "Passar \"Atualizar cadastros da UBS\" para a direita do título, como \"Atualizar pedidos\" em Família.",
+     "reason": "Hoje ele ocupa uma linha só para ele, entre o nome da UBS e a pesquisa. Isso empurra a lista para baixo e deixa as duas telas com padrões diferentes. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:9; Nora.Desktop/Views/FamilyView.xaml:11-12; visual-obs-pacientes-selecao claro"
+    },
+    {
+     "id": "OBS-PACIENTES-V5",
+     "category": "V",
+     "text": "No formulário de cadastro, pôr \"Número\" e \"Complemento\" lado a lado, e \"Cidade\" e \"UF\" lado a lado.",
+     "reason": "Um campo de 2 letras (UF) com a largura da tela deixa o formulário longo e faz o endereço parecer ter mais campos do que tem. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:29-34 (a foto de cadastro aberto não mostra o formulário)"
+    }
+   ],
+   "comparison": {
+    "label": "Cadastro aberto",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "obs-cadastro-claro.webp",
+     "escuro": "obs-cadastro-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-ficha-paciente",
+   "code": "OBS-FICHA-PACIENTE",
+   "title": "OBS-NORA · Ficha do paciente",
+   "description": "Ficha aberta com dois cliques ou Enter: dados e cópia.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. a imagem mostra a janela ou o diálogo inteiro; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "obs-ficha-paciente-claro.webp",
+    "escuro": "obs-ficha-paciente-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-FICHA-PACIENTE-V1",
+     "category": "V",
+     "text": "Passar o CPF do grupo \"Contato\" para \"Identificação\", junto de \"Nome completo\".",
+     "reason": "CPF identifica a pessoa; não é forma de contato. Quem procura o CPF olha primeiro em Identificação. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Listings.cs:86; obs-patient-details claro"
+    },
+    {
+     "id": "OBS-FICHA-PACIENTE-V2",
+     "category": "V",
+     "text": "Usar a mesma ordem de colunas em Exames e Vacinas, por exemplo Nome, Situação, Data, Detalhes. Em Vacinas, \"Dose\" entra depois do nome.",
+     "reason": "Hoje \"Situação\" é a 2ª coluna em Exames e a 4ª em Vacinas. Na mesma janela, isso obriga a procurar a informação de novo. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/HealthRecordsView.xaml:51-56,98-104; obs-ficha-exames-vacinas claro 01 e 03"
+    },
+    {
+     "id": "OBS-FICHA-PACIENTE-V3",
+     "category": "V",
+     "text": "Tirar a rolagem própria da tabela de vacinas, ou aumentar a altura dela, para a janela ter uma barra de rolagem só.",
+     "reason": "Aparecem duas barras lado a lado (a da tabela e a da janela), e a roda do mouse fica presa na tabela no meio da ficha. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/HealthRecordsView.xaml:96 (MaxHeight 230); obs-ficha-exames-vacinas claro 03"
+    },
+    {
+     "id": "OBS-FICHA-PACIENTE-V4",
+     "category": "V",
+     "text": "Pôr \"Anular\" junto de \"Marcar como realizado\" e \"Cancelar exame\", e junto da tabela de vacinas, em vez de deixar só um bloco \"Anular registro\" no fim da janela.",
+     "reason": "Quem seleciona um exame no topo precisa rolar por dois formulários de cadastro para achar a anulação, e lá só lê \"Nenhum registro selecionado\". (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/HealthRecordsView.xaml:146-154; obs-ficha-exames-vacinas claro 01 e 04"
+    },
+    {
+     "id": "OBS-FICHA-PACIENTE-V5",
+     "category": "V",
+     "text": "Mostrar só a data na coluna \"Data\" (\"18/11/2026\"), sem repetir \"Realizado em\" ou \"Aplicada em\".",
+     "reason": "A coluna \"Situação\" já diz \"Realizado\" ou \"Aplicada\". O prefixo repetido alarga a coluna e empurra \"Detalhes\", que acaba cortado (\"Jejum de…\"). (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Models/CommunityModels.cs:79,92; Nora.Desktop/Views/HealthRecordsView.xaml:55,100; obs-ficha-exames-vacinas claro 01"
+    },
+    {
+     "id": "OBS-FICHA-PACIENTE-F1",
+     "category": "F",
+     "text": "Trocar o campo de texto \"Data de aplicação (dd/mm/aaaa)\" da vacina, e o da data do exame realizado, por um campo com calendário ou com um botão \"Hoje\".",
+     "reason": "As duas datas são digitadas à mão, sem máscara nem calendário (o programa não usa seletor de data em nenhuma tela), o que deixa espaço para erro de formato num registro de saúde. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/HealthRecordsView.xaml:71,132 (TextBox simples); Nora.Desktop/ViewModels/HealthRecordsViewModel.cs:149,193; obs-ficha-exames-vacinas claro 03"
+    }
+   ],
+   "comparison": {
+    "label": "Exames e vacinas na ficha",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. a imagem mostra a janela ou o diálogo inteiro; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+    "images": {
+     "claro": "obs-ficha-exames-claro.webp",
+     "escuro": "obs-ficha-exames-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-familia",
+   "code": "OBS-FAMILIA",
+   "title": "OBS-NORA · Família",
+   "description": "Pedidos de vínculo entre responsáveis e dependentes.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-familia-claro.webp",
+    "escuro": "obs-familia-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-FAMILIA-C1",
+     "category": "C",
+     "text": "Deixar \"Aprovar pedido\" claramente desligado quando nenhum pedido está selecionado (cinza, como \"Recusar pedido\") e mostrar \"Selecione um pedido na tabela\".",
+     "reason": "Desligado, o botão só fica meio transparente e continua azul, parecendo clicável. Com 3 pedidos na tela, a pessoa clica e nada acontece. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Themes/Controls.xaml:57-58,66-69; Nora.Desktop/Views/FamilyView.xaml:37; obs-familia claro 01"
+    },
+    {
+     "id": "OBS-FAMILIA-V1",
+     "category": "V",
+     "text": "Pôr o campo \"Motivo da recusa\" antes dos botões, ou abri-lo só ao clicar em \"Recusar pedido\".",
+     "reason": "Do jeito que está, a ordem leva a clicar em Recusar antes de ver o campo do motivo. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/FamilyView.xaml:36-41; obs-familia claro 01"
+    },
+    {
+     "id": "OBS-FAMILIA-V2",
+     "category": "V",
+     "text": "Dividir \"Aprovado em\" em duas colunas, \"Aprovado em\" e \"Aprovado por\".",
+     "reason": "A coluna junta data e nome, e o nome sai cortado (\"10/11/2026 10:23 por Operador F…\"). (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/FamilyView.xaml:57; obs-familia claro 02"
+    },
+    {
+     "id": "OBS-FAMILIA-V3",
+     "category": "V",
+     "text": "Sem pedidos, mostrar só \"Nenhum pedido aguardando decisão nesta UBS.\" e esconder o quadro \"Decidir o pedido selecionado\" e o cabeçalho de tabela vazio.",
+     "reason": "Botões e campo de motivo sem nada para decidir ocupam espaço e sugerem que existe algo a fazer. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/FamilyView.xaml:23-44; obs-familia escuro 01"
+    },
+    {
+     "id": "OBS-FAMILIA-F1",
+     "category": "F",
+     "text": "Abrir a ficha do dependente a partir do pedido, com duplo clique ou um botão \"Ver cadastro\".",
+     "reason": "O texto pede \"Confira os documentos antes de aprovar\", mas a tabela não leva a nenhum cadastro. Fila e Pacientes já abrem a ficha com duplo clique. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/FamilyView.xaml:9,23 (sem MouseDoubleClick); Nora.Desktop/Views/UnitQueueView.xaml:44"
+    }
+   ]
+  },
+  {
+   "id": "obs-vagas",
+   "code": "OBS-VAGAS",
+   "title": "OBS-NORA · Vaga Relâmpago",
+   "description": "Vagas abertas, aguardando aprovação e ofertas em andamento.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "obs-vagas-claro.webp",
+    "escuro": "obs-vagas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-VAGAS-C1",
+     "category": "C",
+     "text": "Na tabela \"Aguardando aprovação\", as colunas \"Origem\" e \"Prazo\" aparecem cortadas (\"Veio da consulta de Maria Souza, canc…\", \"Aprovar até 21/…\"). Troque o título da coluna \"Prazo\" para \"Aprovar até\", deixe na célula só a data e a hora (\"21/11 09:00\") e dê à coluna a largura que o texto pede.",
+     "reason": "O prazo é o dado que decide o que aprovar primeiro e hoje só aparece inteiro com o mouse em cima; repetir \"Aprovar até\" em toda linha gasta o espaço que falta para a data. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitLightningSlotsView.xaml:23-24; Nora.Desktop/Models/ApiModels.cs:156; obs-vagas-aguardando claro 01"
+    },
+    {
+     "id": "OBS-VAGAS-C2",
+     "category": "C",
+     "text": "A lista \"Aguardando aprovação\" segue a ordem do horário da consulta, por isso a vaga com o prazo mais curto (\"Aprovar até 18/…\", a 3ª linha) fica no meio, sem nenhum destaque. Ordene por prazo, ou marque com texto e ícone as vagas que vencem hoje.",
+     "reason": "Quando o prazo passa sem aprovação, a vaga fecha sozinha; a mais urgente precisa vir primeiro ou aparecer marcada. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.SlotApproval.cs:55 (OrderBy StartsAt); obs-vagas-aguardando claro 01"
+    },
+    {
+     "id": "OBS-VAGAS-V1",
+     "category": "V",
+     "text": "Em \"Todas as vagas\", a coluna \"Situação\" mostra \"Aguardando aprov…\" e \"Origem\" mostra \"Gerada pela equ…\", enquanto \"Horário\" e \"Criada em\" sobram espaço. Alargue \"Origem\" e \"Situação\", ou mostre a situação como um selo curto (\"Aguardando\", \"Aberta\").",
+     "reason": "A situação é a informação principal desta tabela e hoje aparece cortada em 4 das 5 linhas. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitLightningSlotsView.xaml:39 (Origem com 130 px fixos); obs-vagas-aguardando claro 02"
+    },
+    {
+     "id": "OBS-VAGAS-V2",
+     "category": "V",
+     "text": "Na ficha da vaga, as linhas de \"Ofertas da vaga\" (\"Recusada\", \"Expirada\", \"Aceita\") são texto corrido igual, sem ícone nem cor. Dê à oferta aceita um sinal visual (✓ e destaque) e às recusadas ou expiradas um tom mais apagado.",
+     "reason": "Quem abre a ficha quer saber primeiro quem ficou com a vaga, e hoje precisa ler as três linhas inteiras. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Listings.cs:68-69; obs-slot-offers claro"
+    },
+    {
+     "id": "OBS-VAGAS-F1",
+     "category": "F",
+     "text": "Ponha um filtro de situação acima de \"Todas as vagas\" (Abertas, Aguardando aprovação, Encerradas), porque a tabela repete as 4 vagas que já aparecem no bloco de cima.",
+     "reason": "Com o histórico crescendo pelo \"Carregar mais histórico\", achar só as vagas abertas vira rolagem longa. Hoje não existe esse filtro na tela. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/UnitLightningSlotsView.xaml:35-44 (sem filtro); obs-vagas-aguardando claro 02"
+    }
+   ],
+   "comparison": {
+    "label": "Ofertas de uma vaga",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+    "images": {
+     "claro": "obs-vaga-ofertas-claro.webp",
+     "escuro": "obs-vaga-ofertas-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-indicadores",
+   "code": "OBS-INDICADORES",
+   "title": "OBS-NORA · Indicadores",
+   "description": "Indicadores e metas da UBS.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-indicadores-claro.webp",
+    "escuro": "obs-indicadores-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-INDICADORES-C1",
+     "category": "C",
+     "text": "O cartão \"Ofertas recusadas\" traz a legenda \"Vagas criadas no período\", que é o texto do cartão \"Vagas registradas\". Troque por uma legenda própria (por exemplo \"Pacientes que recusaram a oferta\").",
+     "reason": "A legenda errada faz a pessoa ler o número 2 como vagas criadas, e não como ofertas recusadas. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.UnitMetrics.cs:236 e 241; obs-indicadores-metas claro 02"
+    },
+    {
+     "id": "OBS-INDICADORES-V1",
+     "category": "V",
+     "text": "A fórmula do comparecimento aparece duas vezes seguidas: dentro do cartão \"Comparecimento\" (\"Concluídas ÷ (concluídas + faltas + …)\") e no parágrafo logo abaixo, antes de \"Saiba mais sobre o comparecimento\". Deixe no cartão só uma frase curta (por exemplo \"Quanto dos pacientes compareceu\") e mantenha a fórmula no parágrafo.",
+     "reason": "O texto repetido faz o cartão ter duas linhas de legenda enquanto os vizinhos têm uma, e tira o destaque do número. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Metrics.cs:246-247; Nora.Desktop/Views/ScoreNoteView.xaml:3; obs-indicadores-metas claro 01"
+    },
+    {
+     "id": "OBS-INDICADORES-V2",
+     "category": "V",
+     "text": "O bloco \"Período\" ocupa um cartão inteiro, com cerca de 200 px de altura, só para um seletor e uma linha de texto. Leve o seletor e o \"Números de 20/10/2026 a 18/11/2026\" para a linha do título \"Indicadores da UBS\".",
+     "reason": "Os números, que são o que a pessoa veio ver, começariam na primeira tela, sem precisar rolar. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitIndicatorsView.xaml:5-26; obs-indicadores-metas claro 01"
+    }
+   ]
+  },
+  {
+   "id": "obs-alertas",
+   "code": "OBS-ALERTAS",
+   "title": "OBS-NORA · Alertas",
+   "description": "Alertas da UBS com o critério de cada um.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "obs-alertas-claro.webp",
+    "escuro": "obs-alertas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-ALERTAS-C1",
+     "category": "C",
+     "text": "Troque \"avaliados pela API com os limites da rede\" por algo como \"comparados com os limites definidos pela Secretaria\".",
+     "reason": "\"API\" é termo técnico que a atendente não conhece, e o texto fica logo abaixo do título da tela. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.cs:175; obs-alertas-reais claro 01"
+    },
+    {
+     "id": "OBS-ALERTAS-V1",
+     "category": "V",
+     "text": "Esconda o campo \"Desde: —\" quando ele não tiver data. Ele aparece vazio em 4 dos 5 alertas, e o rodapé precisa explicar que \"o desde só existe para a espera longa\"; com o campo escondido, essa nota pode sair.",
+     "reason": "Um campo vazio repetido em quase todos os cartões vira ruído e obriga a ler uma nota para entender. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitAlertsView.xaml:26; Nora.Desktop/ViewModels/WorkspaceViewModel.UnitScheduling.cs:69; obs-alertas-reais claro 01"
+    },
+    {
+     "id": "OBS-ALERTAS-V2",
+     "category": "V",
+     "text": "Todos os alertas usam a mesma borda amarela e o mesmo ícone, sem diferença de gravidade. Mostre quanto cada um passou do limite (por exemplo \"+15 dias\" na \"Espera longa\") e ponha primeiro o que passou mais.",
+     "reason": "Com cinco alertas iguais, a equipe não sabe qual atacar primeiro. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/UnitAlertsView.xaml:16-19; obs-alertas-reais claro 01"
+    },
+    {
+     "id": "OBS-ALERTAS-F1",
+     "category": "F",
+     "text": "Ponha em cada alerta um botão que leva ao lugar de agir: em \"Fila alta · Cardiologia\", abrir a Fila; em \"Meta fora: Comparecimento\", abrir Indicadores; em \"Ocupação da grade acima do limite\", abrir Configurações da UBS (só aparece para quem é administrador).",
+     "reason": "Hoje o alerta só informa, e a pessoa precisa achar sozinha a tela certa na barra lateral. Os cartões não têm nenhuma ação. (hipótese: confirmar no uso real)",
+     "recommended": true,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/UnitAlertsView.xaml:16-30 (cartão sem botões); obs-alertas-reais claro 01"
+    }
+   ]
+  },
+  {
+   "id": "obs-comunicados",
+   "code": "OBS-COMUNICADOS",
+   "title": "OBS-NORA · Comunicados",
+   "description": "Comunicados da Secretaria para a equipe.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-comunicados-claro.webp",
+    "escuro": "obs-comunicados-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-COMUNICADOS-C1",
+     "category": "C",
+     "text": "O aviso de sucesso diz \"Comunicados atualizados: 1 não lido(s).\", com \"(s)\", enquanto o resumo logo abaixo diz \"1 não lido\". Escreva o singular e o plural certos no aviso.",
+     "reason": "O \"(s)\" passa a impressão de sistema inacabado, e as duas frases sobre o mesmo número aparecem juntas na mesma tela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Announcements.cs:148; obs-comunicados escuro 01"
+    },
+    {
+     "id": "OBS-COMUNICADOS-F1",
+     "category": "F",
+     "text": "Ponha um botão \"Marcar todos como lidos\" ao lado de \"Atualizar comunicados\", que só aparece quando houver mais de um não lido.",
+     "reason": "Depois de uma ausência com vários comunicados, a pessoa precisa clicar em \"Marcar como lido\" um a um. A tela não tem essa ação. Só vale se a Secretaria aceitar que uma leitura em bloco conte como confirmação de leitura. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/AnnouncementsView.xaml:6-8 e 32; obs-comunicados claro 01"
+    }
+   ]
+  },
+  {
+   "id": "obs-config-ubs",
+   "code": "OBS-CONFIG-UBS",
+   "title": "OBS-NORA · Configurações da UBS",
+   "description": "Profissionais, consultórios, grade de horários, bloqueios e computadores (administrador).",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-config-ubs-claro.webp",
+    "escuro": "obs-config-ubs-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-CONFIG-UBS-C1",
+     "category": "C",
+     "text": "Em \"Novo bloqueio\", o texto \"Dia inteiro (feriado ou folga)\" fica na esquerda e a caixa de marcar fica cerca de 560 px à direita. Nos dias de \"Atendimento ao público\", a caixa também vem depois de \"Fechado\". Ponha a caixa colada ao texto, antes dele.",
+     "reason": "Com a distância, não fica claro a que se refere a caixa marcada. Num bloqueio, isso pode tirar um dia inteiro da agenda sem a pessoa perceber. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Themes/Controls.xaml:94-99; Nora.Desktop/Views/UnitSettingsView.xaml:271; obs-configuracoes-admin claro 06 e 01"
+    },
+    {
+     "id": "OBS-CONFIG-UBS-C2",
+     "category": "C",
+     "text": "O rótulo diz \"Conselho profissional (opcional: sigla, número e UF juntos)\", mas logo abaixo há três caixas vazias sem nome visível (sigla, número e UF só aparecem com o mouse em cima). Dê a cada caixa um rótulo pequeno (\"Sigla\", \"Número\", \"UF\") ou um exemplo dentro dela, como \"CRM\", \"12345\", \"SP\", e tire o \"juntos\".",
+     "reason": "O texto manda escrever tudo junto e a tela pede três campos separados, então a pessoa não sabe o que vai em cada um. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:146-152; obs-configuracoes-admin claro 04"
+    },
+    {
+     "id": "OBS-CONFIG-UBS-V1",
+     "category": "V",
+     "text": "Depois de salvar o atendimento ao público, o passo aparece como \"✓ Salvando horários…\": a marca de concluído vem junto com o texto de quem ainda está em andamento. Troque o texto para \"Horários salvos\" quando o passo terminar.",
+     "reason": "Lido de relance, \"Salvando…\" diz que ainda não acabou, mesmo com o aviso de sucesso no topo. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.UnitProfile.cs:156; Nora.Desktop/ViewModels/WorkspaceViewModel.Steps.cs:19-20; obs-atendimento claro 02"
+    },
+    {
+     "id": "OBS-CONFIG-UBS-V2",
+     "category": "V",
+     "text": "Em \"Computadores\", o texto \"O segredo fica só no próprio computador e a API guarda apenas o hash\" é técnico. Os botões \"Gerar novo código\" e \"Gerar código para outro computador\" têm nomes quase iguais e ficam em blocos diferentes. Renomeie o primeiro para \"Gerar novo código para o selecionado\" e troque o texto por algo como \"O segredo de acesso fica só no próprio computador; o sistema guarda apenas uma versão protegida dele\".",
+     "reason": "O administrador da UBS não sabe o que é um hash e pode clicar no botão errado. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:81, 94 e 105; obs-configuracoes-admin claro 02 e 03"
+    },
+    {
+     "id": "OBS-CONFIG-UBS-V3",
+     "category": "V",
+     "text": "Na grade semanal, \"Dra. Ana Lima…\" aparece cortado, enquanto a coluna \"Vigência\" tem 190 px fixos para mostrar só \"Sem limite\". Divida a largura conforme o conteúdo.",
+     "reason": "O nome do profissional é o que identifica a linha da grade. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:206-209; obs-configuracoes-admin claro 05"
+    },
+    {
+     "id": "OBS-CONFIG-UBS-F1",
+     "category": "F",
+     "text": "A página tem 7 telas de rolagem e o subtítulo (\"Profissionais, consultórios, grade de horários e bloqueios\") não cita Atendimento ao público, Aprovação das vagas nem Computadores, que vêm primeiro. Ponha no topo uma linha de atalhos para cada seção e corrija o subtítulo para citar todas.",
+     "reason": "Para chegar a Profissionais, Grade ou Bloqueios, o administrador precisa rolar por três cartões antes. Hoje a tela não tem índice nem abas. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml (sem índice nem abas); Nora.Desktop/ViewModels/ShellViewModel.cs (subtítulo de unit-settings); obs-configuracoes-admin claro 01 a 07"
+    }
+   ],
+   "comparison": {
+    "label": "Atendimento e serviços da UBS",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "obs-atendimento-claro.webp",
+     "escuro": "obs-atendimento-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "obs-aprovacao",
+   "code": "OBS-APROVACAO",
+   "title": "OBS-NORA · Configurações da UBS com aprovação das vagas",
+   "description": "A mesma página com a aprovação opcional das vagas reaproveitadas ligada.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-aprovacao-claro.webp",
+    "escuro": "obs-aprovacao-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-APROVACAO-V1",
+     "category": "V",
+     "text": "O estado da aprovação aparece só numa frase comum (\"Ligada desde 18/11/2026 10:24. Cada cancelamento gera…\"), com o mesmo peso do resto do texto. Ponha um selo claro \"Ligada\" ou \"Desligada\" ao lado do título \"Aprovação das vagas reaproveitadas\".",
+     "reason": "Quem passa pela tela precisa ler a frase inteira para saber se a opção está ligada; um selo mostra o estado de relance, antes do botão \"Desligar aprovação das vagas\". (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:68-70; obs-aprovacao-ligada claro e escuro 02"
+    },
+    {
+     "id": "OBS-APROVACAO-V2",
+     "category": "V",
+     "text": "Depois de ligar, o passo aparece como \"✓ Salvando a aprovação das vagas…\". Mude o texto para \"Aprovação salva\" quando o passo terminar.",
+     "reason": "A marca de concluído junto do texto de andamento confunde, ainda mais numa troca que muda como as vagas nascem. (defeito visível na foto)",
+     "recommended": false,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.SlotApproval.cs (WithStepAsync \"Salvando a aprovação das vagas…\"); obs-aprovacao-ligada claro 02"
+    },
+    {
+     "id": "OBS-APROVACAO-V3",
+     "category": "V",
+     "text": "Troque \"fica aguardando a equipe no OBS\" por \"fica aguardando aprovação na tela Vaga Relâmpago\".",
+     "reason": "A pessoa já está no OBS, então dizer o nome da tela ajuda mais que o nome do sistema. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:69; obs-aprovacao-ligada claro 02"
+    },
+    {
+     "id": "OBS-APROVACAO-F1",
+     "category": "F",
+     "text": "Com a aprovação ligada, ponha neste cartão um link \"Ver vagas aguardando aprovação\" que abre a Vaga Relâmpago.",
+     "reason": "Esta opção fica no meio de Configurações da UBS, longe da tela onde a aprovação acontece. O cartão não tem esse atalho. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/UnitSettingsView.xaml:65-73; obs-aprovacao-ligada claro 02"
+    }
+   ]
+  },
+  {
+   "id": "obs-configuracoes",
+   "code": "OBS-CONFIGURACOES",
+   "title": "OBS-NORA · Configurações",
+   "description": "Aparência, notificações, conta e preferências locais.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "obs-configuracoes-claro.webp",
+    "escuro": "obs-configuracoes-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-CONFIGURACOES-C1",
+     "category": "C",
+     "text": "Os botões \"Alterar nome e localidade\" e \"Alterar e-mail\" ficam sempre desligados, com a explicação \"A API ainda não tem rota para alterar…\". Tire os botões e diga em linguagem simples a quem pedir a mudança (por exemplo \"Para mudar nome ou e-mail, fale com a Secretaria\").",
+     "reason": "Botão que nunca funciona parece defeito, e \"API\" e \"rota\" são palavras técnicas. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:57-58; visual-obs-configuracoes claro topo"
+    },
+    {
+     "id": "OBS-CONFIGURACOES-V1",
+     "category": "V",
+     "text": "\"Nome da conta\", \"Unidade ativa\" e \"Perfil da conta\" aparecem em caixas iguais às de digitar, mas não dá para editar. Mostre esses dados como texto simples (rótulo e valor), sem a moldura de campo.",
+     "reason": "A moldura convida a clicar e digitar, e nada acontece. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:53-55; visual-obs-configuracoes claro topo"
+    },
+    {
+     "id": "OBS-CONFIGURACOES-V2",
+     "category": "V",
+     "text": "A faixa azul \"SUA EXPERIÊNCIA NORA / Configurações / Personalize aparência, espaço e navegação do seu aplicativo\" repete o título do cabeçalho, que já diz \"Configurações · Aparência, atalhos e preferências deste computador\", com outra frase. Ela ocupa cerca de 145 px antes do primeiro ajuste. Use um título simples, como nas telas Alertas e Comunicados.",
+     "reason": "Duas frases diferentes para a mesma coisa, e menos ajustes visíveis sem rolar. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:35-46; visual-obs-configuracoes claro topo"
+    }
+   ]
+  },
+  {
+   "id": "obs-base-indisponivel",
+   "code": "OBS-BASE-INDISPONIVEL",
+   "title": "OBS-NORA · Base da UBS indisponível",
+   "description": "Estado de erro quando o banco da UBS não responde.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "obs-base-indisponivel-claro.webp",
+    "escuro": "obs-base-indisponivel-escuro.webp"
+   },
+   "items": []
+  },
+  {
+   "id": "obs-janela-aberta",
+   "code": "OBS-JANELA",
+   "title": "OBS-NORA · Janela: barra lateral e cabeçalho",
+   "description": "A janela inteira com a navegação (aqui na Fila).",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra a janela inteira.",
+   "images": {
+    "claro": "obs-janela-aberta-claro.webp",
+    "escuro": "obs-janela-aberta-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "OBS-JANELA-C1",
+     "category": "C",
+     "text": "O atalho Ctrl + B, que Configurações apresenta como \"Barra lateral · Ajusta a navegação\", não muda nada na janela: a imagem \"Barra lateral recolhida\" é igual à expandida, porque nenhuma parte da janela usa a opção que o atalho troca. Tire o atalho da lista de Configurações ou faça o recolhimento funcionar (só os ícones, com o nome do destino ao passar o mouse).",
+     "reason": "Um atalho anunciado que não faz nada parece defeito. A documentação do OBS diz que a barra só muda de largura pela divisória, sem botão de recolher; por isso retirar o atalho é a saída mais simples, e o docs/design.md só prevê a barra recolhida se ela existir. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml.cs:106; Nora.Desktop/ViewModels/ShellViewModel.cs:55; Nora.Desktop/Views/SettingsView.xaml:163; docs/obs-painel-operacional.md:70; visual-obs-fila-sidebar-recolhida claro e escuro"
+    },
+    {
+     "id": "OBS-JANELA-C2",
+     "category": "C",
+     "text": "Com a janela em 740 px de altura, o item \"Configurações da UBS\" fica cortado pela metade logo acima do bloco fixo \"Configurações\", e só uma barrinha de rolagem fina mostra que a lista continua. Ponha um esmaecido na borda de baixo da lista, ou diminua a altura dos itens em telas baixas.",
+     "reason": "O destino do administrador fica ilegível e parece um erro de desenho em monitores comuns de UBS. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:48-50 e 79; visual-obs-fila-selecionada claro e escuro topo; visual-obs-configuracoes claro topo"
+    },
+    {
+     "id": "OBS-JANELA-C3",
+     "category": "C",
+     "text": "A dica de \"Indicadores\" na barra lateral diz \"Consulte os indicadores agregados da rede.\", mas no OBS os indicadores são só da UBS. Troque por algo como \"Consulte os indicadores da sua UBS.\".",
+     "reason": "A dica é o que a pessoa nova lê para aprender o sistema, e essa ensina errado. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:61"
+    },
+    {
+     "id": "OBS-JANELA-V1",
+     "category": "V",
+     "text": "A barra lateral tem um só grupo, \"OPERAÇÃO DA UNIDADE\", com 10 itens, e \"Configurações da UBS\" (só do administrador) fica misturado ao trabalho do dia. Crie um segundo grupo, \"Administração\", para ele.",
+     "reason": "Separar o que é rotina do que é cadastro ajuda a atendente a achar mais rápido os destinos do dia a dia. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:48-79; visual-obs-fila-selecionada claro topo"
+    }
+   ],
+   "comparison": {
+    "label": "Barra lateral recolhida",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra a janela inteira.",
+    "images": {
+     "claro": "obs-janela-claro.webp",
+     "escuro": "obs-janela-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-entrada",
+   "code": "MUN-ENTRADA",
+   "title": "Painel-Municipal · Entrar na conta",
+   "description": "Entrada da Secretaria de Saúde, só por e-mail e senha.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-entrada-claro.webp",
+    "escuro": "mun-entrada-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-ENTRADA-C1",
+     "category": "C",
+     "text": "Trocar o cabeçalho \"Visão geral / Panorama e prioridades da rede\" por algo como \"Entrar / Acesso da Secretaria de Saúde\" enquanto a pessoa não entrou.",
+     "reason": "A pessoa ainda não entrou, mas o topo diz que ela está na Visão geral, ao lado de \"Gestão desconectada\". Parece que o panorama deveria estar aparecendo e não carregou. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:33-35; secretaria-login-light-01 e secretaria-login-dark-01"
+    },
+    {
+     "id": "MUN-ENTRADA-V1",
+     "category": "V",
+     "text": "Tirar \"Endereço da API\" do primeiro lugar do formulário: deixá-lo já preenchido ou dentro de um \"Servidor (avançado)\" recolhido, abaixo de E-mail e Senha.",
+     "reason": "Quem é da Secretaria não sabe o que é API. Hoje esse é o primeiro campo, antes do e-mail, e o mesmo endereço já pode ser trocado em Configurações, no cartão Conexão. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:26-27; Nora.Desktop/Views/SettingsView.xaml:71-73; secretaria-login-light-01"
+    },
+    {
+     "id": "MUN-ENTRADA-V2",
+     "category": "V",
+     "text": "Trocar a frase \"O formato do e-mail é conferido antes do envio e suas preferências continuam disponíveis em Configurações\" por uma instrução curta, como \"Use o e-mail e a senha da sua conta da Secretaria\".",
+     "reason": "O texto atual explica o que o sistema faz por dentro, não o que a pessoa precisa fazer. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:25; secretaria-login-light-01"
+    },
+    {
+     "id": "MUN-ENTRADA-V3",
+     "category": "V",
+     "text": "Estreitar o cartão de entrada para uns 480 px, centralizado, em vez de campos de E-mail e Senha com quase 900 px de largura.",
+     "reason": "Campos curtos esticados na largura toda parecem um formulário de cadastro, e o botão \"Entrar\" fica longe dos campos, no canto direito. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:20-47; secretaria-login-light-01 e secretaria-login-dark-01"
+    },
+    {
+     "id": "MUN-ENTRADA-F1",
+     "category": "F",
+     "text": "Pôr um botão de mostrar/ocultar a senha no campo \"Senha\".",
+     "reason": "Ajuda quem erra a senha provisória ou acabou de trocá-la. O campo é um PasswordBox simples, sem essa alternância. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/WorkspaceView.xaml:31; secretaria-login-light-01"
+    }
+   ]
+  },
+  {
+   "id": "mun-visao-geral",
+   "code": "MUN-VISAO-GERAL",
+   "title": "Painel-Municipal · Visão geral",
+   "description": "Resumo da rede municipal.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-visao-geral-claro.webp",
+    "escuro": "mun-visao-geral-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-VISAO-GERAL-C1",
+     "category": "C",
+     "text": "Renomear o cartão final \"Ainda sem dados\" para algo como \"O que ainda não é medido\", ou levar esse texto para um \"Saiba mais\".",
+     "reason": "O título aparece mesmo quando a tela está cheia de números (10 concluídas, 83,3%). Quem lê pode achar que os dados acima não são reais. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/NetworkOverviewView.xaml:18-23; municipal-home-theme-light-03 e municipal-home-theme-dark-03"
+    },
+    {
+     "id": "MUN-VISAO-GERAL-C2",
+     "category": "C",
+     "text": "No cartão \"Cancelamentos\", escrever o total e a parte do paciente juntos, por exemplo \"1 no total · 0 feitos pelo paciente\", em vez de um \"1\" grande com \"0 feitos pelo paciente\" embaixo.",
+     "reason": "Um número grande 1 com um 0 logo abaixo parece contradição. A pessoa não percebe que o 0 é só uma parte do total. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/NetworkOverviewView.xaml:15 (OverviewCards); municipal-home-theme-light-02"
+    },
+    {
+     "id": "MUN-VISAO-GERAL-V1",
+     "category": "V",
+     "text": "Juntar o banner \"Toda a rede em um só lugar\" e o título \"Panorama da rede\" num bloco só, com o botão \"Atualizar dados\" na mesma linha do título.",
+     "reason": "Hoje são dois blocos de título seguidos (banner e Panorama), além do cabeçalho da janela, e no começo da tela não aparece nenhum número de \"Rede agora\" sem rolar, que é o motivo de abrir a tela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:101-107; secretaria-home-light-01 e secretaria-home-dark-01"
+    },
+    {
+     "id": "MUN-VISAO-GERAL-V2",
+     "category": "V",
+     "text": "Levar \"Atualizar dados\" para a linha do título \"Panorama da rede\" (ou do cartão \"Filtros da rede\"), em vez de deixá-lo solto entre o banner e o título.",
+     "reason": "Hoje o botão fica isolado à direita, sem nada que diga a que ele se refere. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:105; secretaria-home-light-01"
+    },
+    {
+     "id": "MUN-VISAO-GERAL-F1",
+     "category": "F",
+     "text": "Mostrar \"Atualizado às hh:mm\" ao lado de \"Atualizar dados\".",
+     "reason": "A tela se atualiza sozinha a cada 20 s, mas não diz de quando são os números. A hora da leitura (SummaryReceivedLabel) já existe e só aparece em Relatórios e metas. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.cs:66,238; Nora.Desktop/Views/MunicipalView.xaml.cs:117; secretaria-home-light-01"
+    },
+    {
+     "id": "MUN-VISAO-GERAL-F2",
+     "category": "F",
+     "text": "No aviso \"1 UBS está fora destes números porque a base dela ainda não foi criada. Crie a base na aba Unidades\", pôr um botão \"Abrir Unidades\".",
+     "reason": "O aviso manda a pessoa para outra aba, mas ela tem de achar o caminho sozinha no menu. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/NetworkFiltersView.xaml:28-30; municipal-home-theme-light-01"
+    }
+   ],
+   "comparison": {
+    "label": "Com dados de várias UBS",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "mun-visao-geral-dados-claro.webp",
+     "escuro": "mun-visao-geral-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-unidades",
+   "code": "MUN-UNIDADES",
+   "title": "Painel-Municipal · Unidades",
+   "description": "Cadastro das UBS, base de cada uma e desempenho por unidade.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-unidades-claro.webp",
+    "escuro": "mun-unidades-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-UNIDADES-C1",
+     "category": "C",
+     "text": "Mostrar uma frase na tabela \"Desempenho por unidade\" quando ela vier vazia, por exemplo \"Nenhuma UBS com consultas neste filtro\".",
+     "reason": "Hoje aparecem só os títulos das colunas e um espaço em branco. Não dá para saber se a tabela ainda está carregando, se falhou ou se não há dados. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/NetworkUnitsPerformanceView.xaml:8-20; secretaria-units-light-03"
+    },
+    {
+     "id": "MUN-UNIDADES-C2",
+     "category": "C",
+     "text": "Reescrever o aviso \"Base da UBS ainda não criada\" sem citar \"usuário PostgreSQL da API\" e \"permissão para criar bancos de dados\". Dizer só que a base não foi criada e que a equipe de TI deve ser avisada.",
+     "reason": "A Secretaria não tem como ajustar permissões no servidor. O texto técnico assusta e não diz o que ela deve fazer; o botão \"Tentar criar a base\" já cobre a ação possível. (hipótese: confirmar no uso real)",
+     "recommended": true,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/HealthUnitsView.xaml:33 (o aviso não aparece nas capturas, que não têm UBS pendente)"
+    },
+    {
+     "id": "MUN-UNIDADES-V1",
+     "category": "V",
+     "text": "Pôr um texto-guia e um ícone de lupa no campo de pesquisa de \"Unidades cadastradas\" (por exemplo \"Pesquisar por nome, região ou endereço\").",
+     "reason": "Hoje é uma caixa vazia sem rótulo; a explicação fica numa frase cinza acima e a caixa parece mais um campo do formulário de cadastro do que uma busca. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/HealthUnitsView.xaml:6-7; secretaria-units-light-01"
+    },
+    {
+     "id": "MUN-UNIDADES-V2",
+     "category": "V",
+     "text": "Mostrar o formulário \"Cadastrar UBS\" só ao clicar em \"Nova UBS\" ou \"Editar selecionada\" (num painel ou numa janela), em vez de deixá-lo sempre aberto no meio da página.",
+     "reason": "O formulário ocupa duas rolagens e empurra \"Desempenho por unidade\" e as consultas da UBS para o fim da página. O botão \"Nova UBS\" já existe para abri-lo. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/HealthUnitsView.xaml:36-55,38; secretaria-units-light-01 e secretaria-units-light-02"
+    },
+    {
+     "id": "MUN-UNIDADES-V3",
+     "category": "V",
+     "text": "Quando não houver UBS, esconder a lista vazia: hoje ela aparece como uma faixa fina sem conteúdo logo abaixo da pesquisa, antes de \"Nenhuma UBS cadastrada.\"",
+     "reason": "A faixa parece um elemento quebrado, e a frase \"Nenhuma UBS cadastrada.\" já diz o que acontece. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/HealthUnitsView.xaml:8,29; secretaria-units-light-01"
+    },
+    {
+     "id": "MUN-UNIDADES-V4",
+     "category": "V",
+     "text": "Dar ao cartão \"Filtros da rede\" desta tela o título \"Filtros do desempenho\" (ou mudar a ordem: lista de UBS, desempenho, depois Cadastros e Agenda da UBS selecionada).",
+     "reason": "O filtro fica logo acima de \"Desempenho por unidade\", mas \"Cadastros\" e \"Agenda da UBS selecionada\" vêm depois e parecem estar sob o mesmo filtro, quando dependem só da UBS escolhida na lista. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:108; Nora.Desktop/Views/NetworkUnitsPerformanceView.xaml:3; secretaria-units-light-02 a 04"
+    }
+   ]
+  },
+  {
+   "id": "mun-especialidades",
+   "code": "MUN-ESPECIALIDADES",
+   "title": "Painel-Municipal · Especialidades",
+   "description": "Catálogo de especialidades da rede.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-especialidades-claro.webp",
+    "escuro": "mun-especialidades-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-ESPECIALIDADES-C1",
+     "category": "C",
+     "text": "Alinhar as duas regras de nome que aparecem na mesma tela e dizer que a demanda pode trazer nomes que não estão na lista (\"Clínica geral\"). A lista diz \"Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)\"; a demanda diz \"grafias que só diferem em maiúsculas formam um grupo\".",
+     "reason": "A lista tem \"Cardiologia Clínica\" e \"Pediatria\", mas a tabela de demanda mostra \"Clínica geral\". Sem explicação, a Secretaria pode achar que a lista não foi aplicada. O exemplo \"Cardiología\" com acento espanhol também confunde. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SpecialtyCatalogView.xaml:9; Nora.Desktop/Views/NetworkSpecialtiesView.xaml:7; municipal-especialidades-light-01 e municipal-especialidades-light-02"
+    },
+    {
+     "id": "MUN-ESPECIALIDADES-C2",
+     "category": "C",
+     "text": "Corrigir \"Nenhuma especialidade cadastrada. Cadastre a primeira acima\": o formulário \"Cadastrar especialidade\" está logo abaixo da mensagem, não acima.",
+     "reason": "A frase aponta para o lado errado, e quem lê procura um formulário em cima da tabela. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.NetworkScheduling.cs:73; secretaria-specialties-light-01"
+    },
+    {
+     "id": "MUN-ESPECIALIDADES-V1",
+     "category": "V",
+     "text": "Abrir o quadro \"Cadastrar especialidade\" só ao clicar em \"Nova especialidade\" ou \"Editar nome da selecionada\", e alargar o campo de nome.",
+     "reason": "O quadro fica sempre aberto, como se fosse o próximo passo obrigatório, e o campo tem cerca de 235 px para até 120 caracteres. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SpecialtyCatalogView.xaml:20-27; secretaria-specialties-light-01; municipal-especialidades-light-01"
+    },
+    {
+     "id": "MUN-ESPECIALIDADES-V2",
+     "category": "V",
+     "text": "Resumir o parágrafo de três linhas sobre a \"Lista única da rede\" (não existe exclusão, desativar preserva, maiúsculas...) e pôr o resto numa dica de mouse ou num \"Como funciona\" que abre e fecha.",
+     "reason": "O texto fica entre o título e a tabela e empurra a lista para baixo. O docs/design.md diz que as dicas de mouse substituem explicações permanentes da tela. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SpecialtyCatalogView.xaml:9; docs/design.md:78; municipal-especialidades-light-01"
+    },
+    {
+     "id": "MUN-ESPECIALIDADES-F1",
+     "category": "F",
+     "text": "Pôr uma pesquisa e um filtro por situação (Ativa/Desativada) na lista \"Especialidades da rede\", se ela ficar longa.",
+     "reason": "A lista nunca encolhe, porque não existe exclusão, e tem altura máxima de 300 px. Com dezenas de nomes, achar uma desativada vira rolagem. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/SpecialtyCatalogView.xaml:10 (DataGrid sem pesquisa, MaxHeight 300)"
+    }
+   ],
+   "comparison": {
+    "label": "Com especialidades cadastradas",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "mun-especialidades-dados-claro.webp",
+     "escuro": "mun-especialidades-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-mapa",
+   "code": "MUN-MAPA",
+   "title": "Painel-Municipal · Mapa da rede",
+   "description": "UBS no mapa e filtros da rede.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-mapa-claro.webp",
+    "escuro": "mun-mapa-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-MAPA-C1",
+     "category": "C",
+     "text": "Corrigir o subtítulo do cabeçalho \"Distribuição e carga por região\" para algo como \"Localização das UBS no mapa\".",
+     "reason": "O mapa mostra uma UBS por vez e não mostra carga por região (isso fica em Capacidade). O subtítulo promete algo que a tela não tem. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:38; docs/secretaria.md:22,58; secretaria-network-light-01 e secretaria-network-dark-01"
+    },
+    {
+     "id": "MUN-MAPA-V1",
+     "category": "V",
+     "text": "Tirar o banner \"MAPA DA REDE / A rede em perspectiva / Explore o território e encontre as unidades de saúde\".",
+     "reason": "Ele repete o título \"Mapa da rede / Explore o território da rede de saúde\" logo acima e empurra o mapa para fora da primeira rolagem. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/NetworkMapView.xaml:3-9; Nora.Desktop/Views/MunicipalView.xaml.cs:110; secretaria-network-light-01"
+    },
+    {
+     "id": "MUN-MAPA-V2",
+     "category": "V",
+     "text": "Pôr \"Mostrar no mapa\" ao lado da escolha da UBS e levar \"Atualizar unidades\" para um lugar secundário.",
+     "reason": "Hoje o botão secundário fica colado na escolha da UBS e o principal fica sozinho na linha de baixo. O caminho natural (escolher a UBS e mostrar) fica partido em duas linhas. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/NetworkMapView.xaml:15-17; secretaria-network-light-01"
+    },
+    {
+     "id": "MUN-MAPA-F1",
+     "category": "F",
+     "text": "No cartão \"Localização das UBS\", pôr um botão \"Abrir Unidades\" para cadastrar ou corrigir coordenadas.",
+     "reason": "O texto manda a pessoa para a aba Unidades, mas não leva até lá. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/NetworkMapView.xaml:25; secretaria-network-light-02"
+    },
+    {
+     "id": "MUN-MAPA-F2",
+     "category": "F",
+     "text": "Mostrar todas as UBS cadastradas como pontos no mapa ao mesmo tempo, mantendo a UBS escolhida em destaque.",
+     "reason": "Hoje o mapa mostra uma UBS por vez. Para quem gere a rede, ver a distribuição das unidades no território pode ser o que mais interessa no mapa. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/NetworkMapView.xaml:13; docs/secretaria.md:58"
+    }
+   ]
+  },
+  {
+   "id": "mun-indicadores",
+   "code": "MUN-INDICADORES",
+   "title": "Painel-Municipal · Indicadores",
+   "description": "Indicadores da rede por período, UBS, região e especialidade.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-indicadores-claro.webp",
+    "escuro": "mun-indicadores-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-INDICADORES-C1",
+     "category": "C",
+     "text": "Corrigir o subtítulo do cabeçalho \"Acompanhe o desempenho da unidade\" para \"Acompanhe o desempenho da rede\".",
+     "reason": "É o texto do OBS reaproveitado. Na Secretaria, a tela é da rede inteira, e o título da página diz \"Indicadores da rede\". (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:47; secretaria-indicators-light-01 e secretaria-indicators-dark-01"
+    },
+    {
+     "id": "MUN-INDICADORES-C2",
+     "category": "C",
+     "text": "Mostrar uma frase em \"Comparativo por região\" quando a tabela vier vazia, por exemplo \"Nenhuma região com consultas neste filtro\".",
+     "reason": "Aparecem só os títulos das colunas e um espaço em branco, sem dizer se não há dados ou se algo falhou. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/NetworkIndicatorsView.xaml:8-30; secretaria-indicators-light-02"
+    },
+    {
+     "id": "MUN-INDICADORES-V1",
+     "category": "V",
+     "text": "Usar o mesmo nome para o gráfico nas duas telas: hoje é \"Série no tempo\" em Indicadores e \"Evolução\" na Visão geral, e os seis cartões do período são os mesmos nas duas.",
+     "reason": "O mesmo conteúdo com nomes diferentes faz a pessoa procurar uma diferença que não existe. O que é só de Indicadores (o comparativo por região) já pode ficar em destaque. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/NetworkIndicatorsView.xaml:4,33-37; Nora.Desktop/Views/NetworkOverviewView.xaml:9-16; secretaria-indicators-light-01 a 03; municipal-home-theme-light-02 e 03"
+    },
+    {
+     "id": "MUN-INDICADORES-F1",
+     "category": "F",
+     "text": "Pôr em Indicadores, junto ao \"Comparativo por região\", a comparação por UBS (a tabela ordenável \"Desempenho por unidade\").",
+     "reason": "Hoje essa tabela só existe em Unidades, depois do cadastro. Quem quer comparar resultados pode procurar em Indicadores. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/NetworkUnitsPerformanceView.xaml:6-20; Nora.Desktop/Views/MunicipalView.xaml.cs:108,111"
+    }
+   ]
+  },
+  {
+   "id": "mun-vagas",
+   "code": "MUN-VAGAS",
+   "title": "Painel-Municipal · Vaga Relâmpago",
+   "description": "Vagas da rede e seus filtros.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-vagas-claro.webp",
+    "escuro": "mun-vagas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-VAGAS-C1",
+     "category": "C",
+     "text": "Separar os 11 cartões em grupos com título, como \"Agora\" (Vagas abertas, Pendentes), \"No período escolhido\" (registradas, criadas, recusadas, expiradas, canceladas, aceitas) e \"Histórico, sem o filtro de período\" (Aprovadas pela equipe, Fechadas sem aprovação).",
+     "reason": "Hoje estão todos na mesma grade, abaixo do filtro \"Período da vaga\". Quem muda o período não percebe que alguns números não mudam, e o cartão \"Vagas abertas\" diz \"Estado atual das vagas no período\", o que se contradiz. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:112; secretaria-slots-light-01 e 02; secretaria-vaga-aprovacao-light-02"
+    },
+    {
+     "id": "MUN-VAGAS-C2",
+     "category": "C",
+     "text": "Corrigir o subtítulo do cabeçalho \"Reaproveite oportunidades e acompanhe Vagas Relâmpago\" para algo como \"Acompanhe as Vagas Relâmpago da rede\".",
+     "reason": "É o texto do OBS. A Secretaria não reaproveita vagas, só acompanha. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:46; secretaria-slots-light-01 e secretaria-slots-dark-01"
+    },
+    {
+     "id": "MUN-VAGAS-V1",
+     "category": "V",
+     "text": "Mostrar \"Indisponível\" em texto menor e cinza, com um motivo curto, em vez do mesmo tamanho de 29 px usado nos números.",
+     "reason": "Em \"Aprovadas pela equipe\" e \"Fechadas sem aprovação\", a palavra grande chama mais atenção que os números reais e parece um resultado, quando na verdade é falta de dado. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:69; secretaria-slots-light-02"
+    },
+    {
+     "id": "MUN-VAGAS-V2",
+     "category": "V",
+     "text": "Tirar o cartão fixo \"Taxa de reaproveitamento — / Aguardando definição e dados\" e deixar essa informação só no quadro \"Acompanhamento\", que já fala dela.",
+     "reason": "Um cartão que nunca tem valor ocupa o espaço de um indicador e repete o aviso que está logo abaixo. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:112; secretaria-vaga-aprovacao-light-02"
+    },
+    {
+     "id": "MUN-VAGAS-F1",
+     "category": "F",
+     "text": "Pôr cartões para \"Vagas aguardando aprovação\" e \"Vagas descartadas pela equipe\".",
+     "reason": "Esses números já existem na tela (AwaitingApprovalSlotsCount e DiscardedSlotsCount) e saem no CSV, mas não aparecem nos cartões. Mostram quanto da rede está parado esperando a equipe. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.cs:206,209; Nora.Desktop/Services/MunicipalCsv.cs:33,36; Nora.Desktop/Views/MunicipalView.xaml.cs:112; docs/secretaria.md:17"
+    }
+   ],
+   "comparison": {
+    "label": "Aprovação de vagas",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "mun-vaga-aprovacao-claro.webp",
+     "escuro": "mun-vaga-aprovacao-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-capacidade",
+   "code": "MUN-CAPACIDADE",
+   "title": "Painel-Municipal · Capacidade",
+   "description": "Capacidade ofertada e ocupada das UBS.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-capacidade-claro.webp",
+    "escuro": "mun-capacidade-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-CAPACIDADE-C1",
+     "category": "C",
+     "text": "Sem dados, a tabela \"Capacidade por região\" mostra só a linha de cabeçalho (Região, Ofertados, Ocupados, Ocupação) e nenhuma frase. Logo acima, \"Capacidade por UBS\" explica \"Nenhuma UBS com base pronta neste filtro.\". Mostrar uma frase equivalente também na tabela por região.",
+     "reason": "Sem a frase, a tabela vazia parece carregamento travado ou erro, e as duas tabelas vizinhas se comportam de jeitos diferentes. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/CapacityView.xaml:31 (existe TextBlock de estado em Capacidade por UBS) e 36-45 (não existe em Capacidade por região); secretaria-capacity claro 02"
+    },
+    {
+     "id": "MUN-CAPACIDADE-V1",
+     "category": "V",
+     "text": "Os textos de apoio \"Regiões agrupadas sem diferenciar maiúsculas, com os mesmos filtros.\" e \"A barra acompanha a ocupação; o valor escrito é a informação.\" falam do funcionamento interno, não do que o gestor precisa. Cortar essas duas frases e manter as definições de Ofertados, Ocupados e Ocupação, que ajudam a ler os números.",
+     "reason": "Quem lê é gestor de saúde. Essas duas frases alongam o texto acima das tabelas sem ajudar a interpretar a capacidade. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/CapacityView.xaml:21 e 37; municipal-capacidade claro 01 e 02"
+    },
+    {
+     "id": "MUN-CAPACIDADE-F1",
+     "category": "F",
+     "text": "O aviso \"1 UBS está fora destes números porque a base dela ainda não foi criada. Crie a base na aba Unidades.\" manda ir para outra aba, mas não tem botão para isso. Acrescentar \"Abrir Unidades\" dentro do próprio aviso.",
+     "reason": "Hoje o gestor precisa descobrir sozinho onde fica a aba; o aviso já sabe o que ele deve fazer e poderia levá-lo até lá. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Metrics.cs:96 (texto do aviso); Nora.Desktop/Views/NetworkFiltersView.xaml (o único botão do cartão é \"Aplicar período\"); municipal-capacidade claro 01"
+    },
+    {
+     "id": "MUN-CAPACIDADE-F2",
+     "category": "F",
+     "text": "O cartão \"Cadastro de uma UBS (somente leitura)\" tem um seletor \"UBS\" próprio, que começa vazio (\"Escolha uma UBS para ver os profissionais...\") e não acompanha nem o filtro \"UBS\" do topo nem as linhas de \"Capacidade por UBS\", que não são clicáveis. Abrir o cadastro ao clicar numa linha dessa tabela, ou já trazer escolhida a UBS do filtro.",
+     "reason": "São duas escolhas de UBS na mesma tela, e o cadastro fica no fim da página, longe da linha que levou o gestor a querer vê-lo. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/CapacityView.xaml:24-30 (grid sem seleção) e 52-54; Nora.Desktop/ViewModels/WorkspaceViewModel.NetworkScheduling.cs:379 e 389 (CapacityUnit começa nulo); secretaria-capacity claro 02"
+    }
+   ],
+   "comparison": {
+    "label": "Com dados",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "mun-capacidade-dados-claro.webp",
+     "escuro": "mun-capacidade-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-alertas",
+   "code": "MUN-ALERTAS",
+   "title": "Painel-Municipal · Alertas",
+   "description": "Alertas da rede.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-alertas-claro.webp",
+    "escuro": "mun-alertas-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-ALERTAS-V1",
+     "category": "V",
+     "text": "Quando não há alertas, aparece o cabeçalho da tabela (UBS, Tipo, Especialidade, Valor, Limite, Desde), depois uma faixa em branco de cerca de 60 px e só então o aviso \"Nenhum alerta neste filtro...\". Esconder a tabela quando estiver vazia, ou mostrar o aviso dentro dela.",
+     "reason": "A faixa vazia parece uma linha que não carregou e separa o cabeçalho da explicação. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/NetworkAlertsView.xaml:23 (MinHeight=64 no DataGrid) e 33-35; secretaria-alerts claro e escuro"
+    },
+    {
+     "id": "MUN-ALERTAS-V2",
+     "category": "V",
+     "text": "A lista \"Fila alta, espera longa, faltas, ocupação da grade e metas fora\" aparece duas vezes: na descrição da página (\"Central de alertas\") e de novo no cartão \"Alertas da rede\", que ainda diz \"Os limites vêm da configuração da API\". Deixar uma só explicação curta e tirar o termo técnico \"API\".",
+     "reason": "O texto repetido empurra a tabela para baixo, e \"configuração da API\" não diz ao gestor onde os limites são definidos. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs (case \"alerts\", Heading); Nora.Desktop/Views/NetworkAlertsView.xaml:22; secretaria-alerts claro e escuro"
+    },
+    {
+     "id": "MUN-ALERTAS-F1",
+     "category": "F",
+     "text": "As linhas de alerta não levam a lugar nenhum: não há ação para abrir a UBS ou os indicadores daquele alerta. Avaliar uma ação na linha, por exemplo \"Ver indicadores da UBS\".",
+     "reason": "Com muitos alertas, o gestor precisa guardar o nome da UBS e procurá-la em outra aba para agir. Só dá para saber o ganho com uso real. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/NetworkAlertsView.xaml:23-31 (DataGrid só de leitura, sem comando de linha)"
+    },
+    {
+     "id": "MUN-ALERTAS-F2",
+     "category": "F",
+     "text": "O item \"Alertas\" do menu lateral não mostra contador; hoje o selo numérico existe só para comunicados não lidos no OBS. Avaliar mostrar quantos alertas estão abertos.",
+     "reason": "O gestor só descobre que há alertas se abrir a aba. Exigiria buscar os alertas mesmo fora da tela, então depende de decisão. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:97 e 120 (SetBadge só para \"announcements\"); Nora.Desktop/Views/ShellWindow.xaml:74"
+    }
+   ]
+  },
+  {
+   "id": "mun-relatorios",
+   "code": "MUN-RELATORIOS",
+   "title": "Painel-Municipal · Relatórios e metas",
+   "description": "Relatórios e metas da rede.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "mun-relatorios-claro.webp",
+    "escuro": "mun-relatorios-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-RELATORIOS-C1",
+     "category": "C",
+     "text": "A mesma página tem três escolhas de UBS (\"Filtros das vagas\", \"Escopo das metas\" e \"Filtros da rede\") e dois períodos diferentes (\"Período da vaga: Todo o histórico\" e \"Período: Últimos 30 dias\"). Pôr cada filtro dentro do cartão que ele afeta e renomear \"Filtros das vagas\" para algo como \"Filtros do resumo exportado\".",
+     "reason": "É fácil ler a tabela de metas com o filtro errado ou exportar o CSV achando que o período de 30 dias vale para ele. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs (case \"reports\" reaproveita LightningFiltersView e GoalsView); Nora.Desktop/Views/GoalsView.xaml:22 e 43; secretaria-reports claro 01 e 03"
+    },
+    {
+     "id": "MUN-RELATORIOS-V1",
+     "category": "V",
+     "text": "O resultado, \"Situação das metas por UBS\", fica no fim da página, depois de \"Exportar resumo agregado\" e dos formulários de \"Definir metas\". Subir a tabela de situação para logo abaixo do título e deixar a edição das metas abaixo dela.",
+     "reason": "Consultar acontece mais do que editar. Hoje o gestor rola cerca de três telas para ver se as UBS atingiram as metas. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/GoalsView.xaml:11-56 (ordem dos cartões); secretaria-reports claro 01 a 03 e municipal-metas claro 01 a 03"
+    },
+    {
+     "id": "MUN-RELATORIOS-V2",
+     "category": "V",
+     "text": "\"Salvar meta\" e \"Remover meta\" têm o mesmo visual de botão neutro. Usar o estilo principal, que já existe (PrimaryButton), em \"Salvar meta\" e criar um estilo secundário de risco para \"Remover meta\".",
+     "reason": "No tema escuro, com os dois ativos, nada diferencia gravar de apagar. A confirmação antes de remover existe, mas a hierarquia visual não ajuda. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/GoalsView.xaml:44-45 (Salvar e Remover meta no WrapPanel); Nora.Desktop/Themes/Controls.xaml:66 (PrimaryButton); municipal-metas escuro 02"
+    },
+    {
+     "id": "MUN-RELATORIOS-V3",
+     "category": "V",
+     "text": "\"Exportar resumo em CSV\" avisa o resultado numa janela do Windows (\"Resumo agregado exportado.\"), enquanto salvar meta usa a faixa \"Sucesso: ...\" no topo. Usar a faixa também na exportação, de preferência com o caminho do arquivo salvo.",
+     "reason": "São dois padrões de retorno na mesma tela, e a janela do Windows exige um clique extra para fechar. (observado na foto)",
+     "recommended": false,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs (ExportSummary com MessageBox.Show); faixa em municipal-metas escuro 02"
+    }
+   ],
+   "comparison": {
+    "label": "Metas com dados",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+    "images": {
+     "claro": "mun-metas-dados-claro.webp",
+     "escuro": "mun-metas-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-comunicacao",
+   "code": "MUN-COMUNICACAO",
+   "title": "Painel-Municipal · Comunicação",
+   "description": "Comunicados para as equipes e os pacientes, com leituras.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-comunicacao-claro.webp",
+    "escuro": "mun-comunicacao-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-COMUNICACAO-C1",
+     "category": "C",
+     "text": "A faixa vermelha \"Erro: Corrija os campos destacados do comunicado. Informe o título do comunicado.\" continua no topo com o \"Título\" já preenchido (\"Mutirão de vacinação\") e nenhum campo marcado com erro. Fazer a faixa sumir quando o campo for corrigido e marcar também a borda do campo com erro.",
+     "reason": "O aviso manda corrigir algo que já está certo e fala em \"campos destacados\" que não existem. O gestor fica sem saber se pode publicar. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Communication.cs:52 (digitar não limpa a mensagem) e 184 (mensagem criada só ao publicar); Nora.Desktop/Views/CommunicationView.xaml:18 (o erro do campo é só um texto abaixo); municipal-comunicacao claro 01 e 02"
+    },
+    {
+     "id": "MUN-COMUNICACAO-V1",
+     "category": "V",
+     "text": "O formulário \"Novo comunicado\" ocupa só uns 60% da largura, e a \"Pré-visualização\" fica num cartão separado, abaixo, fora da vista enquanto se digita. Colocar a pré-visualização à direita do formulário, no espaço livre, e deixá-la descer para baixo dele em janelas estreitas.",
+     "reason": "A pré-visualização serve para conferir o texto enquanto ele é escrito. Hoje é preciso rolar a página para vê-la. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/CommunicationView.xaml:19 (StackPanel MaxWidth=760) e 73-90 (cartão da pré-visualização); secretaria-communication claro 01 e municipal-comunicacao claro 02"
+    },
+    {
+     "id": "MUN-COMUNICACAO-V2",
+     "category": "V",
+     "text": "Os campos \"Para quem\" e \"Alcance\" aparecem totalmente vazios. Manter sem escolha inicial, como já foi decidido para evitar envio acidental, mas mostrar dentro deles \"Escolha o público\" e \"Escolha o alcance\".",
+     "reason": "Uma caixa vazia parece quebrada ou sem opções. O texto de apoio deixa claro que a escolha é obrigatória sem mudar a decisão. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/CommunicationView.xaml:36-47; docs/secretaria.md:15 (público e alcance começam sem escolha); secretaria-communication claro 01"
+    },
+    {
+     "id": "MUN-COMUNICACAO-V3",
+     "category": "V",
+     "text": "Com \"Você ainda não publicou comunicados.\", a tela mostra três botões desativados (\"Ver quem da equipe leu\", \"Encerrar comunicado selecionado\", \"Carregar mais antigos\") e o quadro \"Quem da equipe leu\" com cabeçalho \"Nome / Leu em\" vazio. Mostrar esse bloco só quando houver comunicado na lista.",
+     "reason": "São quatro elementos sem uso no estado vazio, que tiram a atenção da mensagem principal. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/CommunicationView.xaml:117-134; secretaria-communication claro 03 e municipal-comunicacao claro 02"
+    }
+   ],
+   "comparison": {
+    "label": "Com comunicados enviados",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+    "images": {
+     "claro": "mun-comunicacao-dados-claro.webp",
+     "escuro": "mun-comunicacao-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-usuarios",
+   "code": "MUN-USUARIOS",
+   "title": "Painel-Municipal · Usuários e histórico",
+   "description": "Contas da equipe e histórico de ações.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+   "images": {
+    "claro": "mun-usuarios-claro.webp",
+    "escuro": "mun-usuarios-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-USUARIOS-V1",
+     "category": "V",
+     "text": "O bloco \"Redefinir senha provisória da conta selecionada\" mostra dois campos de senha com cara de editáveis logo abaixo de \"Nenhuma conta selecionada.\". Esconder o bloco até haver uma conta selecionada, ou desativar também os campos.",
+     "reason": "O gestor pode digitar uma senha sem conta escolhida e só perceber o problema porque o botão continua desativado. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/StaffAccountsView.xaml:23-31 (só o botão usa CanResetStaffPassword); municipal-users-theme claro 01"
+    },
+    {
+     "id": "MUN-USUARIOS-V2",
+     "category": "V",
+     "text": "\"Vínculos de contas OBS\" pede \"Selecione a conta na tabela acima\", mas fica dois cartões abaixo da tabela, depois de \"Nova conta OBS\". Reunir redefinição de senha e vínculos num painel da conta selecionada, logo abaixo da tabela, e abrir \"Nova conta OBS\" por um botão \"Nova conta\".",
+     "reason": "Hoje é preciso rolar de volta à tabela para conferir qual conta está selecionada antes de conceder ou revogar uma UBS. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs (case \"users\": StaffAccountsView, StaffCreateView, StaffAccessView, HistoryView); municipal-users-theme claro 02 e 03"
+    },
+    {
+     "id": "MUN-USUARIOS-V3",
+     "category": "V",
+     "text": "Os rótulos dos campos mudam dentro da mesma página: \"Nova senha provisória (8 a 256 caracteres)\" aparece pequeno e em negrito, e \"Senha provisória (8 a 256 caracteres)\" em \"Nova conta OBS\" aparece maior e sem negrito. Usar o mesmo estilo de rótulo (por exemplo o negrito pequeno de Comunicação) em todos os formulários.",
+     "reason": "A diferença faz os formulários parecerem de telas diferentes. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/StaffCreateView.xaml:6-15 (rótulos sem FontWeight) e Nora.Desktop/Views/StaffAccountsView.xaml:25 (SemiBold 12); municipal-users-theme claro 01 e 02"
+    },
+    {
+     "id": "MUN-USUARIOS-F1",
+     "category": "F",
+     "text": "A tabela \"Contas do OBS\" não tem busca nem filtro, e nenhuma coluna mostra as UBS de cada conta. Avaliar uma busca por nome ou e-mail e um filtro por UBS.",
+     "reason": "A lista reúne as contas de toda a rede e deve crescer. Só o uso real mostra quando a rolagem da tabela deixa de bastar. (hipótese: confirmar no uso real)",
+     "recommended": false,
+     "kind": "hipotese",
+     "evidence": "Nora.Desktop/Views/StaffAccountsView.xaml:11-19 (colunas Nome, Perfil, E-mail, Situação, Troca de senha pendente; sem campo de busca); municipal-users-theme claro 01"
+    }
+   ],
+   "comparison": {
+    "label": "Com usuários",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas; uma faixa cinza marca onde duas partes não se encaixaram e podem repetir um trecho.",
+    "images": {
+     "claro": "mun-usuarios-dados-claro.webp",
+     "escuro": "mun-usuarios-dados-escuro.webp"
+    }
+   }
+  },
+  {
+   "id": "mun-configuracoes",
+   "code": "MUN-CONFIGURACOES",
+   "title": "Painel-Municipal · Configurações",
+   "description": "Aparência, notificações, conta e preferências locais.",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra só a coluna de conteúdo, com as partes da rolagem unidas sem repetir linhas.",
+   "images": {
+    "claro": "mun-configuracoes-claro.webp",
+    "escuro": "mun-configuracoes-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-CONFIGURACOES-C1",
+     "category": "C",
+     "text": "Em \"Atalhos de teclado\", o atalho \"Ctrl + 1 Visão geral\" tem a descrição \"Abre o Painel da UBS\", que é texto do OBS. Aqui deve dizer \"Abre a Visão geral da rede\".",
+     "reason": "É informação errada sobre o próprio produto, e o guia de design exige que os atalhos exibidos correspondam aos comandos reais. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:161 (texto fixo, sem diferença por perfil); docs/design.md:56; secretaria-settings claro 05"
+    },
+    {
+     "id": "MUN-CONFIGURACOES-C2",
+     "category": "C",
+     "text": "Os botões \"Alterar nome e localidade\" e \"Alterar e-mail\" ficam sempre desativados, ao lado do aviso \"A API ainda não tem rota para alterar...\". Esconder os botões e reescrever o aviso sem jargão até a função existir.",
+     "reason": "Botões mortos prometem algo que não há, e \"rota da API\" é jargão de programador. \"Localidade\" também não se aplica a uma conta da Secretaria. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:56-57; secretaria-settings claro 01"
+    },
+    {
+     "id": "MUN-CONFIGURACOES-V1",
+     "category": "V",
+     "text": "Em \"Aparência\", o texto \"Selecionada ✓\" deixa só o cartão escolhido mais alto, e os títulos \"Clara\", \"Escura\" e \"Sistema\" ficam desalinhados. No tema escuro, esse texto azul sobre o cartão azul tem pouco contraste. Reservar o mesmo espaço nos três cartões e usar uma cor de texto mais legível.",
+     "reason": "O desalinhamento aparece nos dois temas, e o estado selecionado precisa ser bem perceptível. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:99, 119 e 137 (texto condicional dentro do cartão); secretaria-settings claro 03 e escuro 03"
+    },
+    {
+     "id": "MUN-CONFIGURACOES-V2",
+     "category": "V",
+     "text": "O cartão se chama \"Perfil e unidade\", mas a conta da Secretaria não tem unidade, e o campo \"Escopo da conta\" mostra \"Gestão conectada\", que é o selo de conexão e não um escopo. No Painel-Municipal, usar \"Perfil\" e um escopo real, como \"Toda a rede\".",
+     "reason": "O rótulo e o valor não combinam e confundem quem quer saber o alcance da própria conta. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:46-55 (UnitLabelTitle e UnitLabel); secretaria-settings claro 01"
+    },
+    {
+     "id": "MUN-CONFIGURACOES-V3",
+     "category": "V",
+     "text": "O cartão \"Conexão\" (endereço \"https://...\" e \"variável privada NORA_API_URL\") fica no meio das preferências do dia a dia. Movê-lo para uma seção \"Avançado\", recolhida e no fim da página.",
+     "reason": "É um ajuste técnico que, se alterado por engano, afeta o próximo login. (observado na foto)",
+     "recommended": true,
+     "kind": "observado",
+     "evidence": "Nora.Desktop/Views/SettingsView.xaml:68-76 (cartão Conexão, antes de Aparência); secretaria-settings claro 02 e 03"
+    }
+   ]
+  },
+  {
+   "id": "mun-janela-aberta",
+   "code": "MUN-JANELA",
+   "title": "Painel-Municipal · Janela: barra lateral e cabeçalho",
+   "description": "A janela inteira com a navegação (aqui em Indicadores).",
+   "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra a janela inteira.",
+   "images": {
+    "claro": "mun-janela-aberta-claro.webp",
+    "escuro": "mun-janela-aberta-escuro.webp"
+   },
+   "items": [
+    {
+     "id": "MUN-JANELA-C1",
+     "category": "C",
+     "text": "Na janela de 740 px de altura, o menu lateral corta \"Comunicação\" ao meio atrás de \"Configurações\" e esconde \"Usuários e histórico\". Com a página Comunicação aberta, o próprio item selecionado aparece cortado. Rolar o menu até o item ativo, acrescentar um esmaecimento no fim da lista e diminuir a altura dos itens.",
+     "reason": "Itens do menu ficam fora da vista sem pista visual de que existem mais abaixo. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:48-79 (ScrollViewer do menu, itens com Padding 12 e Margin 6); secretaria-communication claro 01 e secretaria-capacity claro 01"
+    },
+    {
+     "id": "MUN-JANELA-C2",
+     "category": "C",
+     "text": "O atalho Ctrl+B (\"Barra lateral — Ajusta a navegação\") muda uma configuração que nenhuma parte da janela usa, e a imagem \"Barra lateral recolhida\" sai igual à aberta: mesma largura e todos os textos. Ligar o atalho ao recolhimento de verdade, mostrando só os ícones com o nome nas dicas.",
+     "reason": "Um atalho anunciado em Configurações não faz nada, e o guia de design prevê uma barra recolhida que continua identificando os destinos. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml.cs:106 (só alterna SidebarExpanded, que nenhum XAML lê); Nora.Desktop/Views/ShellWindow.xaml:4 (largura só por SidebarColumnWidth); docs/design.md:56 e 60; visual-municipal-indicadores claro e escuro comparados com as versões sidebar-recolhida"
+    },
+    {
+     "id": "MUN-JANELA-C3",
+     "category": "C",
+     "text": "O botão \"Configurações\" no rodapé do menu não fica destacado quando a página aberta é Configurações. Continua branco, enquanto os outros itens ganham fundo de seleção na página atual.",
+     "reason": "Em Configurações o menu não mostra em que página o gestor está. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/Views/ShellWindow.xaml:23 (Button sem gatilho de seleção, ao contrário do item da lista); secretaria-settings claro 01"
+    },
+    {
+     "id": "MUN-JANELA-C4",
+     "category": "C",
+     "text": "Em Indicadores, o subtítulo do cabeçalho diz \"Acompanhe o desempenho da unidade\", mas a página é \"Indicadores da rede\". No Painel-Municipal, usar \"Acompanhe o desempenho da rede\".",
+     "reason": "O texto é do OBS e contradiz o título da página logo abaixo. (defeito visível na foto)",
+     "recommended": true,
+     "kind": "reproduzido",
+     "evidence": "Nora.Desktop/ViewModels/ShellViewModel.cs:47 (mesmo texto para os dois perfis); visual-municipal-indicadores claro e escuro"
+    }
+   ],
+   "comparison": {
+    "label": "Barra lateral recolhida",
+    "evidence": "Render WPF do código de produção pelo harness `Nora.Desktop.Checks` (`--visual-gallery --secretaria-gallery`, 186/186) em 18/11/2026, commit a6f9201; HTTP simulado com dados sintéticos. Janela de 1280 px; a imagem mostra a janela inteira.",
+    "images": {
+     "claro": "mun-janela-claro.webp",
+     "escuro": "mun-janela-escuro.webp"
+    }
+   }
+  }
+ ],
+ "general_items": [
+  {
+   "id": "GERAL-C1",
+   "category": "C",
+   "text": "Criar um estilo de botão para ações de risco (texto ou borda na cor de erro) e usá-lo em \"Cancelar entrada\", \"Cancelar consulta\", \"Desativar nesta UBS\", \"Recusar pedido\", \"Encerrar vínculo selecionado\" e \"Anular registro selecionado\".",
+   "reason": "Hoje todas usam o botão neutro, igual a \"Atualizar\". O tema não tem nenhum estilo de perigo. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Themes/Controls.xaml:24-84; Nora.Desktop/Views/UnitQueueView.xaml:62; Nora.Desktop/Views/AgendaView.xaml:26; Nora.Desktop/Views/FamilyView.xaml:38,62"
+  },
+  {
+   "id": "GERAL-C2",
+   "category": "C",
+   "text": "Mudar o estado desligado dos botões: em vez de só 50% de transparência, usar fundo cinza e texto apagado, no botão principal e nos outros.",
+   "reason": "Com a transparência, o botão principal desligado continua azul e parece pronto para clicar (\"Aprovar pedido\" em Família). (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Themes/Controls.xaml:57-58,66-69; obs-familia claro 01"
+  },
+  {
+   "id": "GERAL-C3",
+   "category": "C",
+   "text": "Garantir que a barra lateral não corte itens em janelas baixas: em 740 px de altura, \"Configurações da UBS\" fica meio escondido atrás de \"Configurações\".",
+   "reason": "O item aparece cortado pela metade, e quem não rola a lista não descobre que ele existe. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Views/ShellWindow.xaml:10-48; visual-obs-login claro; visual-obs-fila-selecionada claro; obs-painel-escolha-ubs claro"
+  },
+  {
+   "id": "GERAL-C4",
+   "category": "C",
+   "text": "Vários textos da interface usam palavras técnicas que a equipe da UBS não conhece: \"avaliados pela API\" (Alertas), \"a API guarda apenas o hash\" (Computadores), \"a API ainda não tem rota\" (Configurações) e \"Dados atualizados pela API\" (aviso do botão Atualizar dados). Reescreva em linguagem de uso (\"o sistema\", \"a Secretaria\", \"este computador\").",
+   "reason": "O produto é usado por atendentes e o próprio projeto pede linguagem simples. Esses termos geram dúvida e chamados ao suporte. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.cs:70-73 e 175; Nora.Desktop/Views/UnitSettingsView.xaml:81; Nora.Desktop/Views/SettingsView.xaml:57"
+  },
+  {
+   "id": "GERAL-C5",
+   "category": "C",
+   "text": "Na barra lateral, o item \"Comunicação\" aparece cortado atrás de \"Configurações\" e \"Usuários e histórico\" some na janela de 740 px de altura. A lista deve terminar acima do rodapé fixo, para o item meio escondido não parecer defeito.",
+   "reason": "A lista tem rolagem, mas dois destinos do menu ficam escondidos ou pela metade em todas as telas capturadas nessa altura. Quem não rola o menu não sabe que eles existem. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Views/ShellWindow.xaml:48-79; secretaria-login-light-01, secretaria-home-light-01, secretaria-units-light-01 (com 900 px de altura, municipal-home-theme-light-01 mostra o menu inteiro)"
+  },
+  {
+   "id": "GERAL-C6",
+   "category": "C",
+   "text": "As caixas de Período, UBS, Região e Especialidade têm largura fixa de 190 px. Nomes longos de UBS ou de especialidade podem ficar cortados sem reticências nem dica de mouse.",
+   "reason": "\"Todas as especialidades\" já encosta na seta da caixa. Nomes reais de UBS tendem a ser maiores. (hipótese: confirmar no uso real)",
+   "recommended": true,
+   "kind": "hipotese",
+   "evidence": "Nora.Desktop/Views/NetworkFiltersView.xaml:10-17; secretaria-home-light-01"
+  },
+  {
+   "id": "GERAL-C7",
+   "category": "C",
+   "text": "Tirar a palavra \"API\" dos textos que a Secretaria lê: a mensagem \"Sucesso: Dados atualizados pela API.\" (trocar por algo como \"Números atualizados às hh:mm\") e o subtítulo \"com dados reais da API\" em Panorama da rede.",
+   "reason": "\"API\" não faz sentido para a Secretaria, e a hora diria de quando são os números mostrados. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.cs:73; Nora.Desktop/Views/MunicipalView.xaml.cs:107; municipal-especialidades-light-01; secretaria-vaga-aprovacao-light-02; secretaria-home-light-01"
+  },
+  {
+   "id": "GERAL-C8",
+   "category": "C",
+   "text": "Textos do OBS aparecem no Painel-Municipal: \"Abre o Painel da UBS\" nos atalhos, \"Acompanhe o desempenho da unidade\" no cabeçalho de Indicadores e a dica do menu \"Alertas\" (\"alertas operacionais da unidade\"). Revisar os textos compartilhados e separar a versão de cada produto.",
+   "reason": "Os dois produtos usam as mesmas telas, e textos fixos de um vazam para o outro sem aviso. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Views/SettingsView.xaml:161; Nora.Desktop/ViewModels/ShellViewModel.cs:47; Nora.Desktop/Views/ShellWindow.xaml:67 (dica do item alerts); secretaria-settings claro 05; visual-municipal-indicadores claro"
+  },
+  {
+   "id": "GERAL-V1",
+   "category": "V",
+   "text": "Usar um só formato de tempo de espera em todas as telas, o mesmo do Painel (\"1 h 35 min\", \"3 h\").",
+   "reason": "O Painel mostra \"1 h 35 min\" e a Fila mostra \"3h 0min\" e \"Agora\", porque o código usa duas funções de formatação diferentes. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Services/DisplayFormat.cs:28-37; Nora.Desktop/ViewModels/WorkspaceViewModel.UnitData.cs:255,260-266; obs-painel claro 01; obs-chamar-proximo-horarios claro 02"
+  },
+  {
+   "id": "GERAL-V2",
+   "category": "V",
+   "text": "Padronizar o topo das páginas: títulos com o mesmo tamanho (hoje 21, 24 e 28 px em Pacientes, Fila e Agenda/Família) e a mesma posição (dentro ou fora do cartão), e explicações fixas encurtadas para uma linha com o resto em dica ao passar o mouse.",
+   "reason": "Cada tela começa de um jeito, e os parágrafos de regra em 12 px no topo de Fila, Família, Agenda e Ficha empurram o conteúdo para baixo. O docs/design.md diz que as dicas substituem as explicações permanentes. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/ObsUnitRegistryView.xaml:4; Nora.Desktop/Views/UnitQueueView.xaml:8-9; Nora.Desktop/Views/AgendaView.xaml:7; Nora.Desktop/Views/FamilyView.xaml:8-9; docs/design.md (Ajustes Windows de 2026-10-11)"
+  },
+  {
+   "id": "GERAL-V3",
+   "category": "V",
+   "text": "Em todas as telas, a caixa de marcar fica à direita do texto e é empurrada para o fim do espaço disponível (\"Fechado\", \"Dia inteiro (feriado ou folga)\", especialidades do profissional, as preferências de Configurações). Ajuste o modelo único de caixa de marcar para ficar antes do texto e colado a ele, como no Windows.",
+   "reason": "Uma só correção no tema resolve a ligação entre caixa e texto em todas as telas e nos dois temas. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Themes/Controls.xaml:85-99; obs-configuracoes-admin claro 01, 04 e 06; Nora.Desktop/Views/SettingsView.xaml:147-152"
+  },
+  {
+   "id": "GERAL-V4",
+   "category": "V",
+   "text": "A lista de passos com o indicador girando (padrão do produto) não troca o texto quando o passo termina: fica \"✓ Salvando…\". Ao concluir, o texto deve ir para o passado (\"Horários salvos\", \"Aprovação salva\"); ao falhar, deve dizer o que falhou.",
+   "reason": "O padrão de mostrar o trabalho só serve se o texto acompanhar o estado. Hoje o texto continua no andamento ao lado da marca de concluído. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/ViewModels/WorkspaceViewModel.Steps.cs:19-20; Nora.Desktop/Themes/Controls.xaml:391-406; obs-atendimento claro 02; obs-aprovacao-ligada claro 02"
+  },
+  {
+   "id": "GERAL-V5",
+   "category": "V",
+   "text": "Deixar o cartão \"Filtros da rede\" sempre no mesmo lugar (logo abaixo do título) e trocar \"Cada escolha é aplicada na hora aos números desta tela\" por um aviso de que as escolhas valem para todas as abas. Hoje ele fica no topo em Visão geral e Indicadores, mas no meio da página em Unidades e Especialidades.",
+   "reason": "O filtro é o mesmo nas quatro telas: muda numa e muda nas outras. Em posições diferentes e com o texto \"desta tela\", a pessoa não percebe que ele é compartilhado. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/NetworkFiltersView.xaml:1-33; Nora.Desktop/Views/MunicipalView.xaml.cs:108-111; secretaria-home-light-01, secretaria-units-light-02, secretaria-specialties-light-02"
+  },
+  {
+   "id": "GERAL-V6",
+   "category": "V",
+   "text": "Várias telas trazem explicações técnicas sempre visíveis, por exemplo \"avaliados pela API em cada UBS\", \"Os limites vêm da configuração da API\", \"sem diferenciar maiúsculas\" e \"variável privada NORA_API_URL\". Reescrever em uma frase para o gestor e passar o detalhe para dicas ao passar o mouse.",
+   "reason": "O guia de design diz que as dicas substituem explicações permanentes. Hoje vários cartões abrem com duas ou três linhas antes do conteúdo. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "docs/design.md:78; CapacityView.xaml:21 e 37; NetworkAlertsView.xaml:22; SettingsView.xaml:69; MunicipalView.xaml.cs (case \"alerts\")"
+  },
+  {
+   "id": "GERAL-V7",
+   "category": "V",
+   "text": "As ações de risco (\"Remover meta\", \"Desativar conta\", \"Encerrar comunicado selecionado\", \"Revogar vínculo selecionado\") usam o mesmo botão neutro de \"Atualizar\" e \"Salvar\". Criar um estilo de botão de risco e usá-lo nas telas da Secretaria.",
+   "reason": "A hierarquia visual não ajuda a evitar cliques errados, mesmo nos casos em que há confirmação depois. (observado na foto)",
+   "recommended": true,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Themes/Controls.xaml:26 e 66 (só o botão padrão e PrimaryButton); GoalsView.xaml:45; StaffAccountsView.xaml:8; StaffAccessView.xaml:9; CommunicationView.xaml:119"
+  },
+  {
+   "id": "GERAL-V8",
+   "category": "V",
+   "text": "Tabelas vazias se comportam de jeitos diferentes: umas mostram uma frase (\"Nenhuma UBS com base pronta neste filtro.\", \"Nenhuma ação registrada...\"), outras só o cabeçalho (\"Capacidade por região\", \"Profissionais\", \"UBS autorizadas\"), e em Alertas sobra uma faixa em branco. Adotar um único padrão de estado vazio.",
+   "reason": "Quando o padrão muda, o gestor não sabe se a tabela está vazia, carregando ou com erro. (defeito visível na foto)",
+   "recommended": true,
+   "kind": "reproduzido",
+   "evidence": "CapacityView.xaml:31 e 38; NetworkAlertsView.xaml:23; secretaria-capacity claro 02; secretaria-alerts claro; municipal-users-theme claro 03"
+  },
+  {
+   "id": "GERAL-V9",
+   "category": "V",
+   "text": "O nome da UBS aparece três vezes em cada tela: no selo do cabeçalho (\"UBS Galeria\"), num bloco no começo da página (\"UBS Galeria / Centro\") e no rodapé da barra lateral. Deixe só o selo do cabeçalho com nome e região, e tire o bloco repetido do começo das páginas (Fila, Vaga Relâmpago, Alertas, Configurações da UBS), passando o botão \"Atualizar\" para o título.",
+   "reason": "Cada página ganha uns 50 px úteis e o conteúdo começa mais perto do título. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/UnitLightningSlotsView.xaml:10; Nora.Desktop/Views/UnitAlertsView.xaml:5-8; visual-obs-fila-selecionada claro topo; obs-alertas-reais claro 01"
+  },
+  {
+   "id": "GERAL-V10",
+   "category": "V",
+   "text": "A faixa de retorno (\"Sucesso: Bloqueio removido.\") fica presa no topo enquanto a página rola e só some no \"×\" ou ao trocar de tela: ela aparece nas 7 partes de rolagem de Configurações da UBS. Faça os avisos de sucesso sumirem sozinhos depois de alguns segundos e deixe fixos só os de erro.",
+   "reason": "Dentro de uma página longa, um sucesso antigo ocupa cerca de 70 px de cada tela e perde o sentido depois que a pessoa já passou para outra tarefa. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/ShellWindow.xaml:113-124; Nora.Desktop/ViewModels/WorkspaceViewModel.Messages.cs (ClearTransientMessage só ao trocar de seção); obs-configuracoes-admin claro 01 a 07"
+  },
+  {
+   "id": "GERAL-V11",
+   "category": "V",
+   "text": "As tabelas cortam com reticências textos que decidem a ação (\"Aprovar até 21/…\", \"Aguardando aprov…\", \"Dra. Ana Lima…\"), e o texto inteiro só aparece com o mouse em cima, enquanto outras colunas sobram espaço. Revise as larguras das colunas fixas e deixe nomes e situações quebrarem em até 2 linhas.",
+   "reason": "Quem usa o teclado ou a tela de toque não vê a dica do mouse, e o corte se repete em várias telas. (defeito visível na foto)",
+   "recommended": false,
+   "kind": "reproduzido",
+   "evidence": "Nora.Desktop/Views/UnitLightningSlotsView.xaml:3, 24 e 39; Nora.Desktop/Views/UnitSettingsView.xaml:206-209; obs-vagas-aguardando claro 01 e 02; obs-configuracoes-admin claro 05"
+  },
+  {
+   "id": "GERAL-V12",
+   "category": "V",
+   "text": "Usar um título só por tela. Hoje há o título pequeno do cabeçalho com subtítulo (\"Unidades / Acompanhe as unidades da rede\") e, logo abaixo, um título grande de 28 px com outro subtítulo (\"Unidades de saúde / Cadastre as UBS...\").",
+   "reason": "Dois pares de título e subtítulo dizendo quase o mesmo gastam a primeira rolagem e enfraquecem a hierarquia. É um padrão da janela, então só vale mexer junto, em todas as telas. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/MunicipalView.xaml.cs:58-62,101-112; Nora.Desktop/Views/ShellWindow.xaml:98; secretaria-units-light-01, secretaria-specialties-light-01, secretaria-indicators-light-01"
+  },
+  {
+   "id": "GERAL-V13",
+   "category": "V",
+   "text": "A faixa de retorno (\"Sucesso: Meta ... removida\") fica cerca de 70 px acima do conteúdo e só some quando a pessoa clica no × ou troca de seção. Avaliar fechar sozinhas as mensagens de sucesso depois de alguns segundos e manter fixas as de erro.",
+   "reason": "Depois de salvar, a faixa ocupa espaço de leitura na mesma tela. Fechar sozinha traz o risco de a pessoa não chegar a ler, por isso é opcional. (observado na foto)",
+   "recommended": false,
+   "kind": "observado",
+   "evidence": "Nora.Desktop/Views/ShellWindow.xaml:103-125 (sem temporizador); Nora.Desktop/ViewModels/WorkspaceViewModel.Messages.cs:44-45 (troca de seção já apaga sucesso e informação); municipal-metas escuro 02"
+  }
+ ]
+}
