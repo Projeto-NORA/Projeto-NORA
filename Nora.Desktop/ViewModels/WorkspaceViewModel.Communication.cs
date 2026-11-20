@@ -78,7 +78,7 @@ public sealed partial class WorkspaceViewModel
         : announcementScope == "region" && AnnouncementRegionChoices.Count(choice => choice.IsChecked) > AnnouncementRegionsMax ? $"Escolha no máximo {AnnouncementRegionsMax} regiões."
         : announcementScope == "units" && AnnouncementUnitChoices.Count(choice => choice.IsChecked) > AnnouncementUnitsMax ? $"Escolha no máximo {AnnouncementUnitsMax} UBS." : "";
     public string AnnouncementExpiryError => ExpiryProblem(out _) ?? "";
-    public string AnnouncementChoicesState => !IsAuthenticated ? "" : !UnitsLoaded ? "Carregando as unidades da rede…" : Units.Count == 0 ? "Nenhuma UBS cadastrada: não há região nem UBS para escolher." : "";
+    public string AnnouncementChoicesState => !IsAuthenticated ? "" : !UnitsLoaded ? "Carregando as unidades da rede…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : "";
 
     /// <summary>Validade opcional: data (dd/mm/aaaa) e hora (HH:mm, padrão 23:59) no horário local; precisa ser futura.</summary>
     private string? ExpiryProblem(out DateTimeOffset? expiresAt)
@@ -107,7 +107,13 @@ public sealed partial class WorkspaceViewModel
         nameof(AnnouncementTitleError), nameof(AnnouncementBodyError), nameof(AnnouncementAudienceError), nameof(AnnouncementScopeError), nameof(AnnouncementExpiryError),
         nameof(AnnouncementPreviewTitle), nameof(AnnouncementPreviewBody), nameof(AnnouncementPreviewMeta), nameof(AnnouncementBodyCounter), nameof(AnnouncementTitleCounter)
     ];
-    private void NotifyAnnouncementDraft() { foreach (var name in AnnouncementDraftNames) Notify(name); }
+    private void NotifyAnnouncementDraft()
+    {
+        foreach (var name in AnnouncementDraftNames) Notify(name);
+        // A faixa "Corrija os campos destacados" sai assim que o rascunho deixa de ter erro, em vez de acusar um campo que já está certo.
+        if (messageKind == MessageKind.Error && message.StartsWith("Corrija os campos destacados do comunicado", StringComparison.Ordinal)
+            && AnnouncementTitleError.Length + AnnouncementBodyError.Length + AnnouncementAudienceError.Length + AnnouncementScopeError.Length + AnnouncementExpiryError.Length == 0) ClearMessage();
+    }
 
     // ---- Pré-visualização em texto puro ----
 
@@ -209,7 +215,7 @@ public sealed partial class WorkspaceViewModel
         : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. Use Atualizar lista para tentar de novo." : "Carregando seus comunicados…")
         : MyAnnouncements.Count == 0 ? "Você ainda não publicou comunicados." : "";
     public string MyAnnouncementsFootnote => !myAnnouncementsLoaded || MyAnnouncements.Count == 0 ? ""
-        : $"{MyAnnouncements.Count} {(MyAnnouncements.Count == 1 ? "comunicado" : "comunicados")} carregado(s){(myAnnouncementsNext is null ? "." : "; há mais antigos.")} A contagem de leituras é de contas que marcaram como lido; a de pacientes não mostra quem leu.";
+        : $"{MyAnnouncements.Count} {(MyAnnouncements.Count == 1 ? "comunicado" : "comunicados")} carregado(s){(myAnnouncementsNext is null ? "." : "; há mais antigos.")}";
     private static readonly string[] MyAnnouncementNames = [nameof(MyAnnouncementsState), nameof(MyAnnouncementsFootnote), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements)];
     private void NotifyMyAnnouncements() { foreach (var name in MyAnnouncementNames) Notify(name); }
     private bool MyAnnouncementsDue => myAnnouncementsAttemptedAt is null || DateTimeOffset.Now - myAnnouncementsAttemptedAt >= MyAnnouncementsRefreshAge;
@@ -310,7 +316,7 @@ public sealed partial class WorkspaceViewModel
             try { await LoadMyAnnouncementsCoreAsync(); } catch (NoraApiException reading) when (!reading.Unauthorized) { MarkStale(); }
             throw;
         }
-        await ReadMyAnnouncementsAfterChangeAsync($"Comunicado \"{item.Title}\" encerrado: ele deixou de aparecer para as equipes e para os pacientes.");
+        await ReadMyAnnouncementsAfterChangeAsync($"Comunicado \"{item.Title}\" encerrado.");
     });
 
     private void ClearCommunication()

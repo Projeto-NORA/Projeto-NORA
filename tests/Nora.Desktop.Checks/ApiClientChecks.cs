@@ -265,7 +265,7 @@ internal static partial class Program
                     var content = Layout(window, 980, 640);
                     if (profile.IsMunicipal)
                     {
-                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Toda a rede em um só lugar"), "Panorama da Secretaria não renderizou.");
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes aguardando"), "Total de pacientes aguardando não apareceu na Visão geral.");
                         // Os quatro filtros agora são reais: nenhum combo desabilitado nem rótulo "Indisponível".
                         Require(Descendants<ComboBox>(content).Count(box => box.IsEnabled) == 4 && Descendants<ComboBox>(content).All(box => box.IsEnabled), "Os quatro filtros da rede deveriam estar habilitados.");
@@ -275,7 +275,7 @@ internal static partial class Program
                     {
                         var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS");
                         Require(list.Items.Count == 1 && list.ActualHeight > 0, "Cadastros da UBS não renderizados.");
-                        Require(Descendants<TextBlock>(list).Any(text => text.Text.Contains("000.000.000-00", StringComparison.Ordinal)), "CPF formatado não aparece na listagem da UBS.");
+                        Require(Descendants<TextBlock>(list).Any(text => new System.Windows.Documents.TextRange(text.ContentStart, text.ContentEnd).Text.Contains("000.000.000-00", StringComparison.Ordinal)), "CPF formatado não aparece na listagem da UBS.");
                     }
                     SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-authenticated-fixture-{mode.ToString().ToLowerInvariant()}.png"));
                 }

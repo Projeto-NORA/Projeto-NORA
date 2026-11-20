@@ -41,10 +41,11 @@ class PatientLogicTest {
     }
 
     @Test fun remainingTimeRoundsUpAndNeverGoesNegative() {
-        assertEquals("09:32", formatRemaining(9 * 60_000L + 31_100))
-        assertEquals("00:01", formatRemaining(1))
-        assertEquals("00:00", formatRemaining(-5_000))
-        assertEquals("1:00:00", formatRemaining(3_600_000))
+        assertEquals("9 min 32 s", formatRemainingUnits(9 * 60_000L + 31_100))
+        assertEquals("45 s", formatRemainingUnits(45_000))
+        assertEquals("1 s", formatRemainingUnits(1))
+        assertEquals("0 s", formatRemainingUnits(-5_000))
+        assertEquals("1 h 0 min 0 s", formatRemainingUnits(3_600_000))
         assertEquals("menos de um minuto", describeRemaining(59_000))
         assertEquals("1 minuto", describeRemaining(60_000))
         assertEquals("9 minutos", describeRemaining(9 * 60_000L + 30_000))

@@ -4,20 +4,21 @@
   </UserControl.Resources>
   <StackPanel>
     <views:ObsUnitNoticeView />
+    <TextBlock Text="Fila da UBS" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
     <Border Style="{StaticResource Card}" Margin="0,0,0,24"><StackPanel IsEnabled="{Binding CanEditDraft}">
-      <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="SemiBold" />
-      <TextBlock Text="Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento. A ordem de oferta, o score e o tempo de espera são atualizados a cada leitura." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" AutomationProperties.Name="Como a fila é ordenada" />
+      <TextBlock Text="Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada. O score não muda a prioridade clínica nem o direito ao atendimento." ToolTip="A ordem de oferta, o score e o tempo de espera são atualizados a cada leitura." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" AutomationProperties.Name="Como a fila é ordenada" />
       <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
-        <TextBlock Text="Paciente cadastrado na UBS" /><ComboBox ItemsSource="{Binding ActiveObsRegistry}" SelectedItem="{Binding WaitingPatient}" DisplayMemberPath="FullName" AutomationProperties.Name="Paciente da fila da UBS" />
-        <TextBlock Text="Especialidade" /><TextBox Text="{Binding WaitingSpecialty, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Especialidade da fila da UBS" />
+        <TextBlock Text="Paciente cadastrado na UBS" /><ComboBox ItemsSource="{Binding ActiveObsRegistry}" SelectedItem="{Binding WaitingPatient}" DisplayMemberPath="FullName" Margin="0,0,0,14" AutomationProperties.Name="Paciente da fila da UBS" />
+        <TextBlock Text="Especialidade" /><ComboBox ItemsSource="{Binding ActiveSpecialtyOptions}" DisplayMemberPath="Name" SelectedValuePath="Name" SelectedValue="{Binding WaitingSpecialty}" IsSynchronizedWithCurrentItem="False" Margin="0,0,0,14" AutomationProperties.Name="Especialidade da fila da UBS" ToolTip="Especialidades ativas do catálogo da rede." />
+        <TextBlock Text="{Binding QueueSpecialtyState}" Style="{StaticResource Muted}" Margin="0,-8,0,10" Visibility="{Binding QueueSpecialtyState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel><Button Content="Incluir na fila da UBS" Click="OnAdd" Margin="0,0,8,8" /><Button Content="Atualizar fila da UBS" Click="OnLoad" Margin="0,0,8,8" />
           <Button Content="Chamar próximo…" Click="OnToggleCallNext" IsEnabled="{Binding CanOpenCallNext}" Margin="0,0,8,8" AutomationProperties.Name="Chamar próximo" ToolTip="Escolha um horário livre e ofereça ao 1º da fila da especialidade, sem esperar a distribuição automática." ToolTipService.ShowOnDisabled="True" /></WrapPanel>
         <!-- Chamar próximo: horário livre da grade oferecido na hora ao 1º da fila da especialidade (10 minutos para responder). -->
         <Border Visibility="{Binding CallNextOpen, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14" AutomationProperties.Name="Chamar próximo da fila">
           <StackPanel MaxWidth="780" HorizontalAlignment="Left">
             <TextBlock Text="Chamar próximo da fila" FontWeight="SemiBold" />
-            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Escolha um horário livre da grade. A oferta vai ao 1º da fila dessa especialidade (quem tem score maior; empate pela ordem de entrada), que tem 10 minutos para responder; se ele recusar ou não responder, continua na fila na mesma posição e o horário segue sozinho para os próximos." />
+            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Escolha um horário livre. A oferta vai ao 1º da fila da especialidade, que tem 10 minutos para responder; se recusar ou não responder, mantém a posição e o horário segue para o próximo." />
             <WrapPanel>
               <StackPanel Width="270" Margin="0,0,12,0"><TextBlock Text="Especialidade" FontWeight="SemiBold" FontSize="12" />
                 <ComboBox ItemsSource="{Binding CallNextSpecialties}" SelectedItem="{Binding CallNextSpecialty}" DisplayMemberPath="Label" Margin="0,6,0,12" AutomationProperties.Name="Especialidade do Chamar próximo" /></StackPanel>
@@ -41,7 +42,13 @@
             <Button Content="Oferecer ao 1º da fila" Click="OnCallNextOffer" IsEnabled="{Binding CanCallNextOffer}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Escolha um horário e confira que há alguém na fila para poder oferecer." ToolTipService.ShowOnDisabled="True" />
           </StackPanel>
         </Border>
-        <DataGrid x:Name="QueueGrid" ItemsSource="{Binding UnitWaitingList}" SelectedItem="{Binding SelectedWaitingEntry}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada.">
+        <WrapPanel Margin="0,0,0,10" AutomationProperties.Name="Filtros da fila">
+          <StackPanel Width="250" Margin="0,0,12,0"><TextBlock Text="Filtrar por especialidade" FontWeight="SemiBold" FontSize="12" />
+            <ComboBox Margin="0,6,0,0" ItemsSource="{Binding QueueSpecialtyOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding QueueSpecialtyFilter}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar a fila por especialidade" /></StackPanel>
+          <StackPanel Width="250" Margin="0,0,12,0"><TextBlock Text="Buscar por nome" FontWeight="SemiBold" FontSize="12" />
+            <TextBox Margin="0,6,0,0" Text="{Binding QueueSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Buscar paciente da fila por nome" /></StackPanel>
+        </WrapPanel>
+        <DataGrid x:Name="QueueGrid" ItemsSource="{Binding QueueView}" IsSynchronizedWithCurrentItem="False" SelectedItem="{Binding SelectedWaitingEntry}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada.">
           <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
         <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>
         <DataGrid.Columns>
@@ -49,17 +56,18 @@
             <DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="1.5*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" SortMemberPath="ScoreSort" Width="120" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="Espera" Binding="{Binding WaitDisplay}" Width="82" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Espera" Binding="{Binding WaitDisplay}" Width="116" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Entrada" Binding="{Binding EnteredAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="104" ElementStyle="{StaticResource CellText}" />
           </DataGrid.Columns>
         </DataGrid>
         <TextBlock Text="Nenhuma entrada na fila desta UBS." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding HasNoWaitingEntries, Converter={StaticResource BoolVisibility}}" />
+        <TextBlock Text="Nenhuma entrada combina com o filtro." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding QueueFilterHidesAll, Converter={StaticResource BoolVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <DockPanel Margin="0,10,0,0" Visibility="{Binding QueueHistoryState, Converter={StaticResource TextVisibility}}">
           <Button DockPanel.Dock="Right" Content="Carregar mais histórico" Click="OnMoreHistory" IsEnabled="{Binding CanLoadMoreQueueHistory}" Margin="12,0,0,0" AutomationProperties.Name="Carregar mais histórico da fila" ToolTip="Traz as entradas encerradas mais antigas que as que já estão na lista. As entradas ativas aparecem sempre todas." ToolTipService.ShowOnDisabled="True" />
           <TextBlock Text="{Binding QueueHistoryState}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
         </DockPanel>
-        <Button Content="Cancelar entrada" Click="OnCancel" IsEnabled="{Binding CanCancelWaitingEntry}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Cancela a entrada selecionada enquanto ela estiver aguardando ou com oferta em andamento." ToolTipService.ShowOnDisabled="True" />
+        <Button Content="Cancelar entrada" Style="{StaticResource DangerButton}" Click="OnCancel" IsEnabled="{Binding CanCancelWaitingEntry}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Cancela a entrada selecionada enquanto ela estiver aguardando ou com oferta em andamento." ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
     </StackPanel></Border>
   </StackPanel>

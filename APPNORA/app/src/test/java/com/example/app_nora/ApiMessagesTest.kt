@@ -14,7 +14,7 @@ class ApiMessagesTest {
 
     @Test fun conflictDependsOnTheOperation() {
         assertEquals("Esta oportunidade não está mais disponível.", failureMessage(409, "conflict", ApiContext.OFFER_RESPOND))
-        assertTrue(failureMessage(409, null, ApiContext.APPOINTMENT_CANCEL).startsWith("Esta consulta já foi alterada"))
+        assertTrue(failureMessage(409, null, ApiContext.APPOINTMENT_CANCEL).startsWith("A unidade alterou esta consulta"))
         assertNotEquals(failureMessage(409, null, ApiContext.OFFER_RESPOND), failureMessage(409, null, ApiContext.REGISTRATION))
     }
 
@@ -74,7 +74,7 @@ class ApiMessagesTest {
             assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", context))
         assertTrue(failureMessage(503, null, ApiContext.AVAILABILITY).contains("UBS"))
         // Marcar confere todas as UBS vinculadas: 503 pede nova tentativa, sem culpar uma unidade só.
-        assertTrue(failureMessage(503, null, ApiContext.BOOKING).contains("todas as suas UBS"))
+        assertTrue(failureMessage(503, null, ApiContext.BOOKING).contains("todas as UBS"))
         assertTrue(failureMessage(400, null, ApiContext.BOOKING).contains("horário"))
         assertTrue(failureMessage(404, null, ApiContext.CONFIRMATION).contains("consulta"))
         assertTrue(failureMessage(409, null, ApiContext.CONFIRMATION).contains("confirmada"))
@@ -112,6 +112,8 @@ class ApiMessagesTest {
         assertTrue(failureMessage(404, "not-found", ApiContext.EMAIL_CHANGE).contains("sugestão"))
         assertEquals("Confira o código informado.", failureMessage(400, "invalid-input", ApiContext.EMAIL_CHANGE))
         assertTrue(failureMessage(503, "service-unavailable", ApiContext.RECORDS).contains("UBS"))
+        assertTrue(failureMessage(503, "service-unavailable", ApiContext.UNIT_LIST).contains("uma das suas UBS"))
+        assertTrue(failureMessage(503, "service-unavailable", ApiContext.UNIT_LIST, unitName = "Centro").contains("a UBS Centro"))
         assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.RECORDS))
         assertEquals("Sua sessão terminou. Entre novamente.", failureMessage(401, null, ApiContext.ANNOUNCEMENTS))
     }

@@ -31,12 +31,12 @@ public sealed partial class WorkspaceViewModel
         }
     }
     /// <summary>Texto do painel de exportação: diz o escopo do resumo que foi aplicado (o que vai no CSV), não o da escolha ainda em leitura.</summary>
-    public string SummaryExportNote => "Baixe em CSV os totais carregados da API. O arquivo contém dados agregados e não inclui pacientes identificáveis. "
-        + (appliedSummaryUnitId is null ? "O resumo é de toda a rede; o período filtra somente as vagas pela data de criação; pacientes e fila são totais atuais de toda a rede."
-            : $"O resumo é só da {AppliedSummaryUnitLabel}, que aparece pelo nome no arquivo; o período filtra somente as vagas pela data de criação; pacientes e fila são totais atuais só dessa UBS.");
+    public string SummaryExportNote => "Baixe em CSV os totais carregados, sem pacientes identificáveis. "
+        + (appliedSummaryUnitId is null ? "Resumo de toda a rede; o período filtra só as vagas pela data de criação; pacientes e fila são totais atuais."
+            : $"Resumo só da {AppliedSummaryUnitLabel}; o período filtra só as vagas pela data de criação; pacientes e fila são totais atuais dessa UBS.");
     public string AppliedSummaryUnitLabel => appliedSummaryUnitId is { } id ? Units.FirstOrDefault(unit => unit.Id == id)?.Name ?? "UBS selecionada" : "Toda a rede";
     public bool UnitsLoaded { get => unitsLoaded; private set { unitsLoaded = value; Notify(); Notify(nameof(UnitsState)); } }
-    public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Carregando as unidades da API…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : !FilteredUnits.Any() ? "Nenhuma unidade encontrada para esta pesquisa." : "";
+    public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Carregando as unidades…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : !FilteredUnits.Any() ? "Nenhuma unidade encontrada para esta pesquisa." : "";
     public string UnitSearch
     {
         get => unitSearch;
@@ -62,8 +62,8 @@ public sealed partial class WorkspaceViewModel
     public bool SelectedUnitDatabasePending => selectedUnit?.DatabasePending == true;
     public bool CanProvisionUnitDatabase => IsMunicipal && CanOperate && SelectedUnitDatabasePending;
     public string UnitRegistryHint => SelectedUnitDatabasePending
-        ? "A base desta UBS ainda não foi criada: crie a base antes de consultar cadastros e agenda."
-        : "A consulta mostra os dados de referência desta unidade e é registrada no histórico de acesso.";
+        ? "Crie a base desta UBS antes de consultar cadastros e agenda."
+        : "A consulta é registrada no histórico de acesso.";
 
     private bool unitRegistryLoaded;
     public ObservableCollection<UnitPatientRecord> UnitRegistry { get; } = [];
@@ -169,7 +169,12 @@ public sealed partial class WorkspaceViewModel
         RebuildAnnouncementChoices();
     }
 
-    public void NewUnitDraft()
+    /// <summary>O formulário só aparece depois de "Nova UBS" ou "Editar selecionada"; salvar ou cancelar o fecha.</summary>
+    public bool IsUnitFormOpen { get => isUnitFormOpen; private set { if (isUnitFormOpen == value) return; isUnitFormOpen = value; Notify(); } }
+    private bool isUnitFormOpen;
+    public void NewUnitDraft() { ResetUnitDraft(); IsUnitFormOpen = true; }
+    public void CancelUnitForm() { ResetUnitDraft(); IsUnitFormOpen = false; }
+    private void ResetUnitDraft()
     {
         editingUnitId = null; unitFormSubmitted = false; UnitName = UnitRegion = UnitAddress = UnitLatitude = UnitLongitude = ""; Notify(nameof(UnitDraftTitle));
         foreach (var name in UnitFormNames) Notify(name);
@@ -179,7 +184,7 @@ public sealed partial class WorkspaceViewModel
         if (SelectedUnit is not { } unit) return;
         editingUnitId = unit.Id; unitFormSubmitted = false; UnitName = unit.Name; UnitRegion = unit.Region; UnitAddress = unit.Address;
         UnitLatitude = unit.Latitude.ToString("R", CultureInfo.InvariantCulture); UnitLongitude = unit.Longitude.ToString("R", CultureInfo.InvariantCulture);
-        Notify(nameof(UnitDraftTitle));
+        Notify(nameof(UnitDraftTitle)); IsUnitFormOpen = true;
     }
 
     private async Task LoadUnitsCoreAsync()
@@ -230,9 +235,9 @@ public sealed partial class WorkspaceViewModel
         var creating = editingUnitId is null;
         var saved = editingUnitId is { } id ? await api.UpdateHealthUnitAsync(id, name, region, address, lat, lon) : await api.CreateHealthUnitAsync(name, region, address, lat, lon);
         if (disposed) return;
-        UpsertUnit(saved); SelectedUnit = saved; NewUnitDraft();
+        UpsertUnit(saved); SelectedUnit = saved; CancelUnitForm();
         if (saved.DatabasePending)
-            Say(MessageKind.Info, "UBS salva, mas a base de dados dela não foi criada: o usuário PostgreSQL da API precisa de permissão para criar bancos. Use \"Tentar criar a base\" depois de ajustar a permissão.");
+            Say(MessageKind.Info, "UBS salva, mas a base de dados dela não foi criada: o servidor precisa de permissão para criar bancos. Use \"Tentar criar a base\" depois de ajustar a permissão.");
         else Say(MessageKind.Success, "UBS salva. Selecione-a no mapa para conferir a localização.");
         if (creating) ReloadNetwork(includeSummary: true);
     });
@@ -246,7 +251,7 @@ public sealed partial class WorkspaceViewModel
         UpsertUnit(saved);
         if (SelectedUnit?.Id == saved.Id) SelectedUnit = saved;
         Say(saved.DatabasePending ? MessageKind.Error : MessageKind.Success,
-            saved.DatabasePending ? "A API respondeu, mas a base da UBS continua sem estar pronta. Tente novamente." : $"Base da UBS {saved.Name} criada. Ela passa a entrar nos números da rede.");
+            saved.DatabasePending ? "O sistema respondeu, mas a base da UBS continua sem estar pronta. Tente novamente." : $"Base da UBS {saved.Name} criada. Ela passa a entrar nos números da rede.");
         ReloadNetwork(includeSummary: true);
     });
 
@@ -258,7 +263,7 @@ public sealed partial class WorkspaceViewModel
         Units.Clear(); selectedUnit = null; UnitRegistry.Clear(); UnitRegistryLoaded = false; MunicipalAppointments.Clear(); VisibleMunicipalAppointments.Clear(); MunicipalAppointmentsLoaded = false;
         UnitsLoaded = false; unitSearch = ""; Notify(nameof(UnitSearch)); summaryUnitFilter = Guid.Empty; appliedSummaryUnitId = null;
         Replace(UnitFilterOptions, new[] { WholeNetwork }); Replace(RegionOptions, new[] { new FilterOption("", "Todas as regiões") });
-        ResetAgendaRange(); NewUnitDraft(); ClearMetrics(); NotifyUnits();
+        ResetAgendaRange(); CancelUnitForm(); ClearMetrics(); NotifyUnits();
         foreach (var name in new[] { nameof(SelectedUnit), nameof(SummaryUnitFilter), nameof(HasSelectedUnit), nameof(CanEditUnit), nameof(CanReadUnitRegistry), nameof(SelectedUnitLabel), nameof(SelectedUnitDatabasePending), nameof(CanProvisionUnitDatabase), nameof(UnitRegistryHint) }) Notify(name);
     }
 }

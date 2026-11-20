@@ -240,8 +240,8 @@ internal static partial class Program
                 var content = Show(window, "patients", 1280, 1300);
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS");
                 // A lista rola (altura máxima): só as primeiras linhas estão desenhadas, então o texto é conferido nelas e o resto pelos dados.
-                var texts = VisibleTexts(list);
-                Require(texts.Contains("Score (12 meses): 900 · Excelente") && texts.Contains("Score (12 meses): 1000 · sem consultas encerradas ainda"), "A lista não mostra o score em pontos: " + string.Join(" | ", texts.Where(text => text.StartsWith("Score", StringComparison.Ordinal))));
+                var texts = FullTexts(list);
+                Require(texts.Contains("Score 900 · Excelente") && texts.Contains("Score 1000 · sem consultas encerradas ainda"), "A lista não mostra o score em pontos: " + string.Join(" | ", texts.Where(text => text.StartsWith("Score", StringComparison.Ordinal))));
                 Require(!texts.Any(text => text.Contains('%')), "A lista não deveria mais mostrar participação em %.");
                 Require(texts.Contains(WorkspaceViewModel.ScorePriorityText) || VisibleTexts(content).Contains(WorkspaceViewModel.ScorePriorityText), "A tela deveria explicar que o score dá prioridade na Vaga Relâmpago sem mudar a prioridade clínica.");
                 Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ScoreDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["1000 · sem consultas encerradas ainda", "429 · Regular", "750 · Bom", "900 · Excelente", "—"]), "O score de cada cadastro está incorreto.");

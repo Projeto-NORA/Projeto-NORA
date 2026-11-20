@@ -55,7 +55,10 @@
               <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-              <Setter TargetName="Frame" Property="Opacity" Value="0.5" />
+              <Setter TargetName="Frame" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+              <Setter TargetName="Frame" Property="Opacity" Value="0.7" />
+              <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
               <Setter Property="Cursor" Value="Arrow" />
             </Trigger>
           </ControlTemplate.Triggers>
@@ -80,6 +83,35 @@
         <Setter Property="Background" Value="{DynamicResource BrandGradientHoverBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" />
       </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <!-- Ação de risco (remover/apagar): contorno e texto na cor de erro, sem competir com o botão principal. -->
+  <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ErrorBrush}" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <!-- Botão que alterna entre desativar (risco) e reativar (normal): só "Desativar..." usa a cor de erro. O botão passa em Tag o IsActive do item selecionado (False = reativar). -->
+  <Style x:Key="DeactivateButton" TargetType="Button" BasedOn="{StaticResource DangerButton}">
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      </DataTrigger>
+      <!-- Por último, para o desligado vencer o gatilho de reativar acima. -->
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+      </Trigger>
     </Style.Triggers>
   </Style>
   <Style TargetType="CheckBox">
@@ -92,11 +124,11 @@
         <ControlTemplate TargetType="CheckBox">
           <Grid Background="Transparent">
             <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <ContentPresenter VerticalAlignment="Center" Margin="0,0,20,0" />
-            <Border x:Name="Box" Grid.Column="1" Width="22" Height="22" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <ContentPresenter Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" />
+            <Border x:Name="Box" Width="22" Height="22" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
               <TextBlock x:Name="Check" Text="✓" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
             </Border>
           </Grid>

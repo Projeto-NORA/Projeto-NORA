@@ -26,11 +26,14 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "unit-settings", 1280, 5200);
                 Require(!vm.SlotApprovalEnabled && vm.SlotApprovalToggleLabel == "Ligar aprovação das vagas" && vm.SlotApprovalState.StartsWith("Desligada.", StringComparison.Ordinal) && vm.CanToggleSlotApproval, "Por padrão a aprovação vem desligada e o administrador pode ligá-la: " + vm.SlotApprovalState);
+                Require(VisibleTexts(content).Contains("Desligada"), "O selo deveria dizer Desligada com a aprovação desligada.");
                 Click(window, content, "Ligar aprovação das vagas", 1280, 5200);
-                Require(asked.Count == 1 && asked[0].Contains("sem aprovação até 1 h antes, ela fecha", StringComparison.Ordinal) && fixture.Count("PUT", "/slot-approval") == 0, "Sem confirmar nada pode ser enviado.");
+                Require(asked.Count == 1 && asked[0].Contains("sem aprovação até 1 h antes da consulta, ela fecha", StringComparison.Ordinal) && fixture.Count("PUT", "/slot-approval") == 0, "Sem confirmar nada pode ser enviado.");
                 answer = true;
                 Click(window, content, "Ligar aprovação das vagas", 1280, 5200);
-                Require(fixture.Count("PUT", "/slot-approval") == 1 && vm.SlotApprovalEnabled && vm.SlotApprovalToggleLabel == "Desligar aprovação das vagas" && vm.SlotApprovalState.StartsWith("Ligada desde ", StringComparison.Ordinal) && vm.SlotApprovalSteps.Single() is { Text: "Salvando a aprovação das vagas…", IsDone: true } && vm.ProfileSteps.Count == 0 && vm.MessageKind == MessageKind.Success, "Ligar deveria gravar e mostrar desde quando: " + vm.SlotApprovalState);
+                Require(fixture.Count("PUT", "/slot-approval") == 1 && vm.SlotApprovalEnabled && vm.SlotApprovalToggleLabel == "Desligar aprovação das vagas" && vm.SlotApprovalState.StartsWith("Ligada desde ", StringComparison.Ordinal) && vm.SlotApprovalSteps.Single() is { Text: "Aprovação das vagas salva", IsDone: true } && vm.ProfileSteps.Count == 0 && vm.MessageKind == MessageKind.Success, "Ligar deveria gravar e mostrar desde quando: " + vm.SlotApprovalState);
+                content = Layout(window, 1280, 5200);
+                Require(VisibleTexts(content).Contains("Ligada") && !VisibleTexts(content).Contains("Desligada"), "O selo deveria dizer Ligada com a aprovação ligada.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-aprovacao-ligada-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 5200); SaveScrolled(window, Path.Combine(previewRoot, "obs-aprovacao-ligada-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
                 content = Layout(window, 1280, 5200);
@@ -69,9 +72,9 @@ internal static partial class Program
                 var content = Show(window, "slots", 1280, 3200);
                 Require(vm.ShowAwaitingSlots && vm.AwaitingSlotsTitle == "Aguardando aprovação (4)" && FullTexts(content).Contains("Aguardando aprovação (4)"), "A seção deveria aparecer com a contagem, mesmo com a chave desligada (há vagas aguardando).");
                 var grid = GridNamed(content, "Vagas aguardando aprovação da equipe");
-                Require(grid.Items.Count == 4 && new[] { "Especialidade", "Profissional", "Horário", "Origem", "Prazo" }.SequenceEqual(grid.Columns.Select(column => column.Header?.ToString() ?? "")), "A lista deveria mostrar especialidade, profissional, horário, origem e prazo.");
-                Require(vm.AwaitingSlots[0].SourceDisplay.StartsWith("Veio da consulta de Maria Souza, cancelada em ", StringComparison.Ordinal) && vm.AwaitingSlots[0].SourceDisplay.EndsWith(" pelo paciente", StringComparison.Ordinal) && vm.AwaitingSlots.Single(item => item.Id == forDiscard.Id).SourceDisplay.EndsWith(" pela equipe", StringComparison.Ordinal), "A origem deveria dizer quem cancelou: " + vm.AwaitingSlots[0].SourceDisplay);
-                Require(vm.AwaitingSlots[0].ApprovalDeadlineDisplay.StartsWith("Aprovar até ", StringComparison.Ordinal) && vm.AwaitingSlots[0].StatusDisplay == "Aguardando aprovação" && vm.AwaitingSlots[0].OriginDisplay == "Cancelamento", "O prazo e a situação deveriam estar escritos.");
+                Require(grid.Items.Count == 4 && new[] { "Especialidade", "Profissional", "Horário", "Origem", "Aprovar até" }.SequenceEqual(grid.Columns.Select(column => column.Header?.ToString() ?? "")), "A lista deveria mostrar especialidade, profissional, horário, origem e prazo.");
+                Require(vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).SourceDisplay.StartsWith("Veio da consulta de Maria Souza, cancelada em ", StringComparison.Ordinal) && vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).SourceDisplay.EndsWith(" pelo paciente", StringComparison.Ordinal) && vm.AwaitingSlots.Single(item => item.Id == forDiscard.Id).SourceDisplay.EndsWith(" pela equipe", StringComparison.Ordinal), "A origem deveria dizer quem cancelou: " + vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).SourceDisplay);
+                Require(System.Text.RegularExpressions.Regex.IsMatch(vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).ApprovalDeadlineDisplay, @"^\d{2}/\d{2} \d{2}:\d{2}$") && vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).StatusDisplay == "Aguardando aprovação" && vm.AwaitingSlots.Single(item => item.Id == forApproval.Id).OriginDisplay == "Cancelamento", "O prazo e a situação deveriam estar escritos.");
                 Require(!vm.CanDecideSlotApproval && !ButtonIn(content, "Aprovar e ofertar").IsEnabled && !ButtonIn(content, "Descartar").IsEnabled, "Sem vaga selecionada os dois botões ficam desabilitados.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-vagas-aguardando-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 3200); SaveScrolled(window, Path.Combine(previewRoot, "obs-vagas-aguardando-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
@@ -79,11 +82,11 @@ internal static partial class Program
                 // Aprovar.
                 vm.SelectedAwaitingSlot = vm.AwaitingSlots.Single(item => item.Id == forApproval.Id); content = Layout(window, 1280, 3200);
                 Click(window, content, "Aprovar e ofertar", 1280, 3200);
-                Require(asked.Last().Title == "Aprovar e ofertar vaga" && asked.Last().Text.Contains("1º da fila", StringComparison.Ordinal) && vm.UnitLightningSlots.Single(item => item.Id == forApproval.Id).Status == "open" && vm.AwaitingSlots.All(item => item.Id != forApproval.Id) && vm.SlotSteps.Single() is { Text: "Aprovando a vaga…", IsDone: true } && vm.MessageKind == MessageKind.Success, "Aprovar deveria pedir confirmação, abrir a vaga e concluir o passo: " + vm.Message);
+                Require(asked.Last().Title == "Aprovar e ofertar vaga" && asked.Last().Text.Contains("1º da fila", StringComparison.Ordinal) && vm.UnitLightningSlots.Single(item => item.Id == forApproval.Id).Status == "open" && vm.AwaitingSlots.All(item => item.Id != forApproval.Id) && vm.SlotSteps.Single() is { Text: "Vaga aprovada", IsDone: true } && vm.MessageKind == MessageKind.Success, "Aprovar deveria pedir confirmação, abrir a vaga e concluir o passo: " + vm.Message);
                 // Descartar.
                 vm.SelectedAwaitingSlot = vm.AwaitingSlots.Single(item => item.Id == forDiscard.Id); content = Layout(window, 1280, 3200);
                 Click(window, content, "Descartar", 1280, 3200);
-                Require(asked.Last().Title == "Descartar vaga" && vm.UnitLightningSlots.Single(item => item.Id == forDiscard.Id).StatusDisplay == "Descartada" && vm.SlotSteps.Single().Text == "Descartando…" && vm.SlotSteps.Single().IsDone, "Descartar deveria pedir confirmação e fechar a vaga como descartada.");
+                Require(asked.Last().Title == "Descartar vaga" && vm.UnitLightningSlots.Single(item => item.Id == forDiscard.Id).StatusDisplay == "Descartada" && vm.SlotSteps.Single().Text == "Vaga descartada" && vm.SlotSteps.Single().IsDone, "Descartar deveria pedir confirmação e fechar a vaga como descartada.");
                 // Prazo vencido: 409 approval-expired, a vaga fecha e a lista é relida.
                 vm.SelectedAwaitingSlot = vm.AwaitingSlots.Single(item => item.Id == expired.Id); content = Layout(window, 1280, 3200);
                 Click(window, content, "Aprovar e ofertar", 1280, 3200);
@@ -140,7 +143,7 @@ internal static partial class Program
                 var content = Show(window, "slots", 1280, 3000);
                 var legacy = FullTexts(content);
                 Require(legacy.Contains("Aprovadas pela equipe") && legacy.Contains("Fechadas sem aprovação") && !legacy.Contains("Confirmadas") && vm.ApprovedSlotsCount == "Indisponível" && vm.ApprovalTimeoutSlotsCount == "Indisponível", "Com a API antiga os cartões novos mostram Indisponível, nunca zero.");
-                Require(legacy.Any(text => text.Contains("A aprovação da equipe libera a vaga para oferta; ela não confirma o atendimento. A taxa de reaproveitamento ainda não é calculada.", StringComparison.Ordinal)) && !legacy.Any(text => text.Contains("Confirmação clínica", StringComparison.Ordinal)), "O quadro de acompanhamento deveria usar a frase nova.");
+                Require(legacy.Any(text => text.Contains("não confirmam o atendimento. Ofertas criadas não comprovam entrega de notificações. A taxa de reaproveitamento ainda não é calculada.", StringComparison.Ordinal)) && !legacy.Any(text => text.Contains("Confirmação clínica", StringComparison.Ordinal)), "O quadro de acompanhamento deveria usar a frase nova.");
                 Require(vm.CreateSummaryCsv().Contains("Vagas aprovadas pela equipe;Indisponível;", StringComparison.Ordinal) && vm.CreateSummaryCsv().Contains("Vagas aguardando aprovação;Indisponível;", StringComparison.Ordinal), "O CSV com a API antiga deveria escrever Indisponível.");
                 fixture.ApprovalCounters = (2, 5, 1, 3);
                 vm.RefreshCommand.Execute(null); Settle(vm);

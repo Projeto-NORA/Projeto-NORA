@@ -29,6 +29,8 @@ data class PatientAppointment(val id: String, val specialty: String, val profess
     val confirmedAt: String? = null, val bookedBy: String = "staff", val bookedByYou: Boolean = false, val bookedByGuardianName: String? = null) {
     /** Instante de início já interpretado uma vez; `null` quando o servidor enviou uma data ilegível. */
     val startsAtMillis: Long? = parseInstantMillis(startsAt)
+    /** Instante de término; `null` quando o servidor enviou uma data ilegível. */
+    val endsAtMillis: Long? = parseInstantMillis(endsAt)
 }
 /** Especialidade ativa do catálogo único da rede. */
 data class Specialty(val id: String, val name: String)

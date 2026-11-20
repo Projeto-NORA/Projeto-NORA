@@ -12,6 +12,7 @@ public partial class SpecialtyCatalogView : UserControl
     private WorkspaceViewModel? Workspace => DataContext as WorkspaceViewModel;
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadSpecialtyCatalogAsync(); }
     private void OnNew(object sender, RoutedEventArgs e) => Workspace?.NewSpecialtyDraft();
+    private void OnCancel(object sender, RoutedEventArgs e) => Workspace?.CancelSpecialtyForm();
     private void OnEdit(object sender, RoutedEventArgs e) => Workspace?.EditSelectedSpecialty();
     private async void OnSave(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.SaveSpecialtyAsync(); }
     private async void OnToggleActive(object sender, RoutedEventArgs e)

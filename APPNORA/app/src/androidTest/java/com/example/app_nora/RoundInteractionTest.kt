@@ -44,7 +44,7 @@ class RoundInteractionTest {
         val loaded = mutableListOf<String>()
         openUnits(connected(AboutState(profile)), onLoadAbout = { loaded += it })
         compose.onNodeWithText("Horário de funcionamento").performScrollTo().assertExists()
-        compose.onNodeWithText("08:00 – 12:00 · 13:00 – 17:00").performScrollTo().assertExists()
+        compose.onNodeWithText("08:00 – 12:00\n13:00 – 17:00").performScrollTo().assertExists()
         // O dia de hoje ganha o sufixo " · hoje" (que dia é hoje depende de quando o teste roda).
         compose.onNodeWithText("Terça-feira", substring = true).performScrollTo().assertExists()
         compose.onAllNodesWithText("Fechado").onFirst().performScrollTo().assertExists()
@@ -58,20 +58,20 @@ class RoundInteractionTest {
 
     @Test fun anUnitWithoutInformedHoursSaysSoAndKeepsTheEmptyServicesAndSpecialties() {
         openUnits(connected(AboutState(UnitProfile("unit-a", false, emptyList(), null, emptyList(), null))))
-        compose.onNodeWithText("Horário não informado pela UBS").performScrollTo().assertExists()
-        compose.onNodeWithText("A UBS ainda não informou os serviços").performScrollTo().assertExists()
-        compose.onNodeWithText("Sem especialidades com horário na grade").performScrollTo().assertExists()
+        compose.onNodeWithText("Horário não informado").performScrollTo().assertExists()
+        compose.onNodeWithText("Serviços não informados").performScrollTo().assertExists()
+        compose.onNodeWithText("Nenhuma especialidade com horário aberto").performScrollTo().assertExists()
         compose.onNodeWithText("Domingo").assertDoesNotExist()
     }
 
     @Test fun loadingShowsTheStepAndAFailureOffersToTryAgainThatRereads() {
         val loads = mutableListOf<String>()
         openUnits(connected(AboutState(loading = true)), onLoadAbout = { loads += it })
-        compose.onNodeWithText("Carregando o atendimento da UBS…").performScrollTo().assertExists()
-        compose.runOnIdle { state = connected(AboutState(error = "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes.")) }
-        compose.onNodeWithText("A base de uma UBS está temporariamente indisponível. Tente novamente em instantes.").performScrollTo().assertExists()
+        compose.onNodeWithText("Carregando o atendimento…").performScrollTo().assertExists()
+        compose.runOnIdle { state = connected(AboutState(error = failureMessage(503, null, ApiContext.ABOUT, unitName = "UBS Norte"))) }
+        compose.onNodeWithText(failureMessage(503, null, ApiContext.ABOUT, unitName = "UBS Norte")).performScrollTo().assertExists()
         val before = compose.runOnIdle { loads.size }
-        compose.onNodeWithText("Tentar de novo").performScrollTo().performClick()
+        compose.onNodeWithText("Tentar novamente").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(before + 1, loads.size) }
     }
 
@@ -106,8 +106,8 @@ class RoundInteractionTest {
         compose.waitUntil(5_000) { signedIn != null }
         assertEquals("id-token-de-teste", signedIn)
         // Entrar falhou: o passo fica marcado como falho, e o anterior continua marcado como feito.
-        compose.onNodeWithText("✓ Abrindo o Google", substring = true).performScrollTo().assertExists()
-        compose.onNodeWithText("✗ Entrando no NORA", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Abrindo o Google").performScrollTo().assertExists()
+        compose.onNodeWithText("Entrando no NORA — falhou", substring = true).performScrollTo().assertExists()
     }
 
     @Test fun whenTheGoogleListFailsTheMessageGoesToTheScreenAndTheStepIsMarked() {
@@ -120,7 +120,7 @@ class RoundInteractionTest {
         compose.onNodeWithText("Continuar com Google").performScrollTo().performClick()
         compose.waitUntil(5_000) { message != null }
         assertEquals("Não encontramos uma conta Google neste aparelho.", message)
-        compose.onNodeWithText("✗ Abrindo o Google", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Abrindo o Google — falhou", substring = true).performScrollTo().assertExists()
     }
 
     @Test fun cancellingTheGoogleListLeavesNoStepsAndNoMessage() {
@@ -166,7 +166,7 @@ class RoundInteractionTest {
         compose.onNodeWithText("Desvincular conta Google").performScrollTo().performClick()
         compose.onNodeWithText("Desvincular").performClick()
         compose.waitUntil(5_000) { unlinked == 1 }
-        compose.onNodeWithText("✓ Desvinculando a conta Google", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Desvinculando a conta Google").performScrollTo().assertExists()
     }
 
     @Test fun linkingOpensTheGoogleListAndSendsTheToken() {
@@ -177,7 +177,7 @@ class RoundInteractionTest {
         compose.onNodeWithText("Vincular conta Google").performScrollTo().performClick()
         compose.waitUntil(5_000) { linkedWith != null }
         assertTrue(linkedWith == "id-token-de-teste")
-        compose.onNodeWithText("✓ Vinculando a conta Google", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Vinculando a conta Google").performScrollTo().assertExists()
     }
 
     @Test fun aFailedStatusReadShowsTheErrorWithRetryOnlyWithTheClientId() {
@@ -186,7 +186,7 @@ class RoundInteractionTest {
             GoogleActions(webClientId = "cliente-web-de-teste", onLoadStatus = { reads++ }))
         compose.onNodeWithText("Não foi possível conectar ao serviço.").performScrollTo().assertExists()
         val before = compose.runOnIdle { reads }
-        compose.onNodeWithText("Tentar de novo").performScrollTo().performClick()
+        compose.onNodeWithText("Tentar novamente").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(before + 1, reads) }
     }
 }

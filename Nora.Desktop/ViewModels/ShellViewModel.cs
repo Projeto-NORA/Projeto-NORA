@@ -29,13 +29,14 @@ public sealed class ShellViewModel : ObservableObject
     public bool IsSettings => Page == "settings" && !ShowPasswordRequired;
     /// <summary>Senha provisória: a janela mostra só a definição da nova senha (e Sair), sem menu nem dados.</summary>
     public bool ShowPasswordRequired => Workspace.MustChangePassword;
-    public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
-    public string SectionSummary => ShowPasswordRequired ? "Troca obrigatória da senha provisória" : Page switch
+    private bool ShowSignIn => Page == "home" && !Workspace.IsAuthenticated;
+    public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : ShowSignIn ? "Entrar" : Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
+    public string SectionSummary => ShowPasswordRequired ? "Troca obrigatória da senha provisória" : ShowSignIn ? (IsMunicipal ? "Acesso da Secretaria de Saúde" : "Acesso da equipe da UBS") : Page switch
     {
         "home" => IsMunicipal ? "Panorama e prioridades da rede" : "Visão operacional e prioridades do dia",
         "units" => "Acompanhe as unidades da rede",
         "specialties" => "Lista da rede, demanda, fila e espera por especialidade",
-        "network" => "Distribuição e carga por região",
+        "network" => "Localização das UBS no mapa",
         "capacity" => "Capacidade e uso das agendas",
         "reports" => "Relatórios, metas e exportação",
         "communication" => "Comunicados para as equipes e os pacientes das unidades",
@@ -43,10 +44,10 @@ public sealed class ShellViewModel : ObservableObject
         "queue" => "Organize a ordem de atendimento e acompanhe esperas",
         "agenda" => "Consulte períodos, horários e situações da agenda",
         "patients" => "Pesquise, cadastre e consulte pacientes autorizados",
-        "slots" => "Reaproveite oportunidades e acompanhe Vagas Relâmpago",
-        "indicators" => "Acompanhe o desempenho da unidade",
+        "slots" => IsMunicipal ? "Acompanhe as Vagas Relâmpago da rede" : "Reaproveite oportunidades e acompanhe Vagas Relâmpago",
+        "indicators" => IsMunicipal ? "Acompanhe o desempenho da rede" : "Acompanhe o desempenho da unidade",
         "alerts" => "Priorize situações que exigem atenção",
-        "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios",
+        "unit-settings" => "Atendimento, vagas, computadores, equipe, grade e bloqueios",
         "family" => "Pedidos de vínculo entre responsáveis e dependentes",
         "announcements" => "Comunicados da Secretaria para a equipe",
         "settings" => "Aparência, atalhos e preferências deste computador",
@@ -95,13 +96,13 @@ public sealed class ShellViewModel : ObservableObject
         Workspace.PropertyChanged += (_, change) =>
         {
             if (change.PropertyName == nameof(WorkspaceViewModel.UnreadAnnouncementCount)) { SetBadge("announcements", Workspace.UnreadAnnouncementCount); return; }
-            if (change.PropertyName != nameof(WorkspaceViewModel.MustChangePassword)) return;
+            if (change.PropertyName is not (nameof(WorkspaceViewModel.MustChangePassword) or nameof(WorkspaceViewModel.IsAuthenticated))) return;
             foreach (var name in new[] { nameof(ShowPasswordRequired), nameof(IsHome), nameof(IsSettings), nameof(PageLabel), nameof(SectionSummary) }) Notify(name);
         };
         this.storage = storage;
         this.themes = themes;
         preferences = storage.Load();
-        status = storage.Error ?? "Entre na conta para carregar os dados da API.";
+        status = storage.Error ?? "Entre na conta para carregar os dados.";
         page = preferences.SaveNavigation ? preferences.LastPage : "home";
         Workspace.Section = page;
         expanded = !preferences.RememberSidebar || preferences.SidebarExpanded;

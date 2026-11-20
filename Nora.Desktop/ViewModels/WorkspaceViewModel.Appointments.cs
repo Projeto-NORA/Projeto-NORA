@@ -91,7 +91,7 @@ public sealed partial class WorkspaceViewModel
         for (var offset = 0; offset < daysInGrid; offset++)
         {
             var date = start.AddDays(offset);
-            AgendaDays.Add(new AgendaCalendarDay(date, date.Month == first.Month) { IsSelected = date == selectedAgendaDate });
+            AgendaDays.Add(new AgendaCalendarDay(date, date.Month == first.Month) { IsSelected = IsInAgendaView(date) });
         }
         ApplyCalendarMarks();
     }
@@ -104,9 +104,14 @@ public sealed partial class WorkspaceViewModel
         foreach (var day in AgendaDays) day.AppointmentCount = counts is not null && counts.TryGetValue(day.Date, out var count) ? count : 0;
     }
 
+    /// <summary>No modo Semana os 7 dias da semana mostrada ficam marcados no calendário; no modo Dia, só o dia escolhido.</summary>
+    private bool IsInAgendaView(DateTime date) => IsAgendaWeek ? date.Date >= StartOfWeek(selectedAgendaDate) && date.Date < StartOfWeek(selectedAgendaDate).AddDays(7) : date.Date == selectedAgendaDate;
+    private void MarkAgendaDays() { foreach (var day in AgendaDays) day.IsSelected = IsInAgendaView(day.Date); }
+
     /// <summary>Recalcula a lista de dia/semana a partir da leitura do mês; mantém a consulta selecionada quando ela continua visível.</summary>
     private void RebuildAgendaView()
     {
+        MarkAgendaDays();
         var selectedId = SelectedAppointment?.Id;
         if (monthKey == CurrentMonthKey && monthAppointments is not null)
         {
@@ -140,7 +145,7 @@ public sealed partial class WorkspaceViewModel
         selectedAgendaDate = date.Date;
         if (mode is not null) agendaViewMode = mode;
         if (monthChanged) BuildAgendaDays();
-        else foreach (var day in AgendaDays) day.IsSelected = day.Date == selectedAgendaDate;
+        else MarkAgendaDays();
         RebuildAgendaView();
         Notify(nameof(AgendaViewMode)); Notify(nameof(IsAgendaDay)); Notify(nameof(IsAgendaWeek));
         Notify(nameof(AgendaRangeLabel)); Notify(nameof(SelectedAgendaDateLabel));
@@ -169,7 +174,7 @@ public sealed partial class WorkspaceViewModel
         await LoadUnitScopeAsync(unit, UnitScope.Agenda | UnitScope.Catalog);
         if (ActiveObsUnit?.Id != unit.Id) return;
         ReloadBookingSlots();
-        if (catalogFailed) Say(MessageKind.Error, "A agenda foi atualizada, mas o cadastro de profissionais não pôde ser lido agora: o agendamento segue indisponível. Tente de novo.");
+        if (catalogFailed) Say(MessageKind.Error, "A agenda foi atualizada, mas o cadastro de profissionais não pôde ser lido: o agendamento está indisponível. Tente de novo.");
         else Say(MessageKind.Success, "Agenda atualizada.");
     });
 
@@ -196,7 +201,7 @@ public sealed partial class WorkspaceViewModel
     public Task CreateAppointmentAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de agendar.");
-        if (catalogFailed) throw new NoraApiException("Não foi possível ler o cadastro de profissionais desta UBS, por isso o agendamento está indisponível. Atualize a agenda e tente de novo.");
+        if (catalogFailed) throw new NoraApiException("Não foi possível ler o cadastro de profissionais desta UBS. Atualize a agenda e tente de novo.");
         if (UsesCatalogBooking) { await CreateCatalogAppointmentAsync(unit); return; }
         var (startsAt, endsAt, patient) = ValidateAppointmentDraft();
         // Outro computador cadastrou o primeiro profissional ativo: a API passa a exigir o catálogo (400 catalog-required) e a tela ainda mostra o texto livre.

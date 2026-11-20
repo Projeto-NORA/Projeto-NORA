@@ -217,7 +217,7 @@ public sealed partial class WorkspaceViewModel
         var decorated = DecorateQueue(entries, DateTimeOffset.Now);
         var changed = appended ? Grow(UnitWaitingList, decorated) : Replace(UnitWaitingList, decorated);
         unitQueueLoaded = true;
-        if (changed) SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId);
+        if (changed) { RebuildQueueSpecialtyOptions(); SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId); }
         Notify(nameof(CanLoadMoreQueueHistory)); Notify(nameof(QueueHistoryState));
     }
 
@@ -257,13 +257,8 @@ public sealed partial class WorkspaceViewModel
         return result;
     }
 
-    private static string FormatWait(TimeSpan elapsed)
-    {
-        if (elapsed < TimeSpan.FromMinutes(1)) return "Agora";
-        if (elapsed.TotalDays >= 1) return $"{(int)elapsed.TotalDays}d {elapsed.Hours}h";
-        if (elapsed.TotalHours >= 1) return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}min";
-        return $"{elapsed.Minutes} min";
-    }
+    /// <summary>Mesmo formato de tempo do Painel e dos indicadores ("1 h 35 min", "3 h", "menos de 1 min"), contado em minutos inteiros.</summary>
+    private static string FormatWait(TimeSpan elapsed) => DisplayFormat.Wait(Math.Floor(Math.Max(0, elapsed.TotalMinutes)));
 
     private void NotifyUnitCounts()
     {

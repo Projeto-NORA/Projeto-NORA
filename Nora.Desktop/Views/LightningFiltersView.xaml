@@ -1,8 +1,8 @@
 <UserControl x:Class="Nora.Desktop.Views.LightningFiltersView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
   <Border Style="{StaticResource Card}" Margin="0,0,0,20">
     <StackPanel>
-      <TextBlock Text="Filtros das vagas" FontSize="16" FontWeight="SemiBold" />
-      <TextBlock Text="O período considera a criação da vaga; os estados são os atuais. A UBS é aplicada na hora. Região e especialidade não se aplicam às vagas." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
+      <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}" FontSize="16" FontWeight="SemiBold" />
+      <TextBlock Text="O período considera a criação da vaga. Região e especialidade não se aplicam às vagas." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
       <WrapPanel>
         <StackPanel Width="210" Margin="0,0,12,10"><TextBlock Text="Período da vaga" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{x:Static vm:WorkspaceViewModel.LightningPeriodOptions}" DisplayMemberPath="Label" SelectedValuePath="Days" SelectedValue="{Binding LightningPeriodDays}" IsSynchronizedWithCurrentItem="False" IsEnabled="{Binding CanFilterLightning}" AutomationProperties.Name="Período das vagas" ToolTip="Selecione pela data de criação da vaga." /></StackPanel>
@@ -10,7 +10,8 @@
           <ComboBox Margin="0,6,0,0" ItemsSource="{Binding UnitFilterOptions}" DisplayMemberPath="SelectorLabel" SelectedValuePath="Id" SelectedValue="{Binding SummaryUnitFilter}" IsSynchronizedWithCurrentItem="False" IsEnabled="{Binding CanFilterNetwork}" AutomationProperties.Name="Filtrar resumo por UBS" /></StackPanel>
       </WrapPanel>
       <Border Margin="0,6,0,0" CornerRadius="10" Padding="12,10" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" Visibility="{Binding HasUnitsWithoutDatabase, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Aviso de UBS sem base">
-        <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Top" /><TextBlock Text="{Binding UnitsWithoutDatabaseNotice}" FontSize="12" MaxWidth="760" /></StackPanel>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Top" /><TextBlock Grid.Column="1" Text="{Binding UnitsWithoutDatabaseNotice}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" /><Button Grid.Column="2" Content="Abrir Unidades" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="units" Margin="14,0,0,0" VerticalAlignment="Center">
+          <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding Section}" Value="units"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style></Button></Grid>
       </Border>
     </StackPanel>
   </Border>

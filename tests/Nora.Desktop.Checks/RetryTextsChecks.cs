@@ -73,6 +73,8 @@ internal static partial class Program
                 fixture.FailCatalogUnits.Clear();
                 Click(window, content, "Ler o cadastro de novo", 1280, 3000);
                 Require(fixture.Count("GET", "/professionals") == catalogReads + 2 && vm.CapacityProfessionals.Single().FullName == "Dra. Ana Lima" && vm.CapacityCatalogState == "" && !vm.IsDataStale, "Concluída a leitura o cadastro aparece e a falha some: " + vm.CapacityCatalogState);
+                content = Layout(window, 1280, 3000);
+                Require(vm.CapacityCatalogReady && !FullTexts(content).Contains("Nenhum profissional cadastrado.") , "Com profissional cadastrado a frase de vazio não aparece.");
             }
             finally { CloseWindow(window); }
         });
@@ -86,11 +88,13 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "reports", 1280, 3000);
+                Require(FullTexts(content).Contains("Filtros do resumo exportado") && !FullTexts(content).Contains("Filtros das vagas"), "Em Relatórios e metas o cartão de filtros do resumo não pode se chamar Filtros das vagas.");
                 Require(vm.CreateSummaryCsv().Contains("Unidade;Toda a rede;", StringComparison.Ordinal) && vm.SummaryExportNote.Contains("toda a rede", StringComparison.Ordinal), "Sem UBS escolhida o resumo é da rede inteira.");
                 vm.SummaryUnitFilter = alfa.Id; Settle(vm); content = Layout(window, 1280, 3000);
                 var csv = vm.CreateSummaryCsv(); var texts = FullTexts(content);
-                Require(csv.Contains("Unidade;UBS Alfa;", StringComparison.Ordinal) && !texts.Any(text => text.Contains("totais atuais da rede", StringComparison.OrdinalIgnoreCase) || text.Contains("totais atuais de toda a rede", StringComparison.OrdinalIgnoreCase)) && vm.SummaryExportNote.Contains("só dessa UBS", StringComparison.Ordinal), "Com a UBS escolhida o painel e o CSV falam só dela: " + vm.SummaryExportNote);
+                Require(csv.Contains("Unidade;UBS Alfa;", StringComparison.Ordinal) && !texts.Any(text => text.Contains("totais atuais da rede", StringComparison.OrdinalIgnoreCase) || text.Contains("totais atuais de toda a rede", StringComparison.OrdinalIgnoreCase)) && vm.SummaryExportNote.Contains("Resumo só da UBS Alfa", StringComparison.Ordinal), "Com a UBS escolhida o painel e o CSV falam só dela: " + vm.SummaryExportNote);
                 content = Show(window, "slots", 1280, 3000);
+                Require(FullTexts(content).Contains("Filtros das vagas"), "Em Vaga Relâmpago o cartão de filtros continua se chamando Filtros das vagas.");
                 Require(!FullTexts(content).Any(text => text.Contains("totais atuais da rede", StringComparison.OrdinalIgnoreCase)), "O acompanhamento da Vaga Relâmpago também não pode falar de totais da rede.");
             }
             finally { CloseWindow(window); }

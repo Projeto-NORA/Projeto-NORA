@@ -38,8 +38,8 @@ internal static partial class Program
                     var content = Layout(window, 1280, 740);
                     var bar = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Retorno da ação");
                     Require(bar.IsVisible && bar.ActualHeight > 0, "A faixa de retorno não aparece na aba: " + route);
-                    Require(VisibleTexts(bar).Any(text => text.StartsWith("Sucesso: Dados atualizados pela API.", StringComparison.Ordinal)), "A faixa não mostra tipo e texto do sucesso: " + route);
-                    Require(VisibleTexts(content).Count(text => text.Contains("Dados atualizados pela API.", StringComparison.Ordinal)) == 1, "A mensagem aparece duplicada na aba: " + route);
+                    Require(FullTexts(bar).Any(text => text.StartsWith("Sucesso: Números atualizados às ", StringComparison.Ordinal)), "A faixa não mostra tipo e texto do sucesso: " + route + " (mostra: " + string.Join(" | ", FullTexts(bar)) + ")");
+                    Require(FullTexts(content).Count(text => text.Contains("Números atualizados às ", StringComparison.Ordinal)) == 1, "A mensagem aparece duplicada na aba: " + route);
                     if (route is "home" or "indicators") SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-faixa-sucesso-{route}.png"));
                 }
             }

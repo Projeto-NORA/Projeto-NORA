@@ -29,7 +29,7 @@ public sealed class SpecialtyChoice(Specialty specialty, bool isChecked) : Obser
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
-    private bool catalogLoaded, catalogFailed, setupLoaded, setupFailed;
+    private bool catalogLoaded, catalogFailed, specialtiesLoaded, specialtiesFailed, setupLoaded, setupFailed;
     private DateTimeOffset? catalogAttemptedAt;
     public static readonly TimeSpan CatalogRefreshAge = TimeSpan.FromMinutes(5);
     private static readonly string[] BrazilianStates = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
@@ -44,6 +44,7 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<SpecialtyChoice> ProfessionalSpecialtyChoices { get; } = [];
     public ObservableCollection<Professional> ActiveProfessionalOptions { get; } = [];
     public ObservableCollection<Room> ActiveRoomOptions { get; } = [];
+    public ObservableCollection<Specialty> ActiveSpecialtyOptions { get; } = [];
     public ObservableCollection<Specialty> ScheduleSpecialtyOptions { get; } = [];
     public ObservableCollection<GuidChoice> BlockScopeOptions { get; } = [new(Guid.Empty, "UBS inteira")];
 
@@ -51,7 +52,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Só o administrador da UBS grava profissionais, consultórios, grade e bloqueios; o atendente apenas lê.</summary>
     public bool CanEditCatalog => IsOperational && CanOperate && HasActiveObsUnit && IsAdministrator;
     public bool ShowCatalogReadOnlyNotice => IsAuthenticated && IsOperational && !IsAdministrator;
-    public string CatalogReadOnlyNotice => "Somente o administrador da UBS cadastra e altera profissionais, consultórios, grade de horários e bloqueios. Esta conta pode consultar tudo, mas os campos de edição ficam desabilitados.";
+    public string CatalogReadOnlyNotice => "Somente o administrador da UBS altera profissionais, consultórios, grade e bloqueios; esta conta só consulta.";
     public bool NoSpecialtyChoices => ProfessionalSpecialtyChoices.Count == 0;
     public bool HasActiveProfessional => catalogLoaded && !catalogFailed && Professionals.Any(item => item.IsActive);
     public string ProfessionalsState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os profissionais."
@@ -63,7 +64,7 @@ public sealed partial class WorkspaceViewModel
         : !setupLoaded ? "Carregando os consultórios…" : Rooms.Count == 0 ? "Nenhum consultório cadastrado." : "";
     public string ScheduleState => !HasActiveObsUnit ? "Escolha uma UBS para ver a grade."
         : setupFailed ? "Não foi possível ler a grade agora. Use Atualizar configurações para tentar de novo."
-        : !setupLoaded ? "Carregando a grade…" : ScheduleRows.Count == 0 ? "Nenhum horário na grade. Sem grade, a UBS não oferece horários livres." : "";
+        : !setupLoaded ? "Carregando a grade…" : ScheduleRows.Count == 0 ? "Nenhum horário na grade." : "";
     public string BlocksState => !HasActiveObsUnit ? "Escolha uma UBS para ver os bloqueios."
         : setupFailed ? "Não foi possível ler os bloqueios agora. Use Atualizar configurações para tentar de novo."
         : !setupLoaded ? "Carregando os bloqueios…" : ScheduleBlocks.Count == 0 ? "Nenhum bloqueio nos próximos 12 meses." : "";
@@ -71,7 +72,7 @@ public sealed partial class WorkspaceViewModel
 
     private static readonly string[] CatalogNames =
     [
-        nameof(HasActiveProfessional), nameof(NoSpecialtyChoices), nameof(ProfessionalsState), nameof(RoomsState), nameof(ScheduleState), nameof(BlocksState), nameof(CanEditCatalog), nameof(UsesCatalogBooking), nameof(BookingState), nameof(CanBook)
+        nameof(HasActiveProfessional), nameof(NoSpecialtyChoices), nameof(ProfessionalsState), nameof(RoomsState), nameof(ScheduleState), nameof(BlocksState), nameof(CanEditCatalog), nameof(UsesCatalogBooking), nameof(BookingState), nameof(CanBook), nameof(QueueSpecialtyState)
     ];
     private void NotifyCatalog() { foreach (var name in CatalogNames) Notify(name); }
 
@@ -82,6 +83,15 @@ public sealed partial class WorkspaceViewModel
     {
         if (data.Specialties is { } specialties && !specialties.Failed && specialties.Value is { } specialtyList)
             Replace(ObsSpecialties, specialtyList.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
+        if (data.Specialties is { Failed: false })
+        {
+            // A caixa da fila limpa a escolha quando a lista é trocada; a escolha volta se a especialidade continua ativa.
+            var chosen = WaitingSpecialty;
+            Replace(ActiveSpecialtyOptions, ObsSpecialties.Where(item => item.IsActive).ToArray());
+            var kept = ActiveSpecialtyOptions.FirstOrDefault(item => string.Equals(item.Name, chosen, StringComparison.Ordinal))?.Name ?? "";
+            if (WaitingSpecialty != kept) WaitingSpecialty = kept;
+        }
+        if (data.Specialties is { } read) { specialtiesFailed = read.Failed; if (read.Value is not null) specialtiesLoaded = true; }
         if (data.Professionals is { } professionals)
         {
             catalogFailed = professionals.Failed || (data.Specialties?.Failed ?? false);
@@ -249,7 +259,7 @@ public sealed partial class WorkspaceViewModel
         var professional = Professionals.FirstOrDefault(item => item.Id == professionalId) ?? throw new NoraApiException("O profissional não está mais na lista desta UBS. Atualize as configurações.");
         if (professional.IsActive == activate) { Say(MessageKind.Info, AlreadyInStateText(professional.FullName, "profissional", activate)); return; }
         await api.SetProfessionalActiveAsync(unit.Id, professional.Id, activate);
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, activate ? "Profissional reativado." : "Profissional desativado. As consultas já marcadas continuam como estavam.");
+        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, activate ? "Profissional reativado." : "Profissional desativado. Consultas marcadas não mudam.");
         if (ActiveObsUnit?.Id == unit.Id) SelectedProfessional = Professionals.FirstOrDefault(item => item.Id == professional.Id);
     });
 
@@ -426,7 +436,7 @@ public sealed partial class WorkspaceViewModel
         var row = SelectedSchedule ?? throw new NoraApiException("Selecione um horário da grade.");
         await api.DeleteScheduleAsync(unit.Id, row.Id);
         SelectedSchedule = null;
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, "Horário removido da grade. Consultas já marcadas não foram afetadas.");
+        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, "Horário removido da grade. Consultas marcadas não mudam.");
     });
 
     // ---- Bloqueios ----
@@ -478,7 +488,7 @@ public sealed partial class WorkspaceViewModel
         if (problem is not null) throw new NoraApiException(problem);
         await api.CreateScheduleBlockAsync(unit.Id, blockScope == Guid.Empty ? null : blockScope, startsAt, endsAt, blockReason.Trim());
         NewBlockDraft();
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, "Bloqueio criado. Os horários que ele cruza saem da disponibilidade.");
+        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, "Bloqueio criado.");
     });
 
     public Task DeleteBlockAsync() => RunAsync(async () =>
@@ -516,8 +526,8 @@ public sealed partial class WorkspaceViewModel
 
     private void ClearCatalog()
     {
-        catalogLoaded = catalogFailed = setupLoaded = setupFailed = false; catalogAttemptedAt = null;
-        ObsSpecialties.Clear(); Professionals.Clear(); Rooms.Clear(); ScheduleRows.Clear(); ScheduleBlocks.Clear(); ProfessionalSpecialtyChoices.Clear(); ActiveProfessionalOptions.Clear(); ActiveRoomOptions.Clear(); ScheduleSpecialtyOptions.Clear();
+        catalogLoaded = catalogFailed = specialtiesLoaded = specialtiesFailed = setupLoaded = setupFailed = false; catalogAttemptedAt = null;
+        ObsSpecialties.Clear(); ActiveSpecialtyOptions.Clear(); Professionals.Clear(); Rooms.Clear(); ScheduleRows.Clear(); ScheduleBlocks.Clear(); ProfessionalSpecialtyChoices.Clear(); ActiveProfessionalOptions.Clear(); ActiveRoomOptions.Clear(); ScheduleSpecialtyOptions.Clear();
         Replace(BlockScopeOptions, new[] { new GuidChoice(Guid.Empty, "UBS inteira") });
         SelectedProfessional = null; SelectedRoom = null; SelectedSchedule = null; SelectedBlock = null;
         NewProfessionalDraft(); NewRoomDraft(); NewScheduleDraft(); NewBlockDraft(); ClearBooking();

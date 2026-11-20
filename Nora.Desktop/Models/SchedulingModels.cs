@@ -140,7 +140,7 @@ public sealed record GoalCell(string Title, string Status, string StatusDisplay,
 public sealed record GoalUnitRow(string Name, GoalCell Score, GoalCell Missed, GoalCell Wait);
 
 /// <summary>Linha da capacidade (UBS ou região): horários ofertados e ocupados e a ocupação.</summary>
-public sealed record CapacityRow(string Name, string Region, long Offered, long Booked, double? Occupancy)
+public sealed record CapacityRow(string Name, string Region, long Offered, long Booked, double? Occupancy, Guid UnitId = default)
 {
     public string OccupancyDisplay => DisplayFormat.Percent(Occupancy);
     public double OccupancySort => Occupancy ?? -1;
@@ -150,9 +150,13 @@ public sealed record CapacityRow(string Name, string Region, long Offered, long 
 }
 
 /// <summary>Alerta pronto para exibir: tipo, especialidade, valor, limite e desde quando.</summary>
-public sealed record AlertRow(string UnitName, string Title, string Specialty, string Value, string Threshold, string Since, string Description)
+public sealed record AlertRow(string UnitName, string Title, string Specialty, string Value, string Threshold, string Since, string Description, string Target = "", string TargetLabel = "")
 {
+    /// <summary>Só o administrador da UBS abre Configurações da UBS; a tela esconde o botão dos demais.</summary>
+    public bool TargetAdminOnly => Target == "unit-settings";
     public string AutomationLabel => $"{Title}{(Specialty.Length > 0 ? " · " + Specialty : "")}: {Value}, limite {Threshold}";
+    /// <summary>Nome acessível do botão de destino: diz de qual alerta ele é.</summary>
+    public string TargetAutomationName => $"{TargetLabel}: {Title}{(Specialty.Length > 0 ? " · " + Specialty : "")}";
     /// <summary>Texto da tabela: "—" quando o alerta não é de uma especialidade.</summary>
     public string SpecialtyDisplay => Specialty.Length > 0 ? Specialty : "—";
 
@@ -170,7 +174,8 @@ public sealed record AlertRow(string UnitName, string Title, string Specialty, s
         var specialty = string.IsNullOrWhiteSpace(item.Specialty) ? "" : item.Specialty.Trim();
         var since = item.Since is { } at ? at.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "—";
         var description = $"{title}{(specialty.Length > 0 ? " em " + specialty : "")}: {value} (limite {threshold}){(item.Since is null ? "" : ", desde " + since)}.";
-        return new(item.UnitName, title, specialty, value, threshold, since, description);
+        var (target, targetLabel) = item.Kind switch { "high-queue" or "long-wait" => ("queue", "Abrir Fila"), "goal-off" or "missed-rate" => ("indicators", "Abrir Indicadores"), "occupancy" => ("unit-settings", "Abrir Configurações da UBS"), _ => ("", "") };
+        return new(item.UnitName, title, specialty, value, threshold, since, description, target, targetLabel);
     }
     private static string Count(double value, string singular, string plural) { var n = (long)Math.Round(value); return $"{DisplayFormat.Count(n)} {(n == 1 ? singular : plural)}"; }
 

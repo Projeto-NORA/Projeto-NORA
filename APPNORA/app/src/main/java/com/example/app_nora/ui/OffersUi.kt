@@ -72,7 +72,7 @@ internal fun rememberOpenDependentOffers(patient: PatientState): OpenDependentOf
 internal fun OfferCountdown(expiresAtMillis: Long, now: State<Long>) {
     // Só este texto lê o relógio: o resto do cartão não recompõe a cada segundo.
     val remaining = expiresAtMillis - now.value
-    Text("Tempo restante: ${formatRemaining(remaining)}", style = MaterialTheme.typography.titleMedium,
+    Text("Tempo restante: ${formatRemainingUnits(remaining)}", style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
         color = if (remaining < 60_000) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         // Leitor de tela recebe uma frase que só muda a cada minuto, sem anunciar a cada segundo.
@@ -103,33 +103,24 @@ internal fun OpenDependentOfferSummary(ref: DependentOfferRef, now: State<Long>,
 
 @Composable
 internal fun HistoryToggle(count: Int, open: Boolean, onToggle: () -> Unit) {
-    TextButton(onClick = onToggle, modifier = Modifier.fillMaxWidth().semantics { stateDescription = if (open) "Expandido" else "Recolhido" }) {
+    TextButton(onClick = onToggle, contentPadding = PaddingValues(0.dp), modifier = Modifier.semantics { stateDescription = if (open) "Expandido" else "Recolhido" }) {
         Text("Histórico ($count) · ${if (open) "Ocultar" else "Mostrar"}", fontWeight = FontWeight.SemiBold)
-    }
-}
-
-/** Mensagem do resultado da última ação; anunciada de forma educada pelos leitores de tela. */
-@Composable
-internal fun ActionMessage(message: String?) {
-    if (message == null) return
-    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
-        Text(message, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
 @Composable
 private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, busy: Boolean, onRespond: (String, Boolean) -> Unit) {
     val expired by remember(offer, now) { derivedStateOf { offer.isLocallyExpiredAt(now.value) } }
-    SectionCard(offer.specialty, unitName ?: "Oportunidade enviada pela unidade") {
+    SectionCard(offer.specialty, unitName ?: "") {
         Text(offer.professional)
         MutedText("Consulta: ${formatRange(offer.startsAt, offer.endsAt)}")
         when {
             offer.status == "pending" && expired -> {
-                Text("Prazo encerrado", fontWeight = FontWeight.SemiBold)
+                StatusBadge("expired")
                 MutedText("Você não pode mais responder a esta oportunidade e continua na fila, no mesmo lugar. Atualize para ver a situação atual.")
             }
             offer.status == "pending" -> {
+                StatusBadge("pending")
                 offer.expiresAtMillis?.let { OfferCountdown(it, now) }
                 MutedText("Responda até ${formatClock(offer.expiresAt)}. Ao aceitar, sua consulta será agendada; ao recusar ou deixar o prazo passar, você continua na fila.")
                 Button(onClick = { onRespond(offer.id, true) }, enabled = !busy,
@@ -137,8 +128,14 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
                 OutlinedButton(onClick = { onRespond(offer.id, false) }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth()) { Text("Recusar oportunidade") }
             }
-            offer.status == "accepted" -> MutedText("Oferta aceita. Sua consulta foi agendada.")
-            else -> MutedText("${statusLabel(offer.status)} · Prazo: ${formatDateTime(offer.expiresAt)}")
+            offer.status == "accepted" -> {
+                StatusBadge("accepted")
+                MutedText("Oferta aceita. Sua consulta foi agendada.")
+            }
+            else -> {
+                StatusBadge(offer.status)
+                MutedText("Prazo: ${formatDateTime(offer.expiresAt)}")
+            }
         }
     }
 }
@@ -146,8 +143,15 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
 @Composable
 fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
-    ScreenTitle("Vaga Relâmpago", "Oportunidades compatíveis enviadas pela unidade.")
-    SectionCard("Escolha uma UBS", "Somente unidades vinculadas ao seu cadastro") {
+    ScreenTitle("Vaga Relâmpago")
+    val onlyUnit = patient.units?.singleOrNull()?.takeIf { patient.session != null && it.id == patient.selectedUnitId }
+    if (onlyUnit != null) {
+        // Uma escolha com uma só opção vira uma linha: o nome da unidade e a releitura, sem empurrar as ofertas.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("UBS: ${onlyUnit.name}", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            TextButton(onClick = onLoadUnits, enabled = !patient.busy && !patient.loadingUnits) { Text("Atualizar unidades") }
+        }
+    } else SectionCard("Escolha uma UBS") {
         if (patient.session == null) MutedText("Entre na sua conta para consultar oportunidades.")
         patient.units?.forEach { unit ->
             Row(Modifier.fillMaxWidth().selectable(selected = unit.id == patient.selectedUnitId, enabled = !patient.busy, onClick = { onSelectUnit(unit.id) }, role = Role.RadioButton), verticalAlignment = Alignment.CenterVertically) {
@@ -156,7 +160,11 @@ fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (S
             }
         }
         if (patient.units?.isEmpty() == true) MutedText("Nenhuma UBS vinculada ao seu cadastro.")
-        if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
+        // Mesmo padrão das outras telas: leitura em andamento ou falha; "Atualizar unidades" abaixo é a nova tentativa.
+        if (patient.session != null && patient.units == null) {
+            if (patient.loadingUnits || patient.busy) MutedText("Carregando suas UBS…") else ErrorNotice("Não foi possível carregar suas UBS.")
+        }
+        if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy && !patient.loadingUnits) { Text("Atualizar unidades") }
     }
     ActionMessage(patient.message)
     val offers = patient.unitOffers.orEmpty()
@@ -164,12 +172,11 @@ fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (S
     val groups by remember(offers, clock) { derivedStateOf { groupOffers(offers, clock.value) } }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
     val unitName = patient.units?.find { it.id == patient.selectedUnitId }?.name
-    if (patient.session == null || patient.unitOffers == null) SectionCard("Suas oportunidades", "Oportunidades compatíveis") {
+    if (patient.session == null || patient.unitOffers == null) SectionCard("Suas oportunidades") {
         MutedText("Escolha uma UBS e atualize o acompanhamento para consultar as oportunidades.")
     } else if (groups.pending.isEmpty()) SectionCard(
-        if (offers.isEmpty()) "Nenhuma oportunidade no momento" else "Nenhuma oportunidade aguarda resposta",
-        "Você não precisa ficar procurando vagas") {
-        MutedText("Quando uma oportunidade estiver disponível, ela aparecerá aqui e você receberá um aviso enquanto a conexão do NORA estiver ativa.")
+        if (offers.isEmpty()) "Nenhuma oportunidade no momento" else "Nenhuma oportunidade aguarda resposta") {
+        MutedText("Quando houver uma oportunidade, ela aparece aqui. Os avisos chegam enquanto o NORA estiver conectado (aviso fixo na barra do Android).")
     }
     groups.pending.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
     if (groups.history.isNotEmpty()) {

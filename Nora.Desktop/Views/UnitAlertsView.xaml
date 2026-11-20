@@ -9,7 +9,7 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Alertas da UBS">
       <StackPanel>
         <TextBlock Text="O que passou do limite" FontSize="19" FontWeight="SemiBold" />
-        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap" Text="Fila alta numa especialidade, espera longa, taxa de faltas acima do limite, ocupação da grade acima do limite e metas fora. Os limites são os da rede; nenhum dado pessoal aparece aqui." />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap" Text="Fila alta, espera longa, faltas, ocupação e metas fora dos limites da rede. Nenhum dado pessoal aparece aqui." />
         <ItemsControl ItemsSource="{Binding UnitAlerts}" AutomationProperties.Name="Alertas da UBS ativa">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
@@ -23,8 +23,14 @@
                     <WrapPanel Margin="0,4,0,0">
                       <TextBlock Margin="0,0,24,0"><Run Text="Valor: " FontWeight="SemiBold" /><Run Text="{Binding Value, Mode=OneWay}" /></TextBlock>
                       <TextBlock Margin="0,0,24,0"><Run Text="Limite: " FontWeight="SemiBold" /><Run Text="{Binding Threshold, Mode=OneWay}" /></TextBlock>
-                      <TextBlock><Run Text="Desde: " FontWeight="SemiBold" /><Run Text="{Binding Since, Mode=OneWay}" /></TextBlock>
+                      <TextBlock><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Style.Triggers><DataTrigger Binding="{Binding Since}" Value="—"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style><Run Text="Desde: " FontWeight="SemiBold" /><Run Text="{Binding Since, Mode=OneWay}" /></TextBlock>
                     </WrapPanel>
+                    <Button Content="{Binding TargetLabel}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Target}" AutomationProperties.Name="{Binding TargetAutomationName}" HorizontalAlignment="Left" Margin="0,10,0,0">
+                      <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers>
+                        <DataTrigger Binding="{Binding Target}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding TargetAdminOnly}" Value="True" /><Condition Binding="{Binding DataContext.IsAdministrator, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Collapsed" /></MultiDataTrigger>
+                      </Style.Triggers></Style></Button.Style>
+                    </Button>
                   </StackPanel>
                 </Grid>
               </Border>

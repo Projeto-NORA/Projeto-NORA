@@ -33,8 +33,8 @@ public sealed partial class WorkspaceViewModel
     public bool CanBook => CanOperate && HasActiveObsUnit && (UsesCatalogBooking || UsesFreeTextBooking);
     public bool BookingSlotsBusy => bookingLoading > 0;
     public string BookingIntro => UsesCatalogBooking
-        ? "Esta UBS marca pelo catálogo: escolha a especialidade, o profissional e um horário livre da grade. Os horários já ocupados, bloqueados ou fora da grade não aparecem."
-        : UsesFreeTextBooking ? "Esta UBS ainda não tem profissional ativo cadastrado: informe a especialidade e o profissional em texto livre. Depois que o administrador cadastrar profissionais, a marcação passa a usar só o catálogo."
+        ? "Escolha a especialidade, o profissional e um horário livre da grade."
+        : UsesFreeTextBooking ? "Esta UBS não tem profissional ativo cadastrado: informe especialidade e profissional em texto livre."
         : BookingCatalogUnavailable ? "Não foi possível ler o cadastro de profissionais agora, por isso o agendamento fica indisponível. Atualize a agenda para tentar de novo." : "";
     public Specialty? BookingSpecialty
     {
@@ -62,7 +62,7 @@ public sealed partial class WorkspaceViewModel
         : bookingProfessional is null ? (BookingProfessionals.Count == 0 ? "Nenhum profissional ativo atende esta especialidade." : "Escolha o profissional para ver os horários livres.")
         : bookingLoading > 0 ? "Buscando horários livres…"
         : bookingSlotsFailed ? "Não foi possível buscar os horários livres. Escolha o profissional de novo ou use Atualizar agenda para tentar outra vez."
-        : bookingSlotsLoaded && BookingSlots.Count == 0 ? $"Nenhum horário livre nos próximos {BookingLookAheadDays} dias para este profissional nesta especialidade. Escolha outro dia no calendário, outro profissional ou peça ao administrador para ajustar a grade."
+        : bookingSlotsLoaded && BookingSlots.Count == 0 ? $"Nenhum horário livre nos próximos {BookingLookAheadDays} dias para este profissional nesta especialidade. Escolha outro dia ou outro profissional."
         : "";
 
     private static readonly string[] BookingNames =

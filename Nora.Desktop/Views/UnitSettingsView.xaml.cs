@@ -10,6 +10,11 @@ public partial class UnitSettingsView : UserControl
 {
     public UnitSettingsView() => InitializeComponent();
     private WorkspaceViewModel? Workspace => DataContext as WorkspaceViewModel;
+    /// <summary>Rola a página até a seção escolhida no índice do topo.</summary>
+    private void OnGoToSection(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string name } && FindName(name) is FrameworkElement section) { section.BringIntoView(); section.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First)); }
+    }
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadCatalogAsync(); }
 
     private async void OnSaveProfile(object sender, RoutedEventArgs e) { if (Workspace is { CanSaveProfile: true } vm) await vm.SaveProfileAsync(); }

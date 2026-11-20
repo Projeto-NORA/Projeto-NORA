@@ -3,8 +3,8 @@
     <TextBlock Style="{StaticResource Muted}" FontSize="12" Text="Comparecimento = concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas ainda agendadas e cancelamentos feitos pela unidade não entram." />
     <Expander Header="Saiba mais sobre o comparecimento" Margin="0,6,0,0" AutomationProperties.Name="Saiba mais sobre o comparecimento">
       <StackPanel Margin="0,8,0,0">
-        <TextBlock Style="{StaticResource Muted}" FontSize="12" Text="O cálculo usa só consultas encerradas, pela data marcada. Um cancelamento feito pelo próprio paciente no aplicativo conta como uma fração de falta, maior quanto mais perto da consulta: menos de 1 h = 100%; de 1 h a 2 h = 90%; de 2 h a 6 h = 80%; de 6 h a 12 h = 60%; de 12 h a 24 h = 40%; de 24 h a 48 h = 20%; de 48 h a 72 h = 10%; de 72 h a 96 h = 2%; 96 h ou mais = 0%." />
-        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" Text="Consultas agendadas ou chamadas e cancelamentos registrados pela unidade não pesam. Sem nenhuma consulta encerrada no período, o valor aparece como — porque não há o que calcular." />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Text="O cálculo usa só consultas encerradas. Um cancelamento feito pelo paciente conta como fração de falta, maior quanto mais perto da consulta: menos de 1 h = 100%; de 1 h a 2 h = 90%; de 2 h a 6 h = 80%; de 6 h a 12 h = 60%; de 12 h a 24 h = 40%; de 24 h a 48 h = 20%; de 48 h a 72 h = 10%; de 72 h a 96 h = 2%; 96 h ou mais = 0%." />
+        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" Text="Consultas agendadas ou chamadas e cancelamentos da unidade não pesam. Sem consulta encerrada no período, o valor aparece como —." />
       </StackPanel>
     </Expander>
   </StackPanel>

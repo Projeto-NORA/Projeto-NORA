@@ -153,7 +153,7 @@ public sealed record UnitLightningSlot(Guid Id, Guid? AppointmentId, string Spec
     };
     /// <summary>"Veio da consulta de Maria, cancelada em 14/11 09:10 pelo paciente"; vazio para o "Chamar próximo".</summary>
     [JsonIgnore] public string SourceDisplay => Source?.Display ?? "";
-    [JsonIgnore] public string ApprovalDeadlineDisplay => ApprovalDeadline is { } at ? $"Aprovar até {at.ToLocalTime():dd/MM HH:mm}" : "";
+    [JsonIgnore] public string ApprovalDeadlineDisplay => ApprovalDeadline is { } at ? $"{at.ToLocalTime():dd/MM HH:mm}" : "";
     /// <summary>Profissional, especialidade e horário numa linha só, para o painel de aprovação.</summary>
     [JsonIgnore] public string SummaryDisplay => $"{Specialty} · {Professional} · {TimeDisplay}";
 }

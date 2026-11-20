@@ -70,7 +70,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         {
             await RefreshAsync(ScopeFor(Section) | UnitScope.Everything | UnitScope.PanelMetrics | UnitScope.Catalog, manual: true);
             MarkFresh();
-            Say(MessageKind.Success, "Dados atualizados pela API.");
+            Say(MessageKind.Success, $"Números atualizados às {DateTime.Now:HH:mm}.");
         }), _ => CanOperate);
         LogoutCommand = new RelayCommand(async _ => await RunAsync(LogoutAsync), _ => CanOperate);
         DismissMessageCommand = new RelayCommand(_ => ClearMessage());
@@ -150,21 +150,21 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     };
     public string AccessRequiredDescription => Section switch
     {
-        "queue" => "Acompanhe posição, tempo de espera e a situação de cada entrada da fila.",
-        "patients" => "Pesquise e consulte apenas os dados necessários para o trabalho da sua UBS.",
-        "slots" => "Acompanhe as oportunidades reaproveitadas como Vaga Relâmpago.",
-        "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios da sua UBS.",
-        "family" => "Pedidos de vínculo entre responsáveis e dependentes, decididos pela equipe da UBS.",
-        "announcements" => "Comunicados da Secretaria para a equipe das UBS desta conta.",
+        "queue" => "Posição, espera e situação de cada entrada da fila.",
+        "patients" => "Consulte só os dados necessários ao trabalho da sua UBS.",
+        "slots" => "Oportunidades reaproveitadas como Vaga Relâmpago.",
+        "unit-settings" => "Profissionais, consultórios, grade e bloqueios da sua UBS.",
+        "family" => "Pedidos de vínculo entre responsáveis e dependentes.",
+        "announcements" => "Comunicados da Secretaria para a equipe.",
         _ => "Entre na unidade para acessar os dados protegidos."
     };
     public string AccessRequiredHint => Section switch
     {
-        "queue" => "Entre no Painel da UBS para carregar a fila protegida da sua unidade.",
-        "patients" => "Entre no Painel da UBS para carregar os pacientes autorizados da sua unidade.",
-        "slots" => "Entre no Painel da UBS para carregar as vagas e seus estados.",
-        "unit-settings" => "Entre no Painel da UBS para carregar o cadastro de profissionais, consultórios e grade.",
-        "family" => "Entre no Painel da UBS para carregar os pedidos de família da sua unidade.",
+        "queue" => "Entre no Painel da UBS para carregar a fila.",
+        "patients" => "Entre no Painel da UBS para carregar os pacientes.",
+        "slots" => "Entre no Painel da UBS para carregar as vagas.",
+        "unit-settings" => "Entre no Painel da UBS para carregar o cadastro.",
+        "family" => "Entre no Painel da UBS para carregar os pedidos.",
         "announcements" => "Entre no Painel da UBS para ler os comunicados da Secretaria.",
         _ => "Entre no Painel da UBS para continuar."
     };
@@ -172,8 +172,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public bool IsAlertsPage => ShowAlerts;
     public string PageTitle => Section == "alerts" ? "Central de alertas" : "Indicadores da UBS";
     public string PageSubtitle => Section == "alerts"
-        ? "Fila alta, espera longa, faltas, ocupação da grade e metas fora, avaliados pela API com os limites da rede."
-        : "Espera, produção, comparecimento e Vaga Relâmpago da sua unidade, com os dados reais da UBS.";
+        ? "Fila alta, espera longa, faltas, ocupação e metas fora dos limites."
+        : "Espera, produção, comparecimento e Vaga Relâmpago da sua unidade.";
     public string PatientTotalCount => HasActiveObsUnit ? ObsRegistry.Count.ToString() : "—";
     public string QueueWaitingCount => HasActiveObsUnit && unitQueueLoaded ? UnitWaitingList.Count(entry => entry.IsActive).ToString() : "—";
     public string SlotOpenCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(entry => entry.Status is "open" or "offered").ToString() : "—";
@@ -186,11 +186,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public System.Collections.ObjectModel.ObservableCollection<MetricCard> SummaryCards { get; } = [];
     private MetricCard[] BuildSummaryCards() =>
     [
-        new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo em alguma UBS (CPF contado uma vez)"),
-        new("Desativados", InactiveCount, "Pessoas que só têm cadastro desativado"),
+        new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo (CPF contado uma vez)"),
+        new("Desativados", InactiveCount, "Só com cadastro desativado"),
         new("Pacientes aguardando", WaitingCount, "Pessoas na fila agora (CPF contado uma vez)"),
-        new("Solicitações na fila", WaitingEntriesCount, "Entradas ativas: uma pessoa pode ter mais de uma"),
-        new("Vagas abertas", SlotCount, "Vagas abertas ou ofertadas agora"),
+        new("Solicitações na fila", WaitingEntriesCount, "Entradas ativas; uma pessoa pode ter várias"),
+        new("Vagas abertas", SlotCount, "Abertas ou ofertadas agora"),
         new("Ofertas aceitas", AcceptedCount, "Total histórico; não confirma o atendimento")
     ];
     public string SlotCount => summary?.OpenSlots.ToString() ?? "—";
@@ -232,9 +232,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] LightningNames =
         [nameof(CanFilterLightning), nameof(LightningOpen), nameof(LightningAccepted), nameof(LightningRegistered), nameof(LightningCreated), nameof(LightningDeclined), nameof(LightningExpired), nameof(LightningPending), nameof(LightningCancelled)];
     private static readonly string[] SummaryNames =
-        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(AwaitingApprovalSlotsCount), nameof(ApprovedSlotsCount), nameof(ApprovalTimeoutSlotsCount), nameof(DiscardedSlotsCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
+        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(AwaitingApprovalSlotsCount), nameof(ApprovedSlotsCount), nameof(ApprovalTimeoutSlotsCount), nameof(DiscardedSlotsCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel), nameof(SummaryUpdatedLabel)];
     private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); }
     public bool CanExportSummary => IsAuthenticated && summary != null;
+    public string SummaryUpdatedLabel => summaryReceivedAt is { } updated ? $"Atualizado às {updated.ToLocalTime():HH:mm}" : "";
     public string SummaryReceivedLabel => summaryReceivedAt is { } time ? $"Recebido em {time.ToLocalTime():dd/MM/yyyy HH:mm:ss}" : "Nenhum resumo carregado";
     public string CreateSummaryCsv()
     {
@@ -311,7 +312,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         var result = await api.SummaryAsync(unit, cancellation);
         if (disposed || !IsAuthenticated || version != networkVersion || cancellation.IsCancellationRequested) return;
         summaryReceivedAt = DateTimeOffset.Now;
-        if (summary is not null && appliedSummaryUnitId == unit && System.Text.Json.JsonSerializer.Serialize(summary) == System.Text.Json.JsonSerializer.Serialize(result)) { Notify(nameof(SummaryReceivedLabel)); return; }
+        if (summary is not null && appliedSummaryUnitId == unit && System.Text.Json.JsonSerializer.Serialize(summary) == System.Text.Json.JsonSerializer.Serialize(result)) { Notify(nameof(SummaryReceivedLabel)); Notify(nameof(SummaryUpdatedLabel)); return; }
         summary = result; appliedSummaryUnitId = unit;
         if (LightningPeriodDays != 0 && CurrentLightningCohort == null) LightningPeriodDays = 0;
         NotifySummary(); Notify(nameof(MetricsScopeLabel));

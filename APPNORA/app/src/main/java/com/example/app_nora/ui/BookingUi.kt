@@ -61,10 +61,12 @@ internal fun PresenceConfirmation(appointment: PatientAppointment, now: Long, bu
 
 @Composable
 private fun BookingRules(actingName: String?) {
-    SectionCard("Como funciona", "Regras do agendamento pelo aplicativo") {
-        MutedText("Você pode marcar qualquer horário livre, em qualquer data: não há antecedência mínima nem máxima.")
-        MutedText(bookingLimitRuleText(actingName))
-        MutedText("A consulta vale na hora: não há aprovação da unidade. Nada é cancelado por falta de confirmação de presença.")
+    // Recolhido: quem agenda com frequência não relê as regras, e os passos começam logo abaixo do título.
+    SectionCard("Como funciona", "Regras do agendamento") {
+        ExplanationToggle("Ver regras", "Ocultar regras") {
+            MutedText("Qualquer horário livre, em qualquer data: sem antecedência mínima nem máxima.")
+            MutedText(bookingLimitRuleText(actingName))
+        }
     }
 }
 
@@ -86,30 +88,37 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     onLoadAvailability: (String, Int) -> Unit, onBook: (AvailableSlot) -> Unit, onOpenAppointments: () -> Unit,
     initialSpecialtyId: String? = null, actingName: String? = null) {
     val clock = LocalClockMillis.current
-    ScreenTitle("Agendar consulta", "Escolha a UBS, a especialidade e um horário livre.")
+    ScreenTitle("Agendar consulta", "Escolha a UBS, a especialidade e o horário.")
+    // Depois de marcar, o resultado vem logo abaixo do título: regras e escolha de UBS ficam de fora.
+    val bookedHere = patient.lastBooked?.takeIf { patient.session != null && it.unitId == patient.selectedUnitId }
+    val bookedUnit = bookedHere?.let { booked -> patient.units?.find { it.id == booked.unitId } }
+    if (bookedHere != null && bookedUnit != null) {
+        // O cartão já diz que deu certo: a faixa de sucesso repetiria a mesma frase; só avisos e falhas continuam nela.
+        ActionMessage(patient.message?.takeIf { actionMessageKind(it) != MessageKind.Success })
+        BookedCard(bookedUnit.name, bookedHere.appointment, onOpenAppointments, onAnother = onOpenBooking, actingName = actingName)
+        return
+    }
     BookingRules(actingName)
     if (patient.session == null) {
-        SectionCard("Entre na sua conta", "Agendamento") { MutedText("Entre na sua conta para ver os horários livres das suas UBS.") }
+        SectionCard("Entre na sua conta", "Agendamento") { MutedText("Entre na sua conta para ver os horários livres.") }
         return
     }
     val units = patient.units
-    SectionCard("1. Escolha a UBS", if (actingName == null) "Somente unidades vinculadas ao seu cadastro" else "A UBS do vínculo com $actingName") {
+    SectionCard("1. Escolha a UBS", if (actingName == null) "Unidades vinculadas ao seu cadastro" else "A UBS do vínculo com $actingName") {
         when {
             units == null -> {
-                MutedText(if (patient.loadingUnits || patient.busy) "Carregando suas UBS…" else "Não foi possível carregar suas UBS.")
-                if (!patient.loadingUnits && !patient.busy) OutlinedButton(onClick = onLoadUnits, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
+                if (patient.loadingUnits || patient.busy) MutedText("Carregando suas UBS…")
+                else {
+                    ErrorNotice("Não foi possível carregar suas UBS.")
+                    RetryButton(onClick = onLoadUnits)
+                }
             }
-            units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro. Vincule uma UBS em Unidades para agendar.")
+            units.isEmpty() -> MutedText("Nenhuma UBS vinculada. Vincule uma em Unidades para agendar.")
             else -> units.forEach { unit -> ChoiceRow(unit.name, unit.id == patient.selectedUnitId, !patient.busy) { onSelectUnit(unit.id) } }
         }
     }
     ActionMessage(patient.message)
     val unit = units?.find { it.id == patient.selectedUnitId } ?: return
-    val booked = patient.lastBooked?.takeIf { it.unitId == unit.id }
-    if (booked != null) {
-        BookedCard(unit.name, booked.appointment, onOpenAppointments, onAnother = onOpenBooking)
-        return
-    }
 
     // A escolha é de quem se atende: trocar o "agindo por" (mesmo com a UBS igual) recomeça pela especialidade, já que o controlador
     // descartou os horários da outra pessoa; sem isso a tela ficaria com a escolha antiga e sem horários, mostrando falha que não houve.
@@ -128,10 +137,13 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
         val specialties = patient.specialties
         when {
             specialties == null -> {
-                MutedText(if (patient.specialtiesLoading) "Carregando especialidades…" else patient.bookingError ?: "Não foi possível carregar as especialidades.")
-                if (!patient.specialtiesLoading) OutlinedButton(onClick = onOpenBooking, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
+                if (patient.specialtiesLoading) MutedText("Carregando especialidades…")
+                else {
+                    ErrorNotice(patient.bookingError ?: "Não foi possível carregar as especialidades.")
+                    RetryButton(onClick = onOpenBooking)
+                }
             }
-            specialties.isEmpty() -> MutedText("A rede ainda não tem especialidades disponíveis para agendamento.")
+            specialties.isEmpty() -> MutedText("Nenhuma especialidade disponível para agendamento.")
             else -> specialties.forEach { item -> ChoiceRow(item.name, item.id == specialtyId, !patient.busy) { specialtyId = item.id; weekIndex = 0; chosenDay = null } }
         }
     }
@@ -153,13 +165,13 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 MutedText("Consultando os horários livres…")
             } else {
-                MutedText(patient.bookingError ?: "Não foi possível consultar os horários.")
-                OutlinedButton(onClick = { onLoadAvailability(chosen, weekIndex) }, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
+                ErrorNotice(patient.bookingError ?: "Não foi possível consultar os horários.")
+                RetryButton(onClick = { onLoadAvailability(chosen, weekIndex) })
             }
         } else {
             val days = remember(result, now) { groupSlotsByDay(result.slots, now) }
             if (days.isEmpty()) {
-                MutedText("Nenhum horário livre nesta semana para esta especialidade nesta UBS. Veja a próxima semana ou escolha outra data.")
+                MutedText("Nenhum horário livre nesta semana. Veja a próxima ou escolha outra data.")
             } else {
                 val shown = shownDay(days, chosenDay)
                 if (isWantedDayEmpty(days, chosenDay)) MutedText("Nenhum horário livre em ${formatDayLabel(chosenDay!!)}; veja os outros dias da semana.")
@@ -172,7 +184,10 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                 shown.slots.forEach { slot ->
                     key(slot.startsAt, slot.professionalId) {
                         OutlinedButton(onClick = { confirming = slot }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) {
-                            Text("${formatClock(slot.startsAt)} às ${formatClock(slot.endsAt)} · ${slot.professionalName}")
+                            Column(Modifier.fillMaxWidth()) {
+                                Text("${formatClock(slot.startsAt)} às ${formatClock(slot.endsAt)}", fontWeight = FontWeight.Bold)
+                                Text(slot.professionalName, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
@@ -198,16 +213,39 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
 
 /** Resultado de uma marcação: a consulta nova, o que fazer depois e os atalhos. */
 @Composable
-internal fun BookedCard(unitName: String, appointment: PatientAppointment, onOpenAppointments: () -> Unit, onAnother: () -> Unit) {
+internal fun BookedCard(unitName: String, appointment: PatientAppointment, onOpenAppointments: () -> Unit, onAnother: () -> Unit, actingName: String? = null) {
+    val who = if (actingName == null) "sua presença" else "a presença de $actingName"
+    val presenceNow = rememberPresenceClock(listOf(appointment))
+    // O relógio da presença não acorda no início da consulta, onde a frase de "encerrado" muda: este marca só esse instante.
+    val clock = LocalClockMillis.current
+    val startedAt = remember(appointment) { mutableLongStateOf(0L) }
+    if (!LocalInspectionMode.current) LaunchedEffect(appointment) {
+        val start = appointment.startsAtMillis ?: return@LaunchedEffect
+        while (clock() < start) kotlinx.coroutines.delay(minOf(start - clock(), PRESENCE_CLOCK_MAX_WAIT_MS))
+        startedAt.longValue = clock()
+    }
     SectionCard("Consulta marcada", unitName) {
         Text(appointment.specialty, fontWeight = FontWeight.SemiBold)
-        Text(formatRange(appointment.startsAt, appointment.endsAt))
+        Text(formatRange(appointment.startsAt, appointment.endsAt), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
         Text("Profissional: ${appointment.professional}")
-        Text(statusLabel(appointment.status))
-        MutedText("De 48 horas até 2 horas antes, confirme sua presença em Consultas. Se não confirmar, nada é cancelado.")
+        StatusBadge(appointment.status)
+        // Mesmo critério da tela Consultas: a frase segue a janela de confirmação (ainda não abriu, aberta ou encerrada).
+        MutedText(bookedPresenceText(appointment, maxOf(presenceNow.value, startedAt.longValue), who))
         Button(onClick = onOpenAppointments, modifier = Modifier.fillMaxWidth()) { Text("Ver minhas consultas") }
         OutlinedButton(onClick = onAnother, modifier = Modifier.fillMaxWidth()) { Text("Agendar outra especialidade") }
     }
+}
+
+/** Frase de presença do cartão "Consulta marcada" por situação da janela; [who] é "sua presença" ou "a presença de X". Nunca afirma o que a situação não garante. */
+internal fun bookedPresenceText(appointment: PatientAppointment, now: Long, who: String): String = when (presenceState(appointment, now)) {
+    PresenceState.NOT_YET -> presenceOpensAt(appointment)?.let { "Você poderá confirmar $who em Consultas a partir de ${formatDateTime(it)}, até 2 horas antes. Se não confirmar, nada é cancelado." }
+        ?: "Confirme $who em Consultas de 48 horas até 2 horas antes. Se não confirmar, nada é cancelado."
+    PresenceState.OPEN -> "Você já pode confirmar $who em Consultas, até 2 horas antes. Se não confirmar, nada é cancelado."
+    PresenceState.CONFIRMED -> "Presença confirmada. Não é preciso fazer mais nada."
+    PresenceState.CLOSED ->
+        if ((appointment.startsAtMillis ?: Long.MAX_VALUE) <= now) "O horário da consulta já chegou: não é mais possível confirmar $who."
+        else "Faltam menos de 2 horas para a consulta: o prazo de confirmar $who acabou. Nada é cancelado por isso."
+    PresenceState.NOT_APPLICABLE -> "Se não confirmar $who, nada é cancelado."
 }
 
 /** Seletor de data do agendamento: só de hoje até o teto de [BOOKING_HORIZON_YEARS] anos do servidor; devolve o início do dia escolhido no calendário do aparelho. */

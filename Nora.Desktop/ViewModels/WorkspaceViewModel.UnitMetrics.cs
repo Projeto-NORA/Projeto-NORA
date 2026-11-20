@@ -96,7 +96,7 @@ public sealed partial class WorkspaceViewModel
         : panelMetrics is null ? (panelFailed ? "Não foi possível ler os indicadores agora." : "Aguardando a leitura dos indicadores")
         : panelMetrics.Waiting.AverageWaitMinutes is null ? $"Nenhuma entrada saiu da fila por oferta aceita nos últimos {PanelDays} dias."
         : panelFailed ? "A última leitura não concluiu; este é o valor da leitura anterior."
-        : $"Média dos últimos {PanelDays} dias, da entrada na fila até a oferta aceita";
+        : $"Média dos últimos {PanelDays} dias até a oferta aceita";
 
     private static readonly string[] UnitMetricsNames =
     [
@@ -119,6 +119,8 @@ public sealed partial class WorkspaceViewModel
         if (name == "home" && PanelMetricsDue) scope |= UnitScope.PanelMetrics;
         // Catálogo (profissionais e especialidades): lido na troca de UBS; as abas que o usam só o repetem depois de 5 minutos.
         if (name == "agenda" && CatalogDue) scope |= UnitScope.Catalog;
+        // A Fila escolhe a especialidade no catálogo: lê (ou relê, se falhou) quando ele está vencido.
+        if (name == "queue" && (CatalogDue || catalogFailed || !catalogLoaded)) scope |= UnitScope.Catalog;
         if (name == "unit-settings")
         {
             if (!CatalogDue) scope &= ~UnitScope.Catalog;
@@ -238,7 +240,7 @@ public sealed partial class WorkspaceViewModel
         [
             new("Vagas registradas", Number(lightning?.RegisteredSlots), hint),
             new("Ofertas aceitas", Number(lightning?.AcceptedOffers), lightning is null ? hint : "Aceite não confirma o atendimento"),
-            new("Ofertas recusadas", Number(lightning?.DeclinedOffers), hint),
+            new("Ofertas recusadas", Number(lightning?.DeclinedOffers), lightning is null ? hint : "Pacientes que recusaram a oferta"),
             new("Ofertas expiradas", Number(lightning?.ExpiredOffers), lightning is null ? hint : "Sem resposta dentro do prazo")
         ];
     }

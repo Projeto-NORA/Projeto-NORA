@@ -78,15 +78,13 @@ internal fun UnitsMap(selectedUnit: PatientHealthUnit? = null, onLocateUnit: (Do
     }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) locate() else status = "Localização não autorizada. Você ainda pode explorar o mapa manualmente."
+        if (granted) locate() else status = "Localização não autorizada. Explore o mapa manualmente."
     }
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Mapa da região", style = MaterialTheme.typography.titleMedium)
-            Text("Mova o mapa com o dedo e use + e − para aproximar ou afastar.",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Usamos uma posição aproximada recente para selecionar a UBS vinculada mais próxima. Sua posição é enviada ao OpenStreetMap ao abrir o mapa da região.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedButton(onClick = {
@@ -110,16 +108,16 @@ internal fun UnitsMap(selectedUnit: PatientHealthUnit? = null, onLocateUnit: (Do
                             }
                             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                                 if (generation == activeGeneration && isMapResource(request))
-                                    status = "Não foi possível carregar o mapa completamente. Verifique sua conexão e tente novamente."
+                                    status = "Não foi possível carregar o mapa. Verifique sua conexão."
                             }
                             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
                                 if (generation == activeGeneration && isMapResource(request))
-                                    status = "Não foi possível carregar o mapa completamente. Verifique sua conexão e tente novamente."
+                                    status = "Não foi possível carregar o mapa. Verifique sua conexão."
                             }
                             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
                                 handler.cancel()
                                 if (generation == activeGeneration)
-                                    status = "Não foi possível estabelecer uma conexão segura com o mapa. Tente novamente."
+                                    status = "Sem conexão segura com o mapa. Tente novamente."
                             }
                             override fun onPageFinished(view: WebView, url: String) {
                                 // In a vertically scrolling Compose layout, WebView can report a
@@ -154,7 +152,7 @@ internal fun UnitsMap(selectedUnit: PatientHealthUnit? = null, onLocateUnit: (Do
                                     """.trimIndent(), null)
                                 }
                                 if (generation == activeGeneration && status.startsWith("Carregando"))
-                                    status = "Se o mapa não aparecer, verifique sua conexão e recarregue."
+                                    status = "Se o mapa não aparecer, recarregue."
                             }
                         }
                         loadUrl(address)

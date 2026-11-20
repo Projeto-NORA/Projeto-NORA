@@ -54,14 +54,17 @@ fun UnitOffer.isOpenAt(now: Long): Boolean =
 fun UnitOffer.isLocallyExpiredAt(now: Long): Boolean =
     status == "pending" && expiresAtMillis?.let { now >= it } == true
 
-/** "09:32" (ou "1:09:32"), arredondando para cima para não mostrar 00:00 antes do fim. */
-fun formatRemaining(millis: Long): String {
+/** Contagem com unidades ("9 min 30 s"), para não parecer um horário nem deixar dúvida entre minutos e segundos. */
+fun formatRemainingUnits(millis: Long): String {
     val total = (millis.coerceAtLeast(0) + 999) / 1000
     val hours = total / 3600
     val minutes = total % 3600 / 60
     val seconds = total % 60
-    return if (hours > 0) String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
-    else String.format(Locale.ROOT, "%02d:%02d", minutes, seconds)
+    return when {
+        hours > 0 -> "$hours h $minutes min $seconds s"
+        minutes > 0 -> "$minutes min $seconds s"
+        else -> "$seconds s"
+    }
 }
 
 /** Frase para leitor de tela: muda no máximo a cada minuto, para não anunciar a cada segundo. */

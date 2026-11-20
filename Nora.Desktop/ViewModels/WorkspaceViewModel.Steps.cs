@@ -18,12 +18,35 @@ public sealed partial class WorkspaceViewModel
         try
         {
             await work();
+            step.Text = DoneText(text);
             step.State = StepState.Done;
         }
         catch (Exception)
         {
+            step.Text = $"Falhou: {text.TrimEnd('…', '.', ' ')}";
             step.State = StepState.Failed;
             throw;
         }
     }
+
+    /// <summary>Texto do passo concluído, no passado, para a marca de concluído não ficar ao lado de um verbo em andamento ("✓ Salvando…").</summary>
+    private static string DoneText(string running) => running switch
+    {
+        "Lendo a grade da UBS…" => "Grade da UBS lida",
+        "Buscando horários livres…" => "Horários livres encontrados",
+        "Conferindo o 1º da fila…" => "1º da fila conferido",
+        "Oferecendo o horário…" => "Horário oferecido",
+        "Conferindo este computador…" => "Computador conferido",
+        "Restaurando a sessão salva…" => "Sessão restaurada",
+        "Ativando este computador…" => "Computador ativado",
+        "Lendo os computadores…" => "Computadores lidos",
+        "Guardando a ativação neste computador…" => "Ativação guardada neste computador",
+        "Gerando o código de ativação…" => "Código de ativação gerado",
+        "Revogando o computador…" => "Computador revogado",
+        "Salvando a aprovação das vagas…" => "Aprovação das vagas salva",
+        "Aprovando a vaga…" => "Vaga aprovada",
+        "Descartando…" => "Vaga descartada",
+        "Salvando horários…" => "Horários salvos",
+        _ => running.TrimEnd('…', '.', ' ')
+    };
 }

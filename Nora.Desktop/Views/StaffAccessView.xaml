@@ -2,11 +2,15 @@
   <Border Style="{StaticResource Card}" Margin="0,0,0,18">
     <StackPanel IsEnabled="{Binding CanOperate}">
       <TextBlock Text="Vínculos de contas OBS" FontSize="18" FontWeight="SemiBold" />
-      <TextBlock Text="Registre as UBS que cada conta pode operar. Desativar uma conta preserva estes vínculos. Selecione a conta na tabela acima." TextWrapping="Wrap" Style="{StaticResource Muted}" Margin="0,8,0,12" />
+      <TextBlock Text="Registre as UBS que cada conta pode operar." TextWrapping="Wrap" Style="{StaticResource Muted}" Margin="0,8,0,12" />
       <TextBlock Text="{Binding SelectedStaffLabel}" FontWeight="SemiBold" Margin="0,0,0,12" />
       <Button Content="Atualizar vínculos" Click="OnLoadUnits" IsEnabled="{Binding CanLoadStaffUnits}" HorizontalAlignment="Left" Margin="0,0,0,12" />
-      <TextBlock Text="UBS autorizadas" /><ListBox ItemsSource="{Binding StaffUnits}" SelectedItem="{Binding SelectedStaffGrant}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS autorizadas à conta" MinHeight="80" MaxHeight="180" Margin="0,6,0,12" />
-      <Button Content="Revogar vínculo selecionado" Click="OnRevoke" IsEnabled="{Binding CanRevokeStaffUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <TextBlock Text="UBS autorizadas" /><ListBox ItemsSource="{Binding StaffUnits}" SelectedItem="{Binding SelectedStaffGrant}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS autorizadas à conta" MinHeight="80" MaxHeight="180" Margin="0,6,0,0" />
+      <TextBlock Text="Nenhuma UBS autorizada para esta conta." Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite">
+        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Muted}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding StaffUnitsLoaded}" Value="True" /><Condition Binding="{Binding StaffUnits.Count}" Value="0" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
+      <Border Height="12" />
+      <Button Content="Revogar vínculo selecionado" Style="{StaticResource DangerButton}" Click="OnRevoke" IsEnabled="{Binding CanRevokeStaffUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" />
       <TextBlock Text="UBS para conceder" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedStaffUnit}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS para conceder acesso" Margin="0,6,0,12" />
       <Button Content="Conceder vínculo" Click="OnGrant" IsEnabled="{Binding CanGrantStaffUnit}" HorizontalAlignment="Left" />
     </StackPanel>

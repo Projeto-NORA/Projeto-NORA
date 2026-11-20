@@ -85,7 +85,7 @@ internal static partial class Program
                 var byScore = vm.UnitWaitingList.OrderBy(item => item.ScoreSort).Select(item => item.PatientName).ToArray();
                 Require(byScore[0] == "Edu Santos" && byScore[^1] == "Diego Reis" && vm.UnitWaitingList.Single(item => item.PatientName == "Edu Santos").OfferSort == int.MaxValue, "A chave numérica do score deveria ordenar 100 antes de 1000 (e a encerrada sem ordem vai por último na ordem de oferta): " + string.Join(",", byScore));
                 var texts = VisibleTexts(content);
-                Require(texts.Contains("Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento. A ordem de oferta, o score e o tempo de espera são atualizados a cada leitura."), "A Fila deveria explicar a prioridade pelo score.");
+                Require(texts.Contains("Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada. O score não muda a prioridade clínica nem o direito ao atendimento."), "A Fila deveria explicar a prioridade pelo score.");
                 Require(!texts.Any(text => text.Contains("pela ordem de entrada entre as entradas ativas", StringComparison.Ordinal)), "O texto antigo (só ordem de entrada) continua na tela.");
                 var details = vm.BuildDetails(vm.UnitWaitingList.Single(item => item.PatientName == "Bruno Lima"))!;
                 Require(details.Fields.Single(field => field.Label == "Ordem de oferta na especialidade").Value == "2º" && details.Fields.Single(field => field.Label == "Score do paciente").Value == "900 · Excelente", "A ficha da entrada deveria trazer a ordem de oferta e o score.");
@@ -129,9 +129,13 @@ internal static partial class Program
                 // Carregar mais só acrescenta no fim: sem Reset, a rolagem, o foco e a seleção da tabela ficam onde estavam.
                 var loadActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
                 System.Collections.Specialized.NotifyCollectionChangedEventHandler recordLoad = (_, args) => loadActions.Add(args.Action);
+                var viewResets = 0; System.Collections.Specialized.NotifyCollectionChangedEventHandler recordView = (_, args) => { if (args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset) viewResets++; };
+                ((System.Collections.Specialized.INotifyCollectionChanged)vm.QueueView).CollectionChanged += recordView;
                 vm.UnitWaitingList.CollectionChanged += recordLoad;
                 Click(window, content, "Carregar mais histórico", 1280, 1500);
                 vm.UnitWaitingList.CollectionChanged -= recordLoad;
+                ((System.Collections.Specialized.INotifyCollectionChanged)vm.QueueView).CollectionChanged -= recordView;
+                Require(viewResets == 0, "Carregar mais mandou Reset à vista que o DataGrid usa (a tabela voltaria ao topo).");
                 Require(loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Add) && !loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Reset), "Carregar mais deveria acrescentar linhas sem Reset (que leva a tabela ao topo): " + string.Join(",", loadActions));
                 Require(FindActionButton(content, "Carregar mais histórico").IsEnabled, "Depois de carregar mais, o botão deveria continuar habilitado (havia mais histórico), sem esperar o ciclo de 20 s.");
                 Require(Ids().SequenceEqual([3, 4, 5, 6, 7, 8, 9, 10]) && fixture.HistoryReads[^1].StartsWith("waiting-list?historyBefore=", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success && vm.Message == "Histórico da fila ampliado.", "Carregar mais deveria acrescentar as 3 encerradas seguintes: " + string.Join(",", Ids()));
@@ -208,7 +212,7 @@ internal static partial class Program
                 Require(vm.UnitLightningSlots.Count == 6 && vm.UnitLightningSlots.Select(item => item.Id).Distinct().Count() == 6 && vm.AwaitingSlots.Count == 1, "O ciclo deveria preservar o histórico carregado das vagas.");
                 Click(window, content, "Carregar mais histórico", 1280, 1800);
                 Require(vm.UnitLightningSlots.Count == 7 && !vm.CanLoadMoreSlotsHistory && vm.SlotsHistoryState == "" && vm.Message == "Todo o histórico das vagas está na lista.", "Esgotado o histórico o botão deveria sumir: " + vm.UnitLightningSlots.Count);
-                Require(!Descendants<Button>(content).Any(candidate => candidate.IsVisible && candidate.Content?.ToString() == "Carregar mais histórico") && VisibleTexts(content).Any(text => text.Contains("vai primeiro a quem tem score maior", StringComparison.Ordinal)), "O botão deveria sumir e o texto da prioridade aparecer na aprovação.");
+                Require(!Descendants<Button>(content).Any(candidate => candidate.IsVisible && candidate.Content?.ToString() == "Carregar mais histórico") && VisibleTexts(content).Any(text => text.Contains("Vai primeiro a quem tem score maior", StringComparison.Ordinal)), "O botão deveria sumir e o texto da prioridade aparecer na aprovação.");
             }
             finally { CloseWindow(window); }
         });
@@ -255,7 +259,7 @@ internal static partial class Program
                 var content = Show(window, "users", 1280, 1900);
                 Require(!Descendants<TextBox>(content).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(content).Any(text => text == "CPF"), "O formulário não deveria ter campo de CPF.");
                 Require(!GridNamed(content, "Contas OBS").Columns.Any(column => column.Header?.ToString()?.Contains("CPF", StringComparison.Ordinal) == true), "A lista de contas não deveria ter coluna de CPF.");
-                Require(VisibleTexts(content).Any(text => text.Contains("sem CPF", StringComparison.Ordinal)), "O formulário deveria dizer que a conta é só de acesso, sem CPF.");
+                Require(VisibleTexts(content).Any(text => text.Contains("não leva CPF", StringComparison.Ordinal)), "O formulário deveria dizer que a conta é só de acesso, sem CPF.");
                 Input(content, "Nome da nova conta").Text = "Paulo Equipe"; Input(content, "E-mail da nova conta").Text = "paulo@example.test";
                 Secret(content, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(content, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
                 Click(window, content, "Criar conta", 1280, 1900);

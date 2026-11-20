@@ -54,10 +54,10 @@ class VisualCaptureTest {
         }
         try {
             capture("01-inicio-sem-conta-claro")
-            compose.onNodeWithText("Entrar na sua conta").performScrollTo()
+            compose.onNodeWithText("Acessar minha conta").performScrollTo()
             capture("02-conexao-login-vazio-claro")
-            compose.onNodeWithText("Vaga Relâmpago").performScrollTo()
-            capture("03-servicos-sem-conta-claro")
+            compose.onNodeWithContentDescription("Ajuda com o aplicativo").performClick()
+            capture("03-ajuda-sem-conta-claro")
             compose.onNodeWithText("Configurações").performClick()
             capture("04-configuracoes-aparencia-claro")
             compose.onNodeWithText("Escura").performClick()
@@ -74,8 +74,8 @@ class VisualCaptureTest {
             compose.onNodeWithText("Restaurar preferências padrão").performScrollTo().performClick()
             capture("10-restaurar-confirmacao-claro")
             compose.onNodeWithText("Cancelar").performClick()
-            compose.onNodeWithText("Início").performClick()
-            compose.onNodeWithText("Cuidar de você começa aqui").performScrollTo()
+            compose.onNodeWithContentDescription("Voltar ao início").performClick()
+            compose.onNodeWithText("Sua saúde, em um só lugar").performScrollTo()
             compose.runOnIdle { fontScale = 1.3f }
             capture("11-inicio-fonte-130-claro")
             compose.runOnIdle { fontScale = 1f }

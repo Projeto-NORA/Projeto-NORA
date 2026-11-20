@@ -63,7 +63,7 @@ public sealed partial class WorkspaceViewModel
         : unreadAnnouncements == 1 ? $"{Announcements.Count} comunicados em vigor, 1 não lido." : $"{Announcements.Count} comunicados em vigor, {unreadAnnouncements} não lidos.";
     public string AnnouncementsFootnote => announcementsReadAt is not { } at ? ""
         : announcementsFailed ? $"A última leitura não concluiu; a lista é da leitura das {at:HH:mm}."
-        : $"Atualizado às {at:HH:mm}. Encerrados e vencidos saem ao abrir esta aba ou em Atualizar comunicados.";
+        : $"Atualizado às {at:HH:mm}.";
 
     private static readonly string[] AnnouncementNames = [nameof(UnreadAnnouncementCount), nameof(AnnouncementsState), nameof(AnnouncementsSummary), nameof(AnnouncementsFootnote)];
     private void NotifyAnnouncements()
@@ -145,7 +145,7 @@ public sealed partial class WorkspaceViewModel
         if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para ler os comunicados.");
         await ReadAnnouncementsAsync(full: true);
         if (announcementsFailed) throw new NoraApiException("Não foi possível ler os comunicados agora. A lista mostra a última leitura, se houver.");
-        Say(MessageKind.Success, unreadAnnouncements == 0 ? "Comunicados atualizados: nenhum não lido." : $"Comunicados atualizados: {unreadAnnouncements} não lido(s).");
+        Say(MessageKind.Success, unreadAnnouncements == 0 ? "Comunicados atualizados: nenhum não lido." : unreadAnnouncements == 1 ? "Comunicados atualizados: 1 não lido." : $"Comunicados atualizados: {unreadAnnouncements} não lidos.");
     });
 
     public Task MarkAnnouncementReadAsync(AnnouncementRow? row) => RunAsync(async () =>

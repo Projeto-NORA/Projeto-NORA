@@ -38,7 +38,7 @@ public sealed class NoraApiClient : IDisposable
         if (!Uri.TryCreate(address.Trim(), UriKind.Absolute, out var uri)
             || (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback))
             || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            throw new NoraApiException("Informe o endereço HTTPS da API. HTTP é permitido somente no computador local para desenvolvimento.");
+            throw new NoraApiException("Informe o endereço HTTPS do servidor em \"Servidor (avançado)\" (na tela de entrada) ou em Configurações. HTTP é permitido somente no computador local para desenvolvimento.");
         return new Uri(uri.AbsoluteUri.TrimEnd('/') + "/");
     }
     public void Configure(string address)
@@ -257,7 +257,7 @@ public sealed class NoraApiClient : IDisposable
     private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body = null, bool authenticated = true, CancellationToken cancellation = default)
     {
         if (disposed) throw new NoraApiException("O aplicativo foi fechado. Abra-o para conectar novamente.");
-        if (endpoint == null) throw new NoraApiException("Configure o endereço da API antes de conectar.");
+        if (endpoint == null) throw new NoraApiException("Configure o endereço do servidor antes de conectar.");
         if (authenticated && token == null) throw new NoraApiException("Entre na sua conta para continuar.", true);
         try
         {
@@ -280,7 +280,7 @@ public sealed class NoraApiClient : IDisposable
             if (!IsJson(response.Content.Headers.ContentType?.MediaType)) throw new NoraApiException("A API retornou dados em um formato inesperado.");
             return await response.Content.ReadFromJsonAsync<T>(cancellation) ?? throw new NoraApiException("A API retornou uma resposta incompleta.");
         }
-        catch (HttpRequestException) { throw new NoraApiException("Não foi possível conectar à API. Confira o endereço e a conexão."); }
+        catch (HttpRequestException) { throw new NoraApiException("Não foi possível conectar ao servidor. Confira o endereço em \"Servidor (avançado)\" e a conexão."); }
         catch (IOException) { throw new NoraApiException("A conexão com a API foi interrompida. Tente novamente."); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
         catch (TaskCanceledException) { throw new NoraApiException("A API demorou para responder. Tente novamente."); }

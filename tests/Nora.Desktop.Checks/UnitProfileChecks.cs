@@ -59,7 +59,7 @@ internal static partial class Program
                 vm.UnitServices = "Vacinação\nCurativos\r\nPré-natal  "; Pump(vm.SaveProfileAsync());
                 var saved = fixture.ProfileOf(unit.Id) ?? throw new InvalidOperationException("O atendimento deveria estar gravado: " + vm.Message);
                 Require(saved.Informed && saved.Services == "Vacinação\nCurativos\nPré-natal" && saved.OpeningHours.Count(item => item.Weekday == 1) == 2 && saved.OpeningHours.Any(item => item is { Weekday: 2, Opens: "08:00", Closes: "12:00" }) && saved.OpeningHours.Any(item => item is { Weekday: 2, Opens: "12:00", Closes: "18:00" }), "O que ficou gravado não confere com o editado.");
-                Require(vm.MessageKind == MessageKind.Success && vm.ProfileSteps.Single() is { Text: "Salvando horários…", IsDone: true } && vm.ProfileState == "" && vm.ProfileUpdatedLabel.StartsWith("Última alteração em ", StringComparison.Ordinal) && !vm.OpeningDays[1].IsClosed && vm.OpeningDays[0].IsClosed, "Depois de salvar o passo fica concluído e a tela reflete o gravado.");
+                Require(vm.MessageKind == MessageKind.Success && vm.ProfileSteps.Single() is { Text: "Horários salvos", IsDone: true } && vm.ProfileState == "" && vm.ProfileUpdatedLabel.StartsWith("Última alteração em ", StringComparison.Ordinal) && !vm.OpeningDays[1].IsClosed && vm.OpeningDays[0].IsClosed, "Depois de salvar o passo fica concluído e a tela reflete o gravado.");
                 // Dia que volta a "Fechado" e lista vazia (UBS fechada todos os dias) são válidos.
                 foreach (var day in vm.OpeningDays) day.IsClosed = true;
                 Pump(vm.SaveProfileAsync());

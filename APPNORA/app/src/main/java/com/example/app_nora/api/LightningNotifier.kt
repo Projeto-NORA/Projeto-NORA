@@ -3,16 +3,38 @@ package com.example.app_nora.api
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.app_nora.MainActivity
 import com.example.app_nora.R
+
+/** Se o Android deixa o app postar notificações agora (permissão concedida e notificações do app não bloqueadas). */
+internal fun notificationsAllowed(context: Context): Boolean =
+    (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+/** Abre a tela de notificações deste app nas configurações do Android; em aparelho sem ela (API 24/25 ou ROM diferente) abre os detalhes do app. */
+internal fun openNotificationSettings(context: Context) {
+    val packageUri = Uri.fromParts("package", context.packageName, null)
+    val detailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) { context.startActivity(detailsIntent); return }
+    try {
+        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(detailsIntent)
+    }
+}
 
 /**
  * Notificação local de Vaga Relâmpago, disparada pelo ciclo de 30 s do serviço de conexão (não há push).
@@ -39,9 +61,7 @@ internal class LightningNotifier(private val context: Context) {
     /** Retira todos os avisos (fim da conexão ou logout). */
     fun clear() { for (id in notified.clear()) manager.cancel(id, NOTIFICATION_ID) }
 
-    private fun canNotify(): Boolean =
-        (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
-            manager.areNotificationsEnabled()
+    private fun canNotify(): Boolean = notificationsAllowed(context)
 
     private fun ensureChannel() {
         manager.createNotificationChannel(NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_HIGH)

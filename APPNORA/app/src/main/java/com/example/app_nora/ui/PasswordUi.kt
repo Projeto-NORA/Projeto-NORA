@@ -41,15 +41,22 @@ fun ChangePasswordScreen(required: Boolean, onSubmit: suspend (String, String) -
     var formError by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // As regras são conferidas enquanto a pessoa digita; o aviso só aparece depois que o campo tem algo.
+    val nextError = when {
+        next.isEmpty() -> null
+        next.length < MIN_PASSWORD -> "Use pelo menos $MIN_PASSWORD caracteres."
+        next == current -> "A nova senha precisa ser diferente da atual."
+        else -> null
+    }
+    val confirmationError = if (confirmation.isNotEmpty() && confirmation != next) "As senhas não correspondem." else null
     fun options(last: Boolean) = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (last) ImeAction.Done else ImeAction.Next)
     fun transformation(visible: Boolean) = if (visible) VisualTransformation.None else PasswordVisualTransformation()
     val submit: () -> Unit = {
         success = false
         when {
             current.isEmpty() -> currentError = "Informe a senha atual."
-            next.length < MIN_PASSWORD -> formError = "A nova senha precisa ter pelo menos $MIN_PASSWORD caracteres."
-            next == current -> formError = "A nova senha precisa ser diferente da atual."
-            next != confirmation -> formError = "As senhas não correspondem."
+            // Estas regras já aparecem sob cada campo enquanto a pessoa digita; aqui só impedem o envio, sem repetir o aviso.
+            next.length < MIN_PASSWORD || next == current || next != confirmation -> Unit
             else -> {
                 busy = true; currentError = null; formError = null
                 scope.launch {
@@ -69,33 +76,35 @@ fun ChangePasswordScreen(required: Boolean, onSubmit: suspend (String, String) -
             }
         }
     }
-    ScreenTitle("Alterar senha", "Defina uma nova senha para sua conta.")
-    if (required) Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer,
+    ScreenTitle("Alterar senha")
+    if (required) Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer,
         modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
         Text("É preciso definir uma nova senha para continuar usando o aplicativo.", Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
     }
     SectionCard("Sua senha", "Mínimo de $MIN_PASSWORD caracteres, diferente da atual") {
         OutlinedTextField(value = current, onValueChange = { current = it.take(MAX_PASSWORD); currentError = null; success = false },
-            label = { Text("Senha atual") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+            label = { Text(if (required) "Senha atual (recebida da UBS)" else "Senha atual") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp), isError = currentError != null,
             supportingText = currentError?.let { message -> { Text(message) } },
             visualTransformation = transformation(showCurrent), keyboardOptions = options(false),
             trailingIcon = { PasswordEyeButton(showCurrent) { showCurrent = !showCurrent } })
         OutlinedTextField(value = next, onValueChange = { next = it.take(MAX_PASSWORD); formError = null; success = false },
             label = { Text("Nova senha") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp), isError = nextError != null,
+            supportingText = nextError?.let { message -> { Text(message) } },
             visualTransformation = transformation(showNext), keyboardOptions = options(false),
             trailingIcon = { PasswordEyeButton(showNext) { showNext = !showNext } })
         OutlinedTextField(value = confirmation, onValueChange = { confirmation = it.take(MAX_PASSWORD); formError = null; success = false },
             label = { Text("Confirmar nova senha") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp), isError = confirmationError != null,
+            supportingText = confirmationError?.let { message -> { Text(message) } },
             visualTransformation = transformation(showConfirmation), keyboardOptions = options(true),
             trailingIcon = { PasswordEyeButton(showConfirmation) { showConfirmation = !showConfirmation } })
-        formError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        formError?.let { ErrorNotice(it) }
         if (success) ActionMessage("Senha alterada. Os outros aparelhos foram desconectados; você continua conectado neste.")
         Button(onClick = submit, enabled = !busy && current.isNotEmpty() && next.isNotEmpty() && confirmation.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
+            modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "Alterando…" else "Alterar senha", fontWeight = FontWeight.Bold)
         }
     }

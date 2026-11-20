@@ -1,6 +1,7 @@
 package com.example.app_nora
 
 import com.example.app_nora.api.*
+import com.example.app_nora.ui.bookedPresenceText
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -300,5 +301,24 @@ class BookingLogicTest {
         assertEquals(FlashOpen.WAIT, flashOpenDecision("unit-b", "dep-1", flashState(links = null)))
         assertEquals(FlashOpen.DROP, flashOpenDecision("unit-z", null, flashState()))
         assertEquals(FlashOpen.DROP, flashOpenDecision("unit-b", "desconhecido", flashState()))
+    }
+
+    @Test fun bookedCardPresenceTextFollowsTheWindowAndNeverSaysAFalseThing() {
+        val who = "sua presença"
+        val start = now + 5 * day
+        val future = appointment(start)
+        assertTrue(bookedPresenceText(future, now, who).startsWith("Você poderá confirmar sua presença em Consultas a partir de "))
+        assertTrue(bookedPresenceText(future, start - day, who).startsWith("Você já pode confirmar sua presença"))
+        // Fechada antes do horário: o prazo acabou, mas a consulta ainda não chegou.
+        val closedBefore = bookedPresenceText(future, start - hour, who)
+        assertTrue(closedBefore.startsWith("Faltam menos de 2 horas") && closedBefore.contains("Nada é cancelado"))
+        // Fechada depois do horário: não pode falar em consulta próxima nem em "faltam".
+        val closedAfter = bookedPresenceText(future, start + hour, who)
+        assertEquals("O horário da consulta já chegou: não é mais possível confirmar sua presença.", closedAfter)
+        // Confirmada: nunca pede nem sugere confirmar de novo, em nenhum horário.
+        val confirmed = appointment(start, confirmedAt = "2026-11-16T10:00:00Z")
+        for (at in listOf(now, start - day, start - hour, start + hour))
+            assertEquals("Presença confirmada. Não é preciso fazer mais nada.", bookedPresenceText(confirmed, at, who))
+        assertEquals("Se não confirmar a presença de Ana, nada é cancelado.", bookedPresenceText(appointment(start, "called"), now, "a presença de Ana"))
     }
 }

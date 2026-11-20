@@ -93,8 +93,8 @@ public sealed partial class WorkspaceViewModel
     public string UnitsWithoutDatabaseNotice => UnitsWithoutDatabaseCount switch
     {
         0 => "",
-        1 => "1 UBS está fora destes números porque a base dela ainda não foi criada. Crie a base na aba Unidades.",
-        var count => $"{count} UBS estão fora destes números porque a base delas ainda não foi criada. Crie as bases na aba Unidades."
+        1 => "1 UBS está fora destes números: a base dela ainda não foi criada.",
+        var count => $"{count} UBS estão fora destes números: as bases delas ainda não foram criadas."
     };
     public string ChartState => NetworkChart.State;
     public bool HasChartData => NetworkChart.HasData;
@@ -242,9 +242,9 @@ public sealed partial class WorkspaceViewModel
         [
             new("Consultas concluídas", Number(appointments?.Completed), "Consultas com data marcada no período"),
             new("Faltas", Number(appointments?.Missed), "Consultas registradas como falta"),
-            new("Cancelamentos", Number(appointments?.Cancelled), appointments is null ? "Aguardando os indicadores" : appointments.CancelledByPatient == 1 ? "1 feito pelo paciente" : $"{DisplayFormat.Count(appointments.CancelledByPatient)} feitos pelo paciente"),
+            new("Cancelamentos", Number(appointments?.Cancelled), appointments is null ? "Aguardando os indicadores" : (appointments.CancelledByPatient == 1 ? "1 feito pelo paciente" : $"{DisplayFormat.Count(appointments.CancelledByPatient)} feitos pelo paciente")),
             new("Comparecimento", appointments is null ? "—" : DisplayFormat.Percent(appointments.AttendanceScore),
-                appointments is null ? "Aguardando os indicadores" : appointments.AttendanceScore is null ? "Sem consulta encerrada no período para calcular." : "Concluídas ÷ (concluídas + faltas + cancelamentos do paciente ponderados)"),
+                appointments is null ? "Aguardando os indicadores" : appointments.AttendanceScore is null ? "Sem consulta encerrada no período para calcular." : "Índice que considera faltas e cancelamentos do paciente"),
             new("Espera média da fila", waiting is null ? "—" : DisplayFormat.Wait(waiting.AverageWaitMinutes),
                 waiting is null ? "Aguardando os indicadores" : waiting.AverageWaitMinutes is null ? "Nenhuma entrada saiu da fila por oferta aceita no período." : "Da entrada na fila até a oferta aceita"),
             new("Maior espera atual", waiting is null ? "—" : DisplayFormat.Wait(waiting.LongestActiveWaitMinutes),

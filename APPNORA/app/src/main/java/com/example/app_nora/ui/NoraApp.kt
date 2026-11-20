@@ -26,6 +26,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.background
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,6 +52,7 @@ import com.example.app_nora.api.*
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.ContextCompat
@@ -170,6 +173,8 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
 /** Permissão do Android 17 (API 37) para a rede local; o nome vai em texto para não depender da constante do SDK. */
 private const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
 private const val LOCAL_NETWORK_SDK = 37
+private const val INVALID_CPF_MESSAGE = "Confira o CPF informado ou digite seu e-mail."
+private val CREDENTIALS_REJECTED = failureMessage(401, "unauthorized", ApiContext.LOGIN)
 
 private enum class PatientDestination(val title: String) {
     HOME("Início"),
@@ -253,6 +258,39 @@ private fun PatientNavigationIcon(destination: PatientDestination) {
             PatientDestination.PROFILE -> {
                 drawCircle(color, radius = 3.5f * unit, center = point(12f, 7.5f), style = line)
                 drawArc(color, 180f, 180f, false, point(4f, 12f), Size(16f * unit, 10f * unit), style = line)
+            }
+            PatientDestination.APPOINTMENTS -> {
+                // Calendário: moldura, faixa do topo e duas argolas.
+                drawRoundRect(color, point(4f, 5.5f), Size(16f * unit, 14.5f * unit), CornerRadius(2.5f * unit), style = line)
+                drawLine(color, point(4f, 10f), point(20f, 10f), 2f * unit, line.cap)
+                drawLine(color, point(8.5f, 3.5f), point(8.5f, 7.5f), 2f * unit, line.cap)
+                drawLine(color, point(15.5f, 3.5f), point(15.5f, 7.5f), 2f * unit, line.cap)
+            }
+            PatientDestination.UNITS -> {
+                // Marcador de mapa com um ponto no centro.
+                val pin = Path().apply {
+                    moveTo(12f * unit, 21f * unit)
+                    cubicTo(12f * unit, 21f * unit, 5f * unit, 14.5f * unit, 5f * unit, 9.5f * unit)
+                    cubicTo(5f * unit, 5.5f * unit, 8.2f * unit, 3f * unit, 12f * unit, 3f * unit)
+                    cubicTo(15.8f * unit, 3f * unit, 19f * unit, 5.5f * unit, 19f * unit, 9.5f * unit)
+                    cubicTo(19f * unit, 14.5f * unit, 12f * unit, 21f * unit, 12f * unit, 21f * unit)
+                    close()
+                }
+                drawPath(pin, color, style = line)
+                drawCircle(color, radius = 2.4f * unit, center = point(12f, 9.5f), style = line)
+            }
+            PatientDestination.FLASH -> {
+                // Raio.
+                val bolt = Path().apply {
+                    moveTo(13.5f * unit, 3f * unit)
+                    lineTo(6f * unit, 13.5f * unit)
+                    lineTo(12f * unit, 13.5f * unit)
+                    lineTo(10.5f * unit, 21f * unit)
+                    lineTo(18f * unit, 10.5f * unit)
+                    lineTo(12f * unit, 10.5f * unit)
+                    close()
+                }
+                drawPath(bolt, color, style = line)
             }
             else -> drawCircle(color, radius = 2f * unit, center = point(12f, 12f), style = line)
         }
@@ -440,7 +478,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             }
                             Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
-                        ScreenTitle("Seu app, do seu jeito", "Escolha a aparência e ajuste as preferências deste dispositivo.")
+                        ScreenTitle("Seu app, do seu jeito")
                         SettingsScreen(settings, onSettingsChange, patient, onAddressChange, google, onChangePassword = {
                             settingsOpen = false
                             destination = PatientDestination.PASSWORD
@@ -516,6 +554,8 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
     var helpOpen by rememberSaveable { mutableStateOf(false) }
     var localMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    // A mensagem de credencial recusada que a pessoa já começou a corrigir: a borda vermelha some ao digitar.
+    var dismissedMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var recoveryCodeStep by rememberSaveable { mutableStateOf(false) }
     // O desafio da recuperação sobrevive à rotação: refazer o pedido gastaria o limite de envios.
     var recoveryCpf by rememberSaveable { mutableStateOf("") }
@@ -620,8 +660,6 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Sua saúde, em um só lugar", style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
-        Text("Entre para acompanhar seus cuidados e avisos da UBS.",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp),
@@ -635,18 +673,28 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                 Text("Use o CPF ou e-mail cadastrado na unidade.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            OutlinedTextField(value = identifier, onValueChange = { identifier = it; localMessage = null },
+            // O erro de entrada fica colado aos campos: borda vermelha neles e a mensagem logo abaixo, antes de "Esqueci a senha".
+            val loginMessage = localMessage ?: patient.message
+            // Só a recusa das credenciais (ou o CPF inválido) marca os campos; Google, sessão e endereço aparecem abaixo sem borda.
+            val credentialsRejected = localMessage == null && patient.message != null && patient.message == CREDENTIALS_REJECTED && patient.message != dismissedMessage
+            val identifierError = credentialsRejected || localMessage == INVALID_CPF_MESSAGE
+            OutlinedTextField(value = identifier, onValueChange = { identifier = it; localMessage = null; dismissedMessage = patient.message },
                 label = { Text("CPF ou e-mail") }, placeholder = { Text("Digite seu CPF ou e-mail") },
+                isError = identifierError,
                 singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp), keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email, imeAction = ImeAction.Next))
-            OutlinedTextField(value = password, onValueChange = { password = it; localMessage = null },
+            OutlinedTextField(value = password, onValueChange = { password = it; localMessage = null; dismissedMessage = patient.message },
                 label = { Text("Senha") }, placeholder = { Text("Digite sua senha") },
+                isError = credentialsRejected,
+                supportingText = if (credentialsRejected && password.isEmpty()) ({ Text("Digite a senha novamente para tentar de novo.") }) else null,
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp), keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 trailingIcon = { PasswordEyeButton(showPassword) { showPassword = !showPassword } })
+            if (loginMessage != null) Text(loginMessage, color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = {
                     recoveryOpen = true
@@ -658,19 +706,16 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                     recoveryMessage = null
                 }) { Text("Esqueci a senha") }
             }
-            if (localMessage != null) Text(localMessage!!, color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
-            if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
             Button(onClick = {
                 if (!identifier.contains('@') && !isValidCpf(identifier.trim())) {
-                    localMessage = "Confira o CPF informado ou digite seu e-mail."
+                    localMessage = INVALID_CPF_MESSAGE
                 } else if (patient.address.isBlank()) {
                     connectionSettingsOpen = true
                     localMessage = "Informe o endereço da sua UBS para continuar."
                 } else {
                     // A senha sai do formulário no envio: o botão desliga na hora (um segundo toque antes de `busy` chegar não
                     // repete o login) e a senha não fica na tela depois de uma falha.
+                    dismissedMessage = null
                     onLogin(identifier, password)
                     password = ""
                 }
@@ -693,8 +738,9 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             })
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center) {
-                Text("Primeiro acesso?", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onRegister) { Text("Criar conta", fontWeight = FontWeight.Bold) }
+                // Com fonte bem ampliada o texto quebra em linhas e o botão nunca é cortado nem sai do cartão.
+                Text("Primeiro acesso?", Modifier.weight(1f, fill = false), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onRegister) { Text("Criar conta", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -710,7 +756,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             }
         }
     }
-    if (connectionSettingsOpen) SectionCard("Conexão da UBS", "Use o endereço fornecido pela unidade") {
+    if (connectionSettingsOpen) SectionCard("Conexão da UBS") {
         OutlinedTextField(value = patient.address, onValueChange = onAddressChange,
             label = { Text("Endereço do serviço NORA") }, placeholder = { Text("https://...") },
             singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
@@ -886,7 +932,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
         IconButton(onClick = onBack, enabled = !busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
         Text("Criar conta", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     }
-    SectionCard("Seus dados", "Use os dados do titular cadastrados na UBS") {
+    SectionCard("Seus dados") {
         val editing = challenge == null && !busy
         OutlinedTextField(name, { name = it }, enabled = editing, label = { Text("Nome completo") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
@@ -902,7 +948,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
             trailingIcon = { PasswordEyeButton(showPassword) { showPassword = !showPassword } })
         Text("Unidades em que você possui cadastro", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         if (loadingUnits) MutedText("Carregando unidades…")
-        if (!loadingUnits && units == null) TextButton(onClick = { scope.launch { loadUnits() } }, enabled = !busy) { Text("Tentar novamente") }
+        if (!loadingUnits && units == null) RetryButton(onClick = { scope.launch { loadUnits() } }, enabled = !busy)
         if (units?.isEmpty() == true) MutedText("Nenhuma UBS disponível no momento.")
         units?.forEach { unit ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -923,7 +969,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
         }
         error?.let { MutedText(it) }
     }
-    if (challenge != null) SectionCard("Confirme seu e-mail", "Escolha um e-mail cadastrado em uma das UBS para receber o código") {
+    if (challenge != null) SectionCard("Confirme seu e-mail", "Escolha o e-mail para receber o código") {
         options.forEach { option ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = selectedOption == option.id, enabled = !busy, onClick = { selectedOption = option.id; codeSent = false; code = "" })
@@ -1009,8 +1055,6 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                     }
                     Text("Seu cuidado, mais perto.", style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.ExtraBold)
-                    Text("Acompanhe sua saúde e encontre os serviços da sua rede em um só lugar.",
-                        style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .92f))
                     Surface(shape = RoundedCornerShape(50), color = Color.White.copy(alpha = .13f)) {
                         Text("SAÚDE PÚBLICA CONECTADA", Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
@@ -1032,9 +1076,8 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 Icon(Icons.Default.Settings, contentDescription = "Configurações")
             }
         }
-        Text("Consultas, acompanhamento e oportunidades em um só lugar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
+    ActionMessage(patient.message)
     if (patient.busy || patient.loadingUnits) LinearProgressIndicator(Modifier.fillMaxWidth())
     if (patient.session != null) EmailSuggestionNotice(patient, onOpenProfile)
     if (patient.session != null) {
@@ -1045,6 +1088,30 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         val openOffers = rememberOpenOffers(patient)
         val dependentOffers = rememberOpenDependentOffers(patient)
         val appointmentShape = RoundedCornerShape(28.dp)
+        val noUnits = patient.units?.isEmpty() == true
+        // Agindo por um dependente, os títulos dizem de quem é o cartão: a faixa do alto não basta para quem lê só os cartões.
+        val actingName = patient.actingLink()?.let(::dependentDisplayName)
+        // O botão cheio do cartão é a ação do momento: com a confirmação de presença aberta, ela é a única branca cheia.
+        val presenceOpen = next != null && presenceState(next.appointment, presenceNow.value) == PresenceState.OPEN
+        // A única coisa com prazo da tela: com oferta pendente, sobe para logo abaixo da agenda.
+        val offersPending = openOffers.list.value.isNotEmpty() || (patient.actingFor == null && dependentOffers.list.value.isNotEmpty())
+        val offersCard: @Composable () -> Unit = {
+            SectionCard("Vaga Relâmpago") {
+                val open = openOffers.list.value
+                // As ofertas dos dependentes (com o nome deles) aparecem junto das do paciente; agindo por um dependente, só as dele.
+                val dependents = if (patient.actingFor == null) dependentOffers.list.value else emptyList()
+                when {
+                    open.isNotEmpty() || dependents.isNotEmpty() -> {
+                        open.forEach { OpenOfferSummary(it, openOffers.now, onOpenOffer) }
+                        dependents.forEach { OpenDependentOfferSummary(it, dependentOffers.now, onOpenDependentOffer) }
+                    }
+                    patient.units == null -> MutedText("As oportunidades aparecem aqui assim que suas UBS forem carregadas.")
+                    noUnits -> MutedText("Vincule uma UBS para receber oportunidades de Vaga Relâmpago.")
+                    !offersLoadedForAll(patient.units, patient.unitData) -> MutedText("Consultando as oportunidades das suas UBS…")
+                    else -> MutedText("Nenhuma oportunidade aguarda sua resposta.")
+                }
+            }
+        }
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -1058,7 +1125,7 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 appointmentShape).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text("SUA AGENDA", style = MaterialTheme.typography.labelLarge,
+                    Text(if (actingName == null) "SUA AGENDA" else "AGENDA DE ${actingName.uppercase()}", Modifier.weight(1f).padding(end = 8.dp), style = MaterialTheme.typography.labelLarge,
                         color = Color.White, fontWeight = FontWeight.Bold)
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = .72f)) {
                         Text("Consultas por UBS", Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -1066,7 +1133,7 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                     }
                 }
                 if (next != null) {
-                    Text("Sua próxima consulta", style = MaterialTheme.typography.titleLarge,
+                    Text(if (actingName == null) "Sua próxima consulta" else "Próxima consulta de $actingName", style = MaterialTheme.typography.titleLarge,
                         color = Color.White, fontWeight = FontWeight.Bold)
                     Text(next.appointment.specialty, style = MaterialTheme.typography.titleMedium,
                         color = Color.White, fontWeight = FontWeight.SemiBold)
@@ -1074,8 +1141,7 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                         style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
                     Text("${next.appointment.professional} · ${next.unit.name}",
                         style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
-                    Text(statusLabel(next.appointment.status), style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = .94f), fontWeight = FontWeight.SemiBold)
+                    StatusBadge(next.appointment.status, onDark = true)
                     PresenceConfirmation(next.appointment, presenceNow.value, patient.busy, onDark = true) {
                         onConfirmPresence(next.unit.id, next.appointment.id)
                     }
@@ -1085,67 +1151,76 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                     Text(noNextAppointmentText(patient),
                         style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .94f))
                 }
-                Button(onClick = { onNavigate(PatientDestination.APPOINTMENTS) }, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) {
-                    Text("Ver minhas consultas")
-                }
-                OutlinedButton(onClick = { onNavigate(PatientDestination.BOOKING) }, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = .75f))) {
-                    Text("Agendar consulta")
+                if (noUnits) {
+                    // Sem UBS não há consulta para ver nem agendar: a ação que resolve é vincular uma.
+                    Button(onClick = { onNavigate(PatientDestination.UNITS) }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) {
+                        Text("Vincular uma UBS")
+                    }
+                } else if (patient.units == null) {
+                    // As UBS não carregaram: uma só saída, a mesma do cartão de acompanhamento. Durante a leitura (mesmo critério do texto acima) fica só o texto.
+                    if (!patient.loadingUnits && !patient.busy) Button(onClick = onLoadUnits, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) {
+                        Text("Carregar minhas UBS")
+                    }
+                } else {
+                    if (presenceOpen) OutlinedButton(onClick = { onNavigate(PatientDestination.APPOINTMENTS) }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = .75f))) {
+                        Text("Ver minhas consultas")
+                    } else Button(onClick = { onNavigate(PatientDestination.APPOINTMENTS) }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) {
+                        Text("Ver minhas consultas")
+                    }
+                    OutlinedButton(onClick = { onNavigate(PatientDestination.BOOKING) }, modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = .75f))) {
+                        Text("Agendar consulta")
+                    }
                 }
             }
         }
+        if (offersPending) offersCard()
         Text("Acesso rápido", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QuickActionCard("Consultas", "Futuras e anteriores", "▣", Modifier.weight(1f)) {
+            QuickActionCard("Consultas", "Futuras e anteriores", PatientDestination.APPOINTMENTS, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.APPOINTMENTS)
             }
-            QuickActionCard("UBS próximas", "Unidades e serviços", "⌖", Modifier.weight(1f)) {
+            QuickActionCard("UBS próximas", "Unidades e serviços", PatientDestination.UNITS, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.UNITS)
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QuickActionCard("Sua Jornada", "Cuidados e histórico", "↗", Modifier.weight(1f)) {
+            QuickActionCard(if (actingName == null) "Sua Jornada" else "Jornada de $actingName", "Cuidados e histórico", PatientDestination.JOURNEY, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.JOURNEY)
             }
-            QuickActionCard("Vaga Relâmpago", "Oportunidades", "✦", Modifier.weight(1f)) {
+            QuickActionCard("Vaga Relâmpago", "Oportunidades", PatientDestination.FLASH, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.FLASH)
             }
         }
-        SectionCard("Acompanhamento", "Status informado pela unidade") {
+        SectionCard("Acompanhamento") {
             val queue = patient.unitQueue
             when {
                 patient.units == null -> {
-                    MutedText(if (patient.loadingUnits) "Carregando suas UBS…" else "Não foi possível carregar suas UBS.")
-                    if (!patient.loadingUnits) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Carregar minhas UBS") }
+                    // O botão "Carregar minhas UBS" fica no cartão da agenda, acima: aqui só o motivo.
+                    if (patient.loadingUnits || patient.busy) MutedText("Carregando suas UBS…") else ErrorNotice("Não foi possível carregar suas UBS.")
                 }
-                patient.selectedUnitId == null -> MutedText("Escolha uma UBS vinculada para consultar sua situação.")
+                noUnits -> MutedText("Vincule uma UBS para acompanhar sua situação.")
+                patient.selectedUnitId == null -> MutedText("Escolha a UBS em Vaga Relâmpago ou em Consultas para ver sua situação.")
                 queue == null -> MutedText("Toque em atualizar para consultar sua situação.")
                 queue.isEmpty() -> MutedText("Não há solicitações de atendimento em acompanhamento nesta UBS.")
                 else -> QueueEntries(queue, patient.busy, onLeaveQueue)
             }
-            OutlinedButton(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) { Text("Escolher UBS e consultar") }
+            // Sem UBS vinculada (ou sem lista) a Vaga Relâmpago só repetiria o aviso: a ação que resolve fica no cartão da agenda.
+            if (!noUnits && patient.units != null) OutlinedButton(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (patient.selectedUnitId == null) "Escolher UBS" else "Ver oportunidades")
+            }
             OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.fillMaxWidth()) {
                 Text(if (patient.busy) "Atualizando…" else "Atualizar acompanhamento")
             }
         }
-        SectionCard("Vaga Relâmpago", "Oportunidades enviadas pela unidade") {
-            val open = openOffers.list.value
-            // As ofertas dos dependentes (com o nome deles) aparecem junto das do paciente; agindo por um dependente, só as dele.
-            val dependents = if (patient.actingFor == null) dependentOffers.list.value else emptyList()
-            when {
-                open.isNotEmpty() || dependents.isNotEmpty() -> {
-                    open.forEach { OpenOfferSummary(it, openOffers.now, onOpenOffer) }
-                    dependents.forEach { OpenDependentOfferSummary(it, dependentOffers.now, onOpenDependentOffer) }
-                }
-                patient.units == null -> MutedText("As oportunidades aparecem aqui assim que suas UBS forem carregadas.")
-                !offersLoadedForAll(patient.units, patient.unitData) -> MutedText("Consultando as oportunidades das suas UBS…")
-                else -> MutedText("Nenhuma oportunidade aguarda sua resposta.")
-            }
-        }
-        if (showGuidance) SectionCard("Sua Jornada", "Consultas, exames e vacinas") {
-            MutedText("Consulte o histórico e os próximos passos em um só lugar.")
+        if (!offersPending) offersCard()
+        if (showGuidance) SectionCard(if (actingName == null) "Sua Jornada" else "Jornada de $actingName") {
             OutlinedButton(onClick = { onNavigate(PatientDestination.JOURNEY) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Abrir Jornada")
             }
@@ -1159,12 +1234,10 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 color = MaterialTheme.colorScheme.onPrimaryContainer)
             Text("O acompanhamento estará disponível quando sua conta e a unidade de saúde estiverem conectadas.",
                 color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text("Serviços de saúde ainda não conectados", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
-    SectionCard("Agendamento e unidades", "A rede de saúde em um só lugar") {
-        MutedText("Entre na sua conta para acompanhar seus dados. Nenhuma consulta ou UBS é exibida sem informação da rede.")
+    SectionCard("Agendamento e unidades") {
+        MutedText("Entre na sua conta para acompanhar seus dados.")
         OutlinedButton(onClick = { onNavigate(PatientDestination.UNITS) }, modifier = Modifier.fillMaxWidth()) {
             Text("Ver informações sobre UBS")
         }
@@ -1176,7 +1249,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
     onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit,
     onLoadAbout: (String) -> Unit) {
-    ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
+    ScreenTitle("Unidades de saúde")
     if (ownUnitsNotice) ActionMessage("Agora você está vendo as suas UBS")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
@@ -1203,10 +1276,10 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
         catch (_: org.json.JSONException) { linkError = "O serviço retornou uma resposta incompatível." }
         finally { linkBusy = false }
     }
-    SectionCard("Escolha uma UBS", "Nome, região e endereço") {
+    SectionCard("Escolha uma UBS") {
         when {
             patient.session == null -> MutedText("Entre na sua conta para consultar as unidades.")
-            patient.units == null -> MutedText(if (patient.busy) "Carregando unidades…" else "Não foi possível carregar as unidades. Tente novamente.")
+            patient.units == null -> if (patient.busy) MutedText("Carregando unidades…") else ErrorNotice("Não foi possível carregar as unidades. Tente novamente.")
             patient.units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro.")
             else -> {
                 Box {
@@ -1235,7 +1308,6 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
         if (canRemoveUnit(patient, selected)) OutlinedButton(onClick = { unlinkOpen = true; checking = true; impact = null }, enabled = !patient.busy,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Remover esta UBS") }
-        MutedText("A distância até a UBS ainda não é informada pela rede.")
     }
     // Horário de funcionamento, serviços e especialidades da UBS selecionada: lidos a cada abertura da tela e a cada troca de UBS.
     LaunchedEffect(selected?.id, patient.session?.token) {
@@ -1271,7 +1343,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
                 }
                 if (linkBusy) MutedText("Aguarde…")
                 linkError?.let { MutedText(it) }
-                if (!linkBusy && catalog == null) TextButton(onClick = { scope.launch { linkAction { catalog = onCatalog() } } }) { Text("Tentar novamente") }
+                if (!linkBusy && catalog == null) RetryButton(onClick = { scope.launch { linkAction { catalog = onCatalog() } } })
             }
         },
         confirmButton = { TextButton(enabled = !linkBusy && chosen.isNotEmpty(), onClick = {
@@ -1288,7 +1360,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
 }
 
 @Composable
-internal fun ScreenTitle(title: String, subtitle: String) {
+internal fun ScreenTitle(title: String, subtitle: String = "") {
     val shape = RoundedCornerShape(26.dp)
     Card(Modifier.fillMaxWidth(), shape = shape,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -1312,7 +1384,7 @@ internal fun ScreenTitle(title: String, subtitle: String) {
                     color = Color.White.copy(alpha = .80f), fontWeight = FontWeight.Bold)
                 Text(title, style = MaterialTheme.typography.headlineMedium,
                     color = Color.White, fontWeight = FontWeight.ExtraBold)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium,
+                if (subtitle.isNotEmpty()) Text(subtitle, style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = .94f))
             }
         }
@@ -1320,7 +1392,7 @@ internal fun ScreenTitle(title: String, subtitle: String) {
 }
 
 @Composable
-private fun QuickActionCard(title: String, subtitle: String, glyph: String, modifier: Modifier = Modifier,
+private fun QuickActionCard(title: String, subtitle: String, destination: PatientDestination, modifier: Modifier = Modifier,
     onClick: () -> Unit) {
     val shape = RoundedCornerShape(22.dp)
     val colors = MaterialTheme.colorScheme
@@ -1336,9 +1408,10 @@ private fun QuickActionCard(title: String, subtitle: String, glyph: String, modi
             start = Offset.Zero, end = Offset(520f, 600f)), shape).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                Text(glyph, Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold)
+                // O mesmo traço da barra de baixo, todos do mesmo tamanho.
+                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                    Box(Modifier.padding(8.dp)) { PatientNavigationIcon(destination) }
+                }
             }
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface)
@@ -1351,7 +1424,19 @@ private fun QuickActionCard(title: String, subtitle: String, glyph: String, modi
 @Composable
 private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit,
     patient: PatientState, onAddressChange: (String) -> Unit, google: GoogleActions, onChangePassword: () -> Unit, onLogout: () -> Unit) {
-    SectionCard("Aparência", "Escolha como a NORA aparece para você") {
+    // O estado das notificações do Android é relido ao voltar das configurações do sistema.
+    val context = LocalContext.current
+    val inspecting = LocalInspectionMode.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var notificationsOn by remember { mutableStateOf(inspecting || notificationsAllowed(context)) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !inspecting) notificationsOn = notificationsAllowed(context)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    SectionCard("Aparência") {
         Appearance.entries.forEach { appearance ->
             val selected = settings.appearance == appearance
             Surface(
@@ -1372,19 +1457,22 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
             }
         }
     }
-    SectionCard("Notificações", "Suas preferências de avisos") {
-        MutedText("As escolhas ficam salvas neste aparelho. Os avisos de Vaga Relâmpago e de comunicados chegam enquanto a conexão ativa do NORA estiver rodando (a notificação fixa \"NORA · conexão ativa\"); para recebê-los, permita notificações do NORA nas configurações do Android.")
-        PreferenceSwitch("Consultas", "Lembretes de consulta ainda não estão disponíveis: a rede não envia esse aviso, e esta escolha não tem efeito por enquanto.", settings.appointmentNotifications) {
-            onChange(settings.copy(appointmentNotifications = it))
+    SectionCard("Notificações") {
+        MutedText("Para receber os avisos, permita as notificações do NORA no Android. Eles chegam enquanto o NORA estiver conectado (aviso fixo na barra do Android).")
+        if (!notificationsOn) ErrorNotice("As notificações estão bloqueadas neste aparelho: você não receberá os avisos até permiti-las.")
+        OutlinedButton(onClick = { openNotificationSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Abrir notificações do Android")
         }
-        PreferenceSwitch("Vaga Relâmpago", "Notificação quando a UBS oferece uma consulta liberada. A lista também se atualiza sozinha.", settings.flashNotifications) {
+        // Lembretes de consulta ainda não existem (a rede não envia esse aviso): o interruptor fica desligado e bloqueado.
+        PreferenceSwitch("Consultas", "Lembretes de consulta ainda não estão disponíveis: a rede não envia esse aviso.", false, soon = true) {}
+        PreferenceSwitch("Vaga Relâmpago", "Aviso quando a UBS oferece uma consulta liberada. A lista também se atualiza sozinha.", settings.flashNotifications) {
             onChange(settings.copy(flashNotifications = it))
         }
-        PreferenceSwitch("Comunicados da rede", "Notificação quando a Secretaria publica um comunicado para as suas UBS. Eles continuam na aba Avisos mesmo com a notificação desligada.", settings.announcementNotifications) {
+        PreferenceSwitch("Comunicados da rede", "Aviso quando a Secretaria publica um comunicado. Eles continuam em Avisos com o aviso desligado.", settings.announcementNotifications) {
             onChange(settings.copy(announcementNotifications = it))
         }
     }
-    SectionCard("Interface", "Mais conforto na navegação") {
+    SectionCard("Interface") {
         PreferenceSwitch("Mostrar orientações", "Dicas de configuração na tela inicial", settings.showGuidance) {
             onChange(settings.copy(showGuidance = it))
         }
@@ -1392,25 +1480,27 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
             onChange(settings.copy(comfortableSpacing = it))
         }
     }
-    GoogleAccountCard(patient, google)
-    SectionCard("Sobre o app", "NORA · Saúde digital") {
+    if (patient.session != null) AccountCard(patient, google) {
+        MutedText(patient.session?.user?.fullName.orEmpty())
+        OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) { Text("Alterar senha") }
+        OutlinedButton(onClick = onLogout, enabled = !patient.busy,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) {
+            Text(if (patient.busy) "Aguarde…" else "Sair da conta", fontWeight = FontWeight.SemiBold)
+        }
+    }
+    SectionCard("Sobre o app") {
         Text("Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        MutedText(patient.session?.user?.fullName ?: "Nenhuma conta conectada neste dispositivo.")
+    }
+    SectionCard("Conexão") {
+        if (patient.session == null) MutedText("Nenhuma conta conectada neste dispositivo.")
         if (patient.session == null) OutlinedTextField(patient.address, onAddressChange,
             label = { Text("Endereço do serviço NORA") }, singleLine = true,
             enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
         if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}. Para trocar o endereço, saia e configure na tela de entrada.")
         // Com o cartão do Google na tela, a mensagem das ações dele aparece lá, uma vez só.
-        if (patient.message != null && !googleCardVisible(patient, google)) Text(patient.message, color = MaterialTheme.colorScheme.error)
-        if (patient.session != null) {
-            OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) { Text("Alterar senha") }
-            OutlinedButton(onClick = onLogout, enabled = !patient.busy,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) {
-                Text(if (patient.busy) "Aguarde…" else "Sair da conta", fontWeight = FontWeight.SemiBold)
-            }
-        }
+        if (!googleCardVisible(patient, google)) ActionMessage(patient.message)
     }
     var resetOpen by rememberSaveable { mutableStateOf(false) }
     OutlinedButton(onClick = { resetOpen = true }, modifier = Modifier.fillMaxWidth()) { Text("Restaurar preferências padrão") }
@@ -1424,19 +1514,25 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
 }
 
 @Composable
-private fun PreferenceSwitch(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun PreferenceSwitch(title: String, description: String, checked: Boolean, soon: Boolean = false, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                if (soon) Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text("Em breve", Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold)
+                }
+            }
             MutedText(description)
         }
-        Switch(checked = checked, onCheckedChange = onChange,
-            modifier = Modifier.semantics { contentDescription = title })
+        Switch(checked = checked, onCheckedChange = onChange, enabled = !soon,
+            modifier = Modifier.semantics { contentDescription = if (soon) "$title, em breve" else title })
     }
 }
 
 @Composable
-internal fun SectionCard(title: String, subtitle: String, highlight: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+internal fun SectionCard(title: String, subtitle: String = "", highlight: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     val colors = MaterialTheme.colorScheme
     Card(Modifier.fillMaxWidth(), shape = shape,
@@ -1453,7 +1549,7 @@ internal fun SectionCard(title: String, subtitle: String, highlight: Boolean = f
             Box(Modifier.width(38.dp).height(4.dp).background(
                 Brush.horizontalGradient(listOf(Color(0xFF1686C4), Color(0xFF71D5DF))), RoundedCornerShape(50)))
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (subtitle.isNotEmpty()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             content()
         }
     }

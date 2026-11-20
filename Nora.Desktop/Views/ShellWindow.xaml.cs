@@ -46,11 +46,25 @@ public partial class ShellWindow : Window
         if (args.PropertyName == nameof(ShellViewModel.Page))
         {
             PageScroll.ScrollToTop();
+            // O menu lateral rola até o item ativo: sem isso, em janela baixa ele fica escondido ou cortado atrás do rodapé.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+            {
+                if (ViewModel.Navigation.FirstOrDefault(item => item.IsSelected) is { } active && NavItems.ItemContainerGenerator.ContainerFromItem(active) is FrameworkElement container) container.BringIntoView();
+            });
             if (ViewModel.Animations)
                 PageContainer.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(160)));
         }
         if (args.PropertyName == nameof(ShellViewModel.Animations) && !ViewModel.Animations)
             PageContainer.BeginAnimation(OpacityProperty, null);
+    }
+    private System.Windows.Media.Brush? navFade;
+    /// <summary>O esmaecido da borda de baixo só aparece enquanto há mais menu abaixo; com a lista rolada até o fim o último item fica com contraste pleno.</summary>
+    private void OnNavScrollChanged(object sender, ScrollChangedEventArgs args)
+    {
+        navFade ??= NavScroll.OpacityMask;
+        var atEnd = NavScroll.VerticalOffset >= NavScroll.ScrollableHeight - 0.5;
+        var wanted = atEnd ? null : navFade;
+        if (!ReferenceEquals(NavScroll.OpacityMask, wanted)) NavScroll.OpacityMask = wanted;
     }
     private void OnAccountMenu(object sender, RoutedEventArgs args)
     {
@@ -103,7 +117,6 @@ public partial class ShellWindow : Window
         else if (args.Key == Key.Escape && ViewModel.FullScreen) ViewModel.FullScreen = false;
         else if (args.Key == Key.D1 && modifiers == ModifierKeys.Control) ViewModel.Navigate("home");
         else if (args.Key == Key.OemComma && modifiers == ModifierKeys.Control) ViewModel.Navigate("settings");
-        else if (args.Key == Key.B && modifiers == ModifierKeys.Control) ViewModel.SidebarExpanded = !ViewModel.SidebarExpanded;
         else if (args.Key == Key.T && modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) ViewModel.CycleTheme();
         else return;
         args.Handled = true;
@@ -113,8 +126,7 @@ public partial class ShellWindow : Window
         if (!ViewModel.ConfirmClose) return;
         var dialog = new Window { Owner = this, Title = "Fechar " + ViewModel.Profile.Name, Width = 420, Height = 220, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceBrush"), Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextBrush"), ShowInTaskbar = false };
         var panel = new StackPanel { Margin = new Thickness(24) };
-        panel.Children.Add(new TextBlock { Text = "Deseja fechar o aplicativo?", FontSize = 21, FontWeight = FontWeights.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "Suas preferências salvas estarão disponíveis ao voltar.", Margin = new Thickness(0, 12, 0, 20), TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "Deseja fechar o aplicativo?", FontSize = 21, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 20) });
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Content = "Continuar aqui", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
         var close = new Button { Content = "Fechar", IsDefault = true, Style = (Style)Application.Current.FindResource("PrimaryButton") };

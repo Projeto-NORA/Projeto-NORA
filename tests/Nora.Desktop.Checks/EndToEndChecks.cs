@@ -303,7 +303,7 @@ internal static partial class Program
     private static void LoginFromControls(ShellWindow window, string address, string identifier, string password)
     {
         var content = Layout(window, 980, 640);
-        Input(content, "Endereço da API").Text = address;
+        Input(content, "Endereço do servidor").Text = address;
         Input(content, "E-mail").Text = identifier;
         Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha de acesso").Password = password;
         InvokeButton(FindActionButton(content, "Entrar")); PumpUntil(() => !window.ViewModel.Workspace.IsBusy);

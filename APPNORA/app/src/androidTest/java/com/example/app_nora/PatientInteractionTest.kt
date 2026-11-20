@@ -50,6 +50,26 @@ class PatientInteractionTest {
         enterButton.assertIsNotEnabled()
     }
 
+    @Test fun loginRejectedMarksThePasswordAndAsksToTypeItAgain() {
+        compose.setContent {
+            NoraPatientContent(UserSettings(), {}, PatientState(address = "https://nora.example.test",
+                message = failureMessage(401, "unauthorized", ApiContext.LOGIN)), onLogin = { _, _ -> })
+        }
+        compose.onNodeWithText("Digite a senha novamente para tentar de novo.").assertExists()
+    }
+
+    @Test fun homeOffersLinkingAUnitWhenThereIsNone() {
+        compose.setContent { NoraPatientContent(UserSettings(), {}, connected().copy(units = emptyList(), selectedUnitId = null)) }
+        compose.onNodeWithText("Vincular uma UBS").assertExists()
+        compose.onNodeWithText("Ver minhas consultas").assertDoesNotExist()
+    }
+
+    @Test fun homeOffersReloadingUnitsWhenTheyFailedToLoad() {
+        compose.setContent { NoraPatientContent(UserSettings(), {}, connected().copy(units = null, selectedUnitId = null)) }
+        compose.onNodeWithText("Carregar minhas UBS").assertExists()
+        compose.onNodeWithText("Ver minhas consultas").assertDoesNotExist()
+    }
+
     @Test fun registrationCanSelectMultipleUnitsBeforeSignupIsAvailable() {
         compose.setContent {
             NoraPatientContent(UserSettings(), {}, PatientState(address = "https://nora.example.test"),
@@ -134,8 +154,9 @@ class PatientInteractionTest {
         }
         compose.onNodeWithContentDescription("Tempo restante: 9 minutos").performScrollTo().assertExists()
         compose.onNodeWithText("Ver oportunidade").performScrollTo().performClick()
-        // Nome da UBS na lista de escolha e no cartão da oferta.
-        compose.onAllNodesWithText("UBS Teste").assertCountEquals(2)
+        // Com uma só UBS a escolha vira uma linha "UBS: nome"; o nome sozinho fica só no cartão da oferta.
+        compose.onNodeWithText("UBS: UBS Teste").assertExists()
+        compose.onAllNodesWithText("UBS Teste").assertCountEquals(1)
         compose.onNodeWithText("Aceitar oportunidade").assertIsEnabled()
     }
 
@@ -172,7 +193,7 @@ class PatientInteractionTest {
     }
 
     @Test fun appointmentCancellationRequiresConfirmation() {
-        val appointment = PatientAppointment("appointment-1", "Clínica", "Profissional", "2026-11-12T12:00:00Z", "2026-11-12T12:30:00Z", "scheduled")
+        val appointment = PatientAppointment("appointment-1", "Clínica", "Profissional", isoAt(now + 86_400_000), isoAt(now + 86_400_000 + 1_800_000), "scheduled")
         val state = connected(appointments = listOf(appointment))
         var cancelled: String? = null
         compose.setContent { NoraPatientContent(UserSettings(), {}, state, onCancelAppointment = { cancelled = it }) }
@@ -183,5 +204,21 @@ class PatientInteractionTest {
         compose.onNodeWithText("Cancelar consulta").performScrollTo().performClick()
         compose.onNodeWithText("Confirmar cancelamento").performClick()
         compose.runOnIdle { assertEquals(appointment.id, cancelled) }
+    }
+
+    @Test fun previousAppointmentsHaveNoCancelOrPresenceAndAnOpenOneSaysItWaitsForTheUnit() {
+        val hour = 3_600_000L
+        val stale = PatientAppointment("stale", "Clínica", "Profissional", isoAt(now - 3 * hour), isoAt(now - 2 * hour), "scheduled")
+        val called = PatientAppointment("called", "Ortopedia", "Profissional", isoAt(now - 6 * hour), isoAt(now - 5 * hour), "called")
+        val done = PatientAppointment("done", "Cardiologia", "Profissional", isoAt(now - 9 * hour), isoAt(now - 8 * hour), "completed")
+        val state = connected(appointments = listOf(stale, called, done))
+        compose.setContent { NoraPatientContent(UserSettings(), {}, state) }
+        compose.onNodeWithText("Ver minhas consultas").performScrollTo().performClick()
+        compose.onNodeWithText("Nenhuma consulta futura nesta UBS.").performScrollTo().assertExists()
+        compose.onNodeWithText("Anteriores").performScrollTo().assertExists()
+        compose.onAllNodesWithText("Aguardando a UBS").assertCountEquals(2)
+        compose.onNodeWithText("Agendada").assertDoesNotExist()
+        compose.onNodeWithText("Cancelar consulta").assertDoesNotExist()
+        compose.onNodeWithText("Confirmar presença").assertDoesNotExist()
     }
 }

@@ -279,7 +279,7 @@ class PatientControllerTest {
         api.appointments = listOf(PatientAppointment("ap", "Clínica", "Prof", iso(3600), iso(5400), "completed"))
         api.cancelFailure = ApiFailure(409, "x", "conflict")
         controller.cancelAppointment("ap")
-        assertTrue(controller.state.message.orEmpty().startsWith("Esta consulta já foi alterada"))
+        assertTrue(controller.state.message.orEmpty().startsWith("A unidade alterou esta consulta"))
         assertEquals("completed", controller.state.appointments?.single()?.status)
     }
 

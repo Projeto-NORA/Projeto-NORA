@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -150,14 +151,14 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 window.ViewModel.Navigate("queue"); Settle(vm);
                 string Row(long id) { var entry = vm.UnitWaitingList.Single(item => item.Id == id); return $"{entry.PositionDisplay}/{entry.WaitDisplay}"; }
-                Require(Row(1) == "1º/3h 0min" && Row(2) == "2º/2h 0min" && Row(5) == "3º/1h 0min" && Row(3) == "1º/1h 30min", $"Posição ou espera incorretas: {Row(1)} {Row(2)} {Row(5)} {Row(3)}.");
+                Require(Row(1) == "1º/3 h" && Row(2) == "2º/2 h" && Row(5) == "3º/1 h" && Row(3) == "1º/1 h 30 min", $"Posição ou espera incorretas: {Row(1)} {Row(2)} {Row(5)} {Row(3)}.");
                 Require(Row(4) == "—/—" && Row(6) == "—/—", "Entradas encerradas não deveriam ter posição nem tempo de espera.");
                 Require(vm.QueueWaitingCount == "4", "Contagem de aguardando deveria considerar só entradas ativas.");
                 var content = Layout(window, 1280, 740);
                 var grid = Descendants<DataGrid>(content).Single(item => AutomationProperties.GetName(item) == "Fila por especialidade da UBS");
                 Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["Ordem de oferta", "Paciente", "Especialidade", "Score", "Espera", "Entrada", "Situação"]), "Colunas da fila divergem do esperado.");
                 var firstRow = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
-                Require(Descendants<TextBlock>(firstRow).Any(text => text.Text == "1º") && Descendants<TextBlock>(firstRow).Any(text => text.Text == "3h 0min"), "Posição e espera não aparecem na linha.");
+                Require(Descendants<TextBlock>(firstRow).Any(text => text.Text == "1º") && Descendants<TextBlock>(firstRow).Any(text => text.Text == "3 h"), "Posição e espera não aparecem na linha.");
                 var cancel = FindActionButton(content, "Cancelar entrada");
                 Require(!cancel.IsEnabled, "Cancelar entrada habilitado sem seleção.");
                 grid.SelectedItem = vm.UnitWaitingList.Single(item => item.Id == 4); Layout(window, 1280, 740);
@@ -167,17 +168,39 @@ internal static partial class Program
                 SavePreview(Layout(window, 1280, 740), Path.Combine(previewRoot, "obs-fila-posicao-espera-light.png"));
                 // Atualização sem mudança: nada é recriado e a seleção fica.
                 var changes = 0; vm.UnitWaitingList.CollectionChanged += (_, _) => changes++;
+                var viewResets = 0; ((System.Collections.Specialized.INotifyCollectionChanged)vm.QueueView).CollectionChanged += (_, args) => { if (args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset) viewResets++; };
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(changes == 0 && vm.SelectedWaitingEntry?.Id == 2, "Atualização sem mudança recriou a fila ou perdeu a seleção.");
                 // O tempo passa no servidor: o tempo de espera é recalculado na leitura, só a linha afetada é trocada e a seleção continua.
                 fixture.ReplaceWaiting(unit.Id, 2, item => item with { EnteredAt = item.EnteredAt.AddMinutes(-5) });
                 Pump(vm.RefreshAutomaticallyAsync()); Layout(window, 1280, 740);
-                Require(Row(2) == "2º/2h 5min" && changes == 1 && vm.SelectedWaitingEntry?.Id == 2 && ReferenceEquals(grid.SelectedItem, vm.SelectedWaitingEntry), $"Espera não foi recalculada preservando a seleção: {Row(2)}, alterações={changes}.");
+                Require(Row(2) == "2º/2 h 5 min" && changes == 1 && vm.SelectedWaitingEntry?.Id == 2 && ReferenceEquals(grid.SelectedItem, vm.SelectedWaitingEntry) && viewResets == 0, $"Espera não foi recalculada preservando a seleção: {Row(2)}, alterações={changes}.");
                 // Cancelar a ativa pelo VM: a posição dos demais sobe.
                 Pump(vm.CancelUnitWaitingEntryAsync());
                 Require(vm.UnitWaitingList.Single(item => item.Id == 5).PositionDisplay == "2º" && vm.UnitWaitingList.Single(item => item.Id == 2).Status == "cancelled", "Cancelamento não reordenou as posições da especialidade.");
                 grid.SelectedItem = vm.UnitWaitingList.Single(item => item.Id == 2); Layout(window, 1280, 740);
                 Require(!cancel.IsEnabled, "Entrada recém-cancelada ainda pode ser cancelada.");
+                // Filtro por especialidade e busca por nome: só escondem linhas; a lista, as posições e a ordem de oferta ficam como estavam.
+                Require(vm.QueueSpecialtyOptions.Select(option => option.Label).SequenceEqual(["Todas as especialidades", "Cardiologia", "Pediatria"]) && grid.Items.Count == 6, "O filtro deveria listar as especialidades da fila sem repetir maiúsculas e minúsculas.");
+                vm.QueueSpecialtyFilter = "Pediatria"; Layout(window, 1280, 740);
+                Require(grid.Items.Count == 1 && vm.UnitWaitingList.Count == 6 && vm.HasQueueFilter && Row(3) == "1º/1 h 30 min" && Row(5) == "2º/1 h", "Filtrar por especialidade deveria só esconder linhas, sem mexer nas posições.");
+                vm.QueueSpecialtyFilter = "Cardiologia"; vm.QueueSearch = "ana"; Layout(window, 1280, 740);
+                Require(grid.Items.Count == 2 && grid.Items.Cast<UnitWaitingEntry>().All(item => item.PatientName == "Ana Souza"), "A busca por nome (sem diferenciar maiúsculas) combinada com a especialidade filtrou errado.");
+                vm.QueueSearch = "zzz"; content = Layout(window, 1280, 740);
+                Require(grid.Items.Count == 0 && vm.QueueFilterHidesAll && FullTexts(content).Contains("Nenhuma entrada combina com o filtro."), "Filtro sem resultado deveria dizer isso na tela.");
+                vm.QueueSpecialtyFilter = ""; vm.QueueSearch = ""; Layout(window, 1280, 740);
+                Require(grid.Items.Count == 6 && !vm.HasQueueFilter && !vm.QueueFilterHidesAll, "Limpar o filtro deveria devolver todas as entradas.");
+                // Seleção escondida pelo filtro: a linha selecionada some da tela, a seleção cai e Cancelar entrada desativa.
+                grid.SelectedItem = vm.UnitWaitingList.Single(item => item.Id == 3); Layout(window, 1280, 740);
+                Require(vm.SelectedWaitingEntry?.Id == 3 && cancel.IsEnabled, "Entrada ativa selecionada deveria habilitar Cancelar entrada.");
+                vm.QueueSpecialtyFilter = "Cardiologia"; Layout(window, 1280, 740);
+                Require(vm.SelectedWaitingEntry is null && grid.SelectedItem is null && !cancel.IsEnabled, $"Filtro que esconde a linha selecionada deveria limpar a seleção e desativar Cancelar entrada: vm={vm.SelectedWaitingEntry?.Id}, grid={(grid.SelectedItem as UnitWaitingEntry)?.Id}, cancel={cancel.IsEnabled}, itens={grid.Items.Count}.");
+                vm.QueueSpecialtyFilter = ""; Layout(window, 1280, 740);
+                // Surge uma especialidade nova com o filtro ativo: a lista de opções muda de tamanho, mas o filtro escolhido não volta para "Todas".
+                vm.QueueSpecialtyFilter = "Cardiologia"; Layout(window, 1280, 740);
+                fixture.AddWaiting(unit.Id, "98765432100", "Elisa Prado", "Ortopedia", now.AddMinutes(-5));
+                Pump(vm.RefreshAutomaticallyAsync()); Layout(window, 1280, 740);
+                Require(vm.QueueSpecialtyOptions.Any(option => option.Value == "Ortopedia") && vm.QueueSpecialtyFilter == "Cardiologia" && grid.Items.Cast<UnitWaitingEntry>().All(item => item.Specialty.Equals("Cardiologia", StringComparison.OrdinalIgnoreCase)), $"O filtro de especialidade foi perdido quando surgiu uma especialidade nova: '{vm.QueueSpecialtyFilter}'.");
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
@@ -215,6 +238,66 @@ internal static partial class Program
                 }
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+        });
+        Check("Fila OBS: falha só na leitura dos profissionais não aparece como erro nas especialidades da fila", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Profissionais falham", "Centro");
+            var cardio = fixture.AddSpecialty("Cardiologia");
+            fixture.AddProfessional(unit.Id, "Dra. Ana Lima", [cardio.Id]);
+            fixture.FailCatalogUnits.Add(unit.Id);
+            var window = OpenOperational(fixture, storageRoot, "queue-specialty-state", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                window.ViewModel.Navigate("queue"); Settle(vm);
+                Require(vm.QueueSpecialtyState == "" && vm.ActiveSpecialtyOptions.Count == 1, "Com os profissionais em falha e as especialidades lidas, a caixa da fila não deveria mostrar erro: " + vm.QueueSpecialtyState);
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("Fila OBS: a caixa de especialidade explica o carregamento e a falha; a escolha sobrevive à releitura do catálogo", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Especialidades", "Centro");
+            fixture.AddSpecialty("Cardiologia");
+            fixture.AddSpecialty("Pediatria");
+            var window = OpenOperational(fixture, storageRoot, "queue-specialty-states", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                window.ViewModel.Navigate("queue"); Settle(vm);
+                void SetRead(bool loaded, bool failed)
+                {
+                    foreach (var (name, value) in new[] { ("specialtiesLoaded", loaded), ("specialtiesFailed", failed) })
+                        typeof(WorkspaceViewModel).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(vm, value);
+                }
+                SetRead(loaded: false, failed: false);
+                Require(vm.QueueSpecialtyState == "Carregando as especialidades…", "Antes da leitura a caixa deveria dizer que está carregando: " + vm.QueueSpecialtyState);
+                SetRead(loaded: true, failed: true);
+                Require(vm.QueueSpecialtyState == "Não foi possível ler as especialidades. Use Atualizar fila da UBS.", "Com a leitura em falha a caixa deveria dizer isso: " + vm.QueueSpecialtyState);
+                SetRead(loaded: true, failed: false);
+                Require(vm.QueueSpecialtyState == "", "Com as especialidades lidas e ativas não deveria haver aviso: " + vm.QueueSpecialtyState);
+                vm.WaitingSpecialty = "Pediatria";
+                Pump(vm.LoadCatalogAsync()); Settle(vm);
+                Require(vm.WaitingSpecialty == "Pediatria", "A escolha da especialidade deveria sobreviver à releitura do catálogo: '" + vm.WaitingSpecialty + "'.");
+                var pediatria = fixture.Specialties.FindIndex(item => item.Name == "Pediatria"); fixture.Specialties[pediatria] = fixture.Specialties[pediatria] with { IsActive = false };
+                Pump(vm.LoadCatalogAsync()); Settle(vm);
+                Require(vm.WaitingSpecialty == "", "Especialidade desativada deveria limpar a escolha: '" + vm.WaitingSpecialty + "'.");
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("Configurações da UBS: o selo da aprovação das vagas fica escondido enquanto a leitura falha", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true, FailProfile = true };
+            fixture.AddUnit("UBS Perfil falha", "Centro");
+            var window = OpenOperational(fixture, storageRoot, "approval-badge-unknown", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "unit-settings", 1280, 5200);
+                Require(!vm.SlotApprovalKnown && !VisibleTexts(content).Contains("Ligada") && !VisibleTexts(content).Contains("Desligada"), "Sem a leitura da aprovação o selo não deveria aparecer.");
+            }
+            finally { CloseWindow(window); }
         });
     }
 }

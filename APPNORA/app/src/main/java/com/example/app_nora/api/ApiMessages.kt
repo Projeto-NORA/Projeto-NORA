@@ -46,10 +46,10 @@ enum class ApiContext {
 
 const val UNIT_FORBIDDEN_MESSAGE = "Seu cadastro nesta UBS está desativado ou sem vínculo. Procure a unidade."
 const val OFFER_UNAVAILABLE_MESSAGE = "Esta oportunidade não está mais disponível."
-const val LOCAL_NETWORK_DENIED_MESSAGE = "O endereço do serviço fica na rede local. Permita o acesso à rede local para o NORA nas configurações do Android e tente novamente."
+const val LOCAL_NETWORK_DENIED_MESSAGE = "Permita o acesso à rede local para o NORA nas configurações do Android e tente novamente."
 const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. Confira o endereço e sua conexão e tente novamente."
 const val GOOGLE_DISABLED_MESSAGE = "O acesso com Google não está habilitado nesta rede. Use o CPF ou e-mail e a senha."
-const val INCOMPATIBLE_RESPONSE_MESSAGE = "O serviço retornou uma resposta incompatível. Contate a unidade."
+const val INCOMPATIBLE_RESPONSE_MESSAGE = "Resposta incompatível do serviço. Contate a unidade."
 
 /** Senha atual incorreta na troca de senha (400); nunca 401, para a sessão não ser encerrada. */
 const val INVALID_CURRENT_PASSWORD = "invalid-current-password"
@@ -85,12 +85,22 @@ private val KNOWN_CODES = setOf("invalid-input", "unauthorized", "forbidden", "n
 
 fun knownProblemCode(raw: String?): String? = raw?.takeIf { it in KNOWN_CODES }
 
+/** "a UBS Norte": o nome da unidade quando se conhece, sem repetir a palavra se ele já começa com "UBS"; "a UBS" sem nome. */
+internal fun unitReference(name: String?): String {
+    val trimmed = name?.trim().orEmpty()
+    return when {
+        trimmed.isEmpty() -> "a UBS"
+        trimmed.equals("UBS", ignoreCase = true) || trimmed.startsWith("UBS ", ignoreCase = true) -> "a $trimmed"
+        else -> "a UBS $trimmed"
+    }
+}
+
 /**
  * Texto em português escolhido pelo app a partir do status HTTP, do `code` conhecido e da operação.
  * O corpo do servidor (title/detail) nunca é exibido. [acting] é verdadeiro quando o responsável agia por um dependente e [actingName]
- * é o nome dele, quando se conhece (as mensagens que falam da outra pessoa usam o nome em vez de "esta pessoa").
+ * é o nome dele, quando se conhece (as mensagens que falam da outra pessoa usam o nome em vez de "esta pessoa"); [unitName] nomeia a UBS na falha de conexão.
  */
-fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Boolean = false, actingName: String? = null): String {
+fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Boolean = false, actingName: String? = null, unitName: String? = null): String {
     val kind = knownProblemCode(code) ?: when (status) {
         400 -> "invalid-input"
         401 -> "unauthorized"
@@ -108,26 +118,26 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
     return when (kind) {
         OTHER_UNIT_OVERLAP -> otherUnitOverlapMessage(context, acting, actingName)
         GOOGLE_DISABLED -> GOOGLE_DISABLED_MESSAGE
-        GOOGLE_ALREADY_LINKED -> "Esta conta Google já está vinculada a outra conta do NORA. Use outra conta Google ou procure a equipe da UBS."
+        GOOGLE_ALREADY_LINKED -> "Esta conta Google já está vinculada a outra conta do NORA. Use outra ou procure a equipe da UBS."
         INVALID_CURRENT_PASSWORD -> "A senha atual está incorreta."
         PASSWORD_CHANGE_REQUIRED -> PASSWORD_CHANGE_REQUIRED_MESSAGE
         BOOKING_WINDOW -> "Esse horário já começou ou passou. Escolha outro horário."
         SPECIALTY_LIMIT ->
-            if (acting) "Esta pessoa já tem uma consulta futura marcada pelo app nesta especialidade. Cancele essa consulta ou aguarde a data dela para marcar outra."
-            else "Você já tem uma consulta futura marcada pelo app nesta especialidade, em alguma das suas UBS. " +
-                "Cancele essa consulta ou aguarde a data dela para marcar outra."
-        SLOT_UNAVAILABLE -> "Este horário acabou de ser ocupado ou saiu da agenda. Veja a lista atualizada e escolha outro."
+            if (acting) "Esta pessoa já tem uma consulta futura marcada pelo aplicativo nesta especialidade. Cancele essa ou aguarde a data dela."
+            else "Você já tem uma consulta futura marcada pelo aplicativo nesta especialidade em alguma das suas UBS. " +
+                "Cancele essa ou aguarde a data dela."
+        SLOT_UNAVAILABLE -> "Este horário foi ocupado ou saiu da agenda. Escolha outro."
         PATIENT_OVERLAP -> if (acting) "Esta pessoa já tem uma consulta neste mesmo horário. Escolha outro horário."
             else "Você já tem uma consulta neste mesmo horário. Escolha outro horário."
         FAMILY_LINK_EXISTS -> "Você já tem um pedido pendente ou um vínculo aprovado com esta pessoa nesta UBS."
         FAMILY_LINK_LIMIT -> "Você chegou ao limite de 20 pedidos e vínculos ativos. Encerre algum antes de pedir outro."
-        FAMILY_LINK_CLOSED -> "Este pedido já foi decidido ou encerrado. Atualize a lista."
+        FAMILY_LINK_CLOSED -> "Este pedido já foi decidido. Atualize a lista."
         DEPENDENT_INACTIVE -> "O cadastro desta pessoa está desativado nesta UBS. Procure a equipe da unidade."
         CONFIRMATION_WINDOW -> "A presença só pode ser confirmada de 48 horas até 2 horas antes da consulta."
         "invalid-input" -> when (context) {
             ApiContext.PASSWORD_CHANGE -> "A nova senha precisa ter de 8 a 256 caracteres e ser diferente da atual."
-            ApiContext.BOOKING -> "Este horário não pôde ser conferido. Atualize os horários e escolha outro."
-            ApiContext.AVAILABILITY -> "Não foi possível consultar os horários desta especialidade. Escolha outra ou tente mais tarde."
+            ApiContext.BOOKING -> "Não foi possível conferir este horário. Escolha outro."
+            ApiContext.AVAILABILITY -> "Não foi possível consultar os horários. Escolha outra especialidade ou tente mais tarde."
             ApiContext.FAMILY_REQUEST -> "Confira o CPF e a UBS. Você não pode pedir vínculo com o seu próprio CPF."
             ApiContext.EMAIL_CHANGE -> "Confira o código informado."
             ApiContext.GOOGLE, ApiContext.GOOGLE_LOGIN -> "O Google não confirmou esta conta: o acesso venceu ou o e-mail não está verificado. Tente de novo."
@@ -136,7 +146,7 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         "unauthorized" -> when (context) {
             ApiContext.LOGIN -> "CPF, e-mail ou senha inválidos."
             // O servidor não diz o motivo (conta Google não vinculada, conta inativa ou token inválido): o app também não.
-            ApiContext.GOOGLE_LOGIN -> "Não foi possível entrar com o Google. Se você ainda não vinculou sua conta Google, entre com o CPF ou e-mail e a senha e vincule-a em Configurações."
+            ApiContext.GOOGLE_LOGIN -> "Não foi possível entrar com o Google. Se ainda não vinculou a conta, entre com CPF ou e-mail e senha e vincule-a em Configurações."
             else -> "Sua sessão terminou. Entre novamente."
         }
         "forbidden" -> when {
@@ -158,27 +168,27 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
             else -> "O registro não está mais disponível."
         }
         "conflict" -> when (context) {
-            ApiContext.APPOINTMENT_CANCEL -> "Esta consulta já foi alterada pela unidade e não pode mais ser cancelada. Atualize a lista."
+            ApiContext.APPOINTMENT_CANCEL -> "A unidade alterou esta consulta e ela não pode mais ser cancelada. Atualize a lista."
             ApiContext.OFFER_RESPOND -> OFFER_UNAVAILABLE_MESSAGE
             ApiContext.QUEUE_CANCEL -> "Esta solicitação já foi encerrada."
-            ApiContext.CONFIRMATION -> "Esta consulta já foi alterada pela unidade e não pode mais ser confirmada. Atualize a lista."
+            ApiContext.CONFIRMATION -> "A unidade alterou esta consulta e ela não pode mais ser confirmada. Atualize a lista."
             ApiContext.REGISTRATION -> "O cadastro mudou. Confira os dados e tente novamente."
-            ApiContext.EMAIL_CHANGE -> "Este e-mail já é usado por outra conta do NORA, então nada foi trocado. Procure a equipe da UBS."
+            ApiContext.EMAIL_CHANGE -> "Este e-mail já é usado por outra conta do NORA e nada foi trocado. Procure a equipe da UBS."
             ApiContext.FAMILY, ApiContext.FAMILY_REQUEST -> "O pedido mudou. Atualize a lista e tente novamente."
             else -> "O registro mudou. Atualize e tente novamente."
         }
         "too-many-requests" ->
             if (context == ApiContext.PASSWORD_RESET) "Muitos pedidos de código. Aguarde alguns minutos antes de tentar novamente."
-            else if (context == ApiContext.EMAIL_CHANGE) "Muitos pedidos de código para este e-mail. Aguarde alguns minutos ou procure a equipe da UBS."
-            else if (context == ApiContext.FAMILY_REQUEST) "Muitos pedidos de vínculo em pouco tempo. Aguarde alguns minutos e tente novamente."
+            else if (context == ApiContext.EMAIL_CHANGE) "Muitos pedidos de código. Aguarde alguns minutos ou procure a equipe da UBS."
+            else if (context == ApiContext.FAMILY_REQUEST) "Muitos pedidos de vínculo. Aguarde alguns minutos e tente novamente."
             else "Muitas tentativas. Aguarde alguns minutos e tente novamente."
         "service-unavailable" ->
-            if (context == ApiContext.BOOKING) "Não foi possível conferir suas consultas em todas as suas UBS agora. Tente marcar novamente em instantes."
+            if (context == ApiContext.BOOKING) "Não foi possível conferir suas consultas em todas as UBS. Tente marcar em instantes."
             else if (context == ApiContext.EMAIL_CHANGE) "O envio de e-mails não está disponível agora. Tente novamente mais tarde."
-            else if (context == ApiContext.FAMILY || context == ApiContext.FAMILY_REQUEST) "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."
-            else if (unitScoped || context == ApiContext.UNIT_LIST) "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."
+            else if (context == ApiContext.FAMILY || context == ApiContext.FAMILY_REQUEST) "Não conseguimos falar com a UBS agora. Tente em instantes."
+            else if (unitScoped || context == ApiContext.UNIT_LIST) "Não conseguimos falar com ${if (unitName.isNullOrBlank()) "uma das suas UBS" else unitReference(unitName)} agora. Tente novamente em instantes."
             else "O serviço está temporariamente indisponível. Tente novamente."
-        "internal-error" -> "O serviço encontrou um erro. Tente novamente mais tarde."
+        "internal-error" -> "Erro no serviço. Tente novamente mais tarde."
         else -> "Não foi possível concluir a solicitação. Tente novamente."
     }
 }

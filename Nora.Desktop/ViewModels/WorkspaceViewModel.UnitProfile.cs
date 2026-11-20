@@ -84,7 +84,7 @@ public sealed partial class WorkspaceViewModel
     public string ProfileSpecialtiesHint => "Vem da grade; para mudar, edite a grade.";
     public string ProfileState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver o atendimento ao público."
         : profileFailed && !profileLoaded ? "Não foi possível ler o atendimento da UBS agora. Use Atualizar configurações para tentar de novo."
-        : profileFailed ? "A última leitura não concluiu; os dados são da leitura anterior. Use Atualizar configurações para tentar de novo."
+        : profileFailed ? "Dados da leitura anterior. Use Atualizar configurações para tentar de novo."
         : !profileLoaded ? "Lendo o atendimento da UBS…"
         : unitProfile is { Informed: false } ? "Ainda não informado. O aplicativo mostra \"Horário não informado\"." : "";
     public string ProfileUpdatedLabel => unitProfile is { UpdatedAt: { } at } ? $"Última alteração em {at.ToLocalTime():dd/MM/yyyy HH:mm}." : "";
@@ -92,7 +92,7 @@ public sealed partial class WorkspaceViewModel
     private static readonly string[] ProfileNames =
     [
         nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice), nameof(ProfileSpecialtiesText), nameof(ProfileState), nameof(ProfileUpdatedLabel),
-        nameof(SlotApprovalEnabled), nameof(SlotApprovalState), nameof(SlotApprovalToggleLabel), nameof(CanToggleSlotApproval), nameof(ShowAwaitingSlots), nameof(AwaitingSlotsTitle), nameof(AwaitingSlotsState), nameof(HasAwaitingSlots), nameof(PanelAwaitingText)
+        nameof(SlotApprovalEnabled), nameof(SlotApprovalKnown), nameof(SlotApprovalState), nameof(SlotApprovalToggleLabel), nameof(CanToggleSlotApproval), nameof(ShowAwaitingSlots), nameof(AwaitingSlotsTitle), nameof(AwaitingSlotsState), nameof(HasAwaitingSlots), nameof(PanelAwaitingText)
     ];
     private void NotifyProfile() { foreach (var name in ProfileNames) Notify(name); }
 
@@ -161,7 +161,7 @@ public sealed partial class WorkspaceViewModel
         Replace(ProfileSpecialties, saved!.Specialties.Select(item => item.Name).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         FillProfileEditors(unitProfile);
         NotifyProfile();
-        Say(MessageKind.Success, "Atendimento ao público salvo. O aplicativo passa a mostrar estes horários e serviços.");
+        Say(MessageKind.Success, "Atendimento ao público salvo.");
     });
 
     private void ClearUnitProfile()

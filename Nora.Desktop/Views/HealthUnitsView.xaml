@@ -3,8 +3,11 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
         <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Unidades cadastradas" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
-        <TextBlock Text="Pesquise por nome, região ou endereço. A UBS selecionada continua selecionada mesmo escondida pela pesquisa." Style="{StaticResource Muted}" Margin="0,0,0,12" />
-        <TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS" Margin="0,0,0,12" />
+        <Grid Margin="0,0,0,12">
+          <TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS por nome, região ou endereço" Padding="36,8,12,8" />
+          <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource SecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" IsHitTestVisible="False" />
+          <TextBlock Text="Pesquisar por nome, região ou endereço" Foreground="{DynamicResource SecondaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="36,0,12,0" IsHitTestVisible="False" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding UnitSearch}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+        </Grid>
         <ListBox ItemsSource="{Binding FilteredUnits}" SelectedItem="{Binding SelectedUnit}" MaxHeight="260" AutomationProperties.Name="UBS cadastradas">
           <ListBox.ItemTemplate>
             <DataTemplate>
@@ -30,14 +33,14 @@
         <Border Margin="0,14,0,0" CornerRadius="10" Padding="14" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" Visibility="{Binding SelectedUnitDatabasePending, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Base da UBS não criada">
           <StackPanel>
             <TextBlock Text="Base da UBS ainda não criada" FontWeight="SemiBold" />
-            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,10" Text="A UBS está cadastrada, mas sem a base de dados dela ela fica fora dos números da rede, do cadastro público e do aplicativo. O usuário PostgreSQL da API precisa de permissão para criar bancos de dados; ajuste a permissão no servidor e tente de novo." />
-            <Button Content="Tentar criar a base" Click="OnProvision" IsEnabled="{Binding CanProvisionUnitDatabase}" HorizontalAlignment="Left" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
+            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,10" Text="Sem a base, a UBS fica fora dos números da rede, do cadastro público e do aplicativo. Se a criação falhar, avise a equipe de TI." />
+            <Button Content="Tentar criar a base" Click="OnProvision" IsEnabled="{Binding CanProvisionUnitDatabase}" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
       </StackPanel>
     </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18"><StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="{Binding UnitDraftTitle}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="Informe coordenadas verificadas em graus decimais; valores negativos indicam sul e oeste." Style="{StaticResource Muted}" Margin="0,8,0,16" />
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" Visibility="{Binding IsUnitFormOpen, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Formulário da UBS"><StackPanel IsEnabled="{Binding CanOperate}">
+      <TextBlock Text="{Binding UnitDraftTitle}" FontSize="19" FontWeight="SemiBold" /><Border Height="16" />
       <TextBlock Text="Nome da UBS" /><TextBox Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da UBS" Margin="0,5,0,12" />
       <TextBlock Text="{Binding UnitNameError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitNameError, Converter={StaticResource TextVisibility}}" />
       <TextBlock Text="Região" /><TextBox Text="{Binding UnitRegion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Região da UBS" Margin="0,5,0,12" />
@@ -45,11 +48,11 @@
       <TextBlock Text="Endereço" /><TextBox Text="{Binding UnitAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da UBS" Margin="0,5,0,12" />
       <TextBlock Text="{Binding UnitAddressError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitAddressError, Converter={StaticResource TextVisibility}}" />
       <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
-        <StackPanel Margin="0,0,8,0"><TextBlock Text="Latitude" /><TextBox Text="{Binding UnitLatitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Latitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLatitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLatitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
-        <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Longitude" /><TextBox Text="{Binding UnitLongitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Longitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLongitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLongitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
+        <StackPanel Margin="0,0,8,0"><TextBlock Text="Latitude (ex.: -23,55)" /><TextBox Text="{Binding UnitLatitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Latitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLatitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLatitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
+        <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Longitude (ex.: -46,63)" /><TextBox Text="{Binding UnitLongitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Longitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLongitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLongitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
       </Grid>
       <TextBlock Text="{Binding UnitCoordinateWarning}" Style="{StaticResource FieldWarning}" Visibility="{Binding UnitCoordinateWarning, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-      <Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
+      <WrapPanel><Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" /><Button Content="Cancelar" Click="OnCancel" AutomationProperties.Name="Cancelar o formulário da UBS" /></WrapPanel>
     </StackPanel></Border>
   </StackPanel>
 </UserControl>

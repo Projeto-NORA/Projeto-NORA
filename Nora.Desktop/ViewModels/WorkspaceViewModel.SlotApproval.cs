@@ -28,13 +28,15 @@ public sealed partial class WorkspaceViewModel
         : profileFailed && !profileLoaded ? "Não foi possível ler a aprovação das vagas agora. Use Atualizar configurações para tentar de novo."
         : !profileLoaded ? "Lendo a aprovação das vagas…"
         : SlotApprovalEnabled
-            ? $"Ligada{(unitProfile?.SlotApprovalSince is { } since ? $" desde {since.ToLocalTime():dd/MM/yyyy HH:mm}" : "")}. Cada cancelamento gera uma vaga que só é oferecida depois que alguém da equipe aprovar; sem aprovação até 1 h antes da consulta, ela fecha."
-            : "Desligada. A vaga reaproveitada só nasce quando a equipe a gera pela Agenda e já é oferecida na hora.";
+            ? $"Ligada{(unitProfile?.SlotApprovalSince is { } since ? $" desde {since.ToLocalTime():dd/MM/yyyy HH:mm}" : "")}."
+            : "Desligada. A vaga só nasce quando a equipe a gera pela Agenda e é oferecida na hora.";
     public string SlotApprovalToggleLabel => SlotApprovalEnabled ? "Desligar aprovação das vagas" : "Ligar aprovação das vagas";
+    /// <summary>A situação (Ligada/Desligada) é conhecida assim que o perfil da UBS foi lido, para qualquer papel e mesmo durante outra operação.</summary>
+    public bool SlotApprovalKnown => HasActiveObsUnit && profileLoaded && !profileFailed;
     public bool CanToggleSlotApproval => CanEditProfile && profileLoaded && !profileFailed;
     public string SlotApprovalConfirmationText => SlotApprovalEnabled
         ? "Desligar a aprovação das vagas? As vagas que já aguardam continuam aprováveis até o prazo; não nascem vagas novas aguardando."
-        : "Com a aprovação ligada, cada cancelamento gera uma vaga que só é oferecida depois que alguém da equipe aprovar; sem aprovação até 1 h antes, ela fecha. Ligar a aprovação?";
+        : "Ligar a aprovação? Cada vaga só será oferecida depois que a equipe aprovar; sem aprovação até 1 h antes da consulta, ela fecha.";
 
     public bool HasAwaitingSlots => AwaitingSlots.Count > 0;
     /// <summary>A seção aparece com a chave ligada ou quando ainda há vagas aguardando (a chave pode ter sido desligada depois).</summary>
@@ -48,11 +50,11 @@ public sealed partial class WorkspaceViewModel
     public string DiscardSlotConfirmationText => SelectedAwaitingSlot is not { } slot ? "" :
         $"Descartar a vaga de {slot.SummaryDisplay}? Ela fecha sem ser oferecida e não pode ser reaberta.";
 
-    /// <summary>Refaz a lista de vagas aguardando depois de uma leitura das vagas, mantendo a seleção quando ela continua aguardando.</summary>
+    /// <summary>Refaz a lista de vagas aguardando (prazo de aprovação mais curto primeiro) depois de uma leitura das vagas, mantendo a seleção quando ela continua aguardando.</summary>
     private void RefreshAwaitingSlots()
     {
         var selectedId = SelectedAwaitingSlot?.Id;
-        Replace(AwaitingSlots, UnitLightningSlots.Where(slot => slot.IsAwaitingApproval).OrderBy(slot => slot.StartsAt).ThenBy(slot => slot.Id).ToArray());
+        Replace(AwaitingSlots, UnitLightningSlots.Where(slot => slot.IsAwaitingApproval).OrderBy(slot => slot.ApprovalDeadline ?? DateTimeOffset.MaxValue).ThenBy(slot => slot.StartsAt).ThenBy(slot => slot.Id).ToArray());
         SelectedAwaitingSlot = selectedId is { } id ? AwaitingSlots.FirstOrDefault(slot => slot.Id == id) : null;
         NotifyProfile();
     }
@@ -70,7 +72,7 @@ public sealed partial class WorkspaceViewModel
         unitProfile = unitProfile with { SlotApprovalRequired = result!.Enabled, SlotApprovalSince = result.Since };
         NotifyProfile();
         Say(MessageKind.Success, result.Enabled
-            ? "Aprovação das vagas ligada. Os cancelamentos a partir de agora geram vagas aguardando aprovação."
+            ? "Aprovação das vagas ligada."
             : "Aprovação das vagas desligada. As vagas que já aguardam continuam aprováveis até o prazo.");
     });
 
@@ -102,7 +104,7 @@ public sealed partial class WorkspaceViewModel
             await RefreshSlotsAfterRefusalAsync(unit);
             throw;
         }
-        await ReloadAfterChangeAsync(unit, UnitScope.Slots, "Vaga descartada. Ela fechou sem ser oferecida.");
+        await ReloadAfterChangeAsync(unit, UnitScope.Slots, "Vaga descartada.");
     });
 
     private (HealthUnit Unit, UnitLightningSlot Slot) RequireAwaitingSlot()

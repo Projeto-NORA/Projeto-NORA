@@ -7,9 +7,9 @@
     </Grid.ColumnDefinitions>
     <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
       <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
-      <DockPanel Margin="16,24">
+      <DockPanel Margin="16,18,16,16">
         <StackPanel DockPanel.Dock="Top">
-          <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="18" Padding="14" Margin="0,0,0,22">
+          <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="18" Padding="14" Margin="0,0,0,14">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
               <Border Width="38" Height="38" CornerRadius="12" Background="#33FFFFFF" BorderBrush="#55FFFFFF" BorderThickness="1"><TextBlock Text="N" Foreground="{DynamicResource BrandTextBrush}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
@@ -21,6 +21,7 @@
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
           <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,8" ToolTip="Abra as configurações do software." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
+            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding IsSettings}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
             <StackPanel Orientation="Horizontal"><TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="24" VerticalAlignment="Center" /><TextBlock Text="Configurações" Margin="10,0,0,0" /></StackPanel>
           </Button>
           <Button x:Name="AccountButton" Click="OnAccountMenu" HorizontalContentAlignment="Left" BorderThickness="0" Padding="6,12" ToolTip="Abra as configurações ou saia da conta." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
@@ -45,10 +46,13 @@
             </Grid>
           </Button>
         </StackPanel>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl ItemsSource="{Binding Navigation}">
+        <!-- A lista termina acima do rodapé fixo com um esmaecido na borda: o item parcialmente à vista mostra que há mais abaixo, em vez de parecer cortado por defeito. -->
+        <ScrollViewer x:Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnNavScrollChanged">
+          <ScrollViewer.OpacityMask><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#FF000000" Offset="0" /><GradientStop Color="#FF000000" Offset="0.93" /><GradientStop Color="#00000000" Offset="1" /></LinearGradientBrush></ScrollViewer.OpacityMask>
+          <ItemsControl x:Name="NavItems" ItemsSource="{Binding Navigation}" Margin="0,0,0,22">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding AutomationName}">
+                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,9" Margin="0,0,0,4" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding AutomationName}">
                   <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                       <Setter Property="ToolTip" Value="{Binding Title}" />
@@ -59,7 +63,9 @@
                         <DataTrigger Binding="{Binding Id}" Value="agenda"><Setter Property="ToolTip" Value="Consulte a agenda da unidade em formato de calendário." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="indicators" /><Condition Binding="{Binding DataContext.IsMunicipal, RelativeSource={RelativeSource AncestorType=Window}}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="ToolTip" Value="Consulte os indicadores da sua UBS." /></MultiDataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="alerts"><Setter Property="ToolTip" Value="Acompanhe alertas operacionais da unidade." /></DataTrigger>
+                        <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Id}" Value="alerts" /><Condition Binding="{Binding DataContext.IsMunicipal, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="ToolTip" Value="Acompanhe os alertas de cada UBS da rede." /></MultiDataTrigger>
                         <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="unit-settings"><Setter Property="ToolTip" Value="Cadastre profissionais, consultórios, grade de horários e bloqueios da unidade." /></DataTrigger>
                         <DataTrigger Binding="{Binding Id}" Value="family"><Setter Property="ToolTip" Value="Aprove ou recuse pedidos de vínculo entre responsáveis e dependentes." /></DataTrigger>

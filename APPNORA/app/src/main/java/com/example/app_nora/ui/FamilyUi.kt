@@ -26,9 +26,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions(),
     onRegistrationUnits: suspend () -> List<RegistrationUnit> = { emptyList() }, initialCatalog: List<RegistrationUnit>? = null) {
-    ScreenTitle("Modo Família", "Peça o vínculo com um dependente e aja por ele sem misturar os dados de cada pessoa.")
+    ScreenTitle("Modo Família")
     if (patient.session == null) {
-        SectionCard("Entre na sua conta", "Modo Família") { MutedText("Entre na sua conta para pedir o vínculo com um dependente.") }
+        SectionCard("Entre na sua conta") { MutedText("Entre na sua conta para pedir o vínculo com um dependente.") }
         return
     }
     ActionMessage(patient.message)
@@ -38,21 +38,22 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
     var ending by remember { mutableStateOf<FamilyLink?>(null) }
     var cancelling by remember { mutableStateOf<FamilyLink?>(null) }
 
-    if (approvedLinks(links).isNotEmpty()) SectionCard("Agindo por", "Escolha por quem você usa o aplicativo") {
+    if (approvedLinks(links).isNotEmpty()) SectionCard("Agindo por") {
         ActingPicker(patient, actions.onActFor, enabled = !patient.busy)
     }
 
     RequestCard(patient, actions, onRegistrationUnits, initialCatalog)
 
-    SectionCard("Seus pedidos e vínculos", "Situação informada pela UBS") {
+    SectionCard("Seus pedidos e vínculos") {
         when {
             links == null -> {
-                MutedText(patient.family.error ?: if (patient.family.loading) "Carregando seus pedidos…" else "Os pedidos ainda não foram consultados.")
+                if (patient.family.error != null) ErrorNotice(patient.family.error)
+                else MutedText(if (patient.family.loading) "Carregando seus pedidos…" else "Os pedidos ainda não foram consultados.")
             }
             groups.active.isEmpty() && groups.history.isEmpty() -> MutedText("Você ainda não pediu o vínculo com nenhum dependente.")
             groups.active.isEmpty() -> MutedText("Nenhum pedido ativo. O histórico está abaixo.")
         }
-        if (links != null && patient.family.error != null) MutedText(patient.family.error)
+        if (links != null && patient.family.error != null) ErrorNotice(patient.family.error)
         if (patient.family.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         OutlinedButton(onClick = actions.onLoad, enabled = !patient.family.loading, modifier = Modifier.fillMaxWidth()) {
             Text(if (patient.family.loading) "Atualizando…" else "Atualizar pedidos")
@@ -65,7 +66,6 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
         HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
         if (historyOpen) groups.history.forEach { link -> key(link.id) { LinkCard(link, patient, {}, {}, {}) } }
     }
-    MutedText("A equipe da UBS confere os documentos antes de aprovar. Enquanto o pedido estiver pendente, nenhum dado da pessoa aparece no seu aplicativo.")
 
     cancelling?.let { link ->
         AlertDialog(onDismissRequest = { cancelling = null }, containerColor = MaterialTheme.colorScheme.surface,
@@ -105,8 +105,8 @@ private fun RequestCard(patient: PatientState, actions: FamilyActions, onRegistr
     LaunchedEffect(patient.session?.token) { if (catalog == null) loadCatalog() }
     val digits = cpfDigits(cpf)
     val cpfWrong = digits.length == 11 && !isValidCpf(digits)
-    SectionCard("Pedir vínculo com um dependente", "A equipe da UBS confere os documentos") {
-        MutedText("Informe o CPF da pessoa e a UBS onde ela tem cadastro. A UBS decide a idade e os documentos necessários.")
+    SectionCard("Pedir vínculo com um dependente") {
+        MutedText("Informe o CPF da pessoa e a UBS onde ela tem cadastro.")
         OutlinedTextField(value = cpf, onValueChange = { cpf = it.filter { char -> char in '0'..'9' || char in ".- " }.take(14) },
             label = { Text("CPF do dependente") }, placeholder = { Text("000.000.000-00") }, singleLine = true,
             enabled = !patient.busy, isError = cpfWrong, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
@@ -115,12 +115,13 @@ private fun RequestCard(patient: PatientState, actions: FamilyActions, onRegistr
         Text("UBS onde a pessoa tem cadastro", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         when {
             catalog == null -> {
-                MutedText(if (catalogLoading) "Carregando as UBS…" else if (catalogFailed) "Não foi possível carregar a lista de UBS." else "A lista de UBS ainda não foi carregada.")
-                if (!catalogLoading) OutlinedButton(onClick = { scope.launch { loadCatalog() } }, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
+                if (catalogFailed && !catalogLoading) ErrorNotice("Não foi possível carregar a lista de UBS.")
+                else MutedText(if (catalogLoading) "Carregando as UBS…" else "A lista de UBS ainda não foi carregada.")
+                if (!catalogLoading) RetryButton(onClick = { scope.launch { loadCatalog() } })
             }
             catalog!!.isEmpty() -> MutedText("Nenhuma UBS disponível no momento.")
             else -> catalog!!.forEach { unit ->
-                Row(Modifier.fillMaxWidth().selectable(selected = unit.id == unitId, enabled = !patient.busy, onClick = { unitId = unit.id }, role = Role.RadioButton),
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected = unit.id == unitId, enabled = !patient.busy, onClick = { unitId = unit.id }, role = Role.RadioButton),
                     verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = unit.id == unitId, onClick = null)
                     Text("${unit.name} · ${unit.region}", Modifier.padding(start = 8.dp))
@@ -139,12 +140,17 @@ private fun RequestCard(patient: PatientState, actions: FamilyActions, onRegistr
 @Composable
 private fun LinkCard(link: FamilyLink, patient: PatientState, onAct: (String?) -> Unit, onCancel: () -> Unit, onEnd: () -> Unit) {
     SectionCard(dependentDisplayName(link), link.unitName) {
-        Text(familyStatusLabel(link.status), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall,
-            color = if (link.isApproved()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        val label = familyStatusLabel(link.status)
+        when (link.status) {
+            "pending" -> StatusTag(label, StatusTone.Warning)
+            "approved" -> StatusTag(label, StatusTone.Success)
+            "rejected" -> StatusTag(label, StatusTone.Error)
+            else -> StatusTag(label, StatusTone.Neutral)
+        }
         MutedText("Pedido enviado em ${formatDate(link.requestedAt)}.")
         when (link.status) {
             "pending" -> {
-                MutedText("A equipe da UBS ainda vai conferir os documentos. Nenhum dado da pessoa aparece até a aprovação.")
+                MutedText("A UBS confere os documentos antes de aprovar. Nenhum dado da pessoa aparece até a aprovação.")
                 OutlinedButton(onClick = onCancel, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Cancelar pedido") }
@@ -180,7 +186,7 @@ internal fun ActingPicker(patient: PatientState, onActFor: (String?) -> Unit, en
 
 @Composable
 private fun ActingRow(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().selectable(selected = selected, enabled = enabled, onClick = onClick, role = Role.RadioButton),
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected = selected, enabled = enabled, onClick = onClick, role = Role.RadioButton),
         verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = null)
         Text(label, Modifier.padding(start = 8.dp), fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
@@ -202,7 +208,7 @@ fun ActingBanner(patient: PatientState, onActFor: (String?) -> Unit) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(if (link == null) "Agindo por: você" else "Agindo por: ${dependentDisplayName(link)}", style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold, color = if (link != null) colors.onTertiaryContainer else colors.onSurface)
-            if (link != null) Text("Consultas, agendamento, fila, Vaga Relâmpago e Jornada desta tela são de ${dependentDisplayName(link)} na ${link.unitName}, não suas.",
+            if (link != null) Text("Os dados desta tela são de ${dependentDisplayName(link)} na ${link.unitName}, não seus.",
                 style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { picking = true }, enabled = !patient.busy) { Text("Trocar") }

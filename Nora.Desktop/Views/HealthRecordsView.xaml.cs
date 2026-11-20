@@ -9,6 +9,13 @@ namespace Nora.Desktop.Views;
 public partial class HealthRecordsView : UserControl
 {
     public HealthRecordsView() => InitializeComponent();
+    /// <summary>Tabela sem rolagem própria: a roda do mouse passa para a rolagem da ficha em vez de ficar presa na tabela.</summary>
+    private void OnGridMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not UIElement { } grid || (grid as FrameworkElement)?.Parent is not UIElement parent) return;
+        e.Handled = true;
+        parent.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = UIElement.MouseWheelEvent, Source = grid });
+    }
     private HealthRecordsViewModel? Health => DataContext as HealthRecordsViewModel;
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (Health is { } vm) await vm.ReloadAsync(); }
     private async void OnCreateExam(object sender, RoutedEventArgs e) { if (Health is { } vm) await vm.CreateExamAsync(); }

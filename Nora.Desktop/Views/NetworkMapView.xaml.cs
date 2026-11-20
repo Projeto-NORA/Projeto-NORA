@@ -65,7 +65,7 @@ public partial class NetworkMapView : UserControl
                 if (closed) return;
                 if (args.IsSuccess)
                 {
-                    MapStatus.Text = showingUnit ? "Mapa carregado com a UBS selecionada. Confira a posição informada no cadastro." : "Mapa carregado. A posição inicial mostra o Brasil, sem indicar unidades.";
+                    MapStatus.Text = showingUnit ? "Mapa carregado com a UBS selecionada." : "Mapa carregado.";
                     LoadButton.IsEnabled = true;
                     Placeholder.Visibility = Visibility.Collapsed;
                     Browser.Visibility = Visibility.Visible;

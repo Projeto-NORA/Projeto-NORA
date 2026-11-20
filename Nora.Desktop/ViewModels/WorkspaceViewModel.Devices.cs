@@ -270,7 +270,7 @@ public sealed partial class WorkspaceViewModel
     public bool CanRevokeDevice => CanManageDevices && SelectedObsDevice is { IsRevoked: false };
     public string DevicesState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os computadores."
         : devicesFailed && !devicesLoaded ? "Não foi possível ler os computadores agora. Use Atualizar computadores para tentar de novo."
-        : devicesFailed ? "A última leitura não concluiu; a lista é da leitura anterior. Use Atualizar computadores para tentar de novo."
+        : devicesFailed ? "Lista da leitura anterior. Use Atualizar computadores para tentar de novo."
         : !devicesLoaded ? "Lendo os computadores…"
         : ObsDevices.Count == 0 ? "Nenhum computador ativado ainda. A atendente só entra em computadores ativados." : "";
     public bool HasIssuedCode => issuedCode.Length > 0;
@@ -331,7 +331,7 @@ public sealed partial class WorkspaceViewModel
         }, clear: false);
         DeviceDraftName = "";
         ShowStoreWarning();
-        await ReloadAfterChangeAsync(unit, UnitScope.Devices, $"Computador ativado: {currentDevice!.Display}. A atendente já pode entrar aqui.");
+        await ReloadAfterChangeAsync(unit, UnitScope.Devices, $"Computador ativado: {currentDevice!.Display}.");
     });
 
     /// <summary>Gera o código para ativar outro computador: aparece uma única vez, grande, e some ao fechar o painel.</summary>
@@ -402,7 +402,7 @@ public sealed partial class WorkspaceViewModel
 
     private HealthUnit RequireDeviceAdmin()
     {
-        if (!IsAdministrator) throw new NoraApiException("Somente o administrador da UBS gerencia os computadores. Peça a um administrador da UBS.");
+        if (!IsAdministrator) throw new NoraApiException("Somente o administrador da UBS gerencia os computadores.");
         return ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de gerenciar os computadores.");
     }
 

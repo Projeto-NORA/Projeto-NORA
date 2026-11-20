@@ -70,7 +70,7 @@ public sealed partial class WorkspaceViewModel
         : (specialtyDraftSubmitted || specialtyDraftName.Length > 0) && (Spaces.Replace(specialtyDraftName.Trim(), " ").Length is < 2 or > 120 || specialtyDraftName.Any(char.IsControl)) ? "Informe o nome da especialidade, de 2 a 120 caracteres." : "";
     public string SpecialtyCatalogState => !IsAuthenticated ? "Entre na Secretaria para gerenciar as especialidades."
         : !specialtyCatalogLoaded ? "Carregando as especialidades…"
-        : SpecialtyCatalog.Count == 0 ? "Nenhuma especialidade cadastrada. Cadastre a primeira acima: as UBS escolhem dessa lista ao cadastrar profissionais." : "";
+        : SpecialtyCatalog.Count == 0 ? "Nenhuma especialidade cadastrada. Use Nova especialidade para cadastrar a primeira." : "";
 
     private async Task LoadSpecialtyCatalogCoreAsync()
     {
@@ -93,7 +93,12 @@ public sealed partial class WorkspaceViewModel
         await LoadSpecialtyCatalogCoreAsync();
         Say(MessageKind.Success, "Especialidades atualizadas.");
     });
-    public void NewSpecialtyDraft()
+    /// <summary>O quadro só aparece depois de "Nova especialidade" ou "Editar nome da selecionada"; salvar ou cancelar o fecha.</summary>
+    public bool IsSpecialtyFormOpen { get => isSpecialtyFormOpen; private set { if (isSpecialtyFormOpen == value) return; isSpecialtyFormOpen = value; Notify(); } }
+    private bool isSpecialtyFormOpen;
+    public void NewSpecialtyDraft() { ResetSpecialtyDraft(); IsSpecialtyFormOpen = true; }
+    public void CancelSpecialtyForm() { ResetSpecialtyDraft(); IsSpecialtyFormOpen = false; }
+    private void ResetSpecialtyDraft()
     {
         editingSpecialtyId = null; specialtyDraftSubmitted = false; specialtyDraftName = specialtyServerError = "";
         foreach (var name in new[] { nameof(SpecialtyDraftName), nameof(SpecialtyNameError), nameof(SpecialtyDraftTitle), nameof(SpecialtySaveLabel) }) Notify(name);
@@ -101,7 +106,7 @@ public sealed partial class WorkspaceViewModel
     public void EditSelectedSpecialty()
     {
         if (SelectedSpecialty is not { } item) return;
-        NewSpecialtyDraft(); editingSpecialtyId = item.Id; specialtyDraftName = item.Name;
+        ResetSpecialtyDraft(); IsSpecialtyFormOpen = true; editingSpecialtyId = item.Id; specialtyDraftName = item.Name;
         foreach (var name in new[] { nameof(SpecialtyDraftName), nameof(SpecialtyDraftTitle), nameof(SpecialtySaveLabel) }) Notify(name);
     }
     public Task SaveSpecialtyAsync() => RunAsync(async () =>
@@ -113,7 +118,7 @@ public sealed partial class WorkspaceViewModel
         var editing = editingSpecialtyId;
         try { if (editing is { } id) await api.RenameSpecialtyAsync(id, name); else await api.CreateSpecialtyAsync(name); }
         catch (NoraApiException error) when (error.Status == 409) { specialtyServerError = error.Message; Notify(nameof(SpecialtyNameError)); throw; }
-        NewSpecialtyDraft();
+        CancelSpecialtyForm();
         Say(MessageKind.Success, editing is null ? $"Especialidade {name} cadastrada." : $"Especialidade renomeada para {name}.");
         await LoadSpecialtyCatalogCoreAsync();
     });
@@ -135,11 +140,11 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<GoalUnitRow> GoalUnitRows { get; } = [];
     /// <summary>"Toda a rede" ou a UBS que recebe a sobrescrita (mesma lista de UBS dos filtros).</summary>
     public Guid GoalScope { get => goalScope; set { if (goalScope == value) return; goalScope = value; Notify(); RefreshGoalEditors(true); Notify(nameof(GoalScopeLabel)); } }
-    public string GoalScopeLabel => goalScope == Guid.Empty ? "Metas da rede: valem para toda UBS que não tem meta própria." : $"Metas de {Units.FirstOrDefault(unit => unit.Id == goalScope)?.Name ?? "UBS selecionada"}: sobrescrevem a meta da rede só nesta UBS.";
+    public string GoalScopeLabel => goalScope == Guid.Empty ? "Metas da rede: valem para toda UBS sem meta própria." : $"Metas de {Units.FirstOrDefault(unit => unit.Id == goalScope)?.Name ?? "UBS selecionada"}: valem só nesta UBS.";
     public bool CanEditGoals => IsMunicipal && CanOperate;
     public string GoalsState => !IsAuthenticated ? "Entre na Secretaria para definir metas."
         : !goalsLoaded ? "Carregando as metas…"
-        : goals.Length == 0 ? "Nenhuma meta definida ainda: sem meta, os indicadores aparecem como \"Sem meta\"." : "";
+        : goals.Length == 0 ? "Nenhuma meta definida ainda: os indicadores aparecem como \"Sem meta\"." : "";
     public string GoalStatusState => !IsAuthenticated ? "" : metrics is null ? MetricsStateText : GoalUnitRows.Count == 0 ? "Nenhuma UBS neste filtro." : "";
 
     private async Task LoadGoalsCoreAsync(string? changedMetric = null)
@@ -247,7 +252,7 @@ public sealed partial class WorkspaceViewModel
     private void ApplyNetworkScheduling(NetworkMetrics result)
     {
         Replace(NetworkCapacityCards, BuildCapacityCards(result.Capacity, "Horários da grade com início no período"));
-        Replace(CapacityByUnit, result.ByUnit.Select(unit => new CapacityRow(unit.Name, unit.Region, unit.Capacity?.OfferedSlots ?? 0, unit.Capacity?.BookedSlots ?? 0, unit.Capacity?.Occupancy)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
+        Replace(CapacityByUnit, result.ByUnit.Select(unit => new CapacityRow(unit.Name, unit.Region, unit.Capacity?.OfferedSlots ?? 0, unit.Capacity?.BookedSlots ?? 0, unit.Capacity?.Occupancy, unit.UnitId)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         Replace(CapacityByRegion, result.ByRegion.Select(region => new CapacityRow(region.Region, "", region.Capacity?.OfferedSlots ?? 0, region.Capacity?.BookedSlots ?? 0, region.Capacity?.Occupancy)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         static GoalUnitRow Row(string name, IEnumerable<GoalStatus>? statuses) { var cells = GoalCell.ForAll(statuses); return new(name, cells[0], cells[1], cells[2]); }
         Replace(GoalUnitRows, new[] { Row("Toda a rede (no filtro)", result.Goals) }.Concat(result.ByUnit.Select(unit => Row(unit.Name, unit.Goals)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase)).ToArray());
@@ -280,10 +285,10 @@ public sealed partial class WorkspaceViewModel
         : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "Avaliando os alertas…" : "Os alertas ainda não foram avaliados.")
         : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. Use Atualizar alertas para tentar de novo."
         : NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0 ? $"Os alertas deste filtro não foram avaliados: {(networkAlertsSkippedUnits == 1 ? "a UBS ainda não tem" : "nenhuma das UBS tem")} base pronta (leitura das {networkAlertsReadAt:HH:mm})."
-        : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Nenhum critério passou do limite na leitura das {networkAlertsReadAt:HH:mm}.{SkippedUnitsNote}"
+        : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Leitura das {networkAlertsReadAt:HH:mm}.{SkippedUnitsNote}"
         : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}." : "";
     private string SkippedUnitsNote => networkAlertsSkippedUnits switch { 0 => "", 1 => " 1 UBS sem base pronta ficou de fora.", var count => $" {count} UBS sem base pronta ficaram de fora." };
-    public string NetworkAlertsFootnote => NetworkAlerts.Count == 0 ? "" : $"{NetworkAlerts.Count} {(NetworkAlerts.Count == 1 ? "alerta" : "alertas")} · avaliado às {networkAlertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais mostram a situação atual. UBS sem base pronta ficam de fora.";
+    public string NetworkAlertsFootnote => NetworkAlerts.Count == 0 ? "" : $"{NetworkAlerts.Count} {(NetworkAlerts.Count == 1 ? "alerta" : "alertas")} · avaliado às {networkAlertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa. UBS sem base pronta ficam de fora.";
     private bool NetworkAlertsDue => networkAlertsAttemptedAt is null || DateTimeOffset.Now - networkAlertsAttemptedAt >= AlertsRefreshAge;
     private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(NetworkAlertsFootnote), nameof(CanFilterAlerts)];
     private void NotifyNetworkAlerts() { foreach (var name in NetworkAlertNames) Notify(name); }
@@ -393,7 +398,9 @@ public sealed partial class WorkspaceViewModel
         : capacityCatalogFailed ? "Não foi possível ler o cadastro desta UBS agora. Use Ler o cadastro de novo para tentar outra vez."
         : !capacityCatalogLoaded ? "Lendo o cadastro da UBS…"
         : CapacityProfessionals.Count + CapacityRooms.Count + CapacitySchedule.Count == 0 ? "Esta UBS ainda não cadastrou profissionais, consultórios nem grade." : "";
-    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState), nameof(CanReloadCapacityCatalog)];
+    /// <summary>Cadastro da UBS lido com sucesso: só então "nenhum profissional/consultório/horário" é verdade.</summary>
+    public bool CapacityCatalogReady => IsAuthenticated && capacityUnit is { DatabasePending: false } && capacityCatalogLoaded && !capacityCatalogFailed;
+    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogReady), nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState), nameof(CanReloadCapacityCatalog)];
     private void NotifyCapacityCatalog() { foreach (var name in CapacityCatalogNames) Notify(name); }
 
     private async Task LoadCapacityCatalogCoreAsync(HealthUnit unit, CancellationToken cancellation = default)
@@ -449,7 +456,7 @@ public sealed partial class WorkspaceViewModel
 
     private void ClearMunicipalScheduling()
     {
-        specialtyCatalogLoaded = false; SpecialtyCatalog.Clear(); selectedSpecialty = null; NewSpecialtyDraft(); Notify(nameof(SelectedSpecialty)); Notify(nameof(SpecialtyCatalogState));
+        specialtyCatalogLoaded = false; SpecialtyCatalog.Clear(); selectedSpecialty = null; CancelSpecialtyForm(); Notify(nameof(SelectedSpecialty)); Notify(nameof(SpecialtyCatalogState));
         goals = []; goalsLoaded = false; goalScope = Guid.Empty; RefreshGoalEditors(true); Notify(nameof(GoalScope)); Notify(nameof(GoalsState)); Notify(nameof(GoalScopeLabel));
         ClearNetworkScheduling(); ClearNetworkAlerts();
         Interlocked.Exchange(ref capacityCatalogCts, null)?.Cancel(); capacityCatalogVersion++; capacityUnit = null; Notify(nameof(CapacityUnit)); ClearCapacityCatalogData();

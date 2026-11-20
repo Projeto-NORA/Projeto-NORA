@@ -116,7 +116,7 @@ class EmailControllerTest {
         controller.sendEmailCode()
         assertFalse(controller.confirmEmailCode("123456"))
         assertEquals(suggestion, controller.state.email.suggestion)
-        assertEquals("Este e-mail já é usado por outra conta do NORA, então nada foi trocado. Procure a equipe da UBS.", controller.state.message)
+        assertEquals("Este e-mail já é usado por outra conta do NORA e nada foi trocado. Procure a equipe da UBS.", controller.state.message)
     }
 
     @Test fun withoutMailConfiguredTheServerAnswers503AndTheMessageIsSpecific() = runBlocking {
@@ -131,7 +131,7 @@ class EmailControllerTest {
         val api = FamilyFakeApi().apply { sendFailure = failure(429, "too-many-requests", ApiContext.EMAIL_CHANGE) }
         val controller = withSuggestion(api)
         controller.sendEmailCode()
-        assertTrue(controller.state.message.orEmpty().startsWith("Muitos pedidos de código para este e-mail"))
+        assertTrue(controller.state.message.orEmpty().startsWith("Muitos pedidos de código"))
     }
 
     @Test fun aSuggestionThatNoLongerExistsDisappears() = runBlocking {

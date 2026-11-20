@@ -41,7 +41,7 @@ internal static partial class Program
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-chamar-proximo-inicio-light.png"), 1280, 900);
                 content = Layout(window, 1280, 2600);
                 Click(window, content, "Buscar horários livres", 1280, 2600);
-                Require(vm.CallNextSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Buscando horários livres…", true), ("Conferindo o 1º da fila…", true)]) && vm.CallNextSlots.Count == 2, "A busca deveria acumular os dois passos concluídos e listar os dois horários.");
+                Require(vm.CallNextSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Horários livres encontrados", true), ("1º da fila conferido", true)]) && vm.CallNextSlots.Count == 2, "A busca deveria acumular os dois passos concluídos e listar os dois horários.");
                 Require(vm.CallNextPreviewText.StartsWith("1º da fila que pode receber: Maria S. (desde ", StringComparison.Ordinal) && !vm.CanCallNextOffer, "A prévia deveria mostrar o 1º da fila em nome abreviado, e sem horário escolhido não se oferece: " + vm.CallNextPreviewText);
                 Require(fixture.AvailabilityQueries.Count(item => item.Unit == unit.Id && item.Query["specialtyId"] == cardio.Id.ToString()) >= 1 && fixture.AvailabilityQueries[^1].Query["professionalId"] is null, "A busca deveria pedir os horários da especialidade, de qualquer profissional.");
                 var grid = GridNamed(content, "Horários livres para o Chamar próximo");
@@ -54,7 +54,7 @@ internal static partial class Program
                 Click(window, content, "Oferecer ao 1º da fila", 1280, 2600);
                 Require(asked.Count == 1 && fixture.CallNextBodies.Count == 1 && fixture.CallNextBodies[0].GetProperty("confirmed").GetBoolean() && fixture.CallNextBodies[0].GetProperty("professionalId").GetGuid() == ana.Id, "Oferecer deveria pedir confirmação e enviar o horário, o profissional e confirmed.");
                 Require(vm.MessageKind == MessageKind.Success && vm.Message.StartsWith("Horário oferecido a Maria S. até ", StringComparison.Ordinal) && vm.Message.EndsWith("Se ela recusar ou não responder, continua na fila na mesma posição e o horário segue sozinho para os próximos.", StringComparison.Ordinal), "A mensagem de sucesso está errada: " + vm.Message);
-                Require(vm.CallNextSteps.Any(step => step is { Text: "Oferecendo o horário…", IsDone: true }) && vm.CallNextSteps.Last() is { Text: "Conferindo o 1º da fila…", IsDone: true } && vm.CallNextSlots.Count == 1 && vm.CallNextSlot is null, "O passo de oferecer deveria ficar concluído e o horário sair da lista.");
+                Require(vm.CallNextSteps.Any(step => step is { Text: "Horário oferecido", IsDone: true }) && vm.CallNextSteps.Last() is { Text: "1º da fila conferido", IsDone: true } && vm.CallNextSlots.Count == 1 && vm.CallNextSlot is null, "O passo de oferecer deveria ficar concluído e o horário sair da lista.");
                 Require(vm.UnitWaitingList.Single(item => item.PatientName == "Maria Souza").Status == "offered" && vm.UnitLightningSlots.Single() is { Origin: "call-next", OriginDisplay: "Chamar próximo", AppointmentId: null, Status: "offered" }, "A fila e as vagas deveriam refletir a oferta do Chamar próximo.");
                 Require(vm.CallNextPreviewText.Contains("João L.", StringComparison.Ordinal), "A prévia deveria passar a mostrar o próximo da fila: " + vm.CallNextPreviewText);
                 // A coluna Origem da lista de vagas mostra Chamar próximo.
@@ -216,7 +216,7 @@ internal static partial class Program
                 fixture.FailCatalogUnits.Clear();
                 var reads = fixture.Count("GET", "/professionals");
                 Click(window, content, "Reler a grade", 1280, 2600);
-                Require(fixture.Count("GET", "/professionals") == reads + 1 && !vm.CanRetryCallNextCatalog && vm.CallNextSpecialties.Count == 1 && vm.CallNextSteps.Single() is { Text: "Lendo a grade da UBS…", IsDone: true }, "O botão deveria refazer a leitura da grade e liberar as especialidades: " + vm.CallNextState);
+                Require(fixture.Count("GET", "/professionals") == reads + 1 && !vm.CanRetryCallNextCatalog && vm.CallNextSpecialties.Count == 1 && vm.CallNextSteps.Single() is { Text: "Grade da UBS lida", IsDone: true }, "O botão deveria refazer a leitura da grade e liberar as especialidades: " + vm.CallNextState);
                 vm.CallNextSpecialty = vm.CallNextSpecialties.Single();
                 Require(vm.CanCallNextSearch && !Descendants<Button>(Layout(window, 1280, 2600)).Any(button => button.IsVisible && button.Content?.ToString() == "Reler a grade"), "Com a grade lida a busca fica habilitada e o botão de reler some.");
             }

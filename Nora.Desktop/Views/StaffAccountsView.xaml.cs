@@ -31,7 +31,7 @@ public partial class StaffAccountsView : UserControl
         if (DataContext is not WorkspaceViewModel { SelectedStaff: { } staff, CanChangeStaffActive: true } vm) return;
         var question = staff.IsActive
             ? $"Desativar a conta de {staff.FullName}? As sessões abertas serão encerradas e a pessoa não poderá entrar. As concessões de UBS são preservadas."
-            : $"Reativar a conta de {staff.FullName}? A pessoa volta a poder entrar com a senha atual, e as concessões de UBS preservadas voltam a valer.";
+            : $"Reativar a conta de {staff.FullName}? A pessoa volta a poder entrar com a senha atual.";
         if (!Confirmation.Ask(Window.GetWindow(this), staff.IsActive ? "Confirmar desativação" : "Confirmar reativação", question)) return;
         await vm.ChangeStaffActiveAsync();
     }

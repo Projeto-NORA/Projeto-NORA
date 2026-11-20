@@ -41,7 +41,7 @@ public sealed partial class WorkspaceViewModel
     public string ActiveRoomsHint => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : activeRooms is null ? (activeRoomsFailed ? "Não foi possível ler os consultórios agora." : "Aguardando a leitura dos consultórios")
         : activeRoomsFailed ? "A última leitura não concluiu; estes são os números da leitura anterior."
-        : "Em atendimento: consulta chamada hoje. Com grade: horário previsto hoje.";
+        : "Em atendimento: chamada hoje. Com grade: previsto hoje.";
 
     // ---- Painel: capacidade dos próximos 7 dias ----
 
@@ -51,8 +51,8 @@ public sealed partial class WorkspaceViewModel
     public string PanelCapacityHint => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : panelCapacity is null ? (capacityFailed ? "Não foi possível ler a capacidade agora." : "Aguardando a leitura da capacidade")
         : capacityFailed ? "A última leitura não concluiu; estes são os números da leitura anterior."
-        : panelCapacity.OfferedSlots == 0 ? "Nenhum horário ofertado nos próximos 7 dias: a grade da UBS está vazia ou tudo está bloqueado."
-        : "Horários da grade de hoje até daqui a 7 dias. Ocupado é o horário com consulta marcada.";
+        : panelCapacity.OfferedSlots == 0 ? "Nenhum horário ofertado nos próximos 7 dias."
+        : "Horários da grade dos próximos 7 dias; ocupado tem consulta marcada.";
 
     // ---- Alertas ----
 
@@ -62,11 +62,11 @@ public sealed partial class WorkspaceViewModel
         : alertsReadAt is null ? "Avaliando os alertas…"
         : UnitAlerts.Count == 0 && unitAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {alertsReadAt:HH:mm}, não havia alerta. Use Atualizar alertas para tentar de novo."
         : UnitAlerts.Count > 0 && unitAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {alertsReadAt:HH:mm}."
-        : UnitAlerts.Count == 0 ? $"Nenhum alerta. Nenhum critério (fila alta, espera longa, faltas, ocupação da grade e metas) passou do limite na leitura das {alertsReadAt:HH:mm}."
+        : UnitAlerts.Count == 0 ? $"Nenhum alerta. Nenhum critério passou do limite na leitura das {alertsReadAt:HH:mm}."
         : "";
     /// <summary>Só uma avaliação concluída e sem alerta mostra o ícone verde; falha ou carregamento nunca viram "tudo certo".</summary>
     public bool UnitAlertsAllClear => IsAuthenticated && HasActiveObsUnit && alertsReadAt is not null && UnitAlerts.Count == 0 && !unitAlertsFailed;
-    public string UnitAlertsFootnote => UnitAlerts.Count == 0 ? "" : $"Avaliado às {alertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais alertas mostram a situação atual.";
+    public string UnitAlertsFootnote => UnitAlerts.Count == 0 ? "" : $"Avaliado às {alertsReadAt:HH:mm}.";
     public bool HasUnitAlerts => UnitAlerts.Count > 0;
     public string PanelAlertsTitle => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : alertsReadAt is null ? (unitAlertsFailed ? "Alertas indisponíveis agora" : "Avaliando os alertas…")
@@ -75,7 +75,7 @@ public sealed partial class WorkspaceViewModel
         : alertsReadAt is null ? (unitAlertsFailed ? "Não foi possível avaliar os alertas agora." : "")
         : UnitAlerts.Count == 0 ? (unitAlertsFailed ? $"A última avaliação não concluiu; na avaliação anterior, das {alertsReadAt:HH:mm}, não havia alerta." : $"Nenhum critério passou do limite na leitura das {alertsReadAt:HH:mm}.")
         : unitAlertsFailed ? "A última avaliação não concluiu; estes são os alertas da avaliação anterior."
-        : UnitAlerts.Count > UnitAlertPreview.Count ? "Os primeiros alertas da avaliação; veja todos na central de alertas:" : "Alertas da avaliação da API:";
+        : UnitAlerts.Count > UnitAlertPreview.Count ? "Primeiros alertas; veja todos na central de alertas:" : "Alertas de agora:";
 
     private static readonly string[] SchedulingNames =
     [

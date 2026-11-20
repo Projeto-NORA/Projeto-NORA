@@ -420,7 +420,7 @@ private fun familyState(vararg links: FamilyLink, actingFor: String? = null, mes
 @Composable
 fun FamilyListLight() = PlainScreen(Appearance.LIGHT) {
     FamilyScreen(familyState(pendingLink, mariaLink, rejectedLink,
-        message = "Pedido enviado. A equipe da UBS vai conferir os documentos e a resposta aparece aqui."), initialCatalog = catalogFixture)
+        message = "Pedido enviado. A UBS confere os documentos antes de aprovar; a resposta aparece aqui."), initialCatalog = catalogFixture)
 }
 
 @PreviewTest
@@ -524,7 +524,7 @@ fun UnitAboutNotInformedDark() = PlainScreen(Appearance.DARK) {
 @Composable
 fun UnitAboutLoadingAndErrorLight() = PlainScreen(Appearance.LIGHT) {
     UnitAboutCard(centro.name, AboutState(loading = true), onRetry = {}, today = 1)
-    UnitAboutCard(norte.name, AboutState(error = "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."), onRetry = {}, today = 1)
+    UnitAboutCard(norte.name, AboutState(error = failureMessage(503, null, ApiContext.ABOUT, unitName = norte.name)), onRetry = {}, today = 1)
 }
 
 @PreviewTest
@@ -814,7 +814,7 @@ fun JourneyEmptyDarkThemePair() = PlainScreen(Appearance.LIGHT) {
 @Composable
 fun FamilyListLightThemePair() = PlainScreen(Appearance.DARK) {
     FamilyScreen(familyState(pendingLink, mariaLink, rejectedLink,
-        message = "Pedido enviado. A equipe da UBS vai conferir os documentos e a resposta aparece aqui."), initialCatalog = catalogFixture)
+        message = "Pedido enviado. A UBS confere os documentos antes de aprovar; a resposta aparece aqui."), initialCatalog = catalogFixture)
 }
 
 @PreviewTest
@@ -883,7 +883,7 @@ fun UnitAboutNotInformedDarkThemePair() = PlainScreen(Appearance.LIGHT) {
 @Composable
 fun UnitAboutLoadingAndErrorLightThemePair() = PlainScreen(Appearance.DARK) {
     UnitAboutCard(centro.name, AboutState(loading = true), onRetry = {}, today = 1)
-    UnitAboutCard(norte.name, AboutState(error = "A base de uma UBS está temporariamente indisponível. Tente novamente em instantes."), onRetry = {}, today = 1)
+    UnitAboutCard(norte.name, AboutState(error = failureMessage(503, null, ApiContext.ABOUT, unitName = norte.name)), onRetry = {}, today = 1)
 }
 
 @PreviewTest

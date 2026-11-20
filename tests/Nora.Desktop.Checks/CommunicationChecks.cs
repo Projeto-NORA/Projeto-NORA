@@ -52,6 +52,12 @@ internal static partial class Program
                 Require(vm.AnnouncementPreviewTitle == typedTitle && vm.AnnouncementPreviewBody == typedBody && vm.AnnouncementPreviewMeta == "Para Equipes (OBS) · toda a rede · sem validade", "A pré-visualização deveria mostrar o texto puro como digitado: " + vm.AnnouncementPreviewMeta);
                 content = Layout(window, 1280, 2600);
                 Require(Descendants<TextBlock>(content).Any(text => text.IsVisible && AutomationProperties.GetName(text) == "Texto na pré-visualização" && text.Text == typedBody && ((SolidColorBrush)text.Foreground).Color == ((SolidColorBrush)Application.Current.FindResource("TextBrush")).Color), "A pré-visualização deveria exibir o texto como texto puro, no tema.");
+                // Janela mínima com a barra lateral no máximo: o cartão do formulário encolhe em vez de ser cortado.
+                var sidebar = window.ViewModel.SidebarWidth; window.ViewModel.SidebarWidth = 380; content = Layout(window, 980, 2600);
+                var card = Descendants<Border>(content).First(border => border.IsVisible && AutomationProperties.GetName(border) == "Novo comunicado");
+                var scroll = Descendants<ScrollViewer>(content).First(viewer => viewer.Name == "PageScroll");
+                Require(card.TranslatePoint(new Point(card.ActualWidth, 0), scroll).X <= scroll.ViewportWidth + 1, "O cartão Novo comunicado passa da área visível na janela mínima.");
+                window.ViewModel.SidebarWidth = sidebar; content = Layout(window, 1280, 2600);
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-comunicacao-light.png"), 1280, 900);
                 Click(window, content, "Publicar comunicado", 1280, 2600);
                 Require(asked.Count == 1 && asked[0].Title == "Publicar comunicado" && asked[0].Text.Contains("Mutirão de vacinação") && asked[0].Text.Contains("Para Equipes (OBS) · toda a rede") && fixture.Count("POST", "/api/municipal/announcements") == 0, "A publicação deveria pedir confirmação com o resumo, e recusar não publica.");

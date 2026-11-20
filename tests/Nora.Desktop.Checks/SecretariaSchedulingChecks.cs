@@ -28,11 +28,14 @@ internal static partial class Program
                 var content = Show(window, "specialties", 1280, 2400);
                 Require(fixture.Count("GET", "/specialties") == 1 && vm.SpecialtyCatalogState.StartsWith("Nenhuma especialidade cadastrada", StringComparison.Ordinal) && FullTexts(content).Contains(vm.SpecialtyCatalogState), "Entrar na seção deveria ler a lista uma vez e explicar a lista vazia.");
                 Require(Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Indicadores por especialidade") && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Lista de especialidades"), "A seção deveria ter a lista da rede e a tabela de demanda.");
+                Require(!vm.IsSpecialtyFormOpen && !FullTexts(content).Contains("Nome da especialidade (2 a 120 caracteres)"), "O quadro da especialidade deveria começar fechado.");
+                vm.NewSpecialtyDraft(); content = Layout(window, 1280, 2400);
+                Require(vm.IsSpecialtyFormOpen && FullTexts(content).Contains("Nome da especialidade (2 a 120 caracteres)"), "Nova especialidade não abriu o quadro.");
                 vm.SpecialtyDraftName = "A"; Pump(vm.SaveSpecialtyAsync());
                 Require(vm.SpecialtyNameError.Contains("2 a 120") && fixture.Count("POST", "/specialties") == 0, "Nome curto demais foi enviado.");
                 vm.SpecialtyDraftName = "  Cardiologia   "; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyCatalog.Single() is { Name: "Cardiologia", IsActive: true } && vm.SpecialtyDraftName == "" && vm.MessageKind == MessageKind.Success, "A especialidade não foi criada (espaços sobrando deveriam sair): " + vm.Message);
-                vm.SpecialtyDraftName = "cardiología"; Pump(vm.SaveSpecialtyAsync());
+                Require(vm.SpecialtyCatalog.Single() is { Name: "Cardiologia", IsActive: true } && vm.SpecialtyDraftName == "" && !vm.IsSpecialtyFormOpen && vm.MessageKind == MessageKind.Success, "A especialidade não foi criada (espaços sobrando deveriam sair) ou o quadro não fechou: " + vm.Message);
+                vm.NewSpecialtyDraft(); vm.SpecialtyDraftName = "cardiología"; Pump(vm.SaveSpecialtyAsync());
                 Require(vm.SpecialtyNameError.Contains("Já existe") && vm.SpecialtyCatalog.Count == 1 && vm.MessageKind == MessageKind.Error, "O nome duplicado (409) deveria aparecer no campo: " + vm.SpecialtyNameError);
                 content = Layout(window, 1280, 2400); Require(FullTexts(content).Contains(vm.SpecialtyNameError), "O aviso de nome duplicado não aparece no campo.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-especialidades-duplicada-light.png"), 1280, 900);

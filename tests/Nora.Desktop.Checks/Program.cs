@@ -173,7 +173,8 @@ internal static partial class Program
 
     private static void Check(string name, Action action)
     {
-        if (checkFilter != null && !name.Contains(checkFilter, StringComparison.OrdinalIgnoreCase)) return;
+        // "--check-filter a|b" roda as verificações cujo nome contém qualquer um dos trechos (útil para achar dependência de ordem).
+        if (checkFilter != null && !checkFilter.Split('|').Any(part => name.Contains(part, StringComparison.OrdinalIgnoreCase))) return;
         checks++;
         try { action(); Console.WriteLine($"PASS {name}"); }
         catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}: {error.Message}"); }

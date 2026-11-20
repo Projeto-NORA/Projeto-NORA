@@ -25,7 +25,7 @@ import com.example.app_nora.api.weekdayOf
 
 /**
  * Atendimento de uma UBS vinculada: horário de funcionamento por dia (o de hoje marcado em texto), serviços e especialidades que têm
- * horário na grade. [today] é o dia da semana do aparelho (domingo = 0). Carregando mostra o passo; falha, "Tentar de novo".
+ * horário na grade. [today] é o dia da semana do aparelho (domingo = 0). Carregando mostra o passo; falha, "Tentar novamente".
  */
 @Composable
 internal fun UnitAboutCard(unitName: String, about: AboutState?, onRetry: () -> Unit, today: Int = weekdayOf(System.currentTimeMillis())) {
@@ -33,12 +33,12 @@ internal fun UnitAboutCard(unitName: String, about: AboutState?, onRetry: () -> 
         val profile = about?.profile
         when {
             about?.error != null -> {
-                Text(about.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                TextButton(onClick = onRetry) { Text("Tentar de novo") }
+                ErrorNotice(about.error)
+                RetryButton(onClick = onRetry)
             }
-            profile == null -> BusyLine("Carregando o atendimento da UBS…")
+            profile == null -> BusyLine("Carregando o atendimento…")
             else -> {
-                if (about.loading) BusyLine("Atualizando o atendimento da UBS…")
+                if (about.loading) BusyLine("Atualizando o atendimento…")
                 UnitProfileSections(profile, today)
             }
         }
@@ -49,22 +49,23 @@ internal fun UnitAboutCard(unitName: String, about: AboutState?, onRetry: () -> 
 @Composable
 private fun UnitProfileSections(profile: UnitProfile, today: Int) {
     Text("Horário de funcionamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-    if (!profile.informed) MutedText("Horário não informado pela UBS")
+    if (!profile.informed) MutedText("Horário não informado")
     else aboutDays(profile).forEach { day ->
         val isToday = day.weekday == today
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (isToday) "${day.label} · hoje" else day.label, Modifier.weight(1f), fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+        // O nome do dia ocupa o que precisa, mas quebra em vez de cortar (fonte ampliada); o horário usa o resto, alinhado à direita.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(if (isToday) "${day.label} · hoje" else day.label, Modifier.weight(1f, fill = false).padding(end = 12.dp), fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                 color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-            Text(day.text, Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+            Text(day.text.replace(" · ", "\n"), textAlign = TextAlign.End, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                 color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     Text("Serviços", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
     // Texto puro, com as quebras de linha como a UBS escreveu.
-    MutedText(aboutServices(profile) ?: "A UBS ainda não informou os serviços")
+    MutedText(aboutServices(profile) ?: "Serviços não informados")
     Text("Especialidades", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
     val specialties = aboutSpecialties(profile)
-    if (specialties.isEmpty()) MutedText("Sem especialidades com horário na grade")
+    if (specialties.isEmpty()) MutedText("Nenhuma especialidade com horário aberto")
     else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         specialties.forEach { name ->
             // Rótulo, não botão: a especialidade só informa.

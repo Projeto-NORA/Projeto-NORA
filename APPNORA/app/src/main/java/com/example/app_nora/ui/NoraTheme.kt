@@ -6,6 +6,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -39,6 +43,32 @@ private val Dark = darkColorScheme(
     error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
 )
 
+/**
+ * Cores de estado que o Material não traz: sucesso (deu certo, concluído) e atenção (espera alguém, precisa de olhar). Cada uma tem o
+ * tom forte (marca, texto sobre o fundo da tela) e o par container/conteúdo das etiquetas. A cor nunca é a única pista: as etiquetas
+ * sempre levam marca e texto ([StatusTag]).
+ */
+@Immutable
+class StatusColors(
+    val success: Color, val successContainer: Color, val onSuccessContainer: Color,
+    val warning: Color, val warningContainer: Color, val onWarningContainer: Color,
+)
+
+private val LightStatus = StatusColors(
+    success = Color(0xFF1E6B3A), successContainer = Color(0xFFDDF4E3), onSuccessContainer = Color(0xFF0C3A1B),
+    warning = Color(0xFF8A5100), warningContainer = Color(0xFFFFEBC2), onWarningContainer = Color(0xFF4A2B00),
+)
+private val DarkStatus = StatusColors(
+    success = Color(0xFF7FD79A), successContainer = Color(0xFF17472B), onSuccessContainer = Color(0xFFD6F5E0),
+    warning = Color(0xFFF0B95A), warningContainer = Color(0xFF5A3B00), onWarningContainer = Color(0xFFFFE8BF),
+)
+
+private val LocalStatusColors = staticCompositionLocalOf { LightStatus }
+
+/** As cores de sucesso e atenção do tema atual (claro ou escuro). */
+val MaterialTheme.statusColors: StatusColors
+    @Composable @ReadOnlyComposable get() = LocalStatusColors.current
+
 @Composable
 fun NoraTheme(appearance: Appearance, content: @Composable () -> Unit) {
     val dark = appearance.isDark(isSystemInDarkTheme())
@@ -51,5 +81,7 @@ fun NoraTheme(appearance: Appearance, content: @Composable () -> Unit) {
             }
         }
     }
-    MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    MaterialTheme(colorScheme = if (dark) Dark else Light) {
+        CompositionLocalProvider(LocalStatusColors provides if (dark) DarkStatus else LightStatus, content = content)
+    }
 }

@@ -177,7 +177,7 @@ internal static partial class Program
                 foreach (var status in new[] { "scheduled", "called", "completed", "missed", "cancelled" }) fixture.AddAppointment(unit.Id, status, noon);
                 vm.RefreshCommand.Execute(null); Settle(vm);
                 Require(vm.TodayScheduledCount == "2" && vm.TodayCompletedCount == "1" && vm.TodayMissedCount == "1" && vm.TodayCancelledCount == "1", "Painel não refletiu situações das consultas do dia.");
-                Require(vm.MessageKind == MessageKind.Success && vm.Message == "Dados atualizados pela API.", "Atualização manual não confirmou o resultado.");
+                Require(vm.MessageKind == MessageKind.Success && vm.Message.StartsWith("Números atualizados às ", StringComparison.Ordinal), "Atualização manual não confirmou o resultado.");
                 vm.ObsRegistryName = "Paciente Sintético"; vm.ObsRegistryCpf = "529.982.247-25"; vm.ObsRegistryEmail = "patient@example.test"; vm.ObsRegistryPhone = "48999990028";
                 vm.ObsRegistryCep = "01001-000"; Pump(vm.LookupObsRegistryCepAsync()); vm.ObsRegistryNumber = "10";
                 Pump(vm.CreateObsRegistryAsync());

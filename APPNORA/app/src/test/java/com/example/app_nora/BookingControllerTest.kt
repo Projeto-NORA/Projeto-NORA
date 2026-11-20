@@ -230,8 +230,8 @@ class BookingControllerTest {
         controller.loadAvailability(cardiology.id, 0)
         val expected = mapOf(
             BOOKING_WINDOW to "Esse horário já começou ou passou. Escolha outro horário.",
-            SPECIALTY_LIMIT to "Você já tem uma consulta futura marcada pelo app nesta especialidade, em alguma das suas UBS. " +
-                "Cancele essa consulta ou aguarde a data dela para marcar outra.",
+            SPECIALTY_LIMIT to "Você já tem uma consulta futura marcada pelo aplicativo nesta especialidade em alguma das suas UBS. " +
+                "Cancele essa ou aguarde a data dela.",
             PATIENT_OVERLAP to "Você já tem uma consulta neste mesmo horário. Escolha outro horário.")
         for ((code, text) in expected) {
             api.bookFailure = failure(409, code, ApiContext.BOOKING)
@@ -285,7 +285,7 @@ class BookingControllerTest {
         val controller = ready(api, unitA)
         controller.loadAvailability(cardiology.id, 0)
         controller.bookAppointment(chosen)
-        assertEquals("Não foi possível conferir suas consultas em todas as suas UBS agora. Tente marcar novamente em instantes.", controller.state.message)
+        assertEquals("Não foi possível conferir suas consultas em todas as UBS. Tente marcar em instantes.", controller.state.message)
         assertEquals(listOf(chosen), controller.state.availability?.slots)
     }
 
@@ -344,7 +344,7 @@ class BookingControllerTest {
         api.appointments = listOf(appointment("a1", day, "cancelled"))
         api.confirmFailure = failure(409, "conflict", ApiContext.CONFIRMATION)
         controller.confirmPresence(unitA.id, "a1")
-        assertTrue(controller.state.message.orEmpty().startsWith("Esta consulta já foi alterada pela unidade"))
+        assertTrue(controller.state.message.orEmpty().startsWith("A unidade alterou esta consulta"))
         assertEquals("cancelled", controller.state.appointments?.single()?.status)
         // Já cancelada na tela: nem tenta de novo.
         val calls = api.confirmCalls

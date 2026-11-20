@@ -60,7 +60,7 @@ class FamilyControllerTest {
         assertTrue(controller.requestDependent(validCpf, "unit-a"))
         assertEquals(listOf("52998224725" to "unit-a"), api.requested)
         assertEquals(listOf("new", "old"), controller.state.family.links?.map { it.id })
-        assertTrue(controller.state.message.orEmpty().contains("equipe da UBS"))
+        assertTrue(controller.state.message.orEmpty().contains("UBS confere os documentos"))
         assertNull(controller.state.family.links?.first()?.dependentName)
     }
 
@@ -76,7 +76,7 @@ class FamilyControllerTest {
         refuse(409, FAMILY_LINK_EXISTS, "Você já tem um pedido pendente ou um vínculo aprovado com esta pessoa nesta UBS.")
         refuse(409, FAMILY_LINK_LIMIT, "Você chegou ao limite de 20 pedidos e vínculos ativos. Encerre algum antes de pedir outro.")
         refuse(400, "invalid-input", "Confira o CPF e a UBS. Você não pode pedir vínculo com o seu próprio CPF.")
-        refuse(429, "too-many-requests", "Muitos pedidos de vínculo em pouco tempo. Aguarde alguns minutos e tente novamente.")
+        refuse(429, "too-many-requests", "Muitos pedidos de vínculo. Aguarde alguns minutos e tente novamente.")
     }
 
     // ---- Estados -----------------------------------------------------------------------------------------------

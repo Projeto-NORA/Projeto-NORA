@@ -22,10 +22,10 @@ public sealed partial class WorkspaceViewModel
     public bool ObsUnitSelectionOpen { get => obsUnitSelectionOpen; set { obsUnitSelectionOpen = value; Notify(); } }
     /// <summary>Orientação do seletor: explica o que falta para ter uma UBS ativa (nenhuma concedida, várias a escolher, lista ainda não lida).</summary>
     public string ObsUnitPrompt => !IsAuthenticated || !IsOperational || HasActiveObsUnit ? ""
-        : !obsUnitsLoaded ? "As UBS autorizadas ainda não foram carregadas. Use Atualizar lista de UBS."
-        : ObsUnits.Count == 0 ? "Nenhuma UBS autorizada para esta conta. A Secretaria precisa conceder acesso a uma UBS (aba Usuários e histórico da gestão)."
-        : ObsUnits.Count == 1 ? "Confirme a UBS para carregar os dados da operação."
-        : $"Esta conta tem acesso a {ObsUnits.Count} UBS. Escolha a unidade e confirme para carregar os dados da operação.";
+        : !obsUnitsLoaded ? "Use Atualizar lista de UBS para carregar as UBS autorizadas."
+        : ObsUnits.Count == 0 ? "Nenhuma UBS autorizada para esta conta. A Secretaria concede acesso em Usuários e histórico."
+        : ObsUnits.Count == 1 ? "Confirme a UBS para carregar os dados."
+        : $"Esta conta tem acesso a {ObsUnits.Count} UBS. Escolha uma e confirme.";
     public bool NeedsObsUnitChoice => IsAuthenticated && IsOperational && !HasActiveObsUnit;
     public bool CanConfirmObsUnit => CanOperate && CandidateObsUnit is not null;
     public void SuggestClosestObsUnit(double latitude, double longitude)
@@ -39,7 +39,7 @@ public sealed partial class WorkspaceViewModel
             return Math.Asin(Math.Sqrt(Math.Clamp(a, 0, 1)));
         }
         CandidateObsUnit = ObsUnits.OrderBy(unit => Distance(unit, latitude, longitude)).ThenBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).First();
-        Say(MessageKind.Info, "UBS autorizada mais próxima sugerida. Confira e confirme a escolha.");
+        Say(MessageKind.Info, "UBS mais próxima sugerida. Confira e confirme.");
     }
     public ObservableCollection<UnitPatientRecord> ObsRegistry { get; } = [];
     public string ObsRegistrySearch { get => obsRegistrySearch; set { obsRegistrySearch = value; Notify(); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); } }
@@ -181,7 +181,7 @@ public sealed partial class WorkspaceViewModel
         var unit = CandidateObsUnit ?? throw new NoraApiException("Selecione uma UBS autorizada.");
         await ActivateUnitAsync(unit);
         if (disposed || ActiveObsUnit?.Id != unit.Id) return;
-        Say(MessageKind.Success, $"UBS {unit.Name} confirmada. Cadastro, fila, vagas e agenda carregados.");
+        Say(MessageKind.Success, $"{(unit.Name.StartsWith("UBS", StringComparison.OrdinalIgnoreCase) ? "" : "UBS ")}{unit.Name} confirmada.");
     });
 
     public Task LoadObsRegistryAsync() => RunAsync(async () =>
@@ -211,7 +211,7 @@ public sealed partial class WorkspaceViewModel
         else await api.UpdateObsRegistryAsync(unit.Id, name, editing, email, phone, address);
         ClearObsRegistryDraft();
         await ReloadAfterChangeAsync(unit, UnitScope.Registry,
-            editing is null ? "Paciente cadastrado na UBS. Ele poderá criar a conta no aplicativo." : "Cadastro atualizado nesta UBS.");
+            editing is null ? "Paciente cadastrado na UBS." : "Cadastro atualizado nesta UBS.");
     });
 
     public Task UpdateObsRegistryEmailAsync() => RunAsync(async () =>

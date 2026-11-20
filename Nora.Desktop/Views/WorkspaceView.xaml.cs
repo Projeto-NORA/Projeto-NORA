@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Nora.Desktop.Services;
 using Nora.Desktop.ViewModels;
 
 namespace Nora.Desktop.Views;
@@ -20,7 +21,14 @@ public partial class WorkspaceView : UserControl
     {
         Unobserve();
         observed = DataContext as WorkspaceViewModel;
-        if (observed != null) observed.PropertyChanged += OnWorkspaceChanged;
+        if (observed != null) { observed.PropertyChanged += OnWorkspaceChanged; ShowServerWhenMissing(); }
+    }
+    /// <summary>O endereço do servidor só fica à vista quando ainda não há um válido; com endereço já definido o bloco continua recolhido.</summary>
+    private void ShowServerWhenMissing()
+    {
+        if (observed == null) return;
+        try { NoraApiClient.ValidateEndpoint(observed.Endpoint ?? ""); }
+        catch (NoraApiException) { ServerExpander.IsExpanded = true; }
     }
     private void Unobserve() { if (observed != null) observed.PropertyChanged -= OnWorkspaceChanged; observed = null; }
     private void OnWorkspaceChanged(object? sender, PropertyChangedEventArgs args)
@@ -30,9 +38,11 @@ public partial class WorkspaceView : UserControl
     private async void OnLogin(object sender, RoutedEventArgs args)
     {
         if (DataContext is not WorkspaceViewModel vm || !vm.CanLogin) return;
+        ShowServerWhenMissing();
         var password = LoginPassword.Password;
         LoginPassword.Clear();
         await vm.LoginAsync(password);
+        if (!vm.IsAuthenticated && vm.Message.Contains("Servidor (avançado)")) ServerExpander.IsExpanded = true;
     }
     private async void OnActivate(object sender, RoutedEventArgs args)
     {

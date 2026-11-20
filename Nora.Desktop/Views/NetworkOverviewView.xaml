@@ -10,15 +10,15 @@
     <views:ScoreNoteView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Evolução" FontSize="18" FontWeight="SemiBold" />
-        <TextBlock Text="Consultas por dia, pela data marcada: concluídas, faltas e canceladas." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
+        <TextBlock Text="Evolução no período" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="Pela data marcada." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
         <views:EvolutionChartView Data="{Binding NetworkChart}" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Ainda sem dados" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="A aprovação da equipe libera a vaga reaproveitada para oferta, e o aceite da oferta não confirma o atendimento; a taxa de reaproveitamento ainda não é calculada nem simulada. Os cartões de aprovação estão na aba Vaga Relâmpago, a capacidade das agendas na aba Capacidade e as metas em Relatórios e metas." />
+        <TextBlock Text="O que ainda não é medido" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" Text="O aceite da oferta não confirma o atendimento, e a taxa de reaproveitamento ainda não é calculada. Aprovação fica na aba Vaga Relâmpago, capacidade na aba Capacidade e metas em Relatórios e metas." />
       </StackPanel>
     </Border>
   </StackPanel>

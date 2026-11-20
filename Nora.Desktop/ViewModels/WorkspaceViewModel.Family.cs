@@ -32,12 +32,12 @@ public sealed partial class WorkspaceViewModel
     public string FamilyPendingState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os pedidos de família."
         : !familyPendingLoaded ? (familyPendingFailed ? "Não foi possível ler os pedidos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os pedidos…")
         : familyPendingFailed ? "A última leitura não concluiu; estes são os pedidos da leitura anterior."
-        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Decida estes e use Atualizar pedidos para ver os seguintes."
+        : familyPendingTruncated ? $"Lista parcial: mostrando os {FamilyPending.Count} mais antigos. Decida estes e use Atualizar pedidos para ver os seguintes."
         : FamilyPending.Count == 0 ? "Nenhum pedido aguardando decisão nesta UBS." : "";
     public string FamilyApprovedState => !HasActiveObsUnit ? ""
         : !familyApprovedLoaded ? (familyApprovedFailed ? "Não foi possível ler os vínculos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os vínculos…")
         : familyApprovedFailed ? "A última leitura não concluiu; estes são os vínculos da leitura anterior."
-        : familyApprovedTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyApproved.Count} mais antigos; os mais novos não aparecem."
+        : familyApprovedTruncated ? $"Lista parcial: mostrando os {FamilyApproved.Count} mais antigos; os mais novos não aparecem."
         : FamilyApproved.Count == 0 ? "Nenhum vínculo aprovado nesta UBS." : "";
     /// <summary>Com a lista cortada no teto de páginas, o total não é conhecido: o resumo diz "ou mais".</summary>
     public string FamilySummary => !familyLoaded ? ""

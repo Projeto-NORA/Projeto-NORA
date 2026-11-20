@@ -740,7 +740,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
             ?.let { it.copy(slots = it.slots - slot) }
         state = state.copy(availability = remaining ?: state.availability, lastBooked = BookedAppointment(unit, appointment),
             message = if (reloaded) "Consulta marcada. Ela já vale e aparece em Consultas."
-            else "Consulta marcada. Não foi possível atualizar ${if (acting == null) "suas" else "as"} consultas; use Atualizar consultas.")
+            else "Consulta marcada. Não foi possível atualizar ${if (acting == null) "suas" else "as"} consultas; use Atualizar em Consultas.")
     }
 
     /**
@@ -1029,7 +1029,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
             val link = api(state.address, null).requestDependent(session.token, digits, unitId)
             if (!isCurrent(session)) return@operation
             state = state.copy(family = state.family.copy(links = listOf(link) + state.family.links.orEmpty().filter { it.id != link.id }, error = null),
-                message = "Pedido enviado. A equipe da UBS vai conferir os documentos e a resposta aparece aqui.")
+                message = "Pedido enviado. A UBS confere os documentos antes de aprovar; a resposta aparece aqui.")
             requested = true
         }
         return requested
@@ -1255,7 +1255,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: ApiFailure) {
             if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
-            else aboutFailed(session, id, failureMessage(failure.status, failure.code, ApiContext.ABOUT))
+            else aboutFailed(session, id, failureMessage(failure.status, failure.code, ApiContext.ABOUT, unitName = state.units?.firstOrNull { it.id == id }?.name))
         }
         catch (_: IOException) { aboutFailed(session, id, CONNECTION_FAILED_MESSAGE) }
         catch (_: JSONException) { aboutFailed(session, id, INCOMPATIBLE_RESPONSE_MESSAGE) }

@@ -63,11 +63,11 @@ public sealed class HealthRecordsViewModel : ObservableObject
         foreach (var name in new[] { nameof(Message), nameof(HasMessage), nameof(MessageKind), nameof(MessageKindName), nameof(MessageKindLabel), nameof(MessageIcon) }) Notify(name);
     }
 
-    public string RegisterNotice => CanRegister ? "" : "O cadastro deste paciente está desativado nesta UBS: a Jornada só pode ser consultada. Reative o cadastro para registrar exames e vacinas.";
+    public string RegisterNotice => CanRegister ? "" : "O cadastro deste paciente está desativado nesta UBS: a Jornada só pode ser consultada. Reative o cadastro em Pacientes para registrar.";
     public bool HasRegisterNotice => !CanRegister;
     public string ListState => !loaded ? (failed ? "Não foi possível ler a Jornada agora. Use Atualizar para tentar de novo." : "Carregando a Jornada…")
         : failed && loadedWithVoided != includeVoided ? $"A leitura com o filtro novo não concluiu: a lista abaixo ainda é a da leitura anterior, que {(loadedWithVoided ? "inclui os anulados" : "não inclui os anulados")}. Use Atualizar para tentar de novo."
-        : Exams.Count + Vaccines.Count == 0 ? (loadedWithVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Os registros anulados ficam ocultos: marque \"Mostrar anulados\" para vê-los.") : "";
+        : Exams.Count + Vaccines.Count == 0 ? (loadedWithVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Anulados ficam ocultos: marque \"Mostrar anulados\".") : "";
     public string ExamsState => loaded && Exams.Count == 0 ? "Nenhum exame." : "";
     public string VaccinesState => loaded && Vaccines.Count == 0 ? "Nenhuma vacina." : "";
 
@@ -239,7 +239,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
         if (selectedExam is { } exam) { await api.VoidExamAsync(unitId, exam.Id, reason); what = $"Exame \"{exam.Name}\""; }
         else { var vaccine = selectedVaccine!; await api.VoidVaccineAsync(unitId, vaccine.Id, reason); what = $"Vacina \"{vaccine.Name}\""; }
         voidReason = ""; submittedVoid = false; Notify(nameof(VoidReason)); Notify(nameof(VoidReasonError));
-        await ReloadAfterChangeAsync($"{what} anulado, com o motivo registrado. O registro permanece no histórico.");
+        await ReloadAfterChangeAsync($"{what} anulado, com o motivo registrado.");
     });
 
     // ---- Apoio ----

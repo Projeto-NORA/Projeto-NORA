@@ -24,7 +24,7 @@ public sealed partial class WorkspaceViewModel
             // A lista recarregada devolve a mesma conta: a seleção e seus vínculos já lidos continuam.
             var same = selectedStaff?.Id == value?.Id;
             selectedStaff = value;
-            if (!same) { StaffUnits.Clear(); SelectedStaffGrant = null; }
+            if (!same) { StaffUnits.Clear(); SelectedStaffGrant = null; StaffUnitsLoaded = false; }
             Notify(); NotifyStaffActions();
         }
     }
@@ -32,6 +32,9 @@ public sealed partial class WorkspaceViewModel
     public HealthUnit? SelectedStaffGrant { get => selectedStaffGrant; set { selectedStaffGrant = value; Notify(); NotifyStaffActions(); } }
 
     public bool HasSelectedStaff => selectedStaff is not null;
+    /// <summary>Os vínculos da conta selecionada já foram lidos: só então "nenhuma UBS autorizada" é verdade.</summary>
+    public bool StaffUnitsLoaded { get => staffUnitsLoaded; private set { if (staffUnitsLoaded == value) return; staffUnitsLoaded = value; Notify(); } }
+    private bool staffUnitsLoaded;
     public bool CanLoadStaffUnits => IsMunicipal && CanOperate && HasSelectedStaff;
     public bool CanGrantStaffUnit => IsMunicipal && CanOperate && HasSelectedStaff && selectedStaffUnit is not null;
     public bool CanRevokeStaffUnit => IsMunicipal && CanOperate && HasSelectedStaff && selectedStaffGrant is not null;
@@ -89,14 +92,14 @@ public sealed partial class WorkspaceViewModel
     {
         if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para gerenciar acessos.");
         await LoadStaffCoreAsync();
-        Say(MessageKind.Success, "Contas e unidades atualizadas. Selecione uma conta para ver seus vínculos.");
+        Say(MessageKind.Success, "Contas e unidades atualizadas.");
     });
     public Task LoadStaffUnitsAsync() => RunAsync(async () =>
     {
         var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
         var units = await api.StaffUnitsAsync(staff.Id);
         if (disposed || SelectedStaff?.Id != staff.Id) return;
-        Replace(StaffUnits, units.OrderBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null; Say(MessageKind.Success, "Vínculos atualizados.");
+        Replace(StaffUnits, units.OrderBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null; StaffUnitsLoaded = true; Say(MessageKind.Success, "Vínculos atualizados.");
     });
     public Task ChangeStaffUnitAsync(bool grant) => RunAsync(async () =>
     {
@@ -105,7 +108,7 @@ public sealed partial class WorkspaceViewModel
         await api.SetStaffUnitAsync(staff.Id, unit.Id, grant);
         var units = await api.StaffUnitsAsync(staff.Id);
         if (disposed || SelectedStaff?.Id != staff.Id) return;
-        Replace(StaffUnits, units.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null;
+        Replace(StaffUnits, units.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null; StaffUnitsLoaded = true;
         Say(MessageKind.Success, grant ? "Vínculo concedido e registrado." : "Vínculo revogado e registrado.");
     });
 
@@ -173,7 +176,7 @@ public sealed partial class WorkspaceViewModel
 
     private void ClearStaff()
     {
-        Staff.Clear(); StaffUnits.Clear(); selectedStaff = null; selectedStaffUnit = null; selectedStaffGrant = null; staffLoaded = false; staffLoading = false;
+        Staff.Clear(); StaffUnits.Clear(); staffUnitsLoaded = false; selectedStaff = null; selectedStaffUnit = null; selectedStaffGrant = null; staffLoaded = false; staffLoading = false;
         ClearStaffForm(); ClearStaffResetErrors(); ClearHistory();
         foreach (var name in new[] { nameof(SelectedStaff), nameof(SelectedStaffUnit), nameof(SelectedStaffGrant), nameof(StaffState) }) Notify(name);
         NotifyStaffActions();

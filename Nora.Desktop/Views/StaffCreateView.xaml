@@ -2,17 +2,17 @@
   <Border Style="{StaticResource Card}" Margin="0,0,0,18">
     <StackPanel IsEnabled="{Binding CanOperate}" MaxWidth="560" HorizontalAlignment="Left">
       <TextBlock Text="Nova conta OBS" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16" Text="A conta é só de acesso ao sistema: nome, e-mail, perfil e senha, sem CPF. A senha definida aqui é provisória: a pessoa será obrigada a trocá-la no primeiro acesso. Depois de criar, conceda as UBS que ela poderá operar." />
-      <TextBlock Text="Nome completo" /><TextBox Text="{Binding StaffName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" AutomationProperties.Name="Nome da nova conta" />
+      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16" Text="A conta não leva CPF. A senha é provisória: será trocada no primeiro acesso. Depois de criar, conceda as UBS que a pessoa poderá operar." />
+      <TextBlock Text="Nome completo" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding StaffName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" AutomationProperties.Name="Nome da nova conta" />
       <TextBlock Text="{Binding StaffNameError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffNameError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="E-mail" /><TextBox Text="{Binding StaffEmail, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" AutomationProperties.Name="E-mail da nova conta" />
+      <TextBlock Text="E-mail" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding StaffEmail, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" AutomationProperties.Name="E-mail da nova conta" />
       <TextBlock Text="{Binding StaffEmailError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffEmailError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Perfil" />
+      <TextBlock Text="Perfil" FontWeight="SemiBold" FontSize="12" />
       <ComboBox Margin="0,5,0,14" ItemsSource="{x:Static vm:WorkspaceViewModel.StaffRoleOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding StaffRole}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Perfil da nova conta" />
-      <TextBlock Text="Senha provisória (8 a 256 caracteres)" />
+      <TextBlock Text="Senha provisória (8 a 256 caracteres)" FontWeight="SemiBold" FontSize="12" />
       <PasswordBox x:Name="Password" Margin="0,5,0,12" AutomationProperties.Name="Senha provisória da nova conta" />
       <TextBlock Text="{Binding StaffPasswordError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffPasswordError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Confirmar a senha provisória" />
+      <TextBlock Text="Confirmar a senha provisória" FontWeight="SemiBold" FontSize="12" />
       <PasswordBox x:Name="Confirm" Margin="0,5,0,12" AutomationProperties.Name="Confirmação da senha provisória da nova conta" />
       <TextBlock Text="{Binding StaffConfirmError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffConfirmError, Converter={StaticResource TextVisibility}}" />
       <Button Content="Criar conta" Click="OnCreate" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />

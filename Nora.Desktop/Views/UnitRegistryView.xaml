@@ -20,7 +20,7 @@
     </StackPanel></Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18"><StackPanel>
       <TextBlock Text="Agenda da UBS selecionada" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Text="Informe o período (no máximo 366 dias). A consulta traz uma única requisição e é registrada no histórico de acesso; a situação filtra só o que já foi carregado." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
+      <TextBlock Text="Informe o período (no máximo 366 dias). A consulta é registrada no histórico de acesso; a situação filtra só o que já foi carregado." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,12" />
       <WrapPanel IsEnabled="{Binding CanOperate}">
         <StackPanel Width="150" Margin="0,0,12,8"><TextBlock Text="De (dd/mm/aaaa)" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding UnitAgendaFromText, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Data inicial da agenda" /></StackPanel>
         <StackPanel Width="150" Margin="0,0,12,8"><TextBlock Text="Até (dd/mm/aaaa)" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding UnitAgendaToText, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Data final da agenda" /></StackPanel>

@@ -22,7 +22,7 @@ public sealed partial class WorkspaceViewModel
     private const string OffersGroup = "Ofertas da vaga";
     private static IEnumerable<DetailField> OfferFields(UnitSlotOffer[]? offers)
     {
-        if (offers is null) return [new("Ofertas", "Não foi possível carregar as ofertas agora. Feche a ficha e abra de novo.", Group: OffersGroup)];
+        if (offers is null) return [new("Ofertas", "Não foi possível carregar as ofertas. Abra a ficha de novo.", Group: OffersGroup)];
         if (offers.Length == 0) return [new("Ofertas", "Nenhuma oferta foi feita para esta vaga até agora.", Group: OffersGroup)];
         return offers.Select((offer, index) => new DetailField($"{index + 1}ª oferta", $"{offer.PatientName} · {offer.StatusDisplay} · prazo {offer.ExpiresAtDisplay}", Group: OffersGroup));
     }
@@ -74,7 +74,7 @@ public sealed partial class WorkspaceViewModel
     private static ItemDetails BuildAppointmentDetails(AppointmentInfo appointment) => new(appointment.PatientName, "Consulta da UBS", [
         new("Paciente", appointment.PatientName, true), new("CPF", appointment.FormattedCpf, true), new("Especialidade", appointment.Specialty), new("Profissional", appointment.Professional),
         new("Horário", appointment.TimeDisplay), new("Situação", appointment.StatusDisplay), new("Marcada por", appointment.BookedByDisplay),
-        new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação: a confirmação só vale para consulta agendada, de 48 h até 2 h antes.")]);
+        new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação (vale de 48 h até 2 h antes da consulta agendada).")]);
 
     private static ItemDetails BuildWaitingDetails(UnitWaitingEntry entry) => new(entry.PatientName, "Entrada na fila da UBS", [
         new("Paciente", entry.PatientName, true), new("CPF", entry.FormattedCpf, true), new("Especialidade", entry.Specialty),
@@ -83,7 +83,7 @@ public sealed partial class WorkspaceViewModel
 
     private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
     {
-        var fields = new List<DetailField> { new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Contato"),
+        var fields = new List<DetailField> { new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Identificação"),
             new("E-mail", patient.Email, true, "Contato"), new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"), new("Situação na UBS", patient.ActiveDisplay, Group: "Situação"), new("Presença no aplicativo", patient.PresenceDisplay, Group: "Situação"), new("Cadastrado em", patient.CreatedAtDisplay, Group: "Cadastro") };
         if (patient.Address is { } address) fields.AddRange([new("CEP", address.Cep, Group: "Endereço"), new("Endereço", address.Display, Group: "Endereço"), new("Complemento", address.Complement ?? "Não informado", Group: "Endereço")]);
         fields.AddRange(AttendanceFields(patient.Attendance));

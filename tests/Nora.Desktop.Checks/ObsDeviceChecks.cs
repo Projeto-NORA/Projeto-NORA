@@ -138,7 +138,7 @@ internal static partial class Program
             try
             {
                 var vm = first.ViewModel.Workspace;
-                Require(vm.DeviceActivated && vm.DeviceStateLabel == "Computador ativado: Recepção 1 · UBS Sessão" && vm.OpeningSteps.Count == 1 && vm.OpeningSteps[0] is { Text: "Conferindo este computador…", IsDone: true }, "A abertura deveria conferir o computador e mostrar o passo concluído.");
+                Require(vm.DeviceActivated && vm.DeviceStateLabel == "Computador ativado: Recepção 1 · UBS Sessão" && vm.OpeningSteps.Count == 1 && vm.OpeningSteps[0] is { Text: "Computador conferido", IsDone: true }, "A abertura deveria conferir o computador e mostrar o passo concluído.");
                 var content = Layout(first, 1100, 900);
                 var keep = Descendants<CheckBox>(content).Single(box => AutomationProperties.GetName(box) == "Manter conectado neste computador");
                 Require(keep.IsEnabled && keep.IsVisible, "Com o computador ativado a caixa Manter conectado deveria estar habilitada.");
@@ -155,7 +155,7 @@ internal static partial class Program
             {
                 var vm = second.ViewModel.Workspace;
                 Require(vm.IsAuthenticated && fixture.Count("POST", "/api/auth/login") == logins && vm.AccountName == "Operador Fixture", "Reabrir deveria restaurar a sessão sem pedir a senha.");
-                Require(vm.OpeningSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Conferindo este computador…", true), ("Restaurando a sessão salva…", true)]), "Os dois passos da abertura deveriam ficar concluídos: " + string.Join(" | ", vm.OpeningSteps.Select(step => step.Text + ":" + step.State)));
+                Require(vm.OpeningSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Computador conferido", true), ("Sessão restaurada", true)]), "Os dois passos da abertura deveriam ficar concluídos: " + string.Join(" | ", vm.OpeningSteps.Select(step => step.Text + ":" + step.State)));
                 vm.LogoutCommand.Execute(null); Settle(vm);
                 Require(!vm.IsAuthenticated && store.ReadSession() is null && store.ReadDevice() is not null, "Sair deveria apagar só a sessão guardada, não a ativação do computador.");
             }
@@ -183,7 +183,7 @@ internal static partial class Program
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1100, 900); SaveScrolled(window, Path.Combine(previewRoot, "obs-entrada-sem-ativacao-dark.png"), 1100, 900); window.ViewModel.SetAppearance(Appearance.Light);
                 vm.Endpoint = "https://fixture.invalid";
                 vm.ActivationCode = "ZZZZ-1111"; Pump(vm.ActivateWithCodeAsync());
-                Require(vm.MessageKind == MessageKind.Error && vm.Message == "Código inválido, vencido ou já usado. Peça um novo código ao administrador da UBS." && vm.OpeningSteps[^1] is { Text: "Ativando este computador…", IsFailed: true } && store.ReadDevice() is null && !vm.DeviceActivated, "Código inexistente deveria mostrar a mensagem certa e marcar o passo como falho.");
+                Require(vm.MessageKind == MessageKind.Error && vm.Message == "Código inválido, vencido ou já usado. Peça um novo código ao administrador da UBS." && vm.OpeningSteps[^1] is { Text: "Falhou: Ativando este computador", IsFailed: true } && store.ReadDevice() is null && !vm.DeviceActivated, "Código inexistente deveria mostrar a mensagem certa e marcar o passo como falho.");
                 vm.ActivationCode = expired.Code; Pump(vm.ActivateWithCodeAsync());
                 Require(vm.Message.StartsWith("Código inválido, vencido ou já usado.", StringComparison.Ordinal) && !vm.DeviceActivated, "Código vencido deveria ser recusado.");
                 vm.ActivationCode = " abcd-2345 "; Pump(vm.ActivateWithCodeAsync());
@@ -340,7 +340,7 @@ internal static partial class Program
                 fixture.FailDevices = true;
                 Click(window, content, "Atualizar computadores", 1280, 4200);
                 Require(vm.DevicesState.Contains("Use Atualizar computadores", StringComparison.Ordinal) && ButtonIn(content, "Atualizar computadores").IsEnabled && vm.MessageKind == MessageKind.Error, "A falha deveria apontar para o botão Atualizar computadores: " + vm.DevicesState);
-                Require(vm.DeviceSteps.Single() is { Text: "Lendo os computadores…", IsFailed: true }, "O passo da leitura deveria ficar marcado como falho.");
+                Require(vm.DeviceSteps.Single() is { Text: "Falhou: Lendo os computadores", IsFailed: true }, "O passo da leitura deveria ficar marcado como falho.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-computadores-falha-light.png"), 1280, 900);
                 fixture.FailDevices = false; var reads = fixture.Count("GET", "/devices");
                 Click(window, content, "Atualizar computadores", 1280, 4200);
@@ -351,7 +351,7 @@ internal static partial class Program
                 vm.DeviceDraftName = "Recepção   1"; Pump(vm.ActivateThisComputerAsync());
                 var activated = fixture.Devices.Single();
                 Require(vm.DeviceActivated && activated is { Status: "active", Name: "Recepção 1" } && store.ReadDevice() is { } saved && saved.DeviceId == activated.Id && saved.Secret == activated.Secret && !vm.ShowActivateThisComputer, "Ativar este computador deveria gravar a ativação e esconder o botão.");
-                Require(vm.DeviceSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Ativando este computador…", true), ("Guardando a ativação neste computador…", true)]) && vm.ObsDevices.Single().IsThisDevice, "Os passos concluídos deveriam acumular e a lista marcar este computador.");
+                Require(vm.DeviceSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Computador ativado", true), ("Ativação guardada neste computador", true)]) && vm.ObsDevices.Single().IsThisDevice, "Os passos concluídos deveriam acumular e a lista marcar este computador.");
                 // Código para outro computador: aparece uma única vez e some ao fechar.
                 vm.DeviceDraftName = "Sala 2"; Pump(vm.CreateDeviceCodeAsync());
                 var other = fixture.Devices.Single(item => item.Name == "Sala 2");

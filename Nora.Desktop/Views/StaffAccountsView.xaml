@@ -2,10 +2,10 @@
   <Border Style="{StaticResource Card}" Margin="0,0,0,18">
     <StackPanel IsEnabled="{Binding CanOperate}">
       <TextBlock Text="Contas do OBS" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,12" Text="Atendentes e administradores das UBS, ativos e desativados. Contas criadas ou redefinidas aqui usam uma senha provisória: a pessoa será obrigada a trocá-la no primeiro acesso." />
+      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,12" Text="Contas criadas ou redefinidas aqui usam senha provisória, trocada no primeiro acesso." />
       <WrapPanel Margin="0,0,0,12">
         <Button Content="Atualizar contas e UBS" Click="OnLoad" Margin="0,0,8,8" />
-        <Button Content="{Binding StaffActiveActionLabel}" Click="OnChangeActive" IsEnabled="{Binding CanChangeStaffActive}" Margin="0,0,8,8" ToolTip="Desativar encerra as sessões da conta e preserva as concessões de UBS." />
+        <Button Content="{Binding StaffActiveActionLabel}" Style="{StaticResource DeactivateButton}" Tag="{Binding SelectedStaff.IsActive}" Click="OnChangeActive" IsEnabled="{Binding CanChangeStaffActive}" Margin="0,0,8,8" ToolTip="Desativar encerra as sessões da conta e preserva as concessões de UBS." />
       </WrapPanel>
       <DataGrid ItemsSource="{Binding Staff}" SelectedItem="{Binding SelectedStaff}" MaxHeight="300" MinHeight="64" CanUserSortColumns="True" AutomationProperties.Name="Contas OBS">
         <DataGrid.Columns>
@@ -18,10 +18,11 @@
       </DataGrid>
       <TextBlock Text="{Binding StaffState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding StaffState, Converter={StaticResource TextVisibility}}" />
       <TextBlock Text="{Binding SelectedStaffLabel}" FontWeight="SemiBold" Margin="0,10,0,12" />
-      <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+      <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+        <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" /><Style.Triggers><DataTrigger Binding="{Binding SelectedStaff}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
         <StackPanel MaxWidth="460" HorizontalAlignment="Left">
           <TextBlock Text="Redefinir senha provisória da conta selecionada" FontWeight="SemiBold" />
-          <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="As contas do OBS não têm e-mail de recuperação: aqui a Secretaria define uma nova senha provisória. As sessões da conta são encerradas e a troca será exigida no próximo acesso." />
+          <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="As sessões da conta são encerradas e a troca será exigida no próximo acesso." />
           <TextBlock Text="Nova senha provisória (8 a 256 caracteres)" FontWeight="SemiBold" FontSize="12" />
           <PasswordBox x:Name="ResetPassword" Margin="0,6,0,12" AutomationProperties.Name="Nova senha provisória da conta" />
           <TextBlock Text="{Binding StaffResetPasswordError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffResetPasswordError, Converter={StaticResource TextVisibility}}" />

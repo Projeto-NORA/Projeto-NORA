@@ -27,7 +27,10 @@ internal static partial class Program
     {
         window.ViewModel.Navigate(route); var vm = window.ViewModel.Workspace;
         Layout(window, width, height); Settle(vm);
-        return Layout(window, width, height);
+        var content = Layout(window, width, height);
+        // "Nova conta" nasce recolhida em Usuários e histórico (ajuste de layout aprovado em 2026-11-19); as verificações do formulário a abrem.
+        if (route == "users" && Descendants<Expander>(content).FirstOrDefault(item => item.Header?.ToString() == "Nova conta") is { IsExpanded: false } created) { created.IsExpanded = true; content = Layout(window, width, height); }
+        return content;
     }
     private static ComboBox Combo(FrameworkElement content, string name) => Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == name);
     private static DataGrid GridNamed(FrameworkElement content, string name) => Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == name);
@@ -219,7 +222,8 @@ internal static partial class Program
                 fixture.PauseReads.TrySetResult(); Settle(vm);
                 var content = Layout(window, 1280, 900);
                 Require(vm.Staff.Count == 1 && vm.StaffState == "" && fixture.Count("GET", "/api/municipal/staff") == 1, "As contas não carregaram sozinhas ao abrir a seção.");
-                foreach (var label in new[] { "Desativar conta", "Redefinir senha provisória", "Atualizar vínculos", "Revogar vínculo selecionado", "Conceder vínculo" })
+                Require(!Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() == "Redefinir senha provisória"), "A redefinição de senha deveria ficar escondida sem conta selecionada.");
+                foreach (var label in new[] { "Desativar conta", "Atualizar vínculos", "Revogar vínculo selecionado", "Conceder vínculo" })
                     Require(!FindActionButton(content, label).IsEnabled, "Botão deveria estar desabilitado sem seleção: " + label);
                 GridNamed(content, "Contas OBS").SelectedItem = vm.Staff.Single(); Layout(window, 1280, 900);
                 Require(vm.SelectedStaff is not null && FindActionButton(content, "Desativar conta").IsEnabled && FindActionButton(content, "Atualizar vínculos").IsEnabled && !FindActionButton(content, "Conceder vínculo").IsEnabled, "Botões não acompanharam a seleção da conta.");
@@ -276,9 +280,9 @@ internal static partial class Program
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS cadastradas");
                 vm.SelectedUnit = vm.Units.Single(item => item.Name == "UBS Zeta"); Layout(window, 1280, 900);
                 Require(ReferenceEquals(list.SelectedItem, vm.SelectedUnit) || Equals(list.SelectedItem, vm.SelectedUnit), "A lista não mostrou a UBS selecionada.");
-                Input(content, "Pesquisar UBS").Text = "Aaa"; Layout(window, 1280, 900);
+                Input(content, "Pesquisar UBS por nome, região ou endereço").Text = "Aaa"; Layout(window, 1280, 900);
                 Require(vm.SelectedUnit?.Name == "UBS Zeta" && list.Items.Count == 1 && vm.SelectedUnitLabel.Contains("UBS Zeta"), "A pesquisa que escondeu a UBS apagou a seleção.");
-                Input(content, "Pesquisar UBS").Text = ""; Layout(window, 1280, 900);
+                Input(content, "Pesquisar UBS por nome, região ou endereço").Text = ""; Layout(window, 1280, 900);
                 Require(vm.SelectedUnit?.Name == "UBS Zeta" && Equals(list.SelectedItem, vm.SelectedUnit), "A seleção não voltou à lista depois de limpar a pesquisa.");
             }
             finally { CloseWindow(window); }
@@ -291,6 +295,9 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "units");
+                Require(!vm.IsUnitFormOpen && !VisibleTexts(content).Contains("Salvar UBS"), "O formulário da UBS deveria começar fechado.");
+                vm.NewUnitDraft(); content = Layout(window, 1280, 1500);
+                Require(vm.IsUnitFormOpen && VisibleTexts(content).Contains("Salvar UBS"), "Nova UBS não abriu o formulário.");
                 Pump(vm.SaveUnitAsync());
                 Require(vm.MessageKind == MessageKind.Error && fixture.Count("POST", "/api/municipal/units") == 0, "Formulário vazio deveria ser barrado antes da API.");
                 Require(vm.UnitNameError.Contains("nome da UBS") && vm.UnitRegionError.Contains("região") && vm.UnitAddressError.Contains("endereço") && vm.UnitLatitudeError.Contains("Latitude") && vm.UnitLongitudeError.Contains("Longitude"), "Faltou mensagem em algum campo.");
@@ -306,6 +313,8 @@ internal static partial class Program
                 vm.UnitLatitude = "-46,63"; vm.UnitLongitude = "-23,55"; SaveScrolled(window, Path.Combine(previewRoot, "municipal-unit-form-warning-light.png"));
                 Pump(vm.SaveUnitAsync());
                 Require(vm.MessageKind == MessageKind.Success && vm.Units.Count == 1 && fixture.Count("POST", "/api/municipal/units") == 1, "O aviso de coordenadas não deveria bloquear o salvamento: " + vm.Message);
+                Require(!vm.IsUnitFormOpen, "Salvar deveria fechar o formulário da UBS.");
+                vm.EditSelectedUnit(); Require(vm.IsUnitFormOpen, "Editar selecionada não abriu o formulário."); vm.CancelUnitForm(); Require(!vm.IsUnitFormOpen && vm.UnitName == "", "Cancelar deveria fechar e limpar o formulário.");
             }
             finally { CloseWindow(window); }
         });
@@ -322,7 +331,7 @@ internal static partial class Program
                 Require(VisibleTexts(list).Contains("Base pronta") && VisibleTexts(list).Contains("Base não criada"), "A lista não mostra o estado da base de cada UBS.");
                 Require(!Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() == "Tentar criar a base"), "O botão de nova tentativa só deveria aparecer para a UBS sem base.");
                 vm.SelectedUnit = vm.Units.Single(unit => unit.Name == "UBS Sem Base"); content = Layout(window, 1280, 1500);
-                Require(VisibleTexts(content).Any(text => text.Contains("permissão para criar bancos")) && !vm.CanReadUnitRegistry, "A explicação da permissão não apareceu, ou a consulta nominal continuou liberada.");
+                Require(VisibleTexts(content).Any(text => text.Contains("avise a equipe de TI")) && !vm.CanReadUnitRegistry, "A explicação da permissão não apareceu, ou a consulta nominal continuou liberada.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-units-database-dark.png"));
                 Click(window, content, "Tentar criar a base", 1280, 1500);
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("permissão para criar bancos") && !vm.Message.Contains("private-server-secret") && vm.SelectedUnit!.DatabasePending, "Falha database-provisioning-failed não foi explicada.");
@@ -332,7 +341,7 @@ internal static partial class Program
                 Require(fixture.History.Any(item => item.Kind == "unit-database-created"), "A API não registrou a criação da base.");
                 fixture.NewUnitsPending = true;
                 vm.NewUnitDraft(); vm.UnitName = "UBS Nova"; vm.UnitRegion = "Leste"; vm.UnitAddress = "Rua Nova, 1"; vm.UnitLatitude = "-23,5"; vm.UnitLongitude = "-46,6"; Pump(vm.SaveUnitAsync());
-                Require(vm.Units.Single(unit => unit.Name == "UBS Nova").DatabasePending && vm.MessageKind == MessageKind.Info && vm.Message.Contains("PostgreSQL") && vm.Message.Contains("Tentar criar a base"), "O cadastro de UBS sem base não informou o estado retornado: " + vm.Message);
+                Require(vm.Units.Single(unit => unit.Name == "UBS Nova").DatabasePending && vm.MessageKind == MessageKind.Info && vm.Message.Contains("permissão para criar bancos") && vm.Message.Contains("Tentar criar a base"), "O cadastro de UBS sem base não informou o estado retornado: " + vm.Message);
             }
             finally { CloseWindow(window); }
         });

@@ -21,9 +21,7 @@ internal fun QueueEntries(queue: List<UnitQueueEntry>, busy: Boolean = false, on
     if (groups.active.isEmpty()) MutedText("Nenhuma solicitação ativa nesta UBS.")
     groups.active.forEach { entry ->
         QueueRow(entry)
-        if (onLeave != null) TextButton(onClick = { leaving = entry }, enabled = !busy) {
-            Text("Sair da fila", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-        }
+        if (onLeave != null) DestructiveTextButton("Sair da fila", onClick = { leaving = entry }, enabled = !busy)
     }
     if (groups.history.isNotEmpty()) {
         HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
@@ -37,7 +35,7 @@ internal fun QueueEntries(queue: List<UnitQueueEntry>, busy: Boolean = false, on
 @Composable
 private fun QueueRow(entry: UnitQueueEntry) {
     Text(entry.specialty, fontWeight = FontWeight.SemiBold)
-    Text(statusLabel(entry.status), fontWeight = FontWeight.SemiBold)
+    StatusBadge(entry.status)
     MutedText("Registrada em ${formatDateTime(entry.enteredAt)}")
 }
 

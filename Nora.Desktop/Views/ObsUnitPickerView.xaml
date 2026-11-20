@@ -5,8 +5,8 @@
     <TextBlock Text="Escolha a UBS (nome e região)" />
     <ComboBox ItemsSource="{Binding ObsUnits}" SelectedItem="{Binding CandidateObsUnit}" DisplayMemberPath="SelectorLabel" IsEnabled="{Binding HasAvailableObsUnits}" AutomationProperties.Name="UBS autorizada no OBS" Margin="0,6,0,12" />
     <WrapPanel>
-      <Button Content="Confirmar UBS" Click="OnConfirm" IsEnabled="{Binding CanConfirmObsUnit}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" ToolTip="Carrega cadastro, fila, vagas, resumo do dia e agenda da UBS escolhida." />
-      <Button Content="Atualizar lista de UBS" Click="OnLoadUnits" Margin="0,0,8,8" ToolTip="Consulta novamente as UBS que a Secretaria autorizou para esta conta." />
+      <Button Content="Confirmar UBS" Click="OnConfirm" IsEnabled="{Binding CanConfirmObsUnit}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" />
+      <Button Content="Atualizar lista de UBS" Click="OnLoadUnits" Margin="0,0,8,8" />
       <Button Content="Sugerir UBS pela localização" Click="OnLocate" IsEnabled="{Binding HasAvailableObsUnits}" Margin="0,0,0,8" />
     </WrapPanel>
   </StackPanel>
