@@ -34,7 +34,7 @@ Junto com o link, mande três informações: o endereço da API (`https://<sua-a
 
 1. **Abrir:** clique com o botão direito no `.zip` → **Extrair tudo** e abra o `.exe` da pasta extraída.
 2. **Aviso do Windows:** como o executável não tem assinatura digital paga, aparece "O Windows protegeu o computador". Clique em **Mais informações** → **Executar assim mesmo**. Isso é esperado num protótipo.
-3. **Primeira entrada:** em **Endereço da API**, digite `https://<sua-api>.onrender.com`, depois o e-mail e a senha provisória (a equipe entra só por e-mail, não por CPF). O sistema pede para trocar a senha no primeiro acesso.
+3. **Primeira entrada:** abra **Servidor (avançado)** (já vem aberto quando ainda não há endereço) e, em **Endereço do servidor**, digite `https://<sua-api>.onrender.com`, depois o e-mail e a senha provisória (a equipe entra só por e-mail, não por CPF). O sistema pede para trocar a senha no primeiro acesso.
 4. **Só no OBS — computador ativado:**
    - O **administrador** da UBS entra em qualquer computador.
    - A **atendente** só entra num computador ativado: o administrador ativa em Configurações da UBS → Computadores, ou gera um código `XXXX-XXXX` que a atendente digita em "Código de ativação".

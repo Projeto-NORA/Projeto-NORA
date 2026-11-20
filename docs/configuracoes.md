@@ -18,7 +18,6 @@ Tela cheia cobre os limites do monitor e remove a borda da janela. Ao sair, rest
 | --- | --- |
 | Ctrl + 1 | Visão geral |
 | Ctrl + , | Configurações |
-| Ctrl + B | Recolher/expandir sidebar |
 | Ctrl + Shift + T | Ciclar Clara, Escura e Sistema |
 | F11 | Entrar/sair de tela cheia |
 | Esc | Sair de tela cheia |
@@ -30,7 +29,7 @@ Os atalhos são exibidos em cartões com a combinação destacada e a ação exp
 
 `SettingsStore` usa SharedPreferences privadas chamadas `nora_preferences`. Tema e cinco escolhas são persistidos: avisos de consultas, avisos de Vaga Relâmpago, comunicados da rede, mostrar orientações e espaçamento confortável. Valores com tipos inválidos são substituídos pelos padrões seguros na leitura. Tema é Sistema e as cinco opções são ativadas inicialmente.
 
-Na entrada, Configurações pode ser aberta pelo diálogo do ícone de ajuda; após login, também fica no topo do início e no Perfil. A tela agrupa aparência, notificações, interface e informações do app. As escolhas de notificações ficam salvas no aparelho. A tela explica que os avisos de Vaga Relâmpago e de comunicados chegam enquanto a conexão ativa do NORA estiver rodando e dependem da permissão de notificações do Android, e que a opção de consultas ainda não tem efeito porque a rede não envia lembrete de consulta. A opção de sair é exibida quando há uma conta conectada.
+Na entrada, Configurações pode ser aberta pelo diálogo do ícone de ajuda; após login, também fica no topo do início e no Perfil. A tela agrupa aparência, notificações, interface e informações do app. As escolhas de notificações ficam salvas no aparelho. O cartão Notificações explica que, para receber os avisos, é preciso permitir as notificações do NORA no Android (o aviso sobre a conexão ativa saiu do texto), mostra um erro quando o aparelho as bloqueia e traz o botão "Abrir notificações do Android", que leva às configurações do sistema; o estado é relido ao voltar. A opção Consultas é um interruptor desligado e bloqueado, com o selo "Em breve", porque a rede não envia lembrete de consulta (`PreferenceSwitch(... soon = true)` em `NoraApp.kt`). Sair da conta e Alterar senha ficam no cartão Conta, exibido quando há uma conta conectada; o Perfil também tem "Sair da conta".
 
 Mostrar orientações controla o card de personalização da Home; espaçamento confortável alterna intervalos entre cards. Os avisos são notificações locais do ciclo do serviço de conexão; push por servidor está em P-042. Sobre mostra versão/estado da conta; sair é habilitado para sessão conectada. Restaurar padrões pede confirmação e não encerra a conta.
 
@@ -103,7 +102,7 @@ Depois de subir, `GET /api/patient/google` e `GET /api/patient/devices/push` res
 
 ## Navegação e atualização desktop — 2026-10-11
 
-Configurações e Sair da conta ficam no menu da conta NORA, no canto inferior esquerdo. O botão de três barras recolhe/expande a sidebar e mantém `Ctrl+B`; Configurações mantém `Ctrl+,`. A tela Pacientes não contém os botões Atualizar/Sair ou inclusão na fila. A inclusão passa a ser feita na própria tela Fila de espera, selecionando o paciente.
+Configurações e Sair da conta ficam no menu da conta NORA, no canto inferior esquerdo. A largura da barra lateral só muda pela divisória (o atalho `Ctrl+B` foi retirado em 2026-11-19, pois não havia modo recolhido); Configurações mantém `Ctrl+,`. A tela Pacientes não contém os botões Atualizar/Sair ou inclusão na fila. A inclusão passa a ser feita na própria tela Fila de espera, selecionando o paciente.
 
 Depois de entrar, o workspace consulta a API automaticamente a cada 20 segundos, sem requisições concorrentes com operações do usuário. Mantém os campos do cadastro e a seleção ainda válida; erros de consulta continuam visíveis e uma sessão expirada pede nova entrada. As mensagens rotineiras de conta conectada/dados atualizados e preferências salvas ficam ocultas. Falhas de armazenamento de preferências permanecem visíveis, para não aparentar persistência quando a gravação falhou.
 
