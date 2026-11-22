@@ -125,16 +125,19 @@ class BookingControllerTest {
         val (unit, from, to) = api.availabilityRequests.single()
         val window = requireNotNull(bookingWeek(now, 0))
         assertEquals("unit-a", unit); assertEquals(window.fromMillis, from); assertEquals(window.toMillis, to)
-        assertEquals(now + day, from)
+        assertEquals(now, from) // a semana 0 começa agora: não há antecedência mínima
         assertEquals(AvailabilityResult("unit-a", cardiology.id, 0, api.slots), controller.state.availability)
         assertFalse(controller.state.availabilityLoading)
         controller.loadAvailability(cardiology.id, 1)
         assertEquals(2, api.availabilityRequests.size)
         assertEquals(requireNotNull(bookingWeek(now, 1)).fromMillis, api.availabilityRequests[1].second)
         assertEquals(1, controller.state.availability?.week)
-        // Semana fora dos 90 dias não gera requisição.
-        controller.loadAvailability(cardiology.id, bookingWeekCount(now))
-        assertEquals(2, api.availabilityRequests.size)
+        // Não há última semana: uma semana a quase 500 dias gera requisição; índice negativo não.
+        controller.loadAvailability(cardiology.id, 70)
+        assertEquals(3, api.availabilityRequests.size)
+        assertEquals(requireNotNull(bookingWeek(now, 70)).fromMillis, api.availabilityRequests[2].second)
+        controller.loadAvailability(cardiology.id, -1)
+        assertEquals(3, api.availabilityRequests.size)
     }
 
     @Test fun onlyTheLatestAvailabilityReadWritesTheResult() = runBlocking {
@@ -226,7 +229,7 @@ class BookingControllerTest {
         val controller = ready(api, unitA)
         controller.loadAvailability(cardiology.id, 0)
         val expected = mapOf(
-            BOOKING_WINDOW to "Só é possível marcar de 24 horas até 90 dias antes do horário. Escolha outro horário.",
+            BOOKING_WINDOW to "Esse horário já começou ou passou. Escolha outro horário.",
             SPECIALTY_LIMIT to "Você já tem uma consulta futura marcada pelo app nesta especialidade, em alguma das suas UBS. " +
                 "Cancele essa consulta ou aguarde a data dela para marcar outra.",
             PATIENT_OVERLAP to "Você já tem uma consulta neste mesmo horário. Escolha outro horário.")

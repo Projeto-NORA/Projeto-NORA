@@ -63,7 +63,7 @@ A KVM 1 aguenta o NORA com folga. PostgreSQL e API juntos usam bem menos de 1 GB
 
 - **Para o piloto: Render + Neon**, como você prefere. Não há problema grande para um protótipo; os cuidados acima resolvem.
 - **Hostinger como plano B**, só se a espera de 1 min incomodar no piloto ou se a Vaga Relâmpago precisar andar com todo mundo fora do app. O passo a passo está no fim.
-- **Para a apresentação de hoje:** se a hospedagem não estiver pronta a tempo, rode a API no seu notebook e use os desktops nele mesmo (`http://localhost`). Assim você não depende de rede na hora. O app no celular precisa de HTTPS, então ele só entra na demonstração com a API hospedada.
+- **Para apresentações:** rode tudo no notebook com `scripts/demo-local.ps1` (banco, API, OBS, Painel e o app no emulador Android em `http://10.0.2.2`), sem depender de internet nem de deploy. O app num celular de verdade só entra com a API hospedada, porque fora do emulador ele exige HTTPS.
 
 ## Antes de pôr dados reais da escola (LGPD)
 
@@ -96,11 +96,11 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
 
 ### 2. Preparar o banco a partir do seu computador
 
-A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell:
+A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell. O `--provision` pergunta escopo, nome, e-mail e senha: **a equipe (Secretaria e OBS) não tem CPF e entra só por e-mail**; as contas que já existiam perdem o CPF na migração 022:
 
 ```powershell
 $env:ConnectionStrings__Nora = "Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require"
-dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 021)
+dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 022)
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "municipal": conta da Secretaria
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs": administrador da primeira UBS
 ```
@@ -115,7 +115,7 @@ Gere três chaves aleatórias. Cada comando abaixo imprime uma chave nova; guard
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
 ```
 
-Para o SMTP, o caminho mais simples é uma conta Gmail só do piloto, com verificação em duas etapas e uma **senha de app**: host `smtp.gmail.com`, porta `587`. Um serviço de e-mail transacional com plano gratuito também serve.
+**E-mail no Render: use o Brevo na porta 2525.** O Render Free **bloqueia a saída pelas portas 25, 465 e 587** ([fonte](https://render.com/docs/free)), justamente as do SMTP, então o Gmail na 587 não funciona lá e o cadastro do paciente pelo app ficaria sem código. Crie uma conta gratuita no [Brevo](https://www.brevo.com/free-smtp-server) (300 e-mails por dia), valide o remetente e gere uma **chave SMTP** (não é a senha da conta). Use host `smtp-relay.brevo.com`, porta `2525`, usuário = o login SMTP que o Brevo mostra, senha = a chave SMTP. A API usa STARTTLS, que funciona na 2525. Na demonstração local (`scripts/demo-local.ps1`) e na Hostinger o Gmail com senha de app na 587 continua valendo.
 
 ### 4. API no Render
 
@@ -134,19 +134,23 @@ Para o SMTP, o caminho mais simples é uma conta Gmail só do piloto, com verifi
    | `Nora__Registration__HashKey` | chave 1 |
    | `Nora__PasswordReset__HashKey` | chave 2 |
    | `Nora__EmailChange__HashKey` | chave 3 |
-   | `Nora__Smtp__Host` | `smtp.gmail.com` |
-   | `Nora__Smtp__Port` | `587` |
-   | `Nora__Smtp__Username` | o e-mail do piloto |
-   | `Nora__Smtp__Password` | a senha de app |
-   | `Nora__Smtp__FromAddress` | o e-mail do piloto |
+   | `Nora__Smtp__Host` | `smtp-relay.brevo.com` |
+   | `Nora__Smtp__Port` | `2525` (o Render Free bloqueia a 587) |
+   | `Nora__Smtp__Username` | o login SMTP do Brevo |
+   | `Nora__Smtp__Password` | a chave SMTP do Brevo |
+   | `Nora__Smtp__FromAddress` | o remetente validado no Brevo |
    | `Nora__ForwardedHeaders__KnownNetworks` | `10.0.0.0/8` |
    | `ALLOWED_HOSTS` | opcional no Render (a imagem usa o `RENDER_EXTERNAL_HOSTNAME`, que o Render define sozinho); sobrescreve com o domínio público, vários separados por `;` |
 
-   **Sobre o endereço e o host:** o `appsettings.json` que vai na imagem manda escutar só em `127.0.0.1:5080` e aceitar só `localhost`. O `Dockerfile` já troca isso na subida: escuta em `0.0.0.0` na porta que o Render informa em `PORT` e aceita apenas o domínio do serviço (`<nome>.onrender.com`). Não ponha `AllowedHosts=*` para "resolver": isso desliga a conferência do host. Se o deploy subir mas o `/health/live` do Render falhar com 400, veja nos logs o host recebido e acrescente-o em `ALLOWED_HOSTS`, separado por `;`.
+   **Sobre o endereço e o host:** o `appsettings.json` que vai na imagem manda escutar só em `127.0.0.1:5080` e aceitar só `localhost`. O `Dockerfile` já troca isso na subida: escuta em `0.0.0.0` na porta que o Render informa em `PORT` e aceita apenas o domínio do serviço (`<nome>.onrender.com`). Não ponha `AllowedHosts=*` para "resolver": isso desliga a conferência do host. Se o deploy subir mas o `/health/live` do Render falhar com 400, ligue o log do filtro de host só na primeira subida, com a variável `Logging__LogLevel__Microsoft.AspNetCore.HostFiltering=Information` (a imagem usa `Warning` para o ASP.NET e a mensagem com o host recusado pode ficar abaixo desse nível), leia o host recebido nos logs e acrescente-o em `ALLOWED_HOSTS`, separado por `;`. Depois volte a variável ao normal. Essa variável tem ponto no nome, e só chega à API porque o `ENTRYPOINT` do `Dockerfile` usa o `bash` (o `/bin/sh` da imagem é o `dash`, que descarta nomes de variável com ponto); não troque o shell do `ENTRYPOINT` de volta para `sh`. Se mesmo assim a mensagem não aparecer nos logs, ou se o Render recusar esse nome de variável, o caminho que não depende dela é comparar `curl -i https://<nome>.onrender.com/health/live` com o domínio exato do serviço e pôr esse domínio em `ALLOWED_HOSTS`.
 
-   **Sobre `KnownNetworks`:** o Render entrega as requisições por um proxy interno. Sem essa linha, todos os usuários parecem vir do mesmo IP e dividem o limite de tentativas de login. Depois do primeiro acesso, confira nos logs do Render se o IP de origem do proxy está nessa faixa; se não estiver, troque pela faixa que aparecer.
+   **Sobre `KnownNetworks`:** o Render entrega as requisições por um proxy interno. Sem essa linha, todos os usuários parecem vir do mesmo IP e dividem o limite de tentativas de login. Os logs **não** mostram o IP de origem, então confira por comportamento: duas pessoas em redes diferentes (por exemplo, um computador e um celular no 4G) erram a senha da mesma conta até o limite de tentativas; a segunda, de outro IP, **não** pode herdar o bloqueio da primeira. Se herdar, o proxy está fora da faixa: troque `KnownNetworks` pela faixa do proxy do Render (consulte a documentação do Render) e repita o teste.
 
 4. **Deploy.** Ao terminar, abra `https://<nome>.onrender.com/health/ready`. A resposta `ready` confirma a API e o banco.
+
+#### Alternativa: pelo Blueprint (`render.yaml`)
+
+O `render.yaml` da raiz substitui os itens 2 (criar o serviço) e 3 (variáveis) do passo 4 e a geração das chaves da seção 3. As seções 1 (Neon) e 2 (`--migrate` e `--provision` no seu computador) continuam obrigatórias, e a conferência de `/health/ready` do item 4 também: sem a migração e a conta inicial a API sobe, mas `/health/ready` falha e ninguém consegue entrar. Em **New → Blueprint**, escolha o repositório. O Render cria o serviço (Docker, plano Free, Virginia, `main`, health check `/health/live`) e **gera sozinho** as três chaves (`Nora__Registration__HashKey`, `Nora__PasswordReset__HashKey`, `Nora__EmailChange__HashKey`), então o comando do PowerShell da seção 3 **não vale** nesse caminho. Já vêm preenchidos o host SMTP do Brevo, a porta `2525` e `KnownNetworks`. A tela pede só quatro valores: a conexão do Neon (`ConnectionStrings__Nora`), o usuário, a senha e o remetente do SMTP (`Nora__Smtp__Username`, `Nora__Smtp__Password` e `Nora__Smtp__FromAddress`). `ALLOWED_HOSTS` não aparece na tela; se for preciso (health check com 400 por host), acrescente-o depois em **Environment** do serviço. O que vem depois (deploy e `/health/ready`) é igual. O primeiro deploy pelo Blueprint também precisa das conferências de P-049.
 
 ### 5. Ligar os aplicativos
 
@@ -168,12 +172,12 @@ Use este caminho se a espera do Render atrapalhar. Antes, combine com seu amigo:
 
 1. **Endereço com HTTPS:** com um domínio, crie um registro `A` apontando para o IP da VPS. Sem domínio, use `nora.<IP-com-hífens>.sslip.io`; o `sslip.io` responde com o próprio IP e o Caddy consegue o certificado.
 2. **Arquivo `/opt/nora/docker-compose.yml`:** três serviços, `postgres:18` com volume próprio, a API construída pelo `Dockerfile` do repositório e o `caddy:2` na frente:
-   - o PostgreSQL **não** publica porta para a internet;
+   - o PostgreSQL **não** publica porta para a internet: se for rodar `--migrate` e `--provision` do seu PC por túnel SSH (passo 4), publique-a só no loopback do VPS (`ports: ["127.0.0.1:5432:5432"]`), que não a expõe;
    - a API recebe as mesmas variáveis da tabela do Render, com `ConnectionStrings__Nora` apontando para o serviço `postgres`, mas com duas diferenças: `ALLOWED_HOSTS` é o domínio público (aqui não existe o `RENDER_EXTERNAL_HOSTNAME`) e **`Nora__ForwardedHeaders__KnownNetworks` não é `10.0.0.0/8`**, e sim a sub-rede da rede do compose, explicada abaixo;
    - declare uma rede própria com sub-rede fixa (`networks: nora: ipam: config: - subnet: 172.30.0.0/24`) e ligue API, Caddy e `postgres` a ela. O Caddy (e um Nginx do host que encaminhe para a porta publicada, que chega pelo gateway da rede) alcança a API por esse endereço, fora da faixa `10.0.0.0/8`; use `172.30.0.0/24` em `KnownNetworks`. Com a faixa errada a API não confia no `X-Forwarded-For`, vê todo mundo com o IP do Caddy e uma só pessoa errando a senha bloqueia o login de todos (limite de 30 por minuto) e a ativação de computadores do OBS (10 por 10 minutos). Depois do primeiro acesso, confira nos logs ou testando que um segundo usuário, de outro IP, não herda o bloqueio do primeiro;
    - o Caddy faz `reverse_proxy api:8080`.
-3. **Se o amigo já tiver um Nginx ou Traefik nas portas 80/443,** não suba o Caddy: crie no proxy dele um site novo para o domínio do NORA, apontando para a porta da API.
-4. **Migração e contas:** rode `--migrate` e `--provision` como no passo 2 do Render, de dentro do contêiner da API ou do seu PC por um túnel SSH (`ssh -L 5433:localhost:5432`). Não abra a porta do banco.
+3. **Se o amigo já tiver um Nginx ou Traefik nas portas 80/443,** não suba o Caddy: crie no proxy dele um site novo para o domínio do NORA, apontando para a porta da API, que deve ser publicada só em `127.0.0.1` (`ports: ["127.0.0.1:8080:8080"]`). O site precisa repassar o `Host` original e o IP do cliente, senão a API responde 400 a tudo ou enxerga todos com o mesmo IP. No Nginx: `proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme;` (no Traefik isso já é o padrão). Sem o `Host`, o filtro `ALLOWED_HOSTS` devolve 400 inclusive em `/health/live`; sem o `X-Forwarded-For`, todos dividem o limite de logins e de ativações do OBS. O IP de origem do proxy (aqui, o gateway da rede do compose) tem de cair em `Nora__ForwardedHeaders__KnownNetworks`.
+4. **Migração e contas:** rode `--migrate` e `--provision` como no passo 2 do Render, de dentro do contêiner da API (`docker compose exec api dotnet Nora.Api.dll --migrate`, e depois `--provision`) ou do seu PC por um túnel SSH (`ssh -L 5433:localhost:5432`), que só funciona com o `127.0.0.1:5432:5432` do passo 2. Não abra a porta do banco para a internet.
 5. **Proteção da VPS:** firewall só com 22, 80 e 443, e usuário do banco com senha forte.
 
 ## Encerrar o piloto (backup e desligamento)

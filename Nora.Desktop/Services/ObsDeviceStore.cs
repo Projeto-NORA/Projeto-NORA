@@ -16,6 +16,8 @@ public interface IObsDeviceStore
 {
     /// <summary>Último aviso de arquivo ilegível ou de gravação que falhou; lido e limpo por quem mostra a mensagem.</summary>
     string? TakeWarning();
+    /// <summary>A última leitura da ativação falhou por E/S transitória (arquivo em uso, acesso negado): o arquivo foi mantido, a ativação segue valendo e a leitura pode ser repetida.</summary>
+    bool DeviceReadUnavailable { get; }
     StoredDevice? ReadDevice();
     bool SaveDevice(StoredDevice device);
     void DeleteDevice();
@@ -26,7 +28,7 @@ public interface IObsDeviceStore
 
 /// <summary>
 /// Arquivos em <c>%LOCALAPPDATA%\NORA\OBS\</c>: <c>device.dat</c> e <c>session.dat</c>, ambos protegidos pelo DPAPI do usuário do Windows (nada é gravado em texto).
-/// Arquivo ilegível ou corrompido é apagado e tratado como ausente, com um aviso para a faixa de mensagens.
+/// Arquivo ilegível ou corrompido (cifra, JSON ou campos inválidos) é apagado e tratado como ausente, com um aviso para a faixa de mensagens. Falha de E/S (arquivo em uso por antivírus ou indexador, acesso negado) não apaga nada: avisa "não foi possível ler agora" e a leitura é repetida depois.
 /// </summary>
 public sealed class ObsDeviceStore : IObsDeviceStore
 {
@@ -42,18 +44,27 @@ public sealed class ObsDeviceStore : IObsDeviceStore
 
     public string? TakeWarning() { var text = warning; warning = null; return text; }
 
-    public StoredDevice? ReadDevice() => Read<StoredDevice>(DevicePath, DeviceEntropy, "O arquivo que guarda a ativação deste computador estava ilegível e foi descartado; peça um novo código de ativação.",
-        device => device.DeviceId != Guid.Empty && !string.IsNullOrWhiteSpace(device.Secret) && !string.IsNullOrWhiteSpace(device.Endpoint));
-    public bool SaveDevice(StoredDevice device) => Write(DevicePath, DeviceEntropy, device, "Não foi possível guardar a ativação neste computador.");
-    public void DeleteDevice() => Delete(DevicePath);
+    public bool DeviceReadUnavailable { get; private set; }
+
+    public StoredDevice? ReadDevice()
+    {
+        var device = Read<StoredDevice>(DevicePath, DeviceEntropy, "O arquivo que guarda a ativação deste computador estava ilegível e foi descartado; peça um novo código de ativação.",
+            device => device.DeviceId != Guid.Empty && !string.IsNullOrWhiteSpace(device.Secret) && !string.IsNullOrWhiteSpace(device.Endpoint), out var unavailable);
+        DeviceReadUnavailable = unavailable;
+        return device;
+    }
+    // Gravar ou apagar resolve a dúvida de uma leitura que falhou por E/S: o estado do arquivo passa a ser o que acabou de ser escrito.
+    public bool SaveDevice(StoredDevice device) { DeviceReadUnavailable = false; return Write(DevicePath, DeviceEntropy, device, "Não foi possível guardar a ativação neste computador."); }
+    public void DeleteDevice() { DeviceReadUnavailable = false; Delete(DevicePath); }
 
     public StoredSession? ReadSession() => Read<StoredSession>(SessionPath, SessionEntropy, "A sessão salva neste computador estava ilegível e foi descartada; entre com a senha.",
-        session => !string.IsNullOrWhiteSpace(session.Token) && !string.IsNullOrWhiteSpace(session.Endpoint));
+        session => !string.IsNullOrWhiteSpace(session.Token) && !string.IsNullOrWhiteSpace(session.Endpoint), out _);
     public bool SaveSession(StoredSession session) => Write(SessionPath, SessionEntropy, session, "Não foi possível guardar a sessão neste computador; ela vale só até fechar o aplicativo.");
     public void DeleteSession() => Delete(SessionPath);
 
-    private T? Read<T>(string path, byte[] entropy, string unreadable, Func<T, bool> valid) where T : class
+    private T? Read<T>(string path, byte[] entropy, string unreadable, Func<T, bool> valid, out bool unavailable) where T : class
     {
+        unavailable = false;
         if (!File.Exists(path)) return null;
         try
         {
@@ -61,7 +72,15 @@ public sealed class ObsDeviceStore : IObsDeviceStore
             var value = JsonSerializer.Deserialize<T>(plain);
             if (value is not null && valid(value)) return value;
         }
-        catch (Exception error) when (error is CryptographicException or JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+        // Falha de E/S não prova que o arquivo está ruim: mantém o arquivo, avisa e deixa a leitura ser repetida.
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            System.Diagnostics.Trace.TraceWarning("NORA: não foi possível ler {0} agora: {1}", Path.GetFileName(path), error.GetType().Name);
+            warning = "Não foi possível ler os dados guardados neste computador agora. Tente de novo em instantes.";
+            unavailable = true;
+            return null;
+        }
+        catch (Exception error) when (error is CryptographicException or JsonException or NotSupportedException)
         {
             System.Diagnostics.Trace.TraceWarning("NORA: não foi possível ler {0}: {1}", Path.GetFileName(path), error.GetType().Name);
         }

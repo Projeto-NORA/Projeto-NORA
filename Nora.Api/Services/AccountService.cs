@@ -9,18 +9,27 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
 {
     public Task<List<PatientInfo>> PatientsAsync(CancellationToken ct) => accounts.PatientsAsync(time.GetUtcNow(), ct);
     public Task<PatientInfo> CreatePatientAsync(CreatePatientRequest request, CancellationToken ct) => ProvisionAsync("patient", "patient", request, ct);
+
+    /// <summary>
+    /// Cria uma conta. Paciente exige CPF válido. Contas de equipe (<c>obs</c> e <c>municipal</c>) não têm CPF (P-053): entram só por e-mail e senha, então o CPF de <paramref name="request"/> é ignorado e nada dele é gravado.
+    /// </summary>
     public Task<PatientInfo> ProvisionAsync(string scope, string role, CreatePatientRequest request, CancellationToken ct = default)
     {
         if (!((scope == "obs" && role is "administrator" or "attendant") || (scope == "municipal" && role == "manager") || (scope == "patient" && role == "patient"))) throw new ApiInputException();
+        var staff = scope != "patient";
         var fullName = request.FullName?.Trim() ?? "";
-        var cpf = NormalizeCpf(request.Cpf);
+        var cpf = staff ? "" : NormalizeCpf(request.Cpf);
         var email = request.Email?.Trim().ToLowerInvariant() ?? "";
-        if (fullName.Length is < 2 or > 160 || !ValidCpf(cpf) || email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || request.Password is null || request.Password.Length is < 8 or > 256)
+        if (fullName.Length is < 2 or > 160 || (!staff && !ValidCpf(cpf)) || email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || request.Password is null || request.Password.Length is < 8 or > 256)
             throw new ApiInputException();
         var normalized = new CreatePatientRequest(fullName, cpf, email, request.Password, NormalizePhone(request.Phone), NormalizeAddress(request.Address));
         var account = new Account(new(Guid.Empty, fullName, role, scope), cpf, email, "");
         return accounts.CreateAsync(scope, role, normalized, passwords.HashPassword(account, request.Password), ct);
     }
+
+    /// <summary>Conta de equipe sem CPF (o cadastro inicial pelo terminal e as contas de teste): nome, e-mail e senha.</summary>
+    public Task<PatientInfo> ProvisionStaffAsync(string scope, string role, string fullName, string email, string password, CancellationToken ct = default) =>
+        scope == "patient" ? throw new ApiInputException() : ProvisionAsync(scope, role, new(fullName, "", email, password), ct);
 
     internal static string? NormalizePhone(string? value)
     {

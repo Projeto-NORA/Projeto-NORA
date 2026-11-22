@@ -8,14 +8,70 @@ namespace Nora.Api.DAOs;
 /// <summary>Internal unit boundary. Callers must authorize the unit before invoking this DAO.</summary>
 public sealed class UnitWaitingListDao(UnitDatabaseRouter databases, TimeProvider time)
 {
-    public async Task<List<UnitWaitingEntry>> ListAsync(Guid unitId, CancellationToken ct, string? cpf = null)
+    private const string EntryFrom = "FROM nora_unit.waiting_list q JOIN nora_unit.patient_registry p ON p.cpf=q.cpf ";
+    private const string EntryColumns = "SELECT q.id,q.cpf,p.full_name,q.specialty,q.entered_at,q.status ";
+
+    /// <summary>Entradas de um CPF (rotas do paciente e do responsável), em ordem de entrada. Usa o índice por CPF (P5).</summary>
+    public async Task<List<UnitWaitingEntry>> ListAsync(Guid unitId, CancellationToken ct, string cpf)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT q.id,q.cpf,p.full_name,q.specialty,q.entered_at,q.status FROM nora_unit.waiting_list q JOIN nora_unit.patient_registry p ON p.cpf=q.cpf WHERE ($1='' OR q.cpf=$1) ORDER BY q.entered_at,q.id", connection);
-        query.Parameters.AddWithValue(cpf ?? "");
+        await using var query = new NpgsqlCommand(EntryColumns + EntryFrom + "WHERE q.cpf=$1 ORDER BY q.entered_at,q.id", connection);
+        query.Parameters.AddWithValue(cpf);
         await using var reader = await query.ExecuteReaderAsync(ct); var entries = new List<UnitWaitingEntry>();
         while (await reader.ReadAsync(ct)) entries.Add(Read(reader));
         return entries;
+    }
+
+    /// <summary>
+    /// Fila da UBS para o OBS (P4, docs/desempenho.md): <b>todas</b> as entradas ativas (<c>waiting</c>, <c>offered</c>) e até <paramref name="historyLimit"/> encerradas (<c>completed</c>, <c>cancelled</c>), das mais recentes para as mais
+    /// antigas (data de entrada, depois id). Com <paramref name="historyBefore"/> devolve só as encerradas mais antigas que o cursor, sem as ativas. Cada item traz os pontos de score do CPF na UBS e a posição de oferta
+    /// (<see cref="ObsWaitingEntry.OfferOrder"/>) das ativas. Os itens saem na ordem de entrada (a mais antiga primeiro).
+    /// </summary>
+    public async Task<ObsWaitingPage> ListForObsAsync(Guid unitId, int historyLimit, string? historyBefore, CancellationToken ct)
+    {
+        var before = historyBefore is null ? ((DateTimeOffset, long)?)null : DecodeCursor(historyBefore);
+        await using var connection = await databases.OpenAsync(unitId, ct);
+        // Um só retrato do banco para as ativas, o histórico e os pontos: sem ele, uma entrada que muda de 'offered' para 'completed' entre as consultas voltaria nas duas listas.
+        await using var snapshot = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
+        var entries = new List<(UnitWaitingEntry Entry, string Group)>();
+        if (before is null)
+        {
+            await using var active = new NpgsqlCommand("SELECT q.id,q.cpf,p.full_name,q.specialty,q.entered_at,q.status,lower(btrim(q.specialty)) " + EntryFrom + "WHERE q.status IN ('waiting','offered') ORDER BY q.entered_at,q.id", connection);
+            await using var reader = await active.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) entries.Add((Read(reader), reader.GetString(6)));
+        }
+        string? cursor = null;
+        await using (var history = new NpgsqlCommand(EntryColumns + EntryFrom + "WHERE q.status IN ('completed','cancelled') " + (before is null ? "" : "AND (q.entered_at,q.id)<($2,$3) ") + "ORDER BY q.entered_at DESC,q.id DESC LIMIT $1", connection))
+        {
+            history.Parameters.AddWithValue(historyLimit + 1);
+            if (before is { } point) { history.Parameters.AddWithValue(point.Item1); history.Parameters.AddWithValue(point.Item2); }
+            await using var reader = await history.ExecuteReaderAsync(ct);
+            var closed = new List<UnitWaitingEntry>();
+            while (await reader.ReadAsync(ct)) closed.Add(Read(reader));
+            if (closed.Count > historyLimit) { closed.RemoveAt(historyLimit); cursor = PageCursor.Encode(closed[^1].EnteredAt, closed[^1].Id.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
+            entries.AddRange(closed.Select(entry => (entry, "")));
+        }
+        if (entries.Count == 0) return new([], cursor);
+        var (from, to) = UnitRegistryReadService.AttendanceWindow(time.GetUtcNow());
+        var tallies = await UnitMetricsDao.ReadAttendanceAsync(connection, from, to, entries.Select(item => item.Entry.Cpf).Distinct().ToArray(), ct);
+        // Ordem de oferta de cada especialidade: mais pontos primeiro; em empate vale a ordem de entrada (as ativas já vêm por entered_at,id e o OrderBy é estável).
+        var order = new Dictionary<long, int>();
+        foreach (var group in entries.Where(item => item.Group != "").GroupBy(item => item.Group))
+        {
+            var position = 0;
+            foreach (var item in group.OrderByDescending(item => tallies.GetValueOrDefault(item.Entry.Cpf).Points)) order[item.Entry.Id] = ++position;
+        }
+        return new(entries.Select(item => item.Entry).OrderBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id).Select(entry =>
+        {
+            var points = tallies.GetValueOrDefault(entry.Cpf).Points;
+            return new ObsWaitingEntry(entry.Id, entry.Cpf, entry.PatientName, entry.Specialty, entry.EnteredAt, entry.Status, points, AttendanceScore.Band(points), order.TryGetValue(entry.Id, out var offerOrder) ? offerOrder : null);
+        }).ToList(), cursor);
+    }
+
+    private static (DateTimeOffset, long) DecodeCursor(string cursor)
+    {
+        var (at, key) = PageCursor.Decode(cursor);
+        return long.TryParse(key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? (at, id) : throw new ApiInputException();
     }
 
     public async Task<UnitWaitingEntry> AddAsync(Guid unitId, Guid actorId, AddUnitWaitingEntryRequest request, CancellationToken ct)

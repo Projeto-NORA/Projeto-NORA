@@ -61,12 +61,18 @@ public sealed partial class WorkspaceViewModel
 
     private async Task OpenCoreAsync()
     {
-        if (devices is null || !IsOperational || deviceOpened || IsAuthenticated) return;
+        if (devices is null || !IsOperational || (deviceOpened && !devices.DeviceReadUnavailable) || IsAuthenticated) return;
         deviceOpened = true;
         OpeningSteps.Clear();
         var device = ReadStoredDevice();
         var session = devices.ReadSession();
         ShowStoreWarning();
+        if (device is null && devices.DeviceReadUnavailable)
+        {
+            // Não foi possível ler agora: nada é apagado (nem a sessão guardada) e o próximo OpenAsync (ou o login, que lê de novo o arquivo) tenta outra vez.
+            NotifyDevice();
+            return;
+        }
         if (device is null)
         {
             // Sem ativação não há por que guardar uma sessão: ela só existe junto de um computador ativado.
@@ -154,7 +160,8 @@ public sealed partial class WorkspaceViewModel
 
     private StoredDevice? ReadStoredDevice()
     {
-        if (!storedDeviceRead) { storedDevice = devices?.ReadDevice(); storedDeviceRead = true; }
+        // Leitura que falhou por E/S transitória não vale como "sem ativação": não é memorizada e o arquivo continua lá para a próxima tentativa.
+        if (!storedDeviceRead) { storedDevice = devices?.ReadDevice(); storedDeviceRead = devices?.DeviceReadUnavailable != true; }
         return storedDevice;
     }
 
@@ -170,7 +177,9 @@ public sealed partial class WorkspaceViewModel
     /// <summary>A API deixou de reconhecer este computador (revogado ou segredo antigo): apaga a ativação e a sessão guardadas.</summary>
     private void DropDevice()
     {
-        devices?.DeleteDevice(); devices?.DeleteSession();
+        // Com a leitura indisponível (E/S transitória) a ativação existe e não é provado que a API a recusou: só a sessão sai.
+        if (devices?.DeviceReadUnavailable != true) devices?.DeleteDevice();
+        devices?.DeleteSession();
         storedDevice = null; storedDeviceRead = true; currentDevice = null;
         api.SetDeviceCredential(null, null);
         ShowStoreWarning();

@@ -19,7 +19,8 @@ public sealed record PasswordResetFinishRequest(Guid ChallengeId, string Code, s
 public sealed record PasswordResetFinishResponse(bool CodeValid);
 public sealed record PasswordResetTarget(Guid Id, string FullName, string Email);
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
-public sealed record CreateStaffRequest(string? FullName, string? Cpf, string? Email, string? Password, string? Role);
+/// <summary>Conta de equipe do OBS: sem CPF (P-053). Um <c>cpf</c> enviado pelo cliente é ignorado.</summary>
+public sealed record CreateStaffRequest(string? FullName, string? Email, string? Password, string? Role);
 public sealed record SetStaffActiveRequest([property: JsonRequired] bool IsActive, [property: JsonRequired] bool Confirmed);
 public sealed record ResetStaffPasswordRequest(string? Password, [property: JsonRequired] bool Confirmed);
 public sealed record UnlinkUnitRequest([property: JsonRequired] bool Confirmed);

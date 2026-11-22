@@ -219,11 +219,18 @@ private fun withAttendance(vararg items: Pair<PatientHealthUnit, UnitAttendance?
     })
 
 @PreviewTest
-@Preview(name = "22 Jornada com indice de comparecimento", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
+@Preview(name = "22 Jornada com score em pontos", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
 @Composable
 fun JourneyWithScoreLight() = PlainScreen(Appearance.LIGHT) {
     JourneyScreen(withAttendance(centro to UnitAttendance(8, 1, 2, 0.5, 0.84, 12),
         queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"))), {}, {}, {})
+}
+
+@PreviewTest
+@Preview(name = "22b Jornada com score baixo escura", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
+@Composable
+fun JourneyLowScoreDark() = PlainScreen(Appearance.DARK) {
+    JourneyScreen(withAttendance(centro to UnitAttendance(1, 4, 2, 1.0, 0.1667, 12)), {}, {}, {})
 }
 
 @PreviewTest

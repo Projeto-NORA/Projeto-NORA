@@ -12,25 +12,25 @@ OBS possui perfis de atendente e administrador da clínica. Ambos podem criar co
 
 O usuário confirmou desativação e reativação por atendente ou administrador do OBS e, posteriormente, que o bloqueio deve valer somente para a UBS que o executa. A conta e o acesso às demais unidades permanecem ativos; entradas e ofertas pendentes da unidade são canceladas, consultas existentes são preservadas e a reativação não restaura entradas canceladas. A interface exige confirmação.
 
-O usuário autorizou uma conta para cada sistema: OBS e Municipal previamente cadastrados e paciente Android cadastrado pelo OBS. Login aceita **CPF ou e-mail**; nome aprovado: **Mateus Todeschini Monteiro**. CPF, e-mail e senha pessoais não fazem parte desta documentação nem de seeds versionados. Criar outros atendentes pela interface ainda não foi confirmado.
+O usuário autorizou uma conta para cada sistema: OBS e Municipal previamente cadastrados e paciente Android cadastrado pelo OBS. O paciente entra por **CPF ou e-mail**; a equipe (OBS e Municipal) entra **só por e-mail**, porque as contas de equipe não têm CPF (migração central 022, 2026-11-17); nome aprovado: **Mateus Todeschini Monteiro**. CPF, e-mail e senha pessoais não fazem parte desta documentação nem de seeds versionados. Criar outros atendentes pela interface ainda não foi confirmado.
 
 Em 2026-10-28, o acesso passou a rejeitar CPF com formato ou dígitos verificadores inválidos antes da chamada de login e a API repete essa checagem. Essa é uma validação matemática de consistência, não uma consulta à Receita Federal. O cadastro OBS também aceita endereço opcional: a equipe consulta CEP, confere os campos retornados e informa número/complemento quando necessário. Somente o CEP é enviado ao serviço externo de consulta.
 
 ## Persistência
 
-Banco escolhido: **PostgreSQL 18**, usuário **postgres** na instância de uso. API usa Npgsql, migrações aditivas e contas/sessões/fila/ofertas persistidas. Testes usam PostgreSQL18 descartável e schemas aleatórios. Conexão privada e provisionamento definitivo permanecem em P-012; não presumir a senha das contas como senha PostgreSQL.
+Banco escolhido: **PostgreSQL 18**, usuário **postgres** na instância de uso. API usa Npgsql, migrações aditivas e contas/sessões/fila/ofertas persistidas. Testes usam PostgreSQL18 descartável e schemas aleatórios. Conexão privada e provisionamento definitivo: P-012 encerrada em 2026-11-17 (demonstração em banco próprio e piloto no Neon; ver [hospedagem.md](hospedagem.md)); não presumir a senha das contas como senha PostgreSQL.
 
 ## Fila e Vaga Relâmpago
 
-A fila de Vaga Relâmpago é operada por atendente/administrador no OBS. A ordem confirmada é **entrada**, desempate pelo identificador. Toda oferta tem **10 minutos**. Recusa, cancelamento ou expiração libera a vaga para o próximo. O servidor verifica prazo antes das operações e periodicamente a cada15 segundos; aceita somente uma resposta concorrente.
+A fila de Vaga Relâmpago é operada por atendente/administrador no OBS. A ordem de entrada na fila é por data de **entrada**, desempate pelo identificador; a **ordem de oferta** da Vaga Relâmpago é por **pontos de score** (mais pontos primeiro) e só em empate vale a ordem de entrada (`entered_at`, depois `id`; ver `api.md`, "Score em pontos e prioridade na Vaga Relâmpago"). Toda oferta tem **10 minutos**. Recusa, cancelamento ou expiração libera a vaga para o próximo. O servidor verifica prazo antes das operações e periodicamente a cada15 segundos; aceita somente uma resposta concorrente.
 
-A fila desta entrega é administrativa, para ofertas. Aceite confirma a oportunidade, sem afirmar atendimento clínico realizado. Entrada concluída encerra o ciclo da oferta, inclusive recusa/expiração; nova inclusão pelo OBS cria outra entrada. Não se infere prioridade clínica.
+A fila desta entrega é administrativa, para ofertas. Aceite confirma a oportunidade, sem afirmar atendimento clínico realizado. Entrada concluída (oferta aceita) encerra o ciclo da oferta; recusar ou deixar vencer devolve a entrada à fila com a mesma data de entrada (R-030; a posição na ordem de oferta continua dependendo do score), sem reoferecer a mesma vaga à mesma pessoa; entrada cancelada ou concluída só volta por nova inclusão pelo OBS, que cria outra entrada. Não se infere prioridade clínica.
 
 ## Estado de implementação
 
 O escopo atual inclui acesso nos três aplicativos, cadastro por UBS, agenda, fila por entrada, Vaga Relâmpago de dez minutos e gestão da rede. A integração completa da fila, das vagas, de notificações e dos indicadores ainda está em andamento. Opções de notificação são preferências locais; ofertas são consultadas por Atualizar.
 
-Provisionamento definitivo das contas e conexão à base de uso permanecem em P-012. Validar com dados sintéticos descartáveis não equivale à criação das contas definitivas.
+O provisionamento definitivo e a conexão à base de uso (P-012) foram encerrados em 2026-11-17 (ver [hospedagem.md](hospedagem.md)). Validar com dados sintéticos descartáveis não equivale à criação das contas definitivas.
 
 ## Painel operacional da UBS — 2026-10-15
 
@@ -40,7 +40,9 @@ O visual do OBS adota azul-escuro e branco, com gráficos e calendário sem sér
 
 Cada UBS deve acessar somente os dados da própria unidade. Isso é requisito de autorização de servidor, não uma regra de visibilidade do WPF. O desenho definitivo requer vínculo da conta à unidade, filtros obrigatórios no banco/API e definição dos perfis que podem chamar, atualizar, registrar falta, finalizar e liberar uma vaga cancelada para Vaga Relâmpago.
 
-## Evoluções solicitadas em 2026-10-08
+## Evoluções solicitadas em 2026-10-08 (histórico, substituído)
+
+> Os dois itens abaixo foram substituídos: o acesso do OBS ficou como login da atendente em computador ativado (P-014, resolvida em 2026-11-17) e o Painel Municipal foi mantido como painel gerencial, sem valores financeiros (P-015, encerrada em 2026-11-17). Ver `docs/PENDENCIAS.md`, Resolvidas. O texto original fica como registro.
 
 Depois de concluir a entrega anterior, o OBS deverá usar chave de acesso gerada pelo painel do administrador, sem login de atendente/administrador. O usuário pediu pesquisar o modelo e aprimoramentos, comparando `OliverImportsBusinnes`. Alcance, validade e revogação serão definidos pela pesquisa e confirmação do usuário (P-014).
 
@@ -60,7 +62,7 @@ O paciente poderá escolher a UBS nas telas que apresentam informações de uma 
 
 A consulta inicia agendada e poderá ser chamada, concluída, registrada como falta ou cancelada. O cancelamento exige confirmação; mudanças devem registrar autor e data. Uma consulta cancelada poderá gerar Vaga Relâmpago após confirmação. A agenda por UBS já implementa essas transições e seu histórico; a geração de Vaga Relâmpago a partir do cancelamento ainda falta.
 
-A Vaga Relâmpago deve seguir ordem de entrada e especialidade, com resposta em dez minutos, e alcançar somente paciente vinculado à UBS ofertante. As regras acima ainda não foram implementadas no fluxo existente, que continua sendo uma fila global.
+A Vaga Relâmpago deve seguir a especialidade e a prioridade por pontos de score (mais pontos primeiro; empate pela ordem de entrada), com resposta em dez minutos, e alcançar somente paciente vinculado à UBS ofertante. Esta frase é a da decisão de 2026-11-07 (então "fluxo existente, que continua sendo uma fila global"); as regras já estão implementadas por UBS e a prioridade por pontos vale desde 2026-11-17.
 
 ## Bancos por UBS e cadastro no aplicativo — 2026-11-07
 

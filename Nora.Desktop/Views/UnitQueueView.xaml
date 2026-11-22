@@ -4,7 +4,7 @@
   </UserControl.Resources>
   <StackPanel>
     <views:ObsUnitNoticeView />
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="As vagas são oferecidas pela ordem de entrada entre as entradas ativas da mesma especialidade. A posição e a espera são calculadas a cada leitura."><StackPanel IsEnabled="{Binding CanEditDraft}">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; em caso de empate, vale a ordem de entrada. O score não altera a prioridade clínica nem o direito ao atendimento."><StackPanel IsEnabled="{Binding CanEditDraft}">
       <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
       <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
@@ -16,7 +16,7 @@
         <WrapPanel><Button Content="Incluir na fila da UBS" Style="{StaticResource ObsPrimaryButton}" Click="OnAdd" Margin="0,0,8,8" /><Button Style="{StaticResource IconRefreshButton}" Click="OnLoad" Margin="0,0,8,8" AutomationProperties.Name="Atualizar fila da UBS" ToolTip="Atualizar fila da UBS" />
           <Button Content="Chamar próximo…" Style="{StaticResource ObsPrimaryButton}" Click="OnToggleCallNext" IsEnabled="{Binding CanOpenCallNext}" Margin="0,0,8,8" AutomationProperties.Name="Chamar próximo" ToolTip="Escolha um horário livre e ofereça ao 1º da fila da especialidade." ToolTipService.ShowOnDisabled="True" /></WrapPanel>
         <!-- Chamar próximo: horário livre da grade oferecido na hora ao 1º da fila da especialidade (10 minutos para responder). -->
-        <Border Visibility="{Binding CallNextOpen, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14" AutomationProperties.Name="Chamar próximo da fila" ToolTip="Escolha um horário livre. A oferta vai ao primeiro da fila da especialidade, que tem 10 minutos para responder.">
+        <Border Visibility="{Binding CallNextOpen, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14" AutomationProperties.Name="Chamar próximo da fila" ToolTip="Escolha um horário livre. A oferta vai à primeira pessoa elegível pela ordem de oferta, que tem 10 minutos para responder. Se recusar ou não responder, ela continua na fila e a oferta segue para as próximas.">
           <StackPanel MaxWidth="780" HorizontalAlignment="Left">
             <TextBlock Text="Chamar próximo da fila" FontWeight="SemiBold" />
             <WrapPanel>
@@ -48,13 +48,14 @@
           <StackPanel Grid.Column="1" Margin="8,0"><TextBlock Text="Especialidade" /><TextBox Text="{Binding QueueSpecialtyFilter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Filtrar fila por especialidade" /></StackPanel>
           <StackPanel Grid.Column="2" Margin="8,0,0,0"><TextBlock Text="Ordenar por" /><ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.QueueSortOptions}" SelectedItem="{Binding QueueSort}" Margin="0,6,0,16" AutomationProperties.Name="Ordenação da fila" /></StackPanel>
         </Grid>
-        <DataGrid x:Name="QueueGrid" ItemsSource="{Binding FilteredUnitWaitingList}" SelectedItem="{Binding SelectedWaitingEntry}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada. Ordenar a lista não muda a prioridade da fila.">
+        <DataGrid x:Name="QueueGrid" ItemsSource="{Binding FilteredUnitWaitingListView}" SelectedItem="{Binding SelectedWaitingEntry}" IsSynchronizedWithCurrentItem="False" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada. Ordenar a lista não muda a prioridade da fila.">
           <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
         <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>
         <DataGrid.Columns>
-            <DataGridTextColumn Header="Posição" Binding="{Binding PositionDisplay}" Width="76" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Ordem de oferta" Binding="{Binding PositionDisplay}" SortMemberPath="OfferSort" Width="128" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Paciente" Binding="{Binding PatientName}" Width="1.5*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Especialidade" Binding="{Binding Specialty}" Width="*" MinWidth="90" ElementStyle="{StaticResource CellText}" />
+            <DataGridTextColumn Header="Score" Binding="{Binding ScoreDisplay}" SortMemberPath="ScoreSort" Width="120" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Espera" Binding="{Binding WaitDisplay}" Width="82" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Entrada" Binding="{Binding EnteredAtDisplay}" Width="136" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="104" ElementStyle="{StaticResource CellText}" />
@@ -62,6 +63,10 @@
         </DataGrid>
         <TextBlock Text="Nenhuma entrada na fila desta UBS." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding HasNoWaitingEntries, Converter={StaticResource BoolVisibility}}" />
         <TextBlock Text="Nenhuma entrada corresponde aos filtros." Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding HasNoFilteredWaitingEntries, Converter={StaticResource BoolVisibility}}" />
+        <DockPanel Margin="0,10,0,0" Visibility="{Binding QueueHistoryState, Converter={StaticResource TextVisibility}}">
+          <Button DockPanel.Dock="Right" Content="Carregar mais histórico" Click="OnMoreHistory" IsEnabled="{Binding CanLoadMoreQueueHistory}" Margin="12,0,0,0" AutomationProperties.Name="Carregar mais histórico da fila" ToolTip="Traz as entradas encerradas mais antigas que as que já estão na lista. As entradas ativas aparecem sempre todas." ToolTipService.ShowOnDisabled="True" />
+          <TextBlock Text="{Binding QueueHistoryState}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+        </DockPanel>
         <Button Content="Cancelar entrada" Style="{StaticResource ObsPrimaryButton}" Click="OnCancel" IsEnabled="{Binding CanCancelWaitingEntry}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Cancela a entrada selecionada enquanto ela estiver aguardando ou com oferta em andamento." ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
     </StackPanel></Border>

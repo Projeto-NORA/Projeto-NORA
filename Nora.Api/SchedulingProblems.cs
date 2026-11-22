@@ -9,7 +9,7 @@ internal static class SchedulingProblems
         ["slot-unavailable"] = ("slot-unavailable", "Horário indisponível", "O horário escolhido não está livre. Escolha outro horário da lista de disponibilidade."),
         ["patient-overlap"] = ("patient-overlap", "Consulta no mesmo horário", "O paciente já tem uma consulta que cruza este horário."),
         ["specialty-limit"] = ("specialty-limit", "Limite da especialidade", "Já existe uma consulta futura marcada pelo aplicativo nesta especialidade. Cancele-a ou aguarde a data para marcar outra."),
-        ["booking-window"] = ("booking-window", "Fora do prazo de agendamento", "O agendamento pelo aplicativo vale de 24 horas até 90 dias antes do horário."),
+        ["booking-window"] = ("booking-window", "Horário que já passou", "Esse horário já começou ou passou. Escolha um horário que ainda não começou."),
         ["confirmation-window"] = ("confirmation-window", "Fora do prazo de confirmação", "A presença é confirmada de 48 horas até 2 horas antes da consulta.")
     };
 

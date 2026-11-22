@@ -43,9 +43,14 @@ data class UnitQueueEntry(val id: Long, val specialty: String, val enteredAt: St
 data class UnitOffer(val id: String, val specialty: String, val professional: String, val startsAt: String, val endsAt: String, val expiresAt: String, val status: String) {
     val expiresAtMillis: Long? = parseInstantMillis(expiresAt)
 }
-/** Participação do próprio paciente em uma UBS nos últimos [windowMonths] meses; `score` (0 a 1) é nulo sem consulta encerrada. */
+/**
+ * Participação do próprio paciente em uma UBS nos últimos [windowMonths] meses; `score` (0 a 1) é nulo sem consulta encerrada.
+ * `points` (0 a 1000), `band` e `hasHistory` vêm do servidor; quando ele é antigo e não os manda, saem de `score`
+ * ([scorePoints], [attendanceBandOf]): sem histórico vale 1000.
+ */
 data class UnitAttendance(val completed: Int, val missed: Int, val cancelledByPatient: Int, val cancellationWeight: Double,
-    val score: Double?, val windowMonths: Int)
+    val score: Double?, val windowMonths: Int, val points: Int = scorePoints(score), val band: AttendanceBand = attendanceBandOf(points),
+    val hasHistory: Boolean = score != null)
 /** O que o servidor cancelou ao remover o vínculo com uma UBS. */
 data class UnlinkResult(val cancelledAppointments: Int, val cancelledEntries: Int)
 /** Resultado do servidor para uma resposta: `accepted` só é verdadeiro quando a consulta foi criada. */
@@ -112,7 +117,7 @@ interface PatientApi {
     suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact = throw ApiFailure(501, "Remoção indisponível.")
     suspend fun changePassword(token: String, currentPassword: String, newPassword: String): Unit = throw ApiFailure(501, "Troca de senha indisponível.")
     suspend fun specialties(token: String): List<Specialty> = throw ApiFailure(501, "Especialidades indisponíveis.")
-    /** Horários livres no intervalo [fromMillis, toMillis); o servidor ainda recorta a janela de 24 h a 90 dias. */
+    /** Horários livres no intervalo [fromMillis, toMillis); o servidor só recorta o que já começou (não há antecedência mínima nem máxima). */
     suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long): List<AvailableSlot> =
         throw ApiFailure(501, "Horários indisponíveis.")
     suspend fun bookAppointment(token: String, unitId: String, professionalId: String, specialtyId: String, startsAt: String): PatientAppointment =
@@ -334,8 +339,13 @@ class NoraApi(private val address: String) : PatientApi {
 
     private suspend fun attendanceOf(token: String, prefix: String): UnitAttendance {
         val body = request("$prefix/attendance", token = token, context = ApiContext.UNIT)
+        val score = if (body.isNull("score")) null else body.getDouble("score")
+        // Servidor antigo não manda os campos de pontos: saem de `score`, sem quebrar.
+        val points = if (body.isNull("points")) scorePoints(score) else body.getInt("points").coerceIn(0, SCORE_MAX_POINTS)
         return UnitAttendance(body.getInt("completed"), body.getInt("missed"), body.getInt("cancelledByPatient"),
-            body.getDouble("cancellationWeight"), if (body.isNull("score")) null else body.getDouble("score"), body.getInt("windowMonths"))
+            body.getDouble("cancellationWeight"), score, body.getInt("windowMonths"), points,
+            attendanceBandFromWire(body.optString("band", "")) ?: attendanceBandOf(points),
+            if (body.isNull("hasHistory")) score != null else body.getBoolean("hasHistory"))
     }
 
     override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = cancelEntry(token, own(unitId), entryId)

@@ -13,6 +13,8 @@ while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Nora.
     directory = directory.Parent;
 if (directory == null) throw new InvalidOperationException("Projeto Nora.Api não encontrado a partir do harness.");
 if (args.Contains("--client-fixture")) return await ClientFixture.RunAsync(directory.FullName);
+// Prepara o banco da demonstração (scripts/demo-local.ps1) com UBS, especialidade e um paciente com conta; ver DemoBootstrap.
+if (args.Contains("--demo-bootstrap")) return await DemoBootstrap.RunAsync(directory.FullName);
 // Itera só nas regressões da revisão crítica (o conjunto completo continua sendo o padrão).
 if (args.Contains("--review-only")) return await ReviewChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 // Itera só nas verificações de comunicação e Jornada, ou só nas de agenda.
@@ -30,6 +32,11 @@ if (args.Contains("--slot-approval-only")) return await SlotApprovalChecks.RunAs
 if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsync(directory.FullName);
 if (args.Contains("--cross-unit-only")) return await CrossUnitChecks.RunAsync(directory.FullName);
 if (args.Contains("--email-outbox-only")) return await EmailOutboxChecks.RunAsync(directory.FullName);
+if (args.Contains("--performance-only")) return await PerformanceChecks.RunAsync(directory.FullName);
+if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--queue-return-only")) return await QueueReturnChecks.RunAsync(directory.FullName);
+// Fechamento das pendências de 2026-11-17: score em pontos, prioridade da Vaga Relâmpago, equipe sem CPF e P3/P4/P5.
+if (args.Contains("--closing-only")) return await ClosingChecks.RunAsync(directory.FullName);
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -100,6 +107,20 @@ foreach (var environment in new[] { "Development", "Production" })
             Require(Nora.Api.Services.AttendanceScore.Compute(0, 0, 0.5) == 0.0, "Só cancelamentos pesados devem dar score zero, não nulo.");
             Require(Nora.Api.Services.AttendanceScore.Compute(3, 0, 0) == 1.0 && Nora.Api.Services.AttendanceScore.Compute(3, 1, 0) == 0.75, "Score sem cancelamentos incorreto.");
             Require(Math.Abs(Nora.Api.Services.AttendanceScore.Compute(2, 0, 4.02)!.Value - 2 / 6.02) < 1e-12, "Score com peso fracionário incorreto.");
+            return Task.CompletedTask;
+        });
+        await Check("Score em pontos: round(score × 1000) meio para cima, sem histórico = 1000 e faixas nas bordas (299/300, 599/600, 799/800)", () =>
+        {
+            Require(Nora.Api.Services.AttendanceScore.Points(null) == 1000 && Nora.Api.Services.AttendanceScore.Band(1000) == "excellent", "Sem histórico: 1000 pontos, excelente.");
+            Require(Nora.Api.Services.AttendanceScore.Points(0.0) == 0 && Nora.Api.Services.AttendanceScore.Points(1.0) == 1000, "Extremos 0 e 1000.");
+            Require(Nora.Api.Services.AttendanceScore.Points(0.2995) == 300 && Nora.Api.Services.AttendanceScore.Points(0.29949) == 299 && Nora.Api.Services.AttendanceScore.Points(0.0005) == 1 && Nora.Api.Services.AttendanceScore.Points(0.00049) == 0, "Arredondamento: meio para cima.");
+            Require(Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(299, 701, 0)) == 299 && Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(3, 7, 0)) == 300, "Razão exata em 299 e 300.");
+            Require(Nora.Api.Services.AttendanceScore.Points(201, 199, 0) == 503 && Nora.Api.Services.AttendanceScore.Points(203, 197, 0) == 508, "Empate exato de meio ponto (502,5 e 507,5) arredonda para cima, sem perder a razão exata no double.");
+            Require(Nora.Api.Services.AttendanceScore.Points(201, 199, 0) == Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(201, 199, 0)) && Nora.Api.Services.AttendanceScore.Points(0, 0, 0) == 1000 && Nora.Api.Services.AttendanceScore.Points(0, 0, 0.5) == 0 && Nora.Api.Services.AttendanceScore.Points(2, 0, 4.02) == 332, "Points(inteiros) e Points(score) concordam; sem histórico 1000; só cancelamento pesado 0.");
+            (int Points, string Band)[] cases = [(0, "low"), (299, "low"), (300, "regular"), (599, "regular"), (600, "good"), (799, "good"), (800, "excellent"), (1000, "excellent")];
+            foreach (var (points, band) in cases) Require(Nora.Api.Services.AttendanceScore.Band(points) == band, $"{points} pontos deveria ser {band}.");
+            var previous = -1;
+            for (var points = 0; points <= 1000; points++) { var rank = Array.IndexOf(new[] { "low", "regular", "good", "excellent" }, Nora.Api.Services.AttendanceScore.Band(points)); Require(rank >= previous, "A faixa nunca desce quando os pontos sobem."); previous = rank; }
             return Task.CompletedTask;
         });
         await Check("GET liveness tem escopo explícito, sem afirmação de readiness", async () =>
@@ -240,7 +261,10 @@ var profileFailures = await UnitProfileChecks.RunAsync(directory.FullName);
 var crossUnitFailures = await CrossUnitChecks.RunAsync(directory.FullName);
 var approvalFailures = await SlotApprovalChecks.RunAsync(directory.FullName);
 var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
-return deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var queueReturnFailures = await QueueReturnChecks.RunAsync(directory.FullName);
+var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
+var closingFailures = await ClosingChecks.RunAsync(directory.FullName);
+return closingFailures + queueReturnFailures + performanceFailures + deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

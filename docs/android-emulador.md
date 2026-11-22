@@ -96,3 +96,20 @@ O runner desinstala o app no fim de cada execução; para inspecionar à mão, r
 
 - [Aceleração do Android Emulator e WHPX/AEHD](https://developer.android.com/studio/run/emulator-acceleration).
 - [Inicialização do emulador pela linha de comando](https://developer.android.com/studio/run/emulator-commandline).
+
+## Conferência de 2026-11-17 no emulador (P-046, P-048 e parte da P-003)
+
+AVD `Medium_Phone_API_37.0` (Android 17, aceleração WHPX), ligado com `emulator -avd Medium_Phone_API_37.0 -no-snapshot-save`.
+
+**P-046 — diálogo de `ACCESS_LOCAL_NETWORK` com UiAutomator.** O diálogo do Android 17 **é acionável** pelo UiAutomator (`androidx.test.uiautomator:uiautomator` 2.3.0): os botões têm os ids `permission_deny_button` e `permission_allow_button` do `permissioncontroller`. `LocalNetworkPermissionTest` (androidTest) grava o endereço `http://10.0.2.2:1` nas preferências, abre a `MainActivity`, digita e-mail e senha e toca em Entrar: (1) negando, a tela mostra `LOCAL_NETWORK_DENIED_MESSAGE` e **não** mostra a falha de conexão, o que prova que nada saiu; (2) permitindo, o pedido segue e a porta 1 recusa a conexão (`CONNECTION_FAILED_MESSAGE`), e a permissão fica concedida. Os dois passaram. **Limite:** `pm revoke` de uma permissão concedida **mata o processo do app**, que é o mesmo do teste (visto em "Crash of app ... running instrumentation"), então a ordem é fixa (negar, depois permitir) e o teste se apoia em o AGP desinstalar o app ao fim de cada `connectedDebugAndroidTest`; se a permissão já vier concedida, o caso é pulado com a instrução de revogar com `adb shell pm revoke com.example.app_nora android.permission.ACCESS_LOCAL_NETWORK`. `pm clear` também não pode rodar dentro do teste, pelo mesmo motivo. Continua sem cobertura um endereço com nome comum que resolva para IP privado.
+
+**P-048 — release com R8.** Ver [distribuicao.md](distribuicao.md#6-apk-de-release-assinado-com-chave-própria-p-048): o primeiro release caía ao abrir (`IllegalAccessError` em `kotlin.sequences`), corrigido com uma regra de keep; depois disso abre e navega no emulador sem exceções no logcat.
+
+**P-003 — capturas no emulador com o APK de depuração** (em `Claude-HTML\Projeto-NORA\conferencia-2026-11-17\`, 1080x2400; a tela larga é 1600x2560 a 320 dpi). Telas: entrada, Ajuda, Configurações (início e fim) e Criar conta, em fonte 1.3, tela larga, tema escuro (`cmd uimode night yes`) e rotação. Tudo foi restaurado ao fim (`font_scale` 1.0, `wm size`/`wm density` reset, `night no`, rotação 0 com a automática ligada).
+
+- **Defeito achado (fonte 1.3, entrada):** o botão **"Configurar"** do cartão "Precisa conectar à sua unidade?" quebra no meio da palavra ("Configur" / "ar"), porque o texto da esquerda ocupa quase toda a linha. Não corrigido (não mexer no build de depuração da apresentação); ver P-003.
+- **Fonte 1.3:** entrada, Ajuda, Configurações e Criar conta sem texto cortado nem sobreposição, fora a quebra acima; em Criar conta há um vão vazio entre CPF e Senha (provavelmente a linha de apoio do CPF reservada).
+- **Tela larga:** o conteúdo fica centralizado e limitado em largura (o limite de 640 dp da P-006 funciona); Configurações legível, sem corte.
+- **Tema escuro:** contraste bom em entrada, Configurações e Criar conta; sem texto ilegível.
+- **Rotação (retrato para paisagem e volta):** na tela Criar conta com "Maria" digitado, o texto **permaneceu** nas duas rotações, sem crash; em paisagem o formulário rola e é limitado em largura.
+- **Início com dados de prévia:** o app não tem modo de prévia; a tela Início exige login numa API real, então não foi capturada (fica para a conferência com a API, em aparelho).

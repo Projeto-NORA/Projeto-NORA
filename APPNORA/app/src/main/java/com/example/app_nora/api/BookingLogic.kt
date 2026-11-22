@@ -12,20 +12,34 @@ private const val HOUR_MS = 3_600_000L
 private const val DAY_MS = 24 * HOUR_MS
 private val PT_BR: Locale = Locale.forLanguageTag("pt-BR")
 
-/** Agendamento pelo app: o início fica entre 24 horas e 90 dias à frente, limites incluídos. */
-const val BOOKING_MIN_LEAD_MS = 24 * HOUR_MS
-const val BOOKING_MAX_LEAD_MS = 90 * DAY_MS
 /** Confirmação de presença: de 48 horas até 2 horas antes do início, limites incluídos. */
 const val PRESENCE_OPENS_BEFORE_MS = 48 * HOUR_MS
 const val PRESENCE_CLOSES_BEFORE_MS = 2 * HOUR_MS
 
-fun isBookable(startMillis: Long, now: Long): Boolean = startMillis - now in BOOKING_MIN_LEAD_MS..BOOKING_MAX_LEAD_MS
+/**
+ * Agendamento pelo app: qualquer horário livre que ainda não começou, sem antecedência mínima (decisão do usuário de
+ * 2026-11-17); quem diz se o horário está livre é o servidor. A única distância máxima é o teto técnico do servidor
+ * (SchedulingService.MaxScheduleHorizonYears): ele recusa com 400 `invalid-input` qualquer consulta de horários além dele.
+ */
+fun isBookable(startMillis: Long, now: Long): Boolean = startMillis > now
+
+/** Teto de distância das datas de agendamento, igual a `SchedulingService.MaxScheduleHorizonYears` do servidor. */
+const val BOOKING_HORIZON_YEARS = 20
+
+/**
+ * O instante a partir do qual o app não pede horários: [BOOKING_HORIZON_YEARS] anos depois de [now], menos um dia de folga para
+ * a diferença entre o relógio do aparelho e o do servidor (o servidor compara com o relógio dele no momento da requisição).
+ */
+fun bookingHorizon(now: Long, zone: TimeZone = TimeZone.getDefault()): Long = Calendar.getInstance(zone).apply {
+    timeInMillis = now; add(Calendar.YEAR, BOOKING_HORIZON_YEARS); add(Calendar.DAY_OF_YEAR, -1)
+}.timeInMillis
 
 // ---- Semanas de horários ---------------------------------------------------------------------------------
 
 /**
- * Uma "semana" de horários: sete dias do calendário do aparelho a partir do dia em que a janela de agendamento abre,
- * recortada pela própria janela. [fromMillis, toMillis) é o intervalo pedido ao servidor, uma requisição por semana.
+ * Uma "semana" de horários: sete dias do calendário do aparelho a partir de hoje (a semana 0 começa agora, para não pedir
+ * horários que já passaram). [fromMillis, toMillis) é o intervalo pedido ao servidor, uma requisição por semana. A última semana
+ * termina em [bookingHorizon] (a seguinte não existe); até lá dá para avançar ou saltar para uma data com [bookingWeekIndexFor].
  */
 data class BookingWeek(val index: Int, val fromMillis: Long, val toMillis: Long)
 
@@ -38,30 +52,43 @@ private fun plusDays(dayStart: Long, days: Int, zone: TimeZone): Long = Calendar
     timeInMillis = dayStart; add(Calendar.DAY_OF_YEAR, days)
 }.timeInMillis
 
-/** A semana de número [index] (0 = a que contém a abertura da janela) ou nulo se começa depois dos 90 dias. */
+/** A semana de número [index] (0 = a que contém hoje, recortada em [now]) ou nulo se [index] for negativo ou já estiver além de [bookingHorizon]. */
 fun bookingWeek(now: Long, index: Int, zone: TimeZone = TimeZone.getDefault()): BookingWeek? {
     if (index < 0) return null
-    val min = now + BOOKING_MIN_LEAD_MS
-    val max = now + BOOKING_MAX_LEAD_MS
-    val first = startOfDay(min, zone)
-    val from = maxOf(plusDays(first, 7 * index, zone), min)
-    val to = minOf(plusDays(first, 7 * (index + 1), zone), max)
+    val first = startOfDay(now, zone)
+    val from = maxOf(plusDays(first, 7 * index, zone), now)
+    val to = minOf(plusDays(first, 7 * (index + 1), zone), bookingHorizon(now, zone))
     return if (from < to) BookingWeek(index, from, to) else null
 }
 
-/** Quantas semanas cobrem a janela inteira (a última pode ser parcial). */
-fun bookingWeekCount(now: Long, zone: TimeZone = TimeZone.getDefault()): Int {
-    var count = 0
-    while (bookingWeek(now, count, zone) != null) count++
-    return count
+/** O número da semana que contém o dia de [dateMillis] (qualquer instante do dia, no calendário do aparelho); hoje ou antes é a semana 0. */
+fun bookingWeekIndexFor(dateMillis: Long, now: Long, zone: TimeZone = TimeZone.getDefault()): Int {
+    val first = startOfDay(now, zone)
+    val days = Math.round((startOfDay(dateMillis, zone) - first).toDouble() / DAY_MS).toInt()
+    return if (days <= 0) 0 else days / 7
 }
+
+/**
+ * O seletor de data do Material devolve a meia-noite UTC do dia escolhido; isto devolve o início do mesmo dia (ano, mês e dia)
+ * no calendário do aparelho, que é o que [bookingWeekIndexFor] espera.
+ */
+fun localDayFromPicker(utcMidnightMillis: Long, zone: TimeZone = TimeZone.getDefault()): Long {
+    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMidnightMillis }
+    return Calendar.getInstance(zone).apply {
+        clear(); set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
+
+/** O dia de [dayStartMillis] pode ter horário livre: é hoje ou depois e ainda antes de [bookingHorizon] (o seletor só deixa escolher esses). */
+fun isDayBookable(dayStartMillis: Long, now: Long, zone: TimeZone = TimeZone.getDefault()): Boolean =
+    dayStartMillis >= startOfDay(now, zone) && dayStartMillis < bookingHorizon(now, zone)
 
 /** Atendimentos de um mesmo dia do calendário do aparelho, do mais cedo ao mais tarde. */
 data class SlotDay(val dayStart: Long, val slots: List<AvailableSlot>)
 
 /**
- * Agrupa os horários livres por dia. Descarta horário ilegível ou fora da janela de agendamento (o servidor já recorta;
- * isto só evita oferecer o que não pode ser marcado). Dentro do dia: início, depois nome do profissional.
+ * Agrupa os horários livres por dia. Descarta horário ilegível ou que já começou (o servidor já recorta; isto só evita
+ * oferecer o que não pode ser marcado). Dentro do dia: início, depois nome do profissional.
  */
 fun groupSlotsByDay(slots: List<AvailableSlot>, now: Long, zone: TimeZone = TimeZone.getDefault()): List<SlotDay> {
     val byDay = java.util.TreeMap<Long, MutableList<AvailableSlot>>()
@@ -73,6 +100,12 @@ fun groupSlotsByDay(slots: List<AvailableSlot>, now: Long, zone: TimeZone = Time
         SlotDay(day, items.sortedWith(compareBy<AvailableSlot>({ it.startsAtMillis }, { it.professionalName.lowercase(PT_BR) }, { it.professionalId })))
     }
 }
+
+/** O dia que a tela mostra: o pedido ([wantedDay], início do dia) se ele tem horário livre; senão o primeiro dia da semana. [days] não pode ser vazio. */
+fun shownDay(days: List<SlotDay>, wantedDay: Long?): SlotDay = days.firstOrNull { it.dayStart == wantedDay } ?: days.first()
+
+/** Há um dia pedido, mas ele não tem horário livre nesta semana (a tela avisa e mostra os outros dias). */
+fun isWantedDayEmpty(days: List<SlotDay>, wantedDay: Long?): Boolean = wantedDay != null && days.none { it.dayStart == wantedDay }
 
 private fun formatLocal(pattern: String, millis: Long): String = SimpleDateFormat(pattern, PT_BR).format(millis)
 
@@ -156,7 +189,7 @@ fun bookingLimitRuleText(actingName: String?): String =
         (if (actingName == null) "todas as suas UBS" else "as UBS de $actingName") + ". Ao cancelar, " +
         (if (actingName == null) "você libera" else "libera") + " outra."
 
-/** Aviso do diálogo de marcação; o cancelamento pesa no índice de comparecimento de quem tem a consulta (o dependente, se for o caso). */
+/** Aviso do diálogo de marcação; o cancelamento pesa no score de comparecimento de quem tem a consulta (o dependente, se for o caso). */
 fun bookingCancelWarningText(actingName: String?): String =
-    "Se precisar cancelar, o cancelamento conta no " + (if (actingName == null) "seu índice" else "índice") + " de comparecimento" +
+    "Se precisar cancelar, o cancelamento conta no " + (if (actingName == null) "seu score" else "score") + " de comparecimento" +
         (if (actingName == null) "" else " de $actingName") + " conforme a antecedência."

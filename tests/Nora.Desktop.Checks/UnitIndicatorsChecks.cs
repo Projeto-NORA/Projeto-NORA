@@ -27,7 +27,7 @@ internal static partial class Program
     /// <summary>Texto completo de cada TextBlock visível, inclusive o de blocos montados com Run (a propriedade Text não os traz).</summary>
     private static string[] FullTexts(DependencyObject root) =>
         Descendants<TextBlock>(root).Where(text => text.IsVisible).Select(text => new System.Windows.Documents.TextRange(text.ContentStart, text.ContentEnd).Text).ToArray();
-    private static UnitAttendance Attend(long completed, long missed, long cancelled, double weight, double? score) => new(completed, missed, cancelled, weight, score);
+    private static UnitAttendance Attend(long completed, long missed, long cancelled, double weight, double? score, int? points = null, string? band = null, bool? hasHistory = null) => new(completed, missed, cancelled, weight, score, points, band, hasHistory);
 
     private static void RunUnitIndicatorsChecks(Application application, string storageRoot, string[] args)
     {
@@ -230,15 +230,17 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
-        Check("OBS Pacientes: participação em coluna discreta, na ficha e na ordenação; sem dado aparece — com explicação", () =>
+        Check("OBS Pacientes: score em pontos (0 a 1000) e faixa na lista, na ficha e na ordenação; sem consulta encerrada = 1000; sem dado da API aparece — com explicação", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Participação");
             DateTimeOffset when = DateTimeOffset.UtcNow;
-            fixture.AddRegistry(unit.Id, new UnitPatientRecord("52998224725", "Ana Alta", "ana@example.test", null, null, true, false, when, Attend(9, 1, 0, 0, 0.9)));
-            fixture.AddRegistry(unit.Id, new UnitPatientRecord("11144477735", "Bia Sem Consulta", "bia@example.test", null, null, true, false, when.AddMinutes(-1), Attend(0, 0, 0, 0, null)));
-            fixture.AddRegistry(unit.Id, new UnitPatientRecord("12345678909", "Caio Baixo", "caio@example.test", null, null, true, false, when.AddMinutes(-2), Attend(3, 1, 2, 1.4, 0.4286)));
+            fixture.AddRegistry(unit.Id, new UnitPatientRecord("52998224725", "Ana Alta", "ana@example.test", null, null, true, false, when, Attend(9, 1, 0, 0, 0.9, 900, "excellent", true)));
+            fixture.AddRegistry(unit.Id, new UnitPatientRecord("11144477735", "Bia Sem Consulta", "bia@example.test", null, null, true, false, when.AddMinutes(-1), Attend(0, 0, 0, 0, null, 1000, "excellent", false)));
+            fixture.AddRegistry(unit.Id, new UnitPatientRecord("12345678909", "Caio Baixo", "caio@example.test", null, null, true, false, when.AddMinutes(-2), Attend(3, 1, 2, 1.4, 0.4286, 429, "regular", true)));
             fixture.AddRegistry(unit.Id, new UnitPatientRecord("39053344705", "Duda Antiga", "duda@example.test", null, null, true, false, when.AddMinutes(-3)));
+            // API sem os campos novos: o cliente calcula os pontos e a faixa pelo mesmo cálculo (0,75 x 1000 = 750, faixa Bom).
+            fixture.AddRegistry(unit.Id, new UnitPatientRecord("98765432100", "Edu Sem Pontos", "edu@example.test", null, null, true, false, when.AddMinutes(-4), Attend(3, 1, 0, 0, 0.75)));
             var window = OpenOperational(fixture, storageRoot, "unit-participation", Appearance.Light);
             try
             {
@@ -247,28 +249,34 @@ internal static partial class Program
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS");
                 // A lista rola (altura máxima): só as primeiras linhas estão desenhadas, então o texto é conferido nelas e o resto pelos dados.
                 var texts = VisibleTexts(list);
-                Require(texts.Contains("Participação (12 meses): 90,0%") && texts.Contains("Participação (12 meses): —"), "A lista não mostra a participação (— quando sem dado): " + string.Join(" | ", texts.Where(text => text.StartsWith("Participação", StringComparison.Ordinal))));
-                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ParticipationDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["42,9%", "90,0%", "—", "—"]), "A participação de cada cadastro está incorreta.");
+                Require(texts.Contains("Score (12 meses): 900 · Excelente") && texts.Contains("Score (12 meses): 1000 · sem consultas encerradas ainda"), "A lista não mostra o score em pontos: " + string.Join(" | ", texts.Where(text => text.StartsWith("Score", StringComparison.Ordinal))));
+                Require(!texts.Any(text => text.Contains('%')), "A lista não deveria mais mostrar participação em %.");
+                Require(texts.Contains(WorkspaceViewModel.ScorePriorityText) || VisibleTexts(content).Contains(WorkspaceViewModel.ScorePriorityText), "A tela deveria explicar que o score dá prioridade na Vaga Relâmpago sem mudar a prioridade clínica.");
+                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ScoreDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["1000 · sem consultas encerradas ainda", "429 · Regular", "750 · Bom", "900 · Excelente", "—"]), "O score de cada cadastro está incorreto.");
                 var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar cadastro da UBS");
-                sort.SelectedValue = "Maior participação"; Layout(window, 1280, 1300);
-                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(["Ana Alta", "Caio Baixo", "Bia Sem Consulta", "Duda Antiga"]), "Ordem por maior participação incorreta (sem dado vai para o fim).");
-                sort.SelectedValue = "Menor participação"; Layout(window, 1280, 1300);
-                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(["Caio Baixo", "Ana Alta", "Bia Sem Consulta", "Duda Antiga"]), "Ordem por menor participação incorreta (sem dado vai para o fim).");
+                Require(sort.Items.Cast<ComboBoxItem>().Select(item => item.Content?.ToString()).SequenceEqual(["Mais recentes", "Nome A–Z", "Nome Z–A", "Maior score", "Menor score"]), "As ordenações por score não foram renomeadas.");
+                sort.SelectedValue = "Maior score"; Layout(window, 1280, 1300);
+                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(["Bia Sem Consulta", "Ana Alta", "Edu Sem Pontos", "Caio Baixo", "Duda Antiga"]), "Ordem por maior score incorreta (1000 de quem não tem histórico primeiro; sem dado da API vai para o fim).");
+                sort.SelectedValue = "Menor score"; Layout(window, 1280, 1300);
+                Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(["Caio Baixo", "Edu Sem Pontos", "Ana Alta", "Bia Sem Consulta", "Duda Antiga"]), "Ordem por menor score incorreta (sem dado da API vai para o fim).");
                 SavePreview(Layout(window, 1280, 1300), Path.Combine(previewRoot, "obs-patients-participation-light.png"));
                 sort.SelectedValue = "Mais recentes";
-                const string group = "Participação nos últimos 12 meses";
+                const string group = "Score nos últimos 12 meses";
                 DetailField Field(ItemDetails details, string label) => details.Fields.Single(field => field.Label == label && field.Group == group);
                 var alta = vm.BuildDetails(vm.ObsRegistry.Single(p => p.FullName == "Ana Alta"))!; var sem = vm.BuildDetails(vm.ObsRegistry.Single(p => p.FullName == "Bia Sem Consulta"))!;
                 var baixa = vm.BuildDetails(vm.ObsRegistry.Single(p => p.FullName == "Caio Baixo"))!; var antiga = vm.BuildDetails(vm.ObsRegistry.Single(p => p.FullName == "Duda Antiga"))!;
-                Require(Field(alta, "Participação").Value == "90,0%" && Field(alta, "Concluídas").Value == "9" && Field(alta, "Faltas").Value == "1" && Field(alta, "Cancelamentos").Value == "Nenhum feito pelo paciente", "Ficha com participação incorreta.");
-                Require(Field(baixa, "Cancelamentos").Value == "2 feitos pelo paciente (peso somado 1,4)" && Field(baixa, "Participação").Value == "42,9%", "Ficha não mostra os cancelamentos do paciente com o peso.");
-                Require(Field(sem, "Participação").Value == "— (nenhuma consulta encerrada nos últimos 12 meses)" && Field(sem, "Como é calculada").Value.StartsWith("Concluídas ÷ (concluídas + faltas", StringComparison.Ordinal), "Sem consulta encerrada a ficha deveria explicar o —.");
-                Require(Field(antiga, "Participação").Value == "—" && Field(antiga, "Como é calculada").Value.Contains("A API não enviou"), "Sem o campo na API a ficha deveria dizer que ele não veio.");
+                var edu = vm.BuildDetails(vm.ObsRegistry.Single(p => p.FullName == "Edu Sem Pontos"))!;
+                Require(Field(alta, "Score").Value == "900 · Excelente" && Field(alta, "Faixa").Value == "Excelente" && Field(alta, "Concluídas").Value == "9" && Field(alta, "Faltas").Value == "1" && Field(alta, "Cancelamentos").Value == "Nenhum feito pelo paciente", "Ficha com participação incorreta.");
+                Require(Field(baixa, "Cancelamentos").Value == "2 feitos pelo paciente (peso somado 1,4)" && Field(baixa, "Score").Value == "429 · Regular" && Field(baixa, "Faixa").Value == "Regular", "Ficha não mostra os cancelamentos do paciente com o peso e o score em pontos.");
+                Require(Field(edu, "Score").Value == "750 · Bom" && Field(edu, "Faixa").Value == "Bom", "Sem os campos novos da API o cliente deveria calcular 750 pontos, faixa Bom.");
+                Require(Field(alta, "Efeito na Vaga Relâmpago").Value == WorkspaceViewModel.ScorePriorityText && WorkspaceViewModel.ScorePriorityText.Contains("não muda a prioridade clínica", StringComparison.Ordinal), "A ficha deveria explicar o efeito do score na Vaga Relâmpago.");
+                Require(Field(sem, "Score").Value == "1000 · sem consultas encerradas ainda" && Field(sem, "Faixa").Value == "Excelente" && Field(sem, "Como é calculado").Value.StartsWith("Pontos de 0 a 1000 = comparecimento × 1000", StringComparison.Ordinal), "Sem consulta encerrada a ficha deveria mostrar 1000 e explicar o cálculo.");
+                Require(Field(antiga, "Score").Value == "—" && Field(antiga, "Como é calculado").Value.Contains("A API não enviou"), "Sem o campo na API a ficha deveria dizer que ele não veio.");
                 var popup = new ItemDetailsWindow(baixa, new ClipboardFixture()) { Owner = window, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000, ShowActivated = false };
                 try
                 {
                     popup.Show(); popup.UpdateLayout(); Descendants<ScrollViewer>(popup).First().ScrollToEnd(); popup.UpdateLayout();
-                    Require(VisibleTexts(popup).Contains(group) && VisibleTexts(popup).Contains("2 feitos pelo paciente (peso somado 1,4)"), "A janela da ficha não mostra a participação nos últimos 12 meses.");
+                    Require(VisibleTexts(popup).Contains(group) && VisibleTexts(popup).Contains("2 feitos pelo paciente (peso somado 1,4)"), "A janela da ficha não mostra o score nos últimos 12 meses.");
                     SavePreview(popup, Path.Combine(previewRoot, "obs-patient-participation-details-light.png"));
                 }
                 finally { popup.Close(); }
@@ -286,7 +294,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(municipal); vm.SelectedUnit = vm.Units.Single();
                 var content = Show(municipal, "units"); Click(municipal, content, "Consultar pacientes da UBS"); content = Layout(municipal, 1280, 900);
-                Require(!GridNamed(content, "Pacientes da UBS selecionada").Columns.Any(column => column.Header?.ToString()?.Contains("Participação", StringComparison.Ordinal) == true) && !VisibleTexts(content).Any(text => text.Contains("Participação", StringComparison.Ordinal)), "A Secretaria não deveria mostrar a participação do paciente.");
+                Require(!GridNamed(content, "Pacientes da UBS selecionada").Columns.Any(column => column.Header?.ToString()?.Contains("Participação", StringComparison.Ordinal) == true || column.Header?.ToString()?.Contains("Score", StringComparison.Ordinal) == true) && !VisibleTexts(content).Any(text => text.Contains("Participação", StringComparison.Ordinal) || text.Contains("Score (12 meses)", StringComparison.Ordinal)), "A Secretaria não deveria mostrar o score nem a participação do paciente.");
                 Require(vm.UnitRegistry.All(record => record.Attendance is null), "A consulta municipal trouxe participação.");
             }
             finally { CloseWindow(municipal); }

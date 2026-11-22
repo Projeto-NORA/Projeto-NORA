@@ -702,10 +702,11 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .7f)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            // O texto cede espaço (quebra em linhas) e o botão nunca quebra a palavra, mesmo com fonte ampliada.
             Text("Precisa conectar à sua unidade?", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer)
+                color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1f))
             TextButton(onClick = { connectionSettingsOpen = !connectionSettingsOpen }) {
-                Text(if (connectionSettingsOpen) "Fechar" else "Configurar", fontWeight = FontWeight.Bold)
+                Text(if (connectionSettingsOpen) "Fechar" else "Configurar", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
         }
     }

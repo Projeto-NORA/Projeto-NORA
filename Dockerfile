@@ -19,7 +19,8 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
 # O appsettings.json da imagem fixa Urls=http://127.0.0.1:5080 e AllowedHosts=localhost. O Kestrel ignora ASPNETCORE_HTTP_PORTS quando "urls" está configurado, e a ASPNETCORE_URLS
 # também perde para o arquivo (no host mínimo ela é configuração de host, de prioridade menor que o appsettings.json). Só a variável SEM prefixo, "Urls", vence o arquivo (testado):
 # por isso a porta vai nela, escutando em todas as interfaces do contêiner (o proxy do host chega por fora).
+# O shell é o bash (presente na imagem Debian do aspnet), não o /bin/sh: o sh é o dash, que descarta variáveis de ambiente com ponto no nome, como Logging__LogLevel__Microsoft.AspNetCore.HostFiltering (usada em docs/hospedagem.md para diagnosticar um 400 de host recusado); o bash as repassa ao dotnet.
 # AllowedHosts vira o domínio público: ALLOWED_HOSTS (vários separados por ";"), senão o RENDER_EXTERNAL_HOSTNAME que o Render define sozinho, senão só localhost.
 EXPOSE 8080
 USER $APP_UID
-ENTRYPOINT ["/bin/sh", "-c", "export Urls=http://0.0.0.0:${PORT:-8080}; export AllowedHosts=\"${ALLOWED_HOSTS:-${RENDER_EXTERNAL_HOSTNAME:-localhost}}\"; exec dotnet Nora.Api.dll"]
+ENTRYPOINT ["/bin/bash", "-c", "export Urls=http://0.0.0.0:${PORT:-8080}; export AllowedHosts=\"${ALLOWED_HOSTS:-${RENDER_EXTERNAL_HOSTNAME:-localhost}}\"; exec dotnet Nora.Api.dll"]

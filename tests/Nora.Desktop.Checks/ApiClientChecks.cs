@@ -237,7 +237,7 @@ internal static partial class Program
                 var vm = window.ViewModel.Workspace;
                 vm.Endpoint = "https://fixture.invalid";
                 var loginContent = Layout(window, 980, 640);
-                Descendants<TextBox>(loginContent).Single(input => AutomationProperties.GetName(input) == "CPF ou e-mail").Text = "fixture@example.invalid";
+                Descendants<TextBox>(loginContent).Single(input => AutomationProperties.GetName(input) == "E-mail").Text = "fixture@example.invalid";
                 Descendants<PasswordBox>(loginContent).Single(input => AutomationProperties.GetName(input) == "Senha de acesso").Password = "isolated-test-password";
                 InvokeButton(Descendants<Button>(loginContent).Single(button => button.Content?.ToString() == "Entrar"));
                 PumpUntil(() => !vm.IsBusy);

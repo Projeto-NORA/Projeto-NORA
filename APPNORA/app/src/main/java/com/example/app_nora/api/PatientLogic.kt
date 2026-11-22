@@ -150,28 +150,47 @@ fun attendanceFraction(completed: Int, missed: Int, cancellationWeight: Double):
     return if (denominator <= 0.0) null else completed / denominator
 }
 
-/** Percentual inteiro (0 a 100) de uma fração; nunca mostra 100% a quem tem alguma falta ou peso, nem 0% a quem tem conclusão. */
-fun attendancePercent(fraction: Double?): Int? {
-    fraction ?: return null
-    val rounded = Math.round(fraction * 100).toInt()
-    return when {
-        fraction < 1.0 && rounded >= 100 -> 99
-        fraction > 0.0 && rounded <= 0 -> 1
-        else -> rounded
-    }
+/** Teto da pontuação: quem nunca faltou (ou ainda não tem consulta encerrada) tem 1000. */
+const val SCORE_MAX_POINTS = 1000
+
+/** Faixas da pontuação, na ordem crescente; [label] é o rótulo mostrado ao paciente. */
+enum class AttendanceBand(val wire: String, val label: String) {
+    LOW("low", "Baixo"), REGULAR("regular", "Regular"), GOOD("good", "Bom"), EXCELLENT("excellent", "Excelente")
 }
 
+/** Pontos (0 a 1000) = `round(score × 1000)` com meio para cima, como o servidor; sem score (sem consulta encerrada) vale 1000. */
+fun scorePoints(score: Double?): Int =
+    if (score == null) SCORE_MAX_POINTS else Math.round(score * SCORE_MAX_POINTS).toInt().coerceIn(0, SCORE_MAX_POINTS)
+
+/** Faixa dos pontos: Baixo 0 a 299, Regular 300 a 599, Bom 600 a 799, Excelente 800 a 1000. */
+fun attendanceBandOf(points: Int): AttendanceBand = when {
+    points < 300 -> AttendanceBand.LOW
+    points < 600 -> AttendanceBand.REGULAR
+    points < 800 -> AttendanceBand.GOOD
+    else -> AttendanceBand.EXCELLENT
+}
+
+/** Faixa pelo texto do servidor (`low`, `regular`, `good`, `excellent`); nulo quando desconhecido (o chamador deriva dos pontos). */
+fun attendanceBandFromWire(value: String): AttendanceBand? = AttendanceBand.values().firstOrNull { it.wire == value }
+
+/** Texto do número do score: "1000 · sem consultas encerradas ainda" sem histórico, senão só os pontos. */
+fun attendancePointsText(points: Int, hasHistory: Boolean): String =
+    if (hasHistory) "$points" else "$points · sem consultas encerradas ainda"
+
 /**
- * Score geral do paciente somando todas as UBS que responderam. `percent` é nulo sem consulta encerrada.
+ * Score geral do paciente somando todas as UBS que responderam. `points` (0 a 1000) e `band` seguem o servidor numa UBS só;
+ * com várias, saem da soma de concluídas, faltas e pesos, e valem 1000 sem consulta encerrada (`hasHistory` falso).
  * `failedUnits` são as que não responderam (o resumo avisa em vez de contá-las como zero) e `pendingUnits`
  * as ainda não consultadas.
  */
 data class AttendanceSummary(val completed: Int, val missed: Int, val cancelledByPatient: Int, val cancellationWeight: Double,
-    val percent: Int?, val answeredUnits: Int, val failedUnits: Int, val pendingUnits: Int, val windowMonths: Int)
+    val points: Int, val band: AttendanceBand, val hasHistory: Boolean,
+    val answeredUnits: Int, val failedUnits: Int, val pendingUnits: Int, val windowMonths: Int)
 
 fun summarizeAttendance(units: List<PatientHealthUnit>?, data: Map<String, UnitSnapshot>): AttendanceSummary {
     var completed = 0; var missed = 0; var cancelled = 0; var weight = 0.0
     var answered = 0; var failed = 0; var pending = 0; var months = 12
+    var only: UnitAttendance? = null
     for (unit in units.orEmpty()) {
         val snapshot = data[unit.id]
         val value = snapshot?.attendance
@@ -179,13 +198,17 @@ fun summarizeAttendance(units: List<PatientHealthUnit>?, data: Map<String, UnitS
             value != null -> {
                 answered++; completed += value.completed; missed += value.missed
                 cancelled += value.cancelledByPatient; weight += value.cancellationWeight; months = value.windowMonths
+                only = value
             }
             snapshot?.attendanceFailed == true -> failed++
             else -> pending++
         }
     }
-    return AttendanceSummary(completed, missed, cancelled, weight, attendancePercent(attendanceFraction(completed, missed, weight)),
-        answered, failed, pending, months)
+    val single = if (answered == 1) only else null
+    val fraction = attendanceFraction(completed, missed, weight)
+    val points = single?.points ?: scorePoints(fraction)
+    return AttendanceSummary(completed, missed, cancelled, weight, points, single?.band ?: attendanceBandOf(points),
+        single?.hasHistory ?: (fraction != null), answered, failed, pending, months)
 }
 
 /** "2 consultas", "1 consulta": plural simples para os contadores. */

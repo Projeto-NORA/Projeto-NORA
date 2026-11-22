@@ -49,7 +49,6 @@ if(args.Contains("--provision",StringComparer.Ordinal))
     Console.Write("Escopo (obs/municipal): "); var scope=Console.ReadLine()??"";
     if(scope is not("obs" or "municipal")) throw new ApiInputException();
     Console.Write("Nome completo: "); var name=Console.ReadLine()??"";
-    Console.Write("CPF: "); var cpf=Console.ReadLine()??"";
     Console.Write("E-mail: "); var email=Console.ReadLine()??"";
     Console.Write("Senha (entrada oculta): "); var password="";
     while(true)
@@ -60,7 +59,7 @@ if(args.Contains("--provision",StringComparer.Ordinal))
         if(!char.IsControl(key.KeyChar)) password+=key.KeyChar;
     }
     Console.WriteLine();
-    await app.Services.GetRequiredService<AccountService>().ProvisionAsync(scope,scope=="obs"?"administrator":"manager",new(name,cpf,email,password));
+    await app.Services.GetRequiredService<AccountService>().ProvisionStaffAsync(scope,scope=="obs"?"administrator":"manager",name,email,password);
     Console.WriteLine("Conta criada. Pacientes são cadastrados pelo OBS.");
     return;
 }

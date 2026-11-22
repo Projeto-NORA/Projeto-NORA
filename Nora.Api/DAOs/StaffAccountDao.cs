@@ -7,13 +7,13 @@ namespace Nora.Api.DAOs;
 /// <summary>Contas OBS mantidas pela Secretaria. Cada ação grava staff_account_events na mesma transação.</summary>
 public sealed class StaffAccountDao(DatabaseHelper database, TimeProvider time)
 {
-    /// <summary>Duplicidade de CPF/e-mail no escopo obs vira PostgresException 23505, mapeada para 409.</summary>
+    /// <summary>Duplicidade de e-mail no escopo obs vira PostgresException 23505, mapeada para 409.</summary>
     public async Task<StaffAccount> CreateAsync(Guid actorId, string role, StaffAccountDraft request, string passwordHash, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         var id = Guid.NewGuid();
-        await database.ExecuteAsync(connection, "INSERT INTO nora.accounts(id,full_name,cpf,email,password_hash,scope,role,must_change_password) VALUES($1,$2,$3,$4,$5,'obs',$6,true)", ct, id, request.FullName, request.Cpf, request.Email, passwordHash, role);
+        await database.ExecuteAsync(connection, "INSERT INTO nora.accounts(id,full_name,email,password_hash,scope,role,must_change_password) VALUES($1,$2,$3,$4,'obs',$5,true)", ct, id, request.FullName, request.Email, passwordHash, role);
         await RecordAsync(connection, id, actorId, "created", ct);
         await transaction.CommitAsync(ct);
         return new(id, request.FullName, role, request.Email, true, true);

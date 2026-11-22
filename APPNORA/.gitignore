@@ -19,3 +19,8 @@ local.properties
 
 # Configuração do Firebase (push): fora do Git
 /app/google-services.json
+
+# Assinatura de release (P-048): chaves e senhas ficam fora do Git
+/keystore.properties
+*.jks
+*.keystore

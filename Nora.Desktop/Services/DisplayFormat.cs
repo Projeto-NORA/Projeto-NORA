@@ -10,6 +10,18 @@ public static class DisplayFormat
     /// <summary>Score de 0 a 1 como percentual com uma casa; "—" quando não há consulta encerrada para calcular.</summary>
     public static string Percent(double? score) => score is { } value ? (value * 100).ToString("0.0", Culture) + "%" : "—";
 
+    /// <summary>Score do paciente em pontos de 0 a 1000 (comparecimento × 1000, arredondado para cima no meio); quem não tem consulta encerrada começa em 1000.</summary>
+    public static int PointsFromScore(double? score) => score is { } value ? (int)Math.Round(Math.Clamp(value, 0, 1) * 1000, MidpointRounding.AwayFromZero) : 1000;
+
+    /// <summary>Faixa do score: baixo 0–299, regular 300–599, bom 600–799, excelente 800–1000 (mesmos nomes da API).</summary>
+    public static string BandFor(int points) => points switch { < 300 => "low", < 600 => "regular", < 800 => "good", _ => "excellent" };
+
+    public static string BandLabel(string? band) => band switch { "low" => "Baixo", "regular" => "Regular", "good" => "Bom", "excellent" => "Excelente", _ => "—" };
+
+    /// <summary>"742 · Bom"; sem consulta encerrada, "1000 · sem consultas encerradas ainda".</summary>
+    public static string ScoreText(int points, string? band, bool hasHistory) =>
+        hasHistory ? $"{points} · {BandLabel(band ?? BandFor(points))}" : $"{points} · sem consultas encerradas ainda";
+
     public static string Count(long value) => value.ToString("N0", Culture);
 
     /// <summary>Minutos em unidades legíveis: "menos de 1 min", "45 min", "3 h 20 min", "2 d 4 h".</summary>

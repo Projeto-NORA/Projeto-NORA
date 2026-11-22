@@ -22,11 +22,11 @@
       <StackPanel>
       <StackPanel IsEnabled="{Binding CanLogin}">
         <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,12" />
-        <TextBlock Text="Use CPF válido ou e-mail. A verificação do CPF acontece antes do envio e suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
+        <TextBlock Text="Entre com o e-mail da sua conta. O formato do e-mail é conferido antes do envio e suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
         <TextBlock Text="Endereço da API" />
         <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API" />
-        <TextBlock Text="CPF ou e-mail" />
-        <TextBox x:Name="IdentifierInput" Text="{Binding Identifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="CPF ou e-mail" />
+        <TextBlock Text="E-mail" />
+        <TextBox x:Name="IdentifierInput" Text="{Binding Identifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail" />
         <TextBlock Text="Senha" />
         <PasswordBox x:Name="LoginPassword" AutomationProperties.Name="Senha de acesso" KeyDown="OnLoginKeyDown" />
         <!-- Computador do OBS (P-014): só aparece no OBS. A atendente precisa de computador ativado; o administrador entra normalmente. -->

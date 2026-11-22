@@ -130,7 +130,7 @@ internal static partial class FamilyChecks
         });
 
         // ======== 3. Recusa de oferta pelo responsável ========
-        await Check("Recusa de oferta pelo responsável: 200 sem consulta, oferta declined, entrada da fila encerrada com autor e guardian_id, vaga passa ao próximo; responder de novo → 409", async () =>
+        await Check("Recusa de oferta pelo responsável: 200 sem consulta, oferta declined, entrada volta à fila (R-030) com autor e guardian_id, vaga passa ao próximo; responder de novo → 409", async () =>
         {
             using var guardian = await Guardian(64, "Responsável Sessenta e Quatro");
             var link = await Linked(guardian, 93);
@@ -153,8 +153,8 @@ internal static partial class FamilyChecks
             }
             Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.lightning_offers WHERE id=$1", offer) == "declined", "A oferta fica recusada.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1", Cpf(93)) == 0, "A recusa não cria consulta para o dependente.");
-            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.waiting_list WHERE cpf=$1 ORDER BY id DESC LIMIT 1", Cpf(93)) == "completed", "A entrada do dependente encerra o ciclo.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events e JOIN nora_unit.waiting_list q ON q.id=e.entry_id WHERE q.cpf=$1 AND e.status='completed' AND e.source='patient' AND e.actor_id=e.guardian_id AND e.guardian_id IS NOT NULL", Cpf(93)) == 1, "Auditoria: autor e guardian_id = responsável, origem patient.");
+            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.waiting_list WHERE cpf=$1 ORDER BY id DESC LIMIT 1", Cpf(93)) == "waiting", "R-030: a entrada do dependente volta à fila (waiting).");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events e JOIN nora_unit.waiting_list q ON q.id=e.entry_id WHERE q.cpf=$1 AND e.status='waiting' AND e.source='patient' AND e.actor_id=e.guardian_id AND e.guardian_id IS NOT NULL", Cpf(93)) == 1, "Auditoria: autor e guardian_id = responsável, origem patient.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(1)) == 1, "A vaga passa ao próximo da fila.");
             using (var again = await guardian.PostAsJsonAsync($"{Base(link, u1)}/lightning-offers/{offer}/respond", new { accept = false })) Expect(again, 409);
         });

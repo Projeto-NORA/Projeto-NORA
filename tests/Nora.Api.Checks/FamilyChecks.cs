@@ -232,8 +232,8 @@ internal static partial class FamilyChecks
         // ======== 6. Agendar, confirmar, cancelar, score ========
         await Check("Agendar pelo dependente: janela, uma consulta futura por especialidade contada por CPF na rede inteira, dependentes e o próprio responsável contam à parte, autor e origem gravados", async () =>
         {
-            // O de 23 h cai fora da janela (a recusa de janela vem antes de qualquer outra).
-            using (var soon = await Book(f.G1, l1, u1, ana, cardiology, "2026-11-17T11:00:00Z")) await ExpectProblem(soon, 409, "booking-window");
+            // Só o passado cai fora da janela (a recusa de janela vem antes de qualquer outra).
+            using (var past = await Book(f.G1, l1, u1, ana, cardiology, "2026-11-16T11:00:00Z")) await ExpectProblem(past, 409, "booking-window");
             using (var missing = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/appointments", new { specialtyId = cardiology, startsAt = "2026-11-18T12:00:00Z" })) Expect(missing, 400);
             Require((await FreeSlots(f.G1, Base(l1, u1), cardiology, "2026-11-18T00:00:00Z", "2026-11-19T00:00:00Z")).SequenceEqual(["11-18 12:00", "11-18 12:30", "11-18 13:00", "11-18 13:30", "11-18 14:00", "11-18 14:30"]), "Disponibilidade pelo responsável.");
             Guid appointment;

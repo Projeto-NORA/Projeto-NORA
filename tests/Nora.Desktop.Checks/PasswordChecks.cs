@@ -104,7 +104,7 @@ internal static partial class Program
                 vm.MetricsPeriodDays = 7; vm.MetricsRegion = "Centro"; Settle(vm);
                 vm.SelectedUnit = vm.Units.First(); Pump(vm.LoadUnitRegistryAsync()); Pump(vm.LoadMunicipalAppointmentsAsync());
                 var content = Show(window, "users", 1280, 1900);
-                vm.SelectedStaff = vm.Staff.Single(); vm.StaffName = "Rascunho"; vm.StaffCpf = "x";
+                vm.SelectedStaff = vm.Staff.Single(); vm.StaffName = "Rascunho"; vm.StaffEmail = "rascunho@example.test";
                 Secret(content, "Senha provisória da nova conta").Password = "rascunho-123"; Secret(content, "Nova senha provisória da conta").Password = "rascunho-456";
                 Require(vm.Staff.Count == 1 && vm.HistoryEvents.Count >= 1 && vm.UnitPerformance.Count > 0 && vm.UnitRegistry.Count > 0 && vm.RegionOptions.Count > 1, "Pré-condição: dados carregados.");
                 vm.LogoutCommand.Execute(null); Settle(vm);
@@ -112,7 +112,7 @@ internal static partial class Program
                 Require(vm.Staff.Count == 0 && vm.StaffUnits.Count == 0 && vm.SelectedStaff == null && vm.HistoryEvents.Count == 0 && vm.UnitRegistry.Count == 0 && vm.MunicipalAppointments.Count == 0 && vm.VisibleMunicipalAppointments.Count == 0 && vm.SelectedUnit == null, "Logout manteve listas.");
                 Require(vm.UnitPerformance.Count == 0 && vm.SpecialtyPerformance.Count == 0 && vm.RegionPerformance.Count == 0 && vm.DailyRows.Count == 0 && vm.ChartDays.Count == 0 && vm.OverviewCards.All(card => card.Value == "—") && vm.SummaryCards.All(card => card.Value == "—"), "Logout manteve indicadores.");
                 Require(vm.MetricsPeriodDays == 30 && vm.MetricsRegion == "" && vm.MetricsSpecialty == "" && vm.SummaryUnitFilter == Guid.Empty && vm.UnitFilterOptions.Count == 1 && vm.RegionOptions.Count == 1 && vm.SpecialtyOptions.Count == 1 && vm.MetricsScopeLabel == "" && vm.UnitsWithoutDatabaseNotice == "", "Logout manteve filtros ou opções.");
-                Require(vm.StaffName == "" && vm.StaffCpf == "" && Descendants<PasswordBox>(content).All(box => box.Password.Length == 0), "Logout manteve rascunhos ou senhas digitadas.");
+                Require(vm.StaffName == "" && vm.StaffEmail == "" && Descendants<PasswordBox>(content).All(box => box.Password.Length == 0), "Logout manteve rascunhos ou senhas digitadas.");
                 var requests = fixture.Requests.Count; Pump(vm.RefreshAutomaticallyAsync()); Require(fixture.Requests.Count == requests, "Atualização continuou depois do logout.");
             }
             finally { CloseWindow(window); }

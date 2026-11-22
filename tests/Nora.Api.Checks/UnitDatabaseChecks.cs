@@ -59,7 +59,7 @@ internal static class UnitDatabaseChecks
             try { await lightning.CreateAsync(first, actor, new CreateUnitLightningSlotRequest(consultation.Id, false), default); throw new InvalidOperationException("Vaga sem confirmação foi criada."); }
             catch (ApiInputException) { }
             var slot = await lightning.CreateAsync(first, actor, new CreateUnitLightningSlotRequest(consultation.Id, true), default);
-            Require(slot.Specialty == "Cardiologia" && slot.Status == "open" && (await lightning.ListAsync(second, default)).Count == 0, "Vaga não preservou especialidade ou vazou entre unidades.");
+            Require(slot.Specialty == "Cardiologia" && slot.Status == "open" && (await lightning.ListAsync(second, 100, null, default)).Items.Count == 0, "Vaga não preservou especialidade ou vazou entre unidades.");
             try { await lightning.CreateAsync(first, actor, new CreateUnitLightningSlotRequest(consultation.Id, true), default); throw new InvalidOperationException("Consulta gerou vagas duplicadas."); }
             catch (ApiConflictException) { }
             try { await appointments.CreateAsync(first, actor, new CreateAppointmentRequest("52998224725", "Clínica", "PROFISSIONAL DE TESTE", startsAt, startsAt.AddMinutes(30)), default); throw new InvalidOperationException("Consulta sobrepôs vaga em aberto."); }

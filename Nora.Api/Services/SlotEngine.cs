@@ -73,8 +73,9 @@ internal sealed class SlotEngine(TimeZoneInfo zone)
         var firstDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(from, Zone).DateTime);
         var lastDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(to, Zone).DateTime);
         var fromTicks = from.UtcTicks; var toTicks = to.UtcTicks;
-        for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+        for (var dayNumber = firstDay.DayNumber; dayNumber <= lastDay.DayNumber; dayNumber++) // pelo número do dia: DateOnly.AddDays(1) em 31/12/9999 lançaria exceção
         {
+            var day = DateOnly.FromDayNumber(dayNumber);
             if (byWeekday[(int)day.DayOfWeek] is not { } dayTemplates) continue;
             foreach (var template in dayTemplates)
             {

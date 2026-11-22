@@ -50,14 +50,42 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
     /// <summary>Vaga lida do banco da UBS, com o id (central) de quem decidiu, que vira nome em <see cref="WithNamesAsync"/>.</summary>
     private sealed record SlotRow(UnitLightningSlot Slot, Guid? DecidedBy);
 
-    public async Task<List<UnitLightningSlot>> ListAsync(Guid unitId, CancellationToken ct)
+    /// <summary>
+    /// Lista da UBS para o OBS (P4, docs/desempenho.md): <b>todas</b> as vagas ativas (<c>open</c>, <c>offered</c>, <c>awaiting_approval</c>) e até <paramref name="historyLimit"/> encerradas (<c>accepted</c>, <c>closed</c>), das mais recentes
+    /// para as mais antigas (data de criação, depois id). Com <paramref name="historyBefore"/> (cursor de uma resposta anterior) devolve só as encerradas mais antigas que ele, sem as ativas. <see cref="UnitLightningSlotPage.HistoryCursor"/>
+    /// é nulo quando não há mais encerradas. Os itens saem na ordem de criação (a mais antiga primeiro).
+    /// </summary>
+    public async Task<UnitLightningSlotPage> ListAsync(Guid unitId, int historyLimit, string? historyBefore, CancellationToken ct)
     {
+        var before = historyBefore is null ? ((DateTimeOffset, Guid)?)null : DecodeCursor(historyBefore);
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT " + SlotColumns + " " + SlotFrom + "ORDER BY s.created_at,s.id", connection);
-        await using var reader = await query.ExecuteReaderAsync(ct); var result = new List<SlotRow>();
-        while (await reader.ReadAsync(ct)) result.Add(Read(reader));
-        await reader.CloseAsync();
-        return await WithNamesAsync(result, ct);
+        // Um só retrato do banco para as ativas e o histórico: sem ele, uma vaga que passa de 'offered' para 'accepted' entre as duas consultas voltaria nas duas listas.
+        await using var snapshot = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
+        var rows = new List<SlotRow>();
+        if (before is null)
+        {
+            await using var active = new NpgsqlCommand("SELECT " + SlotColumns + " " + SlotFrom + "WHERE s.status IN ('open','offered','awaiting_approval') ORDER BY s.created_at,s.id", connection);
+            await using var reader = await active.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) rows.Add(Read(reader));
+        }
+        string? cursor = null;
+        await using (var history = new NpgsqlCommand("SELECT " + SlotColumns + " " + SlotFrom + "WHERE s.status IN ('accepted','closed') " + (before is null ? "" : "AND (s.created_at,s.id)<($2,$3) ") + "ORDER BY s.created_at DESC,s.id DESC LIMIT $1", connection))
+        {
+            history.Parameters.AddWithValue(historyLimit + 1);
+            if (before is { } point) { history.Parameters.AddWithValue(point.Item1); history.Parameters.AddWithValue(point.Item2); }
+            await using var reader = await history.ExecuteReaderAsync(ct);
+            var closed = new List<SlotRow>();
+            while (await reader.ReadAsync(ct)) closed.Add(Read(reader));
+            if (closed.Count > historyLimit) { closed.RemoveAt(historyLimit); cursor = PageCursor.Encode(closed[^1].Slot.CreatedAt, closed[^1].Slot.Id.ToString()); }
+            rows.AddRange(closed);
+        }
+        return new((await WithNamesAsync(rows.OrderBy(row => row.Slot.CreatedAt).ThenBy(row => row.Slot.Id).ToList(), ct)), cursor);
+    }
+
+    private static (DateTimeOffset, Guid) DecodeCursor(string cursor)
+    {
+        var (at, key) = PageCursor.Decode(cursor);
+        return Guid.TryParse(key, out var id) ? (at, id) : throw new ApiInputException();
     }
 
     /// <summary>
@@ -252,10 +280,12 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         { update.Parameters.AddWithValue(offerId); update.Parameters.AddWithValue(offerStatus); await update.ExecuteNonQueryAsync(ct); }
         await using (var update = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status=$2,closed_reason=$3 WHERE id=$1", connection))
         { update.Parameters.AddWithValue(slotId); update.Parameters.AddWithValue(slotStatus); update.Parameters.Add(new NpgsqlParameter { Value = (object?)closedReason ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text }); await update.ExecuteNonQueryAsync(ct); }
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.waiting_list SET status='completed' WHERE id=$1", connection))
-        { update.Parameters.AddWithValue(entryId); await update.ExecuteNonQueryAsync(ct); }
-        await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,'completed',$3,$4,$5)", connection))
-        { audit.Parameters.AddWithValue(entryId); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.AddWithValue(source); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); await audit.ExecuteNonQueryAsync(ct); }
+        // R-030: só o aceite tira a pessoa da fila. Recusar ou deixar vencer devolve a entrada a 'waiting' com o entered_at original (mesma posição); a mesma vaga não é oferecida de novo a ela (LightningEligibility).
+        var entryStatus = offerStatus == "accepted" ? "completed" : "waiting";
+        await using (var update = new NpgsqlCommand("UPDATE nora_unit.waiting_list SET status=$2 WHERE id=$1", connection))
+        { update.Parameters.AddWithValue(entryId); update.Parameters.AddWithValue(entryStatus); await update.ExecuteNonQueryAsync(ct); }
+        await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,$6,$3,$4,$5)", connection))
+        { audit.Parameters.AddWithValue(entryId); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.AddWithValue(source); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); audit.Parameters.AddWithValue(entryStatus); await audit.ExecuteNonQueryAsync(ct); }
     }
 
     /// <summary>A vaga como a equipe a enxerga (sem o nome de quem decidiu), na transação do chamador.</summary>

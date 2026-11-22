@@ -20,6 +20,7 @@ internal static partial class Program
         RunUnitProfileChecks(storageRoot, args);
         RunSlotApprovalChecks(storageRoot, args);
         RunRetryTextsChecks(storageRoot, args);
+        RunScoreHistoryChecks(storageRoot, args);
     }
 
     /// <summary>Janela do OBS com o armazenamento do computador numa pasta de teste; espera a abertura (conferência do computador e sessão guardada) terminar.</summary>
@@ -56,6 +57,43 @@ internal static partial class Program
             Require(!File.Exists(store.SessionPath) && !File.Exists(store.SessionPath + ".tmp"), "Apagar a sessão deveria remover o arquivo.");
         });
 
+        Check("Computador do OBS: falha de E/S ao ler o device.dat (arquivo em uso) não apaga a ativação nem a sessão: avisa, mantém o arquivo e a leitura seguinte funciona; só dado inválido é descartado", () =>
+        {
+            var folder = Path.Combine(storageRoot, "device-store-locked");
+            var store = new ObsDeviceStore(folder);
+            var device = new StoredDevice("https://fixture.invalid/", Guid.NewGuid(), new string('C', 64));
+            Require(store.SaveDevice(device) && store.SaveSession(new StoredSession("https://fixture.invalid/", "token-da-sessao-12345", DateTimeOffset.UtcNow.AddDays(30))), "A gravação deveria funcionar.");
+            using (new FileStream(store.DevicePath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Require(store.ReadDevice() is null && store.DeviceReadUnavailable && File.Exists(store.DevicePath) && store.TakeWarning() is { Length: > 0 } warning && warning.Contains("Tente de novo", StringComparison.Ordinal),
+                    "Arquivo em uso: a leitura devolve nada, marca a leitura como indisponível, avisa e NÃO apaga o arquivo.");
+            }
+            Require(store.ReadDevice() == device && !store.DeviceReadUnavailable && store.TakeWarning() is null && store.ReadSession() is not null, "Liberado o arquivo, a leitura seguinte devolve a ativação, sem aviso, e a sessão continua guardada.");
+            File.WriteAllBytes(store.DevicePath, [1, 2, 3, 4, 5, 6, 7, 8]);
+            Require(store.ReadDevice() is null && !store.DeviceReadUnavailable && !File.Exists(store.DevicePath) && store.TakeWarning() is { Length: > 0 }, "Dado inválido (não é falha de E/S) continua sendo apagado, com aviso.");
+        });
+
+        Check("Computador do OBS: abertura com o device.dat em uso não apaga a sessão guardada nem marca o computador como não ativado, e o login seguinte lê de novo", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Arquivo em uso", "Centro");
+            var device = fixture.AddDevice(unit.Id, "Recepção 10");
+            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-in-use"));
+            store.SaveDevice(StoredFor(device)); store.SaveSession(new StoredSession("https://fixture.invalid/", "fixture-token", DateTimeOffset.UtcNow.AddDays(5)));
+            ShellWindow window;
+            FileStream hold = new(store.DevicePath, FileMode.Open, FileAccess.Read, FileShare.None);
+            try { window = OpenOperationalWithDevices(fixture, storageRoot, "device-in-use", store, Appearance.Light); }
+            catch { hold.Dispose(); throw; }
+            try
+            {
+                var vm = window.ViewModel.Workspace;
+                Require(!vm.DeviceActivated && File.Exists(store.DevicePath) && File.Exists(store.SessionPath), "Com o arquivo em uso a ativação e a sessão guardadas não podem ser apagadas.");
+                hold.Dispose();
+                Pump(vm.OpenAsync());
+                Require(vm.DeviceActivated && File.Exists(store.DevicePath), "Liberado o arquivo, a abertura seguinte deveria reconhecer o computador ativado: " + vm.DeviceStateLabel);
+            }
+            finally { hold.Dispose(); CloseWindow(window); }
+        });
         Check("Computador do OBS: o cabeçalho vai em toda requisição só para o mesmo endereço de API e a Secretaria nunca o envia", () =>
         {
             using var fixture = new ApiFixture();
@@ -420,7 +458,7 @@ internal static partial class Program
             var next = await api.NextInQueueAsync(unit.Id, specialty.Id);
             Require(next is null || (next.EntryId > 0 && next.PatientName.Length > 0), "A prévia do 1º da fila veio num formato inesperado.");
             var slots = await api.UnitLightningSlotsAsync(unit.Id);
-            Require(slots.All(slot => slot.Origin.Length > 0 && slot.Status.Length > 0), "As vagas deveriam trazer origem e situação.");
+            Require(slots.Items.All(slot => slot.Origin.Length > 0 && slot.Status.Length > 0), "As vagas deveriam trazer origem e situação.");
             // Computadores: a lista da UBS é lida pelo administrador.
             _ = await api.ObsDevicesAsync(unit.Id);
             // Chamar próximo com profissional desconhecido é recusado com mensagem e status, nunca com falha genérica.

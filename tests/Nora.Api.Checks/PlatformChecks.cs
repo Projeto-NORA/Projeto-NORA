@@ -231,20 +231,19 @@ internal static class PlatformChecks
             Guid staffId = Guid.Empty;
             await Check("Secretaria cria conta OBS com senha provisória; validações, duplicidade e autorização", async () =>
             {
-                var good = new { fullName = "Atendente Nova", cpf = Cpf(60), email = "NOVA@example.test", password = "Provisoria-123", role = "attendant" };
+                var good = new { fullName = "Atendente Nova", email = "NOVA@example.test", password = "Provisoria-123", role = "attendant" };
                 using (var anonymousCreate = await anonymous.PostAsJsonAsync("/api/municipal/staff", good)) Expect(anonymousCreate, 401);
                 using (var obsCreate = await obs.PostAsJsonAsync("/api/municipal/staff", good)) Expect(obsCreate, 403);
                 using (var patientCreate = await patients[1].PostAsJsonAsync("/api/municipal/staff", good)) Expect(patientCreate, 403);
-                foreach (var invalid in new object[] { new { fullName = "A", cpf = Cpf(60), email = "x@example.test", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", cpf = "11111111111", email = "x@example.test", password = "Provisoria-123", role = "attendant" },
-                    new { fullName = "Atendente", cpf = Cpf(61), email = "inválido", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", cpf = Cpf(61), email = "x@example.test", password = "curta", role = "attendant" },
-                    new { fullName = "Atendente", cpf = Cpf(61), email = "x@example.test", password = "Provisoria-123", role = "manager" }, new { fullName = "Atendente", cpf = Cpf(61), email = "x@example.test", password = "Provisoria-123", role = "patient" } })
+                foreach (var invalid in new object[] { new { fullName = "A", email = "x@example.test", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", password = "Provisoria-123", role = "attendant" },
+                    new { fullName = "Atendente", email = "inválido", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", email = "x@example.test", password = "curta", role = "attendant" },
+                    new { fullName = "Atendente", email = "x@example.test", password = "Provisoria-123", role = "manager" }, new { fullName = "Atendente", email = "x@example.test", password = "Provisoria-123", role = "patient" } })
                 { using var rejected = await municipal.PostAsJsonAsync("/api/municipal/staff", invalid); Expect(rejected, 400); }
                 using var created = await municipal.PostAsJsonAsync("/api/municipal/staff", good); Expect(created, 201);
                 var body = await Read(created); staffId = body.GetProperty("id").GetGuid();
                 Require(body.GetProperty("role").GetString() == "attendant" && body.GetProperty("isActive").GetBoolean() && body.GetProperty("mustChangePassword").GetBoolean() && body.GetProperty("email").GetString() == "nova@example.test", "Conta criada com contrato incorreto.");
                 Require(!(await created.Content.ReadAsStringAsync()).Contains("Provisoria"), "Resposta ecoou a senha.");
-                using (var duplicate = await municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Outra", cpf = Cpf(60), email = "outra@example.test", password = "Provisoria-123", role = "administrator" })) Expect(duplicate, 409);
-                using (var duplicateEmail = await municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Outra", cpf = Cpf(62), email = "nova@example.test", password = "Provisoria-123", role = "administrator" })) Expect(duplicateEmail, 409);
+                using (var duplicateEmail = await municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Outra", email = "nova@example.test", password = "Provisoria-123", role = "administrator" })) Expect(duplicateEmail, 409);
                 using var list = await municipal.GetAsync("/api/municipal/staff"); Expect(list, 200);
                 var row = (await Read(list)).EnumerateArray().Single(a => a.GetProperty("id").GetGuid() == staffId);
                 Require(row.GetProperty("email").GetString() == "nova@example.test" && row.GetProperty("isActive").GetBoolean() && row.GetProperty("mustChangePassword").GetBoolean() && row.GetProperty("fullName").GetString() == "Atendente Nova", "Listagem de contas sem os campos novos.");
@@ -345,6 +344,9 @@ internal static class PlatformChecks
                 using (var offers = await patients[2].GetAsync(offersPath)) { Expect(offers, 200); offerP2 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                 clock.AdvanceTo(t0.AddMinutes(31));
                 using (var decline = await patients[2].PostAsJsonAsync($"{offersPath}/{offerP2}/respond", new { accept = false })) Expect(decline, 200);
+                // R-030: recusar devolve a entrada à fila na mesma posição (entered_at intacto); este teste segue o roteiro antigo e o P2 sai da fila cancelando a própria entrada.
+                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e1) == "waiting" && await UnitScalar<bool>(u2, "SELECT entered_at=$2 FROM nora_unit.waiting_list WHERE id=$1", e1, t0), "Recusar deveria devolver a entrada à fila na mesma posição.");
+                using (var leave = await patients[2].PostAsJsonAsync($"/api/patient/units/{u2}/waiting-list/{e1}/cancel", new { confirmed = true })) Expect(leave, 204);
                 Guid offerP4;
                 using (var offers = await patients[4].GetAsync(offersPath)) { Expect(offers, 200); offerP4 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                 clock.AdvanceTo(t0.AddMinutes(33));
@@ -364,7 +366,7 @@ internal static class PlatformChecks
                 // Segunda vaga: a oferta vai ao P1 (primeiro da fila); ele cancela a própria entrada e a vaga passa ao P5.
                 clock.AdvanceTo(t0.AddMinutes(35));
                 await AddWaiting(u2, Cpf(5), "Neurologia"); p5EnteredU2 = clock.GetUtcNow();
-                using (var p5 = await obs.GetAsync($"/api/obs/units/{u2}/waiting-list")) e4 = (await Read(p5)).EnumerateArray().Single(entry => entry.GetProperty("cpf").GetString() == Cpf(5)).GetProperty("id").GetInt64();
+                using (var p5 = await obs.GetAsync($"/api/obs/units/{u2}/waiting-list")) e4 = (await Read(p5)).GetProperty("items").EnumerateArray().Single(entry => entry.GetProperty("cpf").GetString() == Cpf(5)).GetProperty("id").GetInt64();
                 clock.AdvanceTo(t0.AddMinutes(40));
                 await Status(u2, a2, "cancelled");
                 using (var slotResponse = await obs.PostAsJsonAsync($"/api/obs/units/{u2}/lightning-slots", new { appointmentId = a2, confirmed = true })) { Expect(slotResponse, 201); slot2 = (await Read(slotResponse)).GetProperty("id").GetGuid(); }

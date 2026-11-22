@@ -46,7 +46,7 @@ internal static class SlotApprovalChecks
         {
             using var response = await f.Admin.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{appointment}/status", new { status = "cancelled", confirmed = true }); Expect(response, 200);
         }
-        async Task<JsonElement> Slots(Guid unit) { using var response = await f.Admin.GetAsync($"/api/obs/units/{unit}/lightning-slots"); Expect(response, 200); return await Read(response); }
+        async Task<JsonElement> Slots(Guid unit) { using var response = await f.Admin.GetAsync($"/api/obs/units/{unit}/lightning-slots"); Expect(response, 200); return (await Read(response)).GetProperty("items"); }
         async Task<JsonElement> SlotOf(Guid appointment) => (await Slots(u1)).EnumerateArray().First(slot => slot.GetProperty("appointmentId").ValueKind == JsonValueKind.String && slot.GetProperty("appointmentId").GetGuid() == appointment);
         async Task<HttpResponseMessage> Approve(HttpClient client, Guid slot, Guid? unit = null, bool confirmed = true) => await client.PostAsJsonAsync($"/api/obs/units/{unit ?? u1}/lightning-slots/{slot}/approve", new { confirmed });
         async Task<HttpResponseMessage> Discard(HttpClient client, Guid slot, bool confirmed = true) => await client.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots/{slot}/discard", new { confirmed });

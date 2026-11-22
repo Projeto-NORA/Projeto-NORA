@@ -205,32 +205,34 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "users", 1280, 1900);
-                void Fill(string cpf, string email, string password, string confirm)
+                Require(!Descendants<TextBox>(content).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(content).Contains("CPF"), "O formulário de nova conta não deveria ter campo de CPF.");
+                void Fill(string email, string password, string confirm)
                 {
-                    Input(content, "Nome da nova conta").Text = "Marina Costa"; Input(content, "CPF da nova conta").Text = cpf; Input(content, "E-mail da nova conta").Text = email;
+                    Input(content, "Nome da nova conta").Text = "Marina Costa"; Input(content, "E-mail da nova conta").Text = email;
                     Combo(content, "Perfil da nova conta").SelectedValue = "administrator";
                     Secret(content, "Senha provisória da nova conta").Password = password; Secret(content, "Confirmação da senha provisória da nova conta").Password = confirm;
                 }
-                Fill("529.982.247-25", "marina@example.test", "provisoria-123", "provisoria-124");
+                Fill("marina@example.test", "provisoria-123", "provisoria-124");
                 Click(window, content, "Criar conta", 1280, 1900);
                 Require(fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffConfirmError.Contains("confirmação") && HasText(Layout(window, 1280, 1900), vm.StaffConfirmError), "Confirmação diferente deveria ser barrada junto ao campo.");
-                Fill("111.111.111-11", "invalido", "curta", "curta");
+                Fill("invalido", "curta", "curta");
                 Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffCpfError.Length > 0 && vm.StaffEmailError.Length > 0 && vm.StaffPasswordError.Length > 0, "CPF, e-mail e senha inválidos deveriam ter mensagem própria.");
+                Require(fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffEmailError.Length > 0 && vm.StaffPasswordError.Length > 0, "E-mail e senha inválidos deveriam ter mensagem própria.");
                 foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-staff-form-errors-light.png"));
-                Fill("529.982.247-25", "marina@example.test", "provisoria-123", "provisoria-123");
+                Fill("marina@example.test", "provisoria-123", "provisoria-123");
                 Require(Descendants<PasswordBox>(content).Count(box => box.Password.Length > 0) == 2, "Pré-condição: campos de senha preenchidos.");
                 foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
                 Secret(content, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(content, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
                 Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.Count("POST", "/api/municipal/staff") == 1 && fixture.LastStaffCreate is { Cpf: "52998224725", Role: "administrator", Email: "marina@example.test", Password: "provisoria-123" }, "A conta não foi criada com os dados informados (CPF só com dígitos).");
+                Require(fixture.Count("POST", "/api/municipal/staff") == 1 && fixture.LastStaffCreate is { Role: "administrator", Email: "marina@example.test", Password: "provisoria-123" }, "A conta não foi criada com os dados informados.");
+                Require(fixture.LastStaffCreateBody is { } body && !body.Contains("cpf", StringComparison.OrdinalIgnoreCase) && body.Contains("\"fullName\"") && body.Contains("\"email\""), "O corpo enviado não deveria ter CPF: " + fixture.LastStaffCreateBody);
                 var created = vm.Staff.Single(account => account.FullName == "Marina Costa");
                 Require(created.PendingDisplay == "Pendente" && created.RoleDisplay == "Administrador" && vm.Message.Contains("obrigada a trocar a senha"), "A conta nova deveria aparecer com troca de senha pendente e a explicação.");
                 Require(Descendants<PasswordBox>(content).All(box => box.Password.Length == 0) && vm.StaffName == "", "O formulário não foi limpo depois de criar.");
-                Fill("111.444.777-35", "marina@example.test", "provisoria-123", "provisoria-123");
+                Fill("marina@example.test", "provisoria-123", "provisoria-123");
                 Click(window, content, "Criar conta", 1280, 1900);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("Já existe uma conta OBS"), "Duplicidade deveria virar mensagem específica: " + vm.Message);
+                Require(vm.MessageKind == MessageKind.Error && vm.Message == "Já existe uma conta OBS com este e-mail.", "Duplicidade deveria virar mensagem específica por e-mail: " + vm.Message);
                 foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
                 // Desativar / reativar com confirmação e cancelamento.
                 GridNamed(content, "Contas OBS").SelectedItem = created; Layout(window, 1280, 1900);

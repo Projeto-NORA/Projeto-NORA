@@ -15,6 +15,20 @@ val googleWebClientId: String = run {
     (providers.gradleProperty("NORA_GOOGLE_WEB_CLIENT_ID").orNull ?: local.getProperty("NORA_GOOGLE_WEB_CLIENT_ID") ?: "").trim()
 }
 
+// Assinatura de release (P-048): só existe quando há um arquivo de propriedades FORA do Git, com storeFile, storePassword, keyAlias e
+// keyPassword. Procura em NORA_ANDROID_SIGNING (variável de ambiente ou propriedade Gradle) e, sem ela, em APPNORA/keystore.properties.
+// storeFile relativo é resolvido a partir da pasta do arquivo de propriedades. Sem o arquivo, o release continua saindo sem assinatura
+// (como antes) e o build de depuração não é tocado. A chave e as senhas nunca entram no repositório (scripts/criar-chave-android.ps1).
+val signingPropertiesFile: File? = run {
+    val indicated = providers.environmentVariable("NORA_ANDROID_SIGNING").orNull?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("NORA_ANDROID_SIGNING").orNull?.takeIf { it.isNotBlank() }
+    val candidate = if (indicated != null) File(indicated) else rootProject.file("keystore.properties")
+    candidate.takeIf { it.isFile }
+}
+val signingProperties: Properties? = signingPropertiesFile?.let { f ->
+    Properties().also { p -> providers.fileContents(rootProject.layout.file(providers.provider { f })).asText.get().reader().use(p::load) }
+}
+
 // Push (Firebase): o plugin só entra quando o arquivo de configuração existe; sem ele o app compila e o push fica desligado.
 // app/google-services.json fica fora do Git (.gitignore).
 if (file("google-services.json").exists()) apply(plugin = libs.plugins.google.services.get().pluginId)
@@ -32,8 +46,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NORA_GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
+    if (signingProperties != null && signingPropertiesFile != null) {
+        signingConfigs {
+            create("release") {
+                fun required(name: String) = signingProperties.getProperty(name)?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: throw GradleException("$signingPropertiesFile: falta a propriedade '$name' (storeFile, storePassword, keyAlias, keyPassword).")
+                storeFile = File(required("storeFile")).let { if (it.isAbsolute) it else File(signingPropertiesFile.parentFile, it.path) }
+                storePassword = required("storePassword")
+                keyAlias = required("keyAlias")
+                keyPassword = required("keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingProperties != null) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -76,6 +103,8 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.test.runner)
+    // Toca no diálogo de permissão do sistema (ACCESS_LOCAL_NETWORK, P-046).
+    androidTestImplementation(libs.androidx.test.uiautomator)
     screenshotTestImplementation(libs.screenshot.validation.api)
     screenshotTestImplementation(libs.androidx.compose.tooling)
 }

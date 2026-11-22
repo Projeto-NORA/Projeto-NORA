@@ -13,6 +13,9 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
 
     public async Task AdvanceAsync(Guid unitId, CancellationToken ct)
     {
+        // P1 (docs/desempenho.md): sem nada a fazer o passe não abre transação central nem trava vínculos. Só leitura, sem lock: uma vaga ou oferta que nasça logo depois é pega pela ação que a criou
+        // (TryAdvanceAsync) ou pelo próximo passe de 15 s.
+        if (!await HasWorkAsync(unitId, ct)) return;
         // Lock central grants and account state before the unit transaction. Never offer to a
         // patient whose unit link or active account can change during this operation.
         await using var centralConnection = await central.OpenAsync(ct);
@@ -30,8 +33,8 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
         // Aprovação das vagas reaproveitadas: o prazo fecha as propostas que ninguém aprovou até faltar 1 h e, com a chave ligada, os cancelamentos novos viram propostas (nunca ofertadas antes de aprovadas).
         await ExecuteAsync(connection, "UPDATE nora_unit.lightning_slots SET status='closed',closed_reason='approval-timeout' WHERE status='awaiting_approval' AND starts_at<=$1", ct, now + ApprovalLead);
         if (approvalSince is { } since) await ProposeAsync(connection, since, now, ct);
-        await ExecuteAsync(connection, "UPDATE nora_unit.waiting_list SET status='completed' WHERE id IN (SELECT o.entry_id FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.status='pending' AND (o.expires_at<=$1 OR s.starts_at<=$1))", ct, now);
-        await ExecuteAsync(connection, "INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source) SELECT o.entry_id,NULL,'completed',$1,'system' FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.status='pending' AND (o.expires_at<=$1 OR s.starts_at<=$1)", ct, now);
+        await ExecuteAsync(connection, "UPDATE nora_unit.waiting_list SET status='waiting' WHERE status='offered' AND id IN (SELECT o.entry_id FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.status='pending' AND (o.expires_at<=$1 OR s.starts_at<=$1))", ct, now);
+        await ExecuteAsync(connection, "INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source) SELECT o.entry_id,NULL,'waiting',$1,'system' FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.status='pending' AND (o.expires_at<=$1 OR s.starts_at<=$1)", ct, now);
         await ExecuteAsync(connection, "UPDATE nora_unit.lightning_slots SET status='open' WHERE id IN (SELECT o.slot_id FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.status='pending' AND (o.expires_at<=$1 OR s.starts_at<=$1))", ct, now);
         await ExecuteAsync(connection, "UPDATE nora_unit.lightning_offers SET status='expired' WHERE status='pending' AND (expires_at<=$1 OR slot_id IN (SELECT id FROM nora_unit.lightning_slots WHERE starts_at<=$1))", ct, now);
         // A full ten-minute response window must remain before the scheduled start.
@@ -42,7 +45,7 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
             while (await reader.ReadAsync(ct)) slots.Add((reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.GetFieldValue<DateTimeOffset>(3)));
         foreach (var slot in slots)
         {
-            if (await LightningEligibility.PickAsync(connection, slot.Specialty, eligible, slot.Start, slot.End, ct) is not { } chosen) continue;
+            if (await LightningEligibility.PickAsync(connection, slot.Specialty, eligible, slot.Start, slot.End, now, ct, slot.Id) is not { } chosen) continue;
             await ExecuteAsync(connection, "INSERT INTO nora_unit.lightning_offers(id,slot_id,entry_id,expires_at,status) VALUES($1,$2,$3,$4,'pending')", ct, Guid.NewGuid(), slot.Id, chosen, now.AddMinutes(10));
             await ExecuteAsync(connection, "UPDATE nora_unit.waiting_list SET status='offered' WHERE id=$1", ct, chosen);
             await ExecuteAsync(connection, "UPDATE nora_unit.lightning_slots SET status='offered' WHERE id=$1", ct, slot.Id);
@@ -52,17 +55,50 @@ public sealed class UnitLightningDispatcher(DatabaseHelper central, UnitDatabase
     }
 
     /// <summary>
+    /// O passe tem o que fazer? Sim se há vaga aberta ou oferecida, oferta pendente (a expiração e a distribuição vivem nela), vaga que aguarda aprovação e já passou do prazo ou, com a aprovação ligada, consulta cancelada
+    /// que vira proposta (mesmo critério de <see cref="ProposeAsync"/>). Tudo isto é o que o passe completo mexe: fora esses casos ele não altera nada.
+    /// </summary>
+    private async Task<bool> HasWorkAsync(Guid unitId, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        await using var unit = await databases.OpenAsync(unitId, ct);
+        bool busy, cancelledWithoutSlot;
+        await using (var query = new NpgsqlCommand(
+            "SELECT EXISTS(SELECT 1 FROM nora_unit.lightning_slots WHERE status IN ('open','offered') OR (status='awaiting_approval' AND starts_at<=$1)) OR EXISTS(SELECT 1 FROM nora_unit.lightning_offers WHERE status='pending'), " +
+            "EXISTS(SELECT 1 FROM nora_unit.appointments a WHERE a.status='cancelled' AND a.starts_at>$1 AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_slots x WHERE x.appointment_id=a.id))", unit))
+        {
+            query.Parameters.AddWithValue(now + ApprovalLead);
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct); busy = reader.GetBoolean(0); cancelledWithoutSlot = reader.GetBoolean(1);
+        }
+        if (busy) return true;
+        if (!cancelledWithoutSlot) return false;
+        DateTimeOffset? since;
+        await using (var centralConnection = await central.OpenAsync(ct))
+        await using (var read = central.Command(centralConnection, "SELECT slot_approval_since FROM nora.health_units WHERE id=$1", unitId))
+        await using (var reader = await read.ExecuteReaderAsync(ct))
+            since = await reader.ReadAsync(ct) && !reader.IsDBNull(0) ? reader.GetFieldValue<DateTimeOffset>(0) : null;
+        if (since is not { } approvalSince) return false;
+        await using var proposals = new NpgsqlCommand("SELECT $1::timestamptz IS NOT NULL AND EXISTS(SELECT 1 FROM nora_unit.appointments a " + ProposalWhere + ")", unit);
+        proposals.Parameters.AddWithValue(now); proposals.Parameters.AddWithValue(approvalSince); proposals.Parameters.AddWithValue(now + ApprovalLead);
+        return await proposals.ExecuteScalarAsync(ct) is true;
+    }
+
+    /// <summary>
     /// Cria a proposta (<c>awaiting_approval</c>, origem <c>cancellation</c>, sem autor) de cada consulta cancelada no futuro (a mais de 1 h), cancelada depois de a chave ser ligada, que ainda não tem vaga e cujo horário o profissional
     /// não ocupou de novo (consulta ativa ou vaga aberta/ofertada). Até 200 por passe. A proposta não segura o horário.
     /// </summary>
     private static Task ProposeAsync(NpgsqlConnection connection, DateTimeOffset since, DateTimeOffset now, CancellationToken ct) => ExecuteAsync(connection,
         "INSERT INTO nora_unit.lightning_slots(id,appointment_id,status,created_at,created_by,origin,specialty,specialty_id,professional,professional_id,room_id,starts_at,ends_at) " +
-        "SELECT gen_random_uuid(),a.id,'awaiting_approval',$1,NULL,'cancellation',a.specialty,a.specialty_id,a.professional,a.professional_id,a.room_id,a.starts_at,a.ends_at FROM nora_unit.appointments a " +
+        "SELECT gen_random_uuid(),a.id,'awaiting_approval',$1,NULL,'cancellation',a.specialty,a.specialty_id,a.professional,a.professional_id,a.room_id,a.starts_at,a.ends_at FROM nora_unit.appointments a " + ProposalWhere +
+        $"ORDER BY a.starts_at,a.id LIMIT {ProposalsPerPass} ON CONFLICT (appointment_id) DO NOTHING", ct, now, since, now + ApprovalLead);
+
+    /// <summary>Consulta cancelada (alias <c>a</c>) que ainda pode virar proposta: $2 = quando a aprovação foi ligada, $3 = agora + antecedência. Compartilhada pela criação e pela pré-checagem.</summary>
+    private const string ProposalWhere =
         "WHERE a.status='cancelled' AND a.starts_at>$3 AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_slots x WHERE x.appointment_id=a.id) " +
         "AND EXISTS(SELECT 1 FROM nora_unit.appointment_events e WHERE e.appointment_id=a.id AND e.status='cancelled' AND e.occurred_at>=$2) " +
         "AND NOT EXISTS(SELECT 1 FROM nora_unit.appointments b WHERE lower(btrim(b.professional))=lower(btrim(a.professional)) AND b.status IN ('scheduled','called','completed','missed') AND b.starts_at<a.ends_at AND b.ends_at>a.starts_at) " +
-        "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_slots y WHERE lower(btrim(y.professional))=lower(btrim(a.professional)) AND y.status IN ('open','offered') AND y.starts_at<a.ends_at AND y.ends_at>a.starts_at) " +
-        $"ORDER BY a.starts_at,a.id LIMIT {ProposalsPerPass} ON CONFLICT (appointment_id) DO NOTHING", ct, now, since, now + ApprovalLead);
+        "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_slots y WHERE lower(btrim(y.professional))=lower(btrim(a.professional)) AND y.status IN ('open','offered') AND y.starts_at<a.ends_at AND y.ends_at>a.starts_at) ";
 
     private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, CancellationToken ct, params object[] values)
     {

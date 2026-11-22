@@ -127,11 +127,11 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
         when {
             offer.status == "pending" && expired -> {
                 Text("Prazo encerrado", fontWeight = FontWeight.SemiBold)
-                MutedText("Você não pode mais responder a esta oportunidade. Atualize para ver a situação atual.")
+                MutedText("Você não pode mais responder a esta oportunidade e continua na fila, no mesmo lugar. Atualize para ver a situação atual.")
             }
             offer.status == "pending" -> {
                 offer.expiresAtMillis?.let { OfferCountdown(it, now) }
-                MutedText("Responda até ${formatClock(offer.expiresAt)}. Ao aceitar, sua consulta será agendada.")
+                MutedText("Responda até ${formatClock(offer.expiresAt)}. Ao aceitar, sua consulta será agendada; ao recusar ou deixar o prazo passar, você continua na fila.")
                 Button(onClick = { onRespond(offer.id, true) }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth()) { Text("Aceitar oportunidade") }
                 OutlinedButton(onClick = { onRespond(offer.id, false) }, enabled = !busy,

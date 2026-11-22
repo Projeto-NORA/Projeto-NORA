@@ -34,4 +34,29 @@ public static class AttendanceScore
         var denominator = completed + missed + cancellationWeight;
         return denominator <= 0 ? null : completed / denominator;
     }
+
+    /// <summary>Pontos de quem ainda não tem consulta encerrada na janela: começa no máximo (quem nunca faltou não é penalizado).</summary>
+    public const int MaxPoints = 1000;
+
+    /// <summary>
+    /// Pontos de 0 a 1000 = <c>round(concluídas × 1000 ÷ denominador)</c> (meio para cima) sobre a razão exata, em <see cref="decimal"/>:
+    /// em <see cref="double"/> o produto perde o empate (0,5025 × 1000 = 502,49999999999994). Sem consulta encerrada devolve <see cref="MaxPoints"/>.
+    /// </summary>
+    public static int Points(long completed, long missed, double cancellationWeight)
+    {
+        var denominator = completed + missed + Math.Round((decimal)cancellationWeight, 6);
+        return denominator <= 0 ? MaxPoints : (int)Math.Round(completed * (decimal)MaxPoints / denominator, 0, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>Pontos a partir de um score já calculado (a conversão para <see cref="decimal"/> descarta o ruído de ponto flutuante). Prefira <see cref="Points(long, long, double)"/>, que parte dos números inteiros. Sem histórico (score nulo) devolve <see cref="MaxPoints"/>.</summary>
+    public static int Points(double? score) => score is { } value ? (int)Math.Round((decimal)value * MaxPoints, 0, MidpointRounding.AwayFromZero) : MaxPoints;
+
+    /// <summary>Faixa dos pontos: <c>low</c> (0–299), <c>regular</c> (300–599), <c>good</c> (600–799) e <c>excellent</c> (800–1000).</summary>
+    public static string Band(int points) => points switch
+    {
+        < 300 => "low",
+        < 600 => "regular",
+        < 800 => "good",
+        _ => "excellent"
+    };
 }

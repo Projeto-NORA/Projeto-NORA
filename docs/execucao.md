@@ -1,6 +1,48 @@
 # Execução e validação
 
-## Estado atual das validações — 2026-11-17 (rodada final)
+## Validação do fechamento das pendências — 2026-11-17
+
+Código do fechamento (score em pontos de 0 a 1000, prioridade na Vaga Relâmpago pelo score, contas de equipe sem CPF, P3, P4 e P5, marcar a qualquer horário), conferido de novo em 2026-11-18, depois das correções das voltas 1 a 3 da revisão, com PostgreSQL 18 descartável, sem commit:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55840) | todas verdes (273 PASS e nenhum FAIL no log): HTTP 34/34, fluxos 28/28 (+ bancos por UBS PASS), plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores do OBS 13/13, chamar próximo 8/8, serviços e horários 7/7, conflito entre UBS 7/7, aprovação das vagas 8/8, caixa de saída do e-mail 5/5, volta à fila 5/5, desempenho 6/6, fechamento 16/16 |
+| `Nora.Desktop.Checks` (sem API) | 181/181 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55842, só WPF) | 184/184 na repetição; a primeira passada deu 183/184, ver a observação sobre a corrida do teste |
+| Android: `assembleDebug`, `testDebugUnitTest`, `lintDebug`, `assembleDebugAndroidTest` | 295 testes locais reexecutados com `--rerun` (0 falhas, 0 pulados), lint 0 erros e 7 avisos antigos (versões de plugins e `UnitsMap.kt`), APKs gerados |
+| Android: `validateDebugScreenshotTest` | 55 prévias. Três das Jornada (`JourneyExamsLight`, `JourneyOneUnitDownLight`, `JourneyEmptyDark`) falharam pela mudança esperada de texto do score com mais de uma UBS ("A ordem usa o score de cada UBS..."); as referências (ignoradas pelo Git) foram atualizadas com `updateDebugScreenshotTest`, conferidas na imagem e a validação seguinte passou 55/55; na rodada de 2026-11-18 o `validateDebugScreenshotTest` sozinho, com `--rerun`, passou 55/55 sem precisar atualizar nada |
+| Android: `connectedDebugAndroidTest` no `Medium_Phone_API_37.0` (sem janela) | 48 testes: 46 aprovados e 2 pulados por assumption (`patientUsesRealDisposablePostgresApi` sem `noraApiUrl` e `VisualCaptureTest` sem `noraCaptureVisual=true`). Na primeira passada os 2 de `LocalNetworkPermissionTest` também ficaram pulados porque a permissão `ACCESS_LOCAL_NETWORK` já estava concedida no AVD; com o app reinstalado eles rodaram sozinhos e passaram 2/2. Na rodada de 2026-11-18, com o app já instalado, o XML trouxe 48 testes e só esses 2 de assumption (`patientUsesRealDisposablePostgresApi` e `VisualCaptureTest`) como não executados, os outros 46 aprovados (inclusive `LocalNetworkPermissionTest` 2/2 e `BookingDatePickerTest` 3/3) |
+
+Observações: na primeira passada do E2E de 2026-11-18, a verificação "Secretaria: Visão geral mostra os totais novos e avisa quantas UBS ficaram fora por não terem base" falhou uma vez ("O aviso continuou depois de a base ser criada") e passou em cinco repetições da suíte sem API. A causa estava no teste, não no produto: `ProvisionSelectedUnitDatabaseAsync` dispara `ReloadNetwork` em segundo plano e o teste conferia o aviso sem esperar essa releitura terminar. O teste agora espera `Settle(vm)` antes de conferir (`tests/Nora.Desktop.Checks/SecretariaChecks.cs`), e o E2E repetido passou 184/184. `validar-clientes-descartavel.ps1` exige PowerShell 7 (`pwsh`); no Windows PowerShell 5.1 ele recusa por causa do `#requires`. Antes do E2E rodou `gradlew --stop` e havia cerca de 6 GB de RAM livre; o E2E passou sem erro de memória. O script do servidor avisou que a instância descartável não confirmou o encerramento; depois da rodada não restou nenhum PostgreSQL nas portas 5584x. Emulador desligado e daemons do Gradle parados ao fim.
+
+## Volta 2 — 2026-11-17 (R-030, otimização P1/P2 e achados da revisão)
+
+Tarefa `docs/tarefas/2026-11-17-r030-otimizacao-volta2.md`. Depois da volta à fila (R-030), da pré-checagem do passe do relâmpago (P1), do `FOR SHARE` nas leituras (P2, ver [desempenho](desempenho.md)), do `device.dat` que só é descartado por dado inválido, da prévia do Chamar próximo com o horário e da repetição em `40P01`, com PostgreSQL 18 descartável:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55791) | HTTP 32/32; fluxos 28/28; plataforma 19/19; revisão 17/17; comunicação e Jornada 16/16; agenda 21/21; Família 21/21; revisão da Família 14/14; decisões 7/7; lacunas 5/5; Google e push 15/15; computadores do OBS 13/13; chamar próximo 8/8; serviços e horários 7/7; conflito entre UBS 7/7; aprovação das vagas 8/8; caixa de saída do e-mail 5/5; **volta à fila 5/5**; **desempenho e concorrência 6/6** |
+| `Nora.Desktop.Checks` (sem API) | 173/173 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55792) | 176/176 |
+
+Os testes que esperavam `completed` depois de recusa ou vencimento foram atualizados para o novo roteiro (R-030): `PlatformChecks` (UBS 2: o P2 recusa, volta à fila e depois cancela a própria entrada), `FamilyChecks.Gaps` (a entrada do dependente fica `waiting`), `WorkflowChecks` (resumo com 3 pessoas aguardando e a nova inclusão de quem voltou à fila é 409) e `CallNextChecks` (a ordem em que as vagas voltam à fila).
+## Validação final antes da apresentação — 2026-11-17, 17h28
+
+Código com R-030 (recusa ou vencimento devolve à fila), otimização P1 e P2, correções das voltas 2 e 3 da revisão, P-046, P-048 e o botão "Configurar" em fonte ampliada:
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros, 0 avisos |
+| `Nora.Desktop.Checks` (sem API) | 173/173 |
+| `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55774) | 176/176 |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55764) | todas verdes: HTTP 32/32, fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores 13/13, chamar próximo 8/8, horários 7/7, conflito entre UBS 7/7, aprovação 8/8, caixa de saída 5/5, volta à fila 5/5, desempenho 6/6 |
+| Android | 285 testes locais, lint 0 erros, 54 prévias, 45 instrumentados (43 aprovados e 2 pulados por assumption) no `Medium_Phone_API_37.0` |
+
+Observação: uma rodada anterior do E2E falhou numa verificação de gráfico do OBS com "Insufficient memory to continue the execution of the program", com só 1,9 GB de RAM livre (emulador, daemons do Gradle e agentes ao mesmo tempo). A mesma verificação passou na suíte do desktop, e o E2E repetido com 18 GB livres passou 176/176. Para rodar o E2E, feche o emulador e rode `gradlew --stop` antes.
+
+## Estado das validações — 2026-11-17 (rodada final)
 
 Conferido no código da rodada final (P-014, Chamar próximo, serviços e horários da UBS, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail, mais as 12 correções da revisão adversarial), antes do commit, com PostgreSQL 18 descartável:
 
@@ -12,8 +54,11 @@ Conferido no código da rodada final (P-014, Chamar próximo, serviços e horár
 | `validar-clientes-descartavel.ps1` (E2E desktop com banco, porta 55772) | 173/173 |
 | Android (commit `dfadb0e`) | 285 testes locais, lint 0 erros e 6 avisos antigos, 54 prévias, 41 instrumentados + 2 pulados por assumption no `Medium_Phone_API_37.0`; o E2E `-Android` passou com o código de `09fdd87` |
 | `scripts/demo-local.ps1` | sobe banco, migrações e API em pasta temporária; `/health/ready` responde e o host `10.0.2.2` do emulador é aceito |
+| `Nora.Api.Checks --demo-bootstrap` (`NORA_DEMO_CONNECTION=... dotnet Nora.Api.Checks.dll --demo-bootstrap`) | prepara **só o banco da demonstração** (`scripts/demo-local.ps1`, porta 55432, só aceita `127.0.0.1`), pelo host da API em processo: UBS Escola Centro, especialidade Clínica geral, contas de demonstração (Secretaria e administrador da UBS **sem CPF**, entram só por e-mail; paciente com CPF), cadastro de referência, vínculo e acesso à UBS dos administradores OBS que já existirem. Precisa do central na 022 e das UBS na 017. Idempotente; senhas aleatórias em `%LOCALAPPDATA%\NORA\demo\acesso-demo.txt` (fora do Git), nunca impressas; não envia e-mail. Detalhes em `tarefas/2026-11-17-bootstrap-demo-app.md` |
 
-Versões de banco desta rodada: central até a **021**, UBS até a **016**. Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`, nessa ordem (a migração das UBS exige o central na 021). Ressalva: a segunda volta da revisão adversarial não rodou (P-050).
+Versões de banco desta rodada: central até a **022** (equipe sem CPF, P-053), UBS até a **017** (índices da fila, P5). Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`, nessa ordem (a migração das UBS exige o central na 021 ou mais). A segunda volta da revisão adversarial rodou depois (P-050 resolvida, 5 achados corrigidos).
+
+**Fechamento de 2026-11-17 (servidor).** Suíte completa `tests/validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55802): HTTP 34/34, PostgreSQL e fluxos 28/28, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 15/15, computadores do OBS 13/13, chamar próximo 8/8, serviços e horários 7/7, conflito entre UBS 7/7, aprovação das vagas 8/8, caixa de saída do e-mail 5/5, volta à fila 5/5, desempenho 6/6 e **fechamento 16/16** (`--closing-only`: score em pontos, prioridade da Vaga Relâmpago, equipe sem CPF, P3, P4, P5). Build Release de `Nora.Api` e `tests/Nora.Api.Checks` com 0 erros e 0 avisos. Bancos: central **022**, UBS **017**; rode `--migrate` e `--migrate-all-units`.
 
 ## Estado das validações — 2026-11-16
 
@@ -52,11 +97,11 @@ pwsh -NoProfile -File tests/validar-postgres-descartavel.ps1 -PostgreSqlBin "$en
 pwsh -NoProfile -File tests/validar-clientes-descartavel.ps1 -PostgreSqlBin "$env:LOCALAPPDATA\Programs\PostgreSQL\18\bin"
 ```
 
-**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família, as correções da revisão da Família, as decisões e as lacunas da Família e o Entrar com Google e push (com um Google falso, sem rede); sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only`, `--family-review-only`, `--family-decisions-only`, `--family-gaps-only` ou `--google-push-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes.
+**Partes da suíte da API.** Sem argumentos, `Nora.Api.Checks` roda tudo: as verificações HTTP e, quando `NORA_TEST_CONNECTION` aponta para um PostgreSQL (o `validar-postgres-descartavel.ps1` define essa variável e, com `-IncludeUnitDatabases`, as dos bancos de UBS), fluxos, bancos separados, plataforma, revisão, comunicação e Jornada, agenda, Família, as correções da revisão da Família, as decisões e as lacunas da Família, o Entrar com Google e push (com um Google falso, sem rede), a volta à fila, o desempenho (P1 e P2), os computadores do OBS, o chamar próximo, os serviços e horários da UBS, o conflito entre UBS, a aprovação das vagas, a caixa de saída do e-mail e o fechamento; sem a variável, as partes de banco são puladas com `SKIP`. Para repetir só uma parte, com a mesma variável definida, passe uma das opções (com `dotnet run`, depois de `--`) `--review-only`, `--community-only`, `--scheduling-only`, `--family-only`, `--family-review-only`, `--family-decisions-only`, `--family-gaps-only`, `--google-push-only`, `--workflow-only`, `--closing-only` (fechamento de 2026-11-17: score em pontos, prioridade da Vaga Relâmpago, equipe sem CPF, P3, P4 e P5), `--queue-return-only` (R-030: volta à fila na mesma posição), `--performance-only` (P1 e P2 de [desempenho](desempenho.md), com as linhas `MEDIDA`, e o impasse 40P01 da volta 2), `--devices-only`, `--call-next-only`, `--slot-approval-only`, `--unit-profile-only`, `--cross-unit-only` ou `--email-outbox-only`. `--client-fixture` não é teste: sobe a fixture de API usada pelo E2E dos clientes. `--demo-bootstrap` também não é teste: prepara o banco da demonstração (ver a tabela acima); se as contas de demonstração já existem e o `acesso-demo.txt` com a senha sumiu, ele recusa rodar e não sobrescreve o arquivo.
 
 **E2E por UBS.** `validar-clientes-descartavel.ps1` sobe a fixture por UBS (`NORA_TEST_REGISTRATION=1` e `NORA_E2E_UNIT_REGISTRY=1`, com bancos de UBS descartáveis) e o desktop exercita OBS e Secretaria contra a API real. Com `-Android` o script também instala e roda os testes instrumentados, o que exige emulador. O script não liga o emulador: suba-o antes (ver `android-emulador.md`) e confira `adb devices`. Em 2026-11-16 a rodada `-Android` foi feita com a API e o desktop do HEAD `09fdd87` compilados num worktree temporário (outro agente alterava a API neste) e com o APPNORA deste worktree; a primeira tentativa teve uma falha intermitente do desktop (P-047) e a repetição passou inteira. Dois cuidados do Android 17 (API 37) apareceram nessa rodada: o app precisa de `ACCESS_LOCAL_NETWORK` para falar com `10.0.2.2` (o teste a concede com `pm grant`), e a oferta da Vaga Relâmpago só existe depois do ciclo de 15 s do `UnitLightningWorker` (o teste espera até 45 s).
 
-**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 018 e as UBS até a 016 (central até a 021), e uma UBS desatualizada responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
+**Banco da UBS em produção.** A API cria os bancos das UBS sozinha (usuário PostgreSQL com `CREATEDB`). Depois de atualizar a API rode `Nora.Api --migrate` (banco central) e `Nora.Api --migrate-all-units` (todas as UBS `ready`) antes de receber tráfego; nesta versão o central vai até a migração 022 e as UBS até a 017, e uma UBS desatualizada responde 503 `unit-database-outdated`. Confira também que `max_connections` comporta `pool central + nº de UBS × MaxPoolSize + folga` (ver `api.md`). `scripts/iniciar-local.ps1` já executa as duas migrações.
 
 ## Integração por UBS — 2026-11-09
 

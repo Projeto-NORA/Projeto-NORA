@@ -11,11 +11,16 @@ namespace Nora.Api.Services;
 /// </summary>
 public sealed partial class SchedulingService
 {
-    /// <summary>Janela do paciente: início do atendimento de 24 h até 90 dias à frente (limites incluídos).</summary>
-    public static readonly TimeSpan PatientMinimumLead = TimeSpan.FromHours(24);
-    public static readonly TimeSpan PatientMaximumLead = TimeSpan.FromDays(90);
-    /// <summary>Intervalo máximo de uma consulta de horários livres.</summary>
+    /// <summary>
+    /// Intervalo máximo de UMA consulta de horários livres (o tamanho do pedido, não a distância): o paciente pode marcar qualquer horário livre e futuro, em qualquer data
+    /// (decisão do usuário de 2026-11-17); para chegar a uma data distante basta pedir um intervalo que a contenha.
+    /// </summary>
     public const int MaxAvailabilityDays = 92;
+    /// <summary>
+    /// Teto de data para consultar ou marcar horários: 20 anos à frente. Sem o teto, um pedido perto de 31/12/9999 faz o cálculo da grade estourar o limite de <see cref="DateTime"/> (500); com ele a API responde 400.
+    /// </summary>
+    public const int MaxScheduleHorizonYears = 20;
+    internal bool BeyondHorizon(DateTimeOffset moment) => moment > time.GetUtcNow().AddYears(MaxScheduleHorizonYears);
     private static readonly HashSet<string> States = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
     [GeneratedRegex("^[A-Za-z]{2,10}$")] private static partial Regex AcronymPattern();
     [GeneratedRegex("^[A-Za-z0-9./-]{1,20}$")] private static partial Regex CouncilNumberPattern();
@@ -101,16 +106,16 @@ public sealed partial class SchedulingService
 
     /// <summary>
     /// Atendimentos livres da especialidade (e do profissional, se informado) com início em [from, to): grade − bloqueios − consultas ativas − vagas relâmpago abertas ou ofertadas.
-    /// Equipe: só no futuro. Paciente: só de 24 h a 90 dias à frente. Especialidade inativa → lista vazia; inexistente → 400.
+    /// Equipe e paciente: só o futuro, sem limite de antecedência nem de distância. Especialidade inativa → lista vazia; inexistente → 400.
     /// </summary>
-    public async Task<List<AvailableSlot>> AvailabilityAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, bool forPatient, CancellationToken ct)
+    public async Task<List<AvailableSlot>> AvailabilityAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, CancellationToken ct)
     {
-        if (specialtyId is not { } id || id == Guid.Empty || professionalId == Guid.Empty || to <= from || to - from > TimeSpan.FromDays(MaxAvailabilityDays)) throw new ApiInputException();
+        if (specialtyId is not { } id || id == Guid.Empty || professionalId == Guid.Empty || to <= from || to - from > TimeSpan.FromDays(MaxAvailabilityDays) || BeyondHorizon(to)) throw new ApiInputException();
         var specialty = (await specialties.FindAsync([id], ct)).GetValueOrDefault(id) ?? throw new ApiInputException();
         var now = time.GetUtcNow();
-        var lower = forPatient ? now + PatientMinimumLead : now.AddTicks(1);
+        var lower = now.AddTicks(1);
         var effectiveFrom = from > lower ? from : lower;
-        var effectiveTo = forPatient && to > now + PatientMaximumLead ? now + PatientMaximumLead + TimeSpan.FromTicks(1) : to;
+        var effectiveTo = to;
         if (!specialty.IsActive || effectiveTo <= effectiveFrom) return [];
         var data = await dao.LoadAsync(unitId, effectiveFrom, effectiveTo, professionalId, ct);
         return engine.Generate(data.Templates.Where(template => template.SpecialtyId == id).ToList(), effectiveFrom, effectiveTo)
@@ -164,14 +169,14 @@ public sealed partial class SchedulingService
         if (request.ProfessionalId is not { } professional || professional == Guid.Empty || request.SpecialtyId is not { } specialtyId || specialtyId == Guid.Empty) throw new ApiCodedException(StatusCodes.Status400BadRequest, "catalog-required");
         var cpf = AccountService.NormalizeCpf(request.Cpf);
         var start = request.StartsAt.ToUniversalTime();
-        if (!AccountService.ValidCpf(cpf) || start <= time.GetUtcNow()) throw new ApiInputException();
+        if (!AccountService.ValidCpf(cpf) || start <= time.GetUtcNow() || BeyondHorizon(start)) throw new ApiInputException();
         var specialty = (await specialties.FindAsync([specialtyId], ct)).GetValueOrDefault(specialtyId);
         if (specialty is not { IsActive: true }) throw new ApiInputException();
         return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, request.EndsAt == default ? null : request.EndsAt, "staff", engine, ct, null, beforeInsert);
     }
 
     /// <summary>
-    /// Marcação pelo próprio paciente: vale na hora, só num atendimento livre da grade de 24 h a 90 dias à frente, e uma consulta futura por especialidade marcada pelo app em toda a rede
+    /// Marcação pelo próprio paciente: vale na hora, em qualquer atendimento livre da grade que ainda não começou (sem limite de antecedência nem de distância), e uma consulta futura por especialidade marcada pelo app em toda a rede
     /// (UBS vinculadas ao paciente). Ordem das recusas (todas 409): janela (<c>booking-window</c>), limite (<c>specialty-limit</c>), horário (<c>slot-unavailable</c>), mesma pessoa já com consulta no horário na UBS
     /// (<c>patient-overlap</c>) e em outra UBS (<c>other-unit-overlap</c>).
     /// </summary>
@@ -204,7 +209,8 @@ public sealed partial class SchedulingService
     private async Task<AppointmentInfo> BookForPatientAsync(Guid actorId, Guid? guardianId, CpfLock cpfLock, Guid unitId, Func<Task<IEnumerable<Guid>>> limitUnits, Guid professional, Specialty specialty, DateTimeOffset start, CancellationToken ct)
     {
         var cpf = cpfLock.Cpf; var now = time.GetUtcNow();
-        if (start < now + PatientMinimumLead || start > now + PatientMaximumLead) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
+        if (start <= now) throw new ApiCodedException(StatusCodes.Status409Conflict, "booking-window");
+        if (BeyondHorizon(start)) throw new ApiInputException();
         foreach (var unit in await limitUnits())
             if (await dao.CountPatientBookingsAsync(unit, cpf, specialty.Id, now, ct) > 0) throw new ApiCodedException(StatusCodes.Status409Conflict, "specialty-limit");
         return await dao.BookAsync(unitId, actorId, cpf, professional, specialty, start, null, "patient", engine, ct, guardianId, (from, to) => crossUnit.EnsureFreeAsync(cpfLock, unitId, from, to, ct));

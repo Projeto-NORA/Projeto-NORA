@@ -11,7 +11,8 @@
   Roteiro e explicação em docs/distribuicao.md e no roteiro da apresentação.
 
 .EXAMPLE
-  pwsh -File scripts\demo-local.ps1 -Android          # liga tudo, inclusive emulador + app
+  pwsh -File scripts\demo-local.ps1 -Android          # compila o que mudou e liga tudo, inclusive emulador + app
+  pwsh -File scripts\demo-local.ps1 -Android -SemCompilar  # religa rápido, sem recompilar (só depois de já ter compilado hoje)
   pwsh -File scripts\demo-local.ps1 -Parar            # desliga o banco da demo (feche a janela da API)
   pwsh -File scripts\demo-local.ps1 -Zerar            # apaga os dados da demo e começa do zero (pede confirmação)
 #>
@@ -23,7 +24,7 @@ param(
     [string] $Avd = 'Medium_Phone_API_37.0',
     [switch] $Android,
     [switch] $SemClientes,
-    [switch] $Recompilar,
+    [switch] $SemCompilar,
     [switch] $Parar,
     [switch] $Zerar
 )
@@ -32,7 +33,9 @@ $raiz = Split-Path -Parent $PSScriptRoot
 $dados = Join-Path $Pasta 'pgdata'
 $api = Join-Path $Pasta 'api'
 $segredos = Join-Path $Pasta 'segredos.xml'
-$contasCriadas = Join-Path $Pasta 'contas-criadas.txt'
+$contasCriadas = Join-Path $Pasta 'contas-criadas.txt'   # marcador antigo: as duas contas já existem
+$contaMunicipal = Join-Path $Pasta 'conta-municipal.txt'
+$contaObs = Join-Path $Pasta 'conta-obs.txt'
 $banco = 'nora_demo'
 $usuarioBanco = 'nora_demo'
 
@@ -91,7 +94,8 @@ try {
 
     Passo 'Preparando a API'
     $dll = Join-Path $api 'Nora.Api.dll'
-    if ($Recompilar -or -not (Test-Path $dll)) {
+    # Sempre recompila (é incremental): uma DLL de outro dia mostraria uma versão antiga da API na apresentação.
+    if (-not $SemCompilar -or -not (Test-Path $dll)) {
         & dotnet publish (Join-Path $raiz 'Nora.Api\Nora.Api.csproj') -c Release -o $api --nologo -v:minimal
         if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar a API.' }
     }
@@ -114,7 +118,8 @@ try {
     $env:Nora__Smtp__Host = 'smtp.gmail.com'
     $env:Nora__Smtp__Port = '587'
     $env:Nora__Smtp__Username = $s.SmtpUser
-    $env:Nora__Smtp__Password = Texto $s.SmtpPassword
+    # O Google mostra a senha de app em 4 blocos com espaços; o SMTP só aceita sem eles.
+    $env:Nora__Smtp__Password = (Texto $s.SmtpPassword) -replace '\s', ''
     $env:Nora__Smtp__FromAddress = $s.SmtpUser
     $env:ASPNETCORE_ENVIRONMENT = 'Production'
     # O appsettings.json da API fixa Urls e AllowedHosts; só as variáveis SEM prefixo vencem o arquivo.
@@ -129,11 +134,14 @@ try {
     Feito 'banco central e bancos das UBS na versão atual'
 
     Passo 'Conferindo contas iniciais'
-    if (-not (Test-Path $contasCriadas)) {
-        Write-Host '      Vamos criar duas contas. Responda "municipal" na primeira (Secretaria) e "obs" na segunda (administrador da UBS).' -ForegroundColor Yellow
-        & dotnet $dll --provision; if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar a conta da Secretaria.' }
-        & dotnet $dll --provision; if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar a conta do administrador.' }
-        Set-Content $contasCriadas (Get-Date -Format 's')
+    if (Test-Path $contasCriadas) { foreach ($m in $contaMunicipal, $contaObs) { if (-not (Test-Path $m)) { Set-Content $m 'antigo' } } }
+    # Uma conta por vez, cada uma com seu marcador: se a segunda falhar, a próxima execução não repete a primeira.
+    foreach ($conta in @(@{ Marca = $contaMunicipal; Escopo = 'municipal'; Nome = 'da Secretaria (Painel Municipal)' }, @{ Marca = $contaObs; Escopo = 'obs'; Nome = 'do administrador da UBS (OBS)' })) {
+        if (Test-Path $conta.Marca) { continue }
+        Write-Host ("      Criando a conta {0}. Na primeira pergunta responda: {1}; depois informe nome, e-mail e uma senha que você lembre (a equipe entra só por e-mail, sem CPF)." -f $conta.Nome, $conta.Escopo) -ForegroundColor Yellow
+        & dotnet $dll --provision
+        if ($LASTEXITCODE -ne 0) { throw ("Falha ao criar a conta {0}. Rode o script de novo: ele recomeça desta conta." -f $conta.Nome) }
+        Set-Content $conta.Marca (Get-Date -Format 's')
     }
     Feito 'contas iniciais existem'
 
@@ -155,9 +163,17 @@ try {
         Passo 'Abrindo OBS e Painel Municipal'
         $env:NORA_API_URL = "http://127.0.0.1:$Porta"
         foreach ($p in 'OBS-NORA', 'Painel-Municipal') {
-            Start-Process dotnet -ArgumentList 'run', '--project', "`"$(Join-Path $raiz "$p\$p.csproj")`"", '-c', 'Release' -WindowStyle Minimized
+            $exe = Join-Path $raiz ".build\$p\bin\Release\net10.0-windows\$p.exe"
+            # Compila um de cada vez (os dois usam o Nora.Desktop; em paralelo disputariam os mesmos arquivos).
+            if (-not $SemCompilar -or -not (Test-Path $exe)) {
+                & dotnet build (Join-Path $raiz "$p\$p.csproj") -c Release --nologo -v:minimal
+                if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar $p." }
+            }
+            $proc = Start-Process $exe -PassThru
+            Start-Sleep -Seconds 6
+            if ($proc.HasExited) { throw "$p fechou logo ao abrir (código $($proc.ExitCode))." }
         }
-        Feito 'abrindo (a primeira vez compila e leva cerca de 1 minuto); o endereço da API já vem preenchido'
+        Feito 'OBS e Painel Municipal abertos; o endereço da API já vem preenchido'
     }
 
     if ($Android) {
@@ -172,11 +188,16 @@ try {
             while (((& $adb shell getprop sys.boot_completed) -join '').Trim() -ne '1' -and (Get-Date) -lt $limite) { Start-Sleep 2 }
         }
         $apk = Join-Path $raiz 'APPNORA\app\build\outputs\apk\debug\app-debug.apk'
-        if ($Recompilar -or -not (Test-Path $apk)) {
+        # Sempre recompila (incremental): um APK antigo deixaria a demo sem as telas novas.
+        if (-not $SemCompilar -or -not (Test-Path $apk)) {
             if (-not $env:JAVA_HOME) { throw 'Defina JAVA_HOME (JDK 21) para compilar o app.' }
             Push-Location (Join-Path $raiz 'APPNORA'); try { & .\gradlew.bat :app:assembleDebug --console=plain -q; if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o app.' } } finally { Pop-Location }
         }
-        & $adb install -r $apk | Out-Null
+        $instalacao = (& $adb install -r $apk 2>&1) -join ' '
+        if ($LASTEXITCODE -ne 0 -or $instalacao -notmatch 'Success') {
+            # Típico: o app instalado foi assinado por outra chave (APK gerado noutro PC ou de release).
+            throw "Não foi possível instalar o app ($instalacao). Rode: & '$adb' uninstall com.example.app_nora e tente de novo."
+        }
         Feito "app instalado; no app use o endereço http://10.0.2.2:$Porta e permita o acesso à rede local quando ele pedir"
     }
 

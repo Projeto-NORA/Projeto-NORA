@@ -78,7 +78,7 @@ public sealed partial class WorkspaceViewModel
 
     private static ItemDetails BuildWaitingDetails(UnitWaitingEntry entry) => new(entry.PatientName, "Entrada na fila da UBS", [
         new("Paciente", entry.PatientName, true), new("CPF", entry.FormattedCpf, true), new("Especialidade", entry.Specialty),
-        new("Posição na especialidade", entry.PositionDisplay), new("Tempo de espera", entry.WaitDisplay),
+        new("Ordem de oferta na especialidade", entry.PositionDisplay), new("Score do paciente", entry.ScoreDisplay), new("Tempo de espera", entry.WaitDisplay),
         new("Entrada", entry.EnteredAtDisplay), new("Situação", entry.StatusDisplay)]);
 
     private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
@@ -90,18 +90,22 @@ public sealed partial class WorkspaceViewModel
         return new(patient.FullName, "Paciente da UBS", fields);
     }
 
-    private const string AttendanceGroup = "Participação nos últimos 12 meses";
-    private const string AttendanceRule = "Concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas ainda agendadas ou chamadas e cancelamentos feitos pela unidade não entram.";
+    private const string AttendanceGroup = "Score nos últimos 12 meses";
+    private const string AttendanceRule = "Pontos de 0 a 1000 = comparecimento × 1000, em que comparecimento = concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas ainda agendadas ou chamadas e cancelamentos feitos pela unidade não entram. Quem ainda não teve consulta encerrada começa em 1000. Faixas: Baixo 0–299, Regular 300–599, Bom 600–799, Excelente 800–1000.";
+    /// <summary>Efeito do score na Vaga Relâmpago, repetido nas telas do OBS que mostram os pontos.</summary>
+    public const string ScorePriorityText = "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento.";
     private static IEnumerable<DetailField> AttendanceFields(UnitAttendance? attendance)
     {
-        if (attendance is null) return [new("Participação", "—", Group: AttendanceGroup), new("Como é calculada", "A API não enviou a participação deste cadastro. Atualize a lista da UBS.", Group: AttendanceGroup)];
+        if (attendance is null) return [new("Score", "—", Group: AttendanceGroup), new("Como é calculado", "A API não enviou o score deste cadastro. Atualize a lista da UBS.", Group: AttendanceGroup)];
         return
         [
-            new("Participação", attendance.Score is null ? "— (nenhuma consulta encerrada nos últimos 12 meses)" : attendance.ScoreDisplay, Group: AttendanceGroup),
+            new("Score", attendance.ScoreDisplay, Group: AttendanceGroup),
+            new("Faixa", attendance.BandDisplay, Group: AttendanceGroup),
             new("Concluídas", DisplayFormat.Count(attendance.Completed), Group: AttendanceGroup),
             new("Faltas", DisplayFormat.Count(attendance.Missed), Group: AttendanceGroup),
             new("Cancelamentos", attendance.CancelledDisplay, Group: AttendanceGroup),
-            new("Como é calculada", AttendanceRule, Group: AttendanceGroup)
+            new("Como é calculado", AttendanceRule, Group: AttendanceGroup),
+            new("Efeito na Vaga Relâmpago", ScorePriorityText, Group: AttendanceGroup)
         ];
     }
 }

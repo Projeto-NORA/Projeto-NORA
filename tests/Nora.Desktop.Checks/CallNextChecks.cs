@@ -53,7 +53,7 @@ internal static partial class Program
                 content = Layout(window, 1280, 2600);
                 Click(window, content, "Oferecer ao 1º da fila", 1280, 2600);
                 Require(asked.Count == 1 && fixture.CallNextBodies.Count == 1 && fixture.CallNextBodies[0].GetProperty("confirmed").GetBoolean() && fixture.CallNextBodies[0].GetProperty("professionalId").GetGuid() == ana.Id, "Oferecer deveria pedir confirmação e enviar o horário, o profissional e confirmed.");
-                Require(vm.MessageKind == MessageKind.Success && vm.Message.StartsWith("Horário oferecido a Maria S. até ", StringComparison.Ordinal) && vm.Message.EndsWith("Se ela recusar ou não responder, o horário segue sozinho para os próximos da fila.", StringComparison.Ordinal), "A mensagem de sucesso está errada: " + vm.Message);
+                Require(vm.MessageKind == MessageKind.Success && vm.Message.StartsWith("Horário oferecido a Maria S. até ", StringComparison.Ordinal) && vm.Message.EndsWith("Se ela recusar ou não responder, continua na fila na mesma posição e o horário segue sozinho para os próximos.", StringComparison.Ordinal), "A mensagem de sucesso está errada: " + vm.Message);
                 Require(vm.CallNextSteps.Any(step => step is { Text: "Oferecendo o horário…", IsDone: true }) && vm.CallNextSteps.Last() is { Text: "Conferindo o 1º da fila…", IsDone: true } && vm.CallNextSlots.Count == 1 && vm.CallNextSlot is null, "O passo de oferecer deveria ficar concluído e o horário sair da lista.");
                 Require(vm.UnitWaitingList.Single(item => item.PatientName == "Maria Souza").Status == "offered" && vm.UnitLightningSlots.Single() is { Origin: "call-next", OriginDisplay: "Chamar próximo", AppointmentId: null, Status: "offered" }, "A fila e as vagas deveriam refletir a oferta do Chamar próximo.");
                 Require(vm.CallNextPreviewText.Contains("João L.", StringComparison.Ordinal), "A prévia deveria passar a mostrar o próximo da fila: " + vm.CallNextPreviewText);
@@ -108,7 +108,43 @@ internal static partial class Program
                 Click(window, content, "Buscar horários livres", 1280, 2600);
                 Require(vm.CallNextPreviewText == "Ninguém desta fila pode receber pelo aplicativo agora." && vm.CallNextSlots.Count == 3 && !vm.CanCallNextOffer, "Sem ninguém elegível a prévia deveria dizer isso (a busca traz de novo o horário próximo, que o servidor ainda lista): " + vm.CallNextPreviewText + " / horários " + vm.CallNextSlots.Count);
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-chamar-proximo-sem-ninguem-light.png"), 1280, 900);
-                Require(fixture.CallNextBodies.Count >= 3, "Os três pedidos aceitos pela confirmação deveriam ter chegado ao servidor.");
+                Require(fixture.CallNextBodies.Count == 2, "Dois pedidos passaram pela conferência do horário e chegaram ao servidor; o terceiro parou nela (ninguém pode receber) e não foi enviado: " + fixture.CallNextBodies.Count);
+            }
+            finally { Confirmation.Handler = null; CloseWindow(window); }
+        });
+
+        Check("Chamar próximo: a confirmação nomeia quem de fato recebe o horário escolhido (pula quem já tem consulta ali) e, sem conferência, não nomeia ninguém", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Horário", "Centro");
+            var cardio = fixture.AddSpecialty("Cardiologia");
+            var ana = fixture.AddProfessional(unit.Id, "Dra. Ana Lima", [cardio.Id]); var room = fixture.AddRoom(unit.Id, "Consultório 1");
+            var day = DateTime.Today.AddDays(2);
+            var nine = fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 9)); var ten = fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 10));
+            fixture.AddRegistry(unit.Id, "Maria Souza", "52998224725"); fixture.AddRegistry(unit.Id, "João Pereira Lima", "11144477735");
+            fixture.AddWaiting(unit.Id, "52998224725", "Maria Souza", "Cardiologia", DateTimeOffset.UtcNow.AddHours(-3));
+            fixture.AddWaiting(unit.Id, "11144477735", "João Pereira Lima", "Cardiologia", DateTimeOffset.UtcNow.AddHours(-2));
+            fixture.BusyAtStart["52998224725"] = nine.StartsAt; // Maria já tem consulta às 09:00
+            var window = OpenOperational(fixture, storageRoot, "call-next-time", Appearance.Light);
+            var asked = new List<string>(); Confirmation.Handler = (_, _, text) => { asked.Add(text); return true; };
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "queue", 1280, 2600);
+                Click(window, content, "Chamar próximo…", 1280, 2600);
+                vm.CallNextSpecialty = vm.CallNextSpecialties.Single(); vm.CallNextPeriodChoice = CallNextWeek();
+                Click(window, content, "Buscar horários livres", 1280, 2600);
+                Require(vm.CallNextPreviewText.Contains("Maria S.", StringComparison.Ordinal), "A prévia geral (sem horário) mostra a 1ª da fila: " + vm.CallNextPreviewText);
+                vm.CallNextSlot = vm.CallNextSlots.Single(item => item.StartsAt == nine.StartsAt);
+                Click(window, content, "Oferecer ao 1º da fila", 1280, 2600);
+                Require(asked.Count == 1 && asked[0].Contains("João L.", StringComparison.Ordinal) && !asked[0].Contains("Maria", StringComparison.Ordinal), "A confirmação das 09:00 deveria nomear o João (Maria já tem consulta ali): " + string.Join(" | ", asked));
+                Require(fixture.NextInQueueQueries.Any(query => query.Contains("startsAt=", StringComparison.Ordinal) && query.Contains($"professionalId={ana.Id}", StringComparison.OrdinalIgnoreCase)), "A conferência deveria enviar o horário e o profissional escolhidos: " + string.Join(" | ", fixture.NextInQueueQueries));
+                Require(vm.Message.StartsWith("Horário oferecido a João L.", StringComparison.Ordinal), "A oferta foi ao João, como a confirmação disse: " + vm.Message);
+                // Sem conseguir conferir o horário a confirmação não nomeia ninguém (o servidor decide).
+                fixture.FailNextInQueue = true;
+                vm.CallNextSlot = vm.CallNextSlots.Single(item => item.StartsAt == ten.StartsAt);
+                Click(window, content, "Oferecer ao 1º da fila", 1280, 2600);
+                Require(asked.Count == 2 && asked[1].Contains("ao 1º da fila que puder receber nesse horário", StringComparison.Ordinal) && !asked[1].Contains("Maria S.", StringComparison.Ordinal), "Sem conferência a confirmação não deveria nomear ninguém: " + asked[^1]);
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });

@@ -57,6 +57,10 @@ internal static partial class Program
         public string? NextApprovalConflict { get; set; }
         /// <summary>CPFs que o servidor considera inelegíveis para a oferta (sem conta, cadastro inativo, oferta pendente ou consulta no horário).</summary>
         public HashSet<string> IneligibleCpfs { get; } = [];
+        /// <summary>CPF → início do horário em que ele já tem consulta na UBS: a prévia COM horário (startsAt) o pula, como o servidor faz; sem horário a prévia o inclui.</summary>
+        public Dictionary<string, DateTimeOffset> BusyAtStart { get; } = [];
+        /// <summary>Query string de cada GET .../waiting-list/next recebido (para conferir que o horário escolhido é enviado).</summary>
+        public List<string> NextInQueueQueries { get; } = [];
         public List<JsonElement> CallNextBodies { get; } = [];
         public List<JsonElement> ProfileBodies { get; } = [];
         public UnitProfile? ProfileOf(Guid unitId) => profiles.GetValueOrDefault(unitId);
@@ -226,7 +230,9 @@ internal static partial class Program
                 {
                     if (FailNextInQueue) return Problem(HttpStatusCode.InternalServerError, "internal-error");
                     if (!Guid.TryParse(query["specialtyId"], out var specialtyId) || Specialties.FirstOrDefault(item => item.Id == specialtyId && item.IsActive) is not { } specialty) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    return Reply(new { next = FirstEligible(state, specialty.Name) is { } entry ? new NextInQueue(entry.Id, entry.PatientName, entry.EnteredAt) : null });
+                    NextInQueueQueries.Add(string.Join("&", query.AllKeys.Where(key => key is not null).Select(key => $"{key}={query[key]}")));
+                    DateTimeOffset? at = DateTimeOffset.TryParse(query["startsAt"], out var parsedAt) ? parsedAt : null;
+                    return Reply(new { next = FirstEligible(state, specialty.Name, at) is { } entry ? new NextInQueue(entry.Id, entry.PatientName, entry.EnteredAt) : null });
                 }
                 case ["waiting-list", "call-next"] when method == HttpMethod.Post:
                 {
@@ -237,7 +243,7 @@ internal static partial class Program
                     if (startsAt < DateTimeOffset.UtcNow.AddMinutes(10)) return Problem(HttpStatusCode.Conflict, "call-next-too-late");
                     var free = sched.Slots.FirstOrDefault(item => item.SpecialtyId == specialtyId && item.ProfessionalId == professionalId && item.StartsAt == startsAt);
                     if (free is null) return Problem(HttpStatusCode.Conflict, "slot-unavailable");
-                    if (FirstEligible(state, specialty.Name) is not { } entry) return Problem(HttpStatusCode.Conflict, "queue-empty");
+                    if (FirstEligible(state, specialty.Name, startsAt) is not { } entry) return Problem(HttpStatusCode.Conflict, "queue-empty");
                     sched.Slots.Remove(free);
                     var slot = new UnitLightningSlot(Guid.NewGuid(), null, specialty.Name, free.ProfessionalName, free.StartsAt, free.EndsAt, "offered", DateTimeOffset.UtcNow, "call-next");
                     state.Slots.Add(slot);
@@ -250,8 +256,8 @@ internal static partial class Program
             return null;
         }
 
-        private UnitWaitingEntry? FirstEligible(UnitState state, string specialtyName) => state.Waiting
-            .Where(entry => entry.Status == "waiting" && !IneligibleCpfs.Contains(entry.Cpf) && string.Equals(entry.Specialty.Trim(), specialtyName.Trim(), StringComparison.CurrentCultureIgnoreCase))
+        private UnitWaitingEntry? FirstEligible(UnitState state, string specialtyName, DateTimeOffset? startsAt = null) => state.Waiting
+            .Where(entry => entry.Status == "waiting" && !IneligibleCpfs.Contains(entry.Cpf) && !(startsAt is { } at && BusyAtStart.TryGetValue(entry.Cpf, out var busy) && busy == at) && string.Equals(entry.Specialty.Trim(), specialtyName.Trim(), StringComparison.CurrentCultureIgnoreCase))
             .OrderBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id).FirstOrDefault();
 
         /// <summary>Atendimento da UBS: o salvo ou, sem nada gravado, "não informado"; as especialidades vêm da grade da fixture (ativas e com grade).</summary>

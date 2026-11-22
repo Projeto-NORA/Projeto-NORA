@@ -15,7 +15,7 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
     /// <summary>
     /// Confere sob bloqueio compartilhado (<c>FOR SHARE</c> em conta e sessão) que a conta está ativa, a sessão vale e não há troca de senha
     /// pendente. Quem desativa a conta, redefine a senha ou revoga a sessão precisa do bloqueio exclusivo e, por isso, espera a operação
-    /// terminar. Devolve o CPF da conta. Conta/sessão inválidas → 401; troca obrigatória pendente → 403 password-change-required.
+    /// terminar. Devolve o CPF da conta (vazio na equipe, que não tem CPF). Conta/sessão inválidas → 401; troca obrigatória pendente → 403 password-change-required.
     /// </summary>
     internal async Task<string> RevalidateAsync(NpgsqlConnection connection, SessionInfo session, CancellationToken ct)
     {
@@ -23,17 +23,18 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
         await using var reader = await query.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) throw new ApiUnauthorizedException();
         if (reader.GetBoolean(1)) throw new ApiCodedException(StatusCodes.Status403Forbidden, "password-change-required");
-        return reader.GetString(0);
+        return reader.IsDBNull(0) ? "" : reader.GetString(0);
     }
 
     /// <param name="requireActiveRegistry">Exige cadastro ativo do CPF na UBS (padrão). A prévia da remoção do vínculo passa falso, como a própria remoção, que funciona com o cadastro desativado.</param>
-    public async Task<T> ExecutePatientAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool requireActiveRegistry = true)
+    /// <param name="read">Rota de leitura: segura o vínculo só em <c>FOR SHARE</c> (as leituras do mesmo paciente não se enfileiram), e sair da UBS (<c>FOR UPDATE</c> + <c>DELETE</c>) continua esperando a leitura terminar. Escritas usam <c>FOR UPDATE</c>.</param>
+    public async Task<T> ExecutePatientAsync<T>(SessionInfo session, Guid unitId, Func<string, Task<T>> action, CancellationToken ct, bool requireActiveRegistry = true, bool read = false)
     {
         if (unitId == Guid.Empty || session.User.Scope != "patient" || session.User.Role != "patient") throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         var cpf = await RevalidateAsync(connection, session, ct);
-        await using (var link = central.Command(connection, "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
+        await using (var link = central.Command(connection, read ? "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR SHARE" : "SELECT 1 FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await link.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
         if (requireActiveRegistry && !await registry.IsActiveAsync(unitId, cpf, ct)) throw new ApiForbiddenException();
         var result = await action(cpf);
@@ -107,20 +108,21 @@ public sealed class UnitAccessService(DatabaseHelper central, TimeProvider time,
     }
 
     /// <summary>Executa a ação com a concessão da UBS segura; ver <see cref="ExecuteAsync{T}(SessionInfo, Guid, Func{NpgsqlConnection, Task{T}}, CancellationToken)"/>.</summary>
-    public Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct) => ExecuteAsync(session, unitId, _ => action(), ct);
+    public Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<Task<T>> action, CancellationToken ct, bool read = false) => ExecuteAsync(session, unitId, _ => action(), ct, read);
 
     /// <summary>
     /// Executor da equipe do OBS: revalida conta e sessão e segura a concessão da UBS (<c>FOR UPDATE</c>) até o commit; a ação recebe a conexão central da transação (para quem precisa gravar no
     /// banco central sem pedir uma segunda conexão nem bloquear a si mesmo). A atendente ligada a um computador só opera a UBS dele (403); o administrador não é restringido.
     /// </summary>
-    public async Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<NpgsqlConnection, Task<T>> action, CancellationToken ct)
+    /// <param name="read">Rota de leitura: segura a concessão só em <c>FOR SHARE</c>, e as leituras da mesma conta não se enfileiram; a revogação (<c>DELETE</c>) e as escritas (<c>FOR UPDATE</c>) continuam esperando a leitura terminar.</param>
+    public async Task<T> ExecuteAsync<T>(SessionInfo session, Guid unitId, Func<NpgsqlConnection, Task<T>> action, CancellationToken ct, bool read = false)
     {
         if (unitId == Guid.Empty || session.User.Scope != "obs" || session.User.Role is not ("administrator" or "attendant")) throw new ApiForbiddenException();
         if (session.User.Role == "attendant" && session.DeviceUnitId is { } deviceUnit && deviceUnit != unitId) throw new ApiForbiddenException();
         await using var connection = await central.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await RevalidateAsync(connection, session, ct);
-        await using (var grant = central.Command(connection, "SELECT 1 FROM nora.staff_units WHERE account_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
+        await using (var grant = central.Command(connection, read ? "SELECT 1 FROM nora.staff_units WHERE account_id=$1 AND unit_id=$2 FOR SHARE" : "SELECT 1 FROM nora.staff_units WHERE account_id=$1 AND unit_id=$2 FOR UPDATE", session.User.Id, unitId))
             if (await grant.ExecuteScalarAsync(ct) is null) throw new ApiForbiddenException();
         var result = await action(connection);
         await transaction.CommitAsync(ct);

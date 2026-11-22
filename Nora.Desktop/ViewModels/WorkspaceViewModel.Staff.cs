@@ -10,7 +10,7 @@ public sealed partial class WorkspaceViewModel
     private StaffAccount? selectedStaff;
     private HealthUnit? selectedStaffUnit, selectedStaffGrant;
     private bool staffLoaded, staffLoading, staffFormSubmitted, applyingStaff;
-    private string staffName = "", staffCpf = "", staffEmail = "", staffRole = "attendant", staffPasswordError = "", staffConfirmError = "", staffResetPasswordError = "", staffResetConfirmError = "";
+    private string staffName = "", staffEmail = "", staffRole = "attendant", staffPasswordError = "", staffConfirmError = "", staffResetPasswordError = "", staffResetConfirmError = "";
     public ObservableCollection<StaffAccount> Staff { get; } = [];
     public ObservableCollection<HealthUnit> StaffUnits { get; } = [];
     public static IReadOnlyList<FilterOption> StaffRoleOptions { get; } = [new("attendant", "Atendente"), new("administrator", "Administrador")];
@@ -49,18 +49,16 @@ public sealed partial class WorkspaceViewModel
 
     // Formulário de nova conta. As senhas nunca ficam no estado: chegam como argumento do envio e a tela limpa os campos.
     public string StaffName { get => staffName; set { staffName = value; Notify(); Notify(nameof(StaffNameError)); } }
-    public string StaffCpf { get => staffCpf; set { staffCpf = value; Notify(); Notify(nameof(StaffCpfError)); } }
     public string StaffEmail { get => staffEmail; set { staffEmail = value; Notify(); Notify(nameof(StaffEmailError)); } }
     public string StaffRole { get => staffRole; set { staffRole = value ?? "attendant"; Notify(); } }
     private bool ShowStaffError(string value) => staffFormSubmitted || value.Length > 0;
     public string StaffNameError => ShowStaffError(staffName) && (staffName.Trim().Length is < 2 or > 160 || staffName.Any(char.IsControl)) ? "Informe o nome completo, de 2 a 160 caracteres." : "";
-    public string StaffCpfError => ShowStaffError(staffCpf) && !BrazilianDataValidator.IsValidCpf(staffCpf) ? "CPF inválido. Confira os 11 dígitos." : "";
     public string StaffEmailError => ShowStaffError(staffEmail) && !BrazilianDataValidator.IsValidEmail(staffEmail) ? "E-mail inválido. Use o formato nome@dominio.com." : "";
     public string StaffPasswordError { get => staffPasswordError; private set { if (staffPasswordError == value) return; staffPasswordError = value; Notify(); } }
     public string StaffConfirmError { get => staffConfirmError; private set { if (staffConfirmError == value) return; staffConfirmError = value; Notify(); } }
     public string StaffResetPasswordError { get => staffResetPasswordError; private set { if (staffResetPasswordError == value) return; staffResetPasswordError = value; Notify(); } }
     public string StaffResetConfirmError { get => staffResetConfirmError; private set { if (staffResetConfirmError == value) return; staffResetConfirmError = value; Notify(); } }
-    private static readonly string[] StaffFormErrors = [nameof(StaffNameError), nameof(StaffCpfError), nameof(StaffEmailError)];
+    private static readonly string[] StaffFormErrors = [nameof(StaffNameError), nameof(StaffEmailError)];
 
     private static string PasswordRuleError(string password) => password.Length is < 8 or > 256 ? "A senha provisória precisa ter de 8 a 256 caracteres." : "";
     private static string ConfirmError(string password, string confirm) => confirm == password ? "" : "A confirmação não é igual à senha provisória.";
@@ -121,9 +119,9 @@ public sealed partial class WorkspaceViewModel
             staffFormSubmitted = true;
             foreach (var name in StaffFormErrors) Notify(name);
             StaffPasswordError = PasswordRuleError(password); StaffConfirmError = StaffPasswordError.Length > 0 ? "" : ConfirmError(password, confirm);
-            if (StaffNameError.Length + StaffCpfError.Length + StaffEmailError.Length + StaffPasswordError.Length + StaffConfirmError.Length > 0)
+            if (StaffNameError.Length + StaffEmailError.Length + StaffPasswordError.Length + StaffConfirmError.Length > 0)
                 throw new NoraApiException("Corrija os campos destacados no formulário da conta.");
-            var account = await api.CreateStaffAsync(staffName.Trim(), BrazilianDataValidator.NormalizeCpf(staffCpf), staffEmail.Trim(), staffRole, password);
+            var account = await api.CreateStaffAsync(staffName.Trim(), staffEmail.Trim(), staffRole, password);
             if (disposed || !IsAuthenticated) return;
             ClearStaffForm(); created = true;
             Say(MessageKind.Success, $"Conta de {account.FullName} criada. A pessoa será obrigada a trocar a senha provisória no primeiro acesso.");
@@ -133,8 +131,8 @@ public sealed partial class WorkspaceViewModel
     }
     private void ClearStaffForm()
     {
-        staffFormSubmitted = false; staffName = staffCpf = staffEmail = ""; staffRole = "attendant"; StaffPasswordError = ""; StaffConfirmError = "";
-        foreach (var name in new[] { nameof(StaffName), nameof(StaffCpf), nameof(StaffEmail), nameof(StaffRole) }) Notify(name);
+        staffFormSubmitted = false; staffName = staffEmail = ""; staffRole = "attendant"; StaffPasswordError = ""; StaffConfirmError = "";
+        foreach (var name in new[] { nameof(StaffName), nameof(StaffEmail), nameof(StaffRole) }) Notify(name);
         foreach (var name in StaffFormErrors) Notify(name);
     }
 
