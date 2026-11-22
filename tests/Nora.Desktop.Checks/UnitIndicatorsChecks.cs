@@ -251,7 +251,7 @@ internal static partial class Program
                 var texts = VisibleTexts(list);
                 Require(texts.Contains("Score (12 meses): 900 · Excelente") && texts.Contains("Score (12 meses): 1000 · sem consultas encerradas ainda"), "A lista não mostra o score em pontos: " + string.Join(" | ", texts.Where(text => text.StartsWith("Score", StringComparison.Ordinal))));
                 Require(!texts.Any(text => text.Contains('%')), "A lista não deveria mais mostrar participação em %.");
-                Require(texts.Contains(WorkspaceViewModel.ScorePriorityText) || VisibleTexts(content).Contains(WorkspaceViewModel.ScorePriorityText), "A tela deveria explicar que o score dá prioridade na Vaga Relâmpago sem mudar a prioridade clínica.");
+                Require(Descendants<TextBlock>(list).Any(text => text.ToolTip?.ToString() == WorkspaceViewModel.ScorePriorityText), "A dica do score deveria explicar seu efeito na Vaga Relâmpago sem mudar a prioridade clínica.");
                 Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ScoreDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["1000 · sem consultas encerradas ainda", "429 · Regular", "750 · Bom", "900 · Excelente", "—"]), "O score de cada cadastro está incorreto.");
                 var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar cadastro da UBS");
                 Require(sort.Items.Cast<ComboBoxItem>().Select(item => item.Content?.ToString()).SequenceEqual(["Mais recentes", "Nome A–Z", "Nome Z–A", "Maior score", "Menor score"]), "As ordenações por score não foram renomeadas.");

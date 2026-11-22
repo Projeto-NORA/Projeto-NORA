@@ -85,7 +85,7 @@ internal static partial class Program
                 var byScore = vm.UnitWaitingList.OrderBy(item => item.ScoreSort).Select(item => item.PatientName).ToArray();
                 Require(byScore[0] == "Edu Santos" && byScore[^1] == "Diego Reis" && vm.UnitWaitingList.Single(item => item.PatientName == "Edu Santos").OfferSort == int.MaxValue, "A chave numérica do score deveria ordenar 100 antes de 1000 (e a encerrada sem ordem vai por último na ordem de oferta): " + string.Join(",", byScore));
                 var texts = VisibleTexts(content);
-                Require(texts.Contains("Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento. A ordem de oferta, o score e o tempo de espera são atualizados a cada leitura."), "A Fila deveria explicar a prioridade pelo score.");
+                Require(Descendants<Border>(content).Any(border => border.ToolTip is string tip && tip.Contains("score maior", StringComparison.Ordinal) && tip.Contains("prioridade clínica", StringComparison.Ordinal)), "A dica da Fila deveria explicar a prioridade pelo score.");
                 Require(!texts.Any(text => text.Contains("pela ordem de entrada entre as entradas ativas", StringComparison.Ordinal)), "O texto antigo (só ordem de entrada) continua na tela.");
                 var details = vm.BuildDetails(vm.UnitWaitingList.Single(item => item.PatientName == "Bruno Lima"))!;
                 Require(details.Fields.Single(field => field.Label == "Ordem de oferta na especialidade").Value == "2º" && details.Fields.Single(field => field.Label == "Score do paciente").Value == "900 · Excelente", "A ficha da entrada deveria trazer a ordem de oferta e o score.");
@@ -130,9 +130,13 @@ internal static partial class Program
                 var loadActions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
                 System.Collections.Specialized.NotifyCollectionChangedEventHandler recordLoad = (_, args) => loadActions.Add(args.Action);
                 vm.UnitWaitingList.CollectionChanged += recordLoad;
+                var grid = GridNamed(content, "Fila por especialidade da UBS");
+                var view = grid.ItemsSource;
+                grid.SelectedItem = vm.UnitWaitingList.Single(item => item.Id == 9);
                 Click(window, content, "Carregar mais histórico", 1280, 1500);
                 vm.UnitWaitingList.CollectionChanged -= recordLoad;
                 Require(loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Add) && !loadActions.Contains(System.Collections.Specialized.NotifyCollectionChangedAction.Reset), "Carregar mais deveria acrescentar linhas sem Reset (que leva a tabela ao topo): " + string.Join(",", loadActions));
+                Require(ReferenceEquals(view, grid.ItemsSource) && grid.Items.Count == vm.UnitWaitingList.Count && vm.SelectedWaitingEntry?.Id == 9 && ReferenceEquals(grid.SelectedItem, vm.SelectedWaitingEntry), "A página adicional deveria atualizar a tabela filtrada sem trocar a visão nem perder a seleção.");
                 Require(FindActionButton(content, "Carregar mais histórico").IsEnabled, "Depois de carregar mais, o botão deveria continuar habilitado (havia mais histórico), sem esperar o ciclo de 20 s.");
                 Require(Ids().SequenceEqual([3, 4, 5, 6, 7, 8, 9, 10]) && fixture.HistoryReads[^1].StartsWith("waiting-list?historyBefore=", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success && vm.Message == "Histórico da fila ampliado.", "Carregar mais deveria acrescentar as 3 encerradas seguintes: " + string.Join(",", Ids()));
                 NoDuplicates("depois de carregar mais");
@@ -208,7 +212,7 @@ internal static partial class Program
                 Require(vm.UnitLightningSlots.Count == 6 && vm.UnitLightningSlots.Select(item => item.Id).Distinct().Count() == 6 && vm.AwaitingSlots.Count == 1, "O ciclo deveria preservar o histórico carregado das vagas.");
                 Click(window, content, "Carregar mais histórico", 1280, 1800);
                 Require(vm.UnitLightningSlots.Count == 7 && !vm.CanLoadMoreSlotsHistory && vm.SlotsHistoryState == "" && vm.Message == "Todo o histórico das vagas está na lista.", "Esgotado o histórico o botão deveria sumir: " + vm.UnitLightningSlots.Count);
-                Require(!Descendants<Button>(content).Any(candidate => candidate.IsVisible && candidate.Content?.ToString() == "Carregar mais histórico") && VisibleTexts(content).Any(text => text.Contains("vai primeiro a quem tem score maior", StringComparison.Ordinal)), "O botão deveria sumir e o texto da prioridade aparecer na aprovação.");
+                Require(!Descendants<Button>(content).Any(candidate => candidate.IsVisible && candidate.Content?.ToString() == "Carregar mais histórico") && Descendants<Border>(content).Any(border => border.IsVisible && border.ToolTip is string tip && tip.Contains("prioriza o maior score", StringComparison.Ordinal)), "O botão deveria sumir e a dica da aprovação explicar a prioridade.");
             }
             finally { CloseWindow(window); }
         });
