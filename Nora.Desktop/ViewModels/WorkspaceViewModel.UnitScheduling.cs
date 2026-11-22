@@ -16,6 +16,11 @@ public sealed partial class WorkspaceViewModel
     private bool activeRoomsFailed, capacityFailed, unitAlertsFailed;
     private CapacityMetrics? panelCapacity;
     private DateTimeOffset? alertsAttemptedAt, alertsReadAt;
+    private readonly HashSet<(Guid Unit, string Kind, string Specialty, string Metric)> activeAlertKeys = [];
+    private readonly HashSet<(Guid Unit, string Kind, string Specialty, string Metric)> viewedAlertKeys = [];
+    private int alertBadgeCount;
+    public int AlertBadgeCount { get => alertBadgeCount; private set { if (alertBadgeCount == value) return; alertBadgeCount = value; Notify(); } }
+    private void MarkAlertsViewed() { viewedAlertKeys.UnionWith(activeAlertKeys); AlertBadgeCount = 0; }
 
     public ObservableCollection<MetricCard> UnitCapacityCards { get; } = [];
     public ObservableCollection<GoalCell> UnitGoalCells { get; } = [];
@@ -37,6 +42,7 @@ public sealed partial class WorkspaceViewModel
     // ---- Painel: consultórios ativos ----
 
     public string ActiveRoomsInUseValue => activeRooms is { } rooms ? rooms.RoomsInUse.ToString() : "—";
+    public bool ActiveRoomsHasError => activeRoomsFailed;
     public string ActiveRoomsPlannedValue => activeRooms is { } rooms ? rooms.RoomsPlannedToday.ToString() : "—";
     public string ActiveRoomsHint => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : activeRooms is null ? (activeRoomsFailed ? "Não foi possível ler os consultórios agora." : "Aguardando a leitura dos consultórios")
@@ -79,7 +85,7 @@ public sealed partial class WorkspaceViewModel
 
     private static readonly string[] SchedulingNames =
     [
-        nameof(ActiveRoomsInUseValue), nameof(ActiveRoomsPlannedValue), nameof(ActiveRoomsHint), nameof(PanelOfferedValue), nameof(PanelBookedValue), nameof(PanelOccupancyValue), nameof(PanelCapacityHint),
+        nameof(ActiveRoomsInUseValue), nameof(ActiveRoomsPlannedValue), nameof(ActiveRoomsHint), nameof(ActiveRoomsHasError), nameof(PanelOfferedValue), nameof(PanelBookedValue), nameof(PanelOccupancyValue), nameof(PanelCapacityHint),
         nameof(UnitAlertsState), nameof(UnitAlertsFootnote), nameof(HasUnitAlerts), nameof(UnitAlertsAllClear), nameof(PanelAlertsTitle), nameof(PanelAlertsText), nameof(UnitGoalsState)
     ];
     private void NotifyScheduling() { foreach (var name in SchedulingNames) Notify(name); }
@@ -105,6 +111,11 @@ public sealed partial class WorkspaceViewModel
         if (read.Value is { } alerts)
         {
             alertsReadAt = readAt;
+            activeAlertKeys.Clear();
+            foreach (var alert in alerts) activeAlertKeys.Add((alert.UnitId, alert.Kind, (alert.Specialty ?? "").Trim().ToUpperInvariant(), alert.Metric ?? ""));
+            viewedAlertKeys.IntersectWith(activeAlertKeys);
+            if (Section == "alerts") viewedAlertKeys.UnionWith(activeAlertKeys);
+            AlertBadgeCount = activeAlertKeys.Count(key => !viewedAlertKeys.Contains(key));
             var rows = alerts.Select(AlertRow.From).ToArray();
             Replace(UnitAlerts, rows);
             Replace(UnitAlertPreview, rows.Take(3).ToArray());
@@ -142,6 +153,7 @@ public sealed partial class WorkspaceViewModel
         unitAlertsFailed = false; alertsAttemptedAt = alertsReadAt = null;
         Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(UnitGoalCells, Array.Empty<GoalCell>());
         UnitAlerts.Clear(); UnitAlertPreview.Clear();
+        activeAlertKeys.Clear(); viewedAlertKeys.Clear(); AlertBadgeCount = 0;
         ClearCatalog();
         NotifyScheduling();
     }

@@ -1,10 +1,9 @@
 <UserControl x:Class="Nora.Desktop.Views.AnnouncementsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- Comunicados da Secretaria para a equipe (OBS). Não lido aparece como texto e ícone, nunca só em cor; título e texto são texto puro. -->
   <StackPanel>
-    <TextBlock Text="Comunicados" FontSize="28" FontWeight="SemiBold" />
-    <TextBlock Text="Comunicados da Secretaria para a equipe das UBS desta conta. Marque como lido para confirmar a leitura: a Secretaria vê a contagem de leituras e quem da equipe leu." Style="{StaticResource Muted}" FontSize="14" Margin="0,8,0,20" />
+    <TextBlock Text="Comunicados" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,20" ToolTip="Comunicados da Secretaria para a equipe. Marque cada comunicado como lido para confirmar a leitura." />
     <DockPanel Margin="0,0,0,14">
-      <Button DockPanel.Dock="Right" Content="Atualizar comunicados" Click="OnRefresh" IsEnabled="{Binding CanOperate}" ToolTip="Lê de novo todos os comunicados em vigor." />
+      <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefresh" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Atualizar comunicados" ToolTip="Lê de novo todos os comunicados em vigor." />
       <StackPanel>
         <TextBlock Text="{Binding AnnouncementsSummary}" FontWeight="SemiBold" Visibility="{Binding AnnouncementsSummary, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Text="{Binding AnnouncementsFootnote}" Style="{StaticResource Muted}" FontSize="12" Visibility="{Binding AnnouncementsFootnote, Converter={StaticResource TextVisibility}}" />
@@ -29,7 +28,7 @@
             </Border.Style>
             <StackPanel>
               <DockPanel Margin="0,0,0,10">
-                <Button DockPanel.Dock="Right" Content="Marcar como lido" Click="OnMarkRead" Visibility="{Binding IsUnread, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding DataContext.CanOperate, RelativeSource={RelativeSource AncestorType=UserControl}}" MinHeight="36" Padding="14,6" AutomationProperties.Name="Marcar como lido" />
+                <Button DockPanel.Dock="Right" Content="Marcar como lido" Style="{StaticResource ObsPrimaryButton}" Click="OnMarkRead" Visibility="{Binding IsUnread, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding DataContext.CanOperate, RelativeSource={RelativeSource AncestorType=UserControl}}" MinHeight="36" Padding="14,6" AutomationProperties.Name="Marcar como lido" />
                 <StackPanel Orientation="Horizontal">
                   <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="16" Margin="0,2,8,0" VerticalAlignment="Center" />
                   <TextBlock Text="{Binding StateDisplay}" FontWeight="SemiBold" VerticalAlignment="Center" />

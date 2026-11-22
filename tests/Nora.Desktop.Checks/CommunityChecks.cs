@@ -14,7 +14,7 @@ namespace Nora.Desktop.Checks;
 /// <summary>OBS: comunicados recebidos (não lidos, contador, ciclo incremental), Jornada na ficha do paciente (exames e vacinas), Família e a confirmação de desativar com a prévia.</summary>
 internal static partial class Program
 {
-    private static Button ButtonIn(DependencyObject root, string content) => Descendants<Button>(root).Single(button => button.IsVisible && button.Content?.ToString() == content);
+    private static Button ButtonIn(DependencyObject root, string content) => Descendants<Button>(root).Single(button => button.IsVisible && (button.Content?.ToString() == content || AutomationProperties.GetName(button) == content));
     /// <summary>Salva a aba da ficha em partes (-01, -02…), rolando a área da Jornada.</summary>
     private static void SavePopupScrolled(ItemDetailsWindow popup, string pathWithoutExtension)
     {
@@ -40,6 +40,25 @@ internal static partial class Program
 
     private static void RunAnnouncementChecks(string storageRoot, string previewRoot)
     {
+        Check("OBS Comunicados: aviso de novidades não confirma leitura e volta para comunicado novo", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            fixture.AddUnit("UBS Avisos"); fixture.AddAnnouncement("Primeiro aviso", "Texto");
+            var window = OpenOperational(fixture, storageRoot, "announcements-badge", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.Single(item => item.Id == "announcements");
+                Require(nav.Badge == 1, "O aviso inicial deveria aparecer no menu.");
+                window.ViewModel.Navigate("announcements"); Settle(vm);
+                Require(nav.Badge == 0 && vm.UnreadAnnouncementCount == 1 && fixture.Count("POST", "/read") == 0, "Abrir a aba não deve marcar o comunicado como lido.");
+                window.ViewModel.Navigate("home"); Settle(vm);
+                fixture.AddAnnouncement("Aviso novo", "Texto"); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 1 && vm.UnreadAnnouncementCount == 2, "Um comunicado novo deve aparecer no menu sem contar novamente o já visto.");
+                window.ViewModel.Navigate("announcements"); Settle(vm);
+                Require(nav.Badge == 0 && vm.UnreadAnnouncementCount == 2, "Abrir novamente deve limpar só o aviso de navegação.");
+            }
+            finally { CloseWindow(window); }
+        });
         Check("OBS Comunicados: lista só o que vale para a conta, destaca não lidos por texto, conta na navegação, marca lido e faz uma chamada incremental por ciclo", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
@@ -58,18 +77,18 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var nav = window.ViewModel.Navigation.Single(item => item.Id == "announcements");
                 Require(vm.Announcements.Select(row => row.Title).SequenceEqual(["Reunião das equipes", "Campanha de vacinação"]), "Só os comunicados em vigor do público e do alcance da conta (mais novo primeiro): " + string.Join(" | ", vm.Announcements.Select(row => row.Title)));
-                Require(vm.UnreadAnnouncementCount == 2 && nav.Badge == 2 && nav.AutomationName == "Comunicados, 2 não lidos", $"O contador de não lidos da navegação deveria ser 2: {vm.UnreadAnnouncementCount} / {nav.Badge} / {nav.AutomationName}.");
+                Require(vm.UnreadAnnouncementCount == 2 && nav.Badge == 2 && nav.AutomationName == "Comunicados, 2 novos comunicados", $"O contador de novidades deveria ser 2: {vm.UnreadAnnouncementCount} / {nav.Badge} / {nav.AutomationName}.");
                 Require(fixture.AnnouncementFeedQueries.Count == 1 && fixture.AnnouncementFeedQueries[0]["after"] is null, "O login deveria fazer uma leitura completa (sem after).");
                 var content = Show(window, "announcements", 1280, 1500);
                 Require(fixture.AnnouncementFeedQueries.Count == 2 && fixture.AnnouncementFeedQueries[1]["after"] is null, "Abrir a aba deveria fazer uma leitura completa.");
                 var texts = FullTexts(content);
                 Require(texts.Count(text => text == "Não lido") == 2 && Descendants<Button>(content).Count(button => button.IsVisible && button.Content?.ToString() == "Marcar como lido") == 2, "Os dois não lidos deveriam aparecer com o texto \"Não lido\" e o botão de marcar.");
                 Require(texts.Contains("Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso") || Descendants<TextBlock>(content).Any(text => text.Text == "Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso"), "O texto do comunicado deveria aparecer como texto puro, sem interpretar o que parece HTML.");
-                Require(Descendants<TextBlock>(window).Any(text => text.IsVisible && text.Text == "2" && FindAncestor<Button>(text) is { } navButton && AutomationProperties.GetName(navButton) == "Comunicados, 2 não lidos"), "O contador \"2\" não aparece no item Comunicados do menu.");
+                Require(nav.Badge == 0 && vm.UnreadAnnouncementCount == 2 && fixture.Count("POST", "/read") == 0, "Abrir a aba deveria ocultar o aviso sem registrar leitura dos comunicados.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-comunicados-light.png"), 1280, 900);
                 // Marcar como lido: pela ViewModel e pela tela; idempotente.
                 Pump(vm.MarkAnnouncementReadAsync(vm.Announcements[1]));
-                Require(fixture.Count("POST", "/read") == 1 && vm.UnreadAnnouncementCount == 1 && nav.Badge == 1 && vm.Announcements[1].StateDisplay.StartsWith("Lido em", StringComparison.Ordinal), "Marcar como lido deveria gravar, baixar o contador e mostrar \"Lido em\".");
+                Require(fixture.Count("POST", "/read") == 1 && vm.UnreadAnnouncementCount == 1 && nav.Badge == 0 && vm.Announcements[1].StateDisplay.StartsWith("Lido em", StringComparison.Ordinal), "Marcar como lido deveria gravar e baixar o contador de não lidos.");
                 Pump(vm.MarkAnnouncementReadAsync(vm.Announcements[1]));
                 Require(fixture.Count("POST", "/read") == 1, "Marcar de novo o que já está lido não deveria chamar a API.");
                 content = Layout(window, 1280, 1500);
@@ -83,7 +102,7 @@ internal static partial class Program
                 Require(fixture.AnnouncementFeedQueries.Count == before + 3 && fixture.AnnouncementFeedQueries.Skip(before).All(query => query["after"] == "7") && changes == 0, $"Cada ciclo deveria fazer uma só chamada incremental (after=7) e não alterar a lista: {fixture.AnnouncementFeedQueries.Count - before} chamadas, {changes} mudanças.");
                 fixture.AddAnnouncement("Novo comunicado", "chegou agora", "staff");
                 Pump(vm.RefreshAutomaticallyAsync());
-                Require(fixture.AnnouncementFeedQueries.Count == before + 4 && fixture.AnnouncementFeedQueries[^1]["after"] == "7" && vm.Announcements[0].Title == "Novo comunicado" && changes == 1 && vm.UnreadAnnouncementCount == 1 && nav.Badge == 1, "O comunicado novo deveria entrar no topo numa só chamada, com o contador em 1.");
+                Require(fixture.AnnouncementFeedQueries.Count == before + 4 && fixture.AnnouncementFeedQueries[^1]["after"] == "7" && vm.Announcements[0].Title == "Novo comunicado" && changes == 1 && vm.UnreadAnnouncementCount == 1 && nav.Badge == 0, "Comunicado recebido enquanto a aba está aberta aparece sem aviso de navegação.");
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(fixture.AnnouncementFeedQueries[^1]["after"] == "8" && changes == 1, "O cursor deveria avançar para o último comunicado existente (8).");
                 // Encerrar ou vencer no servidor só some na leitura completa; a validade também vence no cliente, sem requisição.

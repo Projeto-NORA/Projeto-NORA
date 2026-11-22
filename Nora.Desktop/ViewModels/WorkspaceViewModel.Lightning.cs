@@ -11,6 +11,7 @@ public sealed partial class WorkspaceViewModel
     private UnitWaitingEntry? selectedWaitingEntry;
     private UnitLightningSlot? selectedUnitSlot;
     private string waitingSpecialty = "";
+    private string queuePatientFilter = "", queueSpecialtyFilter = "", queueSort = "Mais antigos";
     public ObservableCollection<UnitWaitingEntry> UnitWaitingList { get; } = [];
     public ObservableCollection<UnitLightningSlot> UnitLightningSlots { get; } = [];
     private bool unitQueueLoaded, unitSlotsLoaded;
@@ -18,6 +19,26 @@ public sealed partial class WorkspaceViewModel
     public UnitWaitingEntry? SelectedWaitingEntry { get => selectedWaitingEntry; set { selectedWaitingEntry = value; Notify(); Notify(nameof(CanCancelWaitingEntry)); } }
     public UnitLightningSlot? SelectedUnitSlot { get => selectedUnitSlot; set { selectedUnitSlot = value; Notify(); } }
     public string WaitingSpecialty { get => waitingSpecialty; set { waitingSpecialty = value; Notify(); } }
+    public static string[] QueueSortOptions { get; } = ["Mais antigos", "Mais recentes", "Paciente A–Z", "Paciente Z–A"];
+    public string QueuePatientFilter { get => queuePatientFilter; set { queuePatientFilter = value ?? ""; Notify(); NotifyQueueFilter(); } }
+    public string QueueSpecialtyFilter { get => queueSpecialtyFilter; set { queueSpecialtyFilter = value ?? ""; Notify(); NotifyQueueFilter(); } }
+    public string QueueSort { get => queueSort; set { queueSort = value ?? "Mais antigos"; Notify(); NotifyQueueFilter(); } }
+    public IEnumerable<UnitWaitingEntry> FilteredUnitWaitingList
+    {
+        get
+        {
+            var filtered = UnitWaitingList.Where(entry => entry.PatientName.Contains(QueuePatientFilter.Trim(), StringComparison.CurrentCultureIgnoreCase) && entry.Specialty.Contains(QueueSpecialtyFilter.Trim(), StringComparison.CurrentCultureIgnoreCase));
+            return QueueSort switch
+            {
+                "Paciente A–Z" => filtered.OrderBy(entry => entry.PatientName, StringComparer.CurrentCultureIgnoreCase).ThenBy(entry => entry.EnteredAt),
+                "Paciente Z–A" => filtered.OrderByDescending(entry => entry.PatientName, StringComparer.CurrentCultureIgnoreCase).ThenBy(entry => entry.EnteredAt),
+                "Mais recentes" => filtered.OrderByDescending(entry => entry.EnteredAt).ThenByDescending(entry => entry.Id),
+                _ => filtered.OrderBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id)
+            };
+        }
+    }
+    public bool HasNoFilteredWaitingEntries => unitQueueLoaded && UnitWaitingList.Count > 0 && !FilteredUnitWaitingList.Any();
+    private void NotifyQueueFilter() { Notify(nameof(FilteredUnitWaitingList)); Notify(nameof(HasNoFilteredWaitingEntries)); }
     /// <summary>Cancelar só vale para entrada ainda ativa (aguardando ou com oferta em andamento).</summary>
     public bool CanCancelWaitingEntry => CanOperate && SelectedWaitingEntry?.IsActive == true;
     public bool HasNoWaitingEntries => HasActiveObsUnit && unitQueueLoaded && UnitWaitingList.Count == 0;
@@ -90,7 +111,7 @@ public sealed partial class WorkspaceViewModel
 
     private void ClearUnitLightningData()
     {
-        UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false;
+        UnitWaitingList.Clear(); UnitLightningSlots.Clear(); unitQueueLoaded = unitSlotsLoaded = false; NotifyQueueFilter();
         WaitingPatient = null; SelectedWaitingEntry = null; SelectedUnitSlot = null; WaitingSpecialty = "";
         AwaitingSlots.Clear(); SelectedAwaitingSlot = null; SlotSteps.Clear();
         NotifyUnitCounts();

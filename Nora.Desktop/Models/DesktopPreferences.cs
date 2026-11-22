@@ -35,6 +35,6 @@ public sealed class NavigationItem(string id, string icon, string title, bool av
     public bool HasBadge => badge > 0;
     public string BadgeText => badge > 99 ? "99+" : badge.ToString();
     /// <summary>O contador também vai no nome acessível: o número é texto, não só cor.</summary>
-    public string AutomationName => badge > 0 ? $"{Title}, {badge} {(badge == 1 ? "não lido" : "não lidos")}" : Title;
+    public string AutomationName => badge > 0 ? Id == "alerts" ? $"{Title}, {badge} {(badge == 1 ? "novo alerta" : "novos alertas")}" : $"{Title}, {badge} {(badge == 1 ? "novo comunicado" : "novos comunicados")}" : Title;
     public bool IsSelected { get => selected; set { if (selected == value) return; selected = value; Notify(); } }
 }

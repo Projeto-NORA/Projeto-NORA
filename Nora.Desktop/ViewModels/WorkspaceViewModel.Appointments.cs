@@ -96,12 +96,17 @@ public sealed partial class WorkspaceViewModel
         ApplyCalendarMarks();
     }
 
-    /// <summary>Marca no calendário a quantidade de consultas de cada dia, derivada da leitura do mês.</summary>
+    /// <summary>Marca quantidade e situações de cada dia, derivadas da leitura do mês.</summary>
     private void ApplyCalendarMarks()
     {
-        Dictionary<DateTime, int>? counts = monthKey == CurrentMonthKey && monthAppointments is not null
-            ? monthAppointments.GroupBy(item => item.StartsAt.ToLocalTime().Date).ToDictionary(group => group.Key, group => group.Count()) : null;
-        foreach (var day in AgendaDays) day.AppointmentCount = counts is not null && counts.TryGetValue(day.Date, out var count) ? count : 0;
+        var records = monthKey == CurrentMonthKey && monthAppointments is not null
+            ? monthAppointments.GroupBy(item => item.StartsAt.ToLocalTime().Date).ToDictionary(group => group.Key, group => group.ToArray()) : null;
+        foreach (var day in AgendaDays)
+        {
+            var items = records is not null && records.TryGetValue(day.Date, out var found) ? found : [];
+            day.AppointmentCount = items.Length;
+            day.SetStatuses(items.Select(item => item.Status));
+        }
     }
 
     /// <summary>Recalcula a lista de dia/semana a partir da leitura do mês; mantém a consulta selecionada quando ela continua visível.</summary>

@@ -70,13 +70,13 @@ internal static partial class Program
                 vm.OpeningDays[4].IsClosed = false; vm.OpeningDays[4].Opens1 = "09:00";
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(!vm.OpeningDays[4].IsClosed && vm.OpeningDays[4].Opens1 == "09:00", "A leitura automática não pode apagar a edição em andamento.");
-                content = Layout(window, 1280, 5200); Click(window, content, "Atualizar configurações", 1280, 5200);
-                Require(vm.OpeningDays[4].IsClosed, "Atualizar configurações deveria devolver os campos ao que está gravado.");
+                content = Layout(window, 1280, 5200); Click(window, content, "Atualizar informações da UBS", 1280, 5200);
+                Require(vm.OpeningDays[4].IsClosed, "Atualizar informações da UBS deveria devolver os campos ao que está gravado.");
             }
             finally { CloseWindow(window); }
         });
 
-        Check("Atendimento ao público: a atendente vê em leitura, com o aviso; a falha de leitura aponta para Atualizar configurações e ele refaz a leitura", () =>
+        Check("Atendimento ao público: a atendente vê em leitura, com o aviso; a falha de leitura aponta para Atualizar informações da UBS e ele refaz a leitura", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant" };
             var unit = fixture.AddUnit("UBS Leitura", "Centro");
@@ -87,10 +87,10 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "unit-settings", 1280, 5200);
                 Require(!vm.CanEditProfile && vm.ShowProfileReadOnlyNotice && vm.ProfileReadOnlyNotice.StartsWith("Só o administrador da UBS altera o atendimento ao público.", StringComparison.Ordinal) && FullTexts(content).Contains(vm.ProfileReadOnlyNotice), "A atendente deveria ver o aviso de somente leitura.");
-                Require(vm.ProfileState == "Não foi possível ler o atendimento da UBS agora. Use Atualizar configurações para tentar de novo." && ButtonIn(content, "Atualizar configurações").IsEnabled && !vm.CanSaveProfile, "A falha deveria apontar para o botão Atualizar configurações: " + vm.ProfileState);
+                Require(vm.ProfileState == "Não foi possível ler o atendimento da UBS agora. Use Atualizar informações da UBS para tentar de novo." && ButtonIn(content, "Atualizar informações da UBS").IsEnabled && !vm.CanSaveProfile, "A falha deveria apontar para o botão Atualizar informações da UBS: " + vm.ProfileState);
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-atendimento-falha-light.png"), 1280, 900);
                 fixture.FailProfile = false; var reads = fixture.Count("GET", "/profile");
-                Click(window, content, "Atualizar configurações", 1280, 5200);
+                Click(window, content, "Atualizar informações da UBS", 1280, 5200);
                 Require(fixture.Count("GET", "/profile") == reads + 1 && vm.ProfileState.StartsWith("Ainda não informado.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria refazer a leitura do atendimento: " + vm.ProfileState);
                 var days = Descendants<ItemsControl>(content).Single(items => AutomationProperties.GetName(items) == "Horário de funcionamento por dia da semana");
                 var save = ButtonIn(content, "Salvar atendimento ao público");

@@ -29,6 +29,26 @@ internal static partial class Program
     private static void RunSchedulingInsightsChecks(Application application, string storageRoot, string[] args)
     {
         var previewRoot = PreviewRoot(args);
+        Check("OBS Alertas: aviso por novidade desaparece ao abrir e reaparece apenas para outro alerta", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Avisos"); var sample = SampleAlerts(unit);
+            fixture.AddAlert(unit.Id, sample[0]);
+            var window = OpenOperational(fixture, storageRoot, "alert-badge", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.Single(item => item.Id == "alerts");
+                Require(nav.Badge == 1, "O alerta inicial deveria aparecer no menu.");
+                window.ViewModel.Navigate("alerts"); Settle(vm);
+                Require(nav.Badge == 0 && vm.UnitAlerts.Count == 1, "Abrir a central deveria ocultar o aviso sem apagar o alerta.");
+                window.ViewModel.Navigate("queue"); Settle(vm);
+                AgeAlertsRead(vm, TimeSpan.FromMinutes(6)); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 0, "O mesmo alerta não deveria reaparecer como novidade.");
+                fixture.AddAlert(unit.Id, sample[1]); AgeAlertsRead(vm, TimeSpan.FromMinutes(6)); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 1 && vm.UnitAlerts.Count == 2, "Um novo alerta deveria ser contado mesmo fora da central.");
+            }
+            finally { CloseWindow(window); }
+        });
         Check("OBS Painel: consultórios ativos (em atendimento agora e com grade hoje), capacidade dos próximos 7 dias e alertas reais; o ciclo de 20 s só relê o que é leve", () =>
         {
             using var fixture = new ApiFixture();
@@ -43,7 +63,7 @@ internal static partial class Program
                 Require(vm.ActiveRoomsInUseValue == "2" && vm.ActiveRoomsPlannedValue == "5" && vm.PanelOfferedValue == "40" && vm.PanelBookedValue == "30" && vm.PanelOccupancyValue == "75,0%" && vm.PanelAlertsTitle == "1 alerta ativo", "Os números reais do Painel não foram aplicados.");
                 var content = Layout(window, 1280, 1800);
                 var texts = FullTexts(content);
-                Require(new[] { "Consultórios ativos", "em atendimento agora", "com grade hoje", "Capacidade dos próximos 7 dias", "ofertados", "ocupados", "ocupação", "75,0%", "1 alerta ativo", "Fila alta em Cardiologia: 23 pessoas (limite 20 pessoas)." }.All(texts.Contains), "O Painel não mostra consultórios, capacidade e alerta: " + string.Join(" | ", texts.Where(text => text.Length < 60).Take(40)));
+                Require(new[] { "Consultórios ativos", "em atendimento agora", "com grade hoje", "1 alerta ativo", "Fila alta em Cardiologia: 23 pessoas (limite 20 pessoas)." }.All(texts.Contains) && !texts.Contains("Capacidade dos próximos 7 dias"), "O Painel deveria mostrar consultórios e alerta, sem o cartão de capacidade: " + string.Join(" | ", texts.Where(text => text.Length < 60).Take(40)));
                 Require(!texts.Any(text => text.Contains("Indisponível: depende do cadastro", StringComparison.Ordinal)) && !texts.Contains("Nenhum alerta avaliado ainda"), "Sobrou texto de funcionalidade pendente no Painel.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-painel-agenda-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1800); SaveScrolled(window, Path.Combine(previewRoot, "obs-painel-agenda-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);

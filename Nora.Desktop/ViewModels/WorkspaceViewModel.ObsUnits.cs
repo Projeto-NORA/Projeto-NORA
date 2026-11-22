@@ -12,6 +12,7 @@ public sealed partial class WorkspaceViewModel
     private string obsRegistryName = "", obsRegistryCpf = "", obsRegistryEmail = "", obsRegistryPhone = "";
     private string obsRegistrySearch = "";
     private string? editingObsCpf, obsRegistryIbge;
+    private int obsRegistryDraftVersion;
     private bool obsRegistryDraftOpen, obsUnitSelectionOpen = true, obsUnitsLoaded;
     private string obsRegistryStatusFilter = "Todos", obsRegistrySort = "Mais recentes";
     private string obsRegistryPresenceFilter = "Todos";
@@ -103,8 +104,8 @@ public sealed partial class WorkspaceViewModel
     public string ObsRegistryNumber { get => obsRegistryNumber; set { obsRegistryNumber = value; Notify(); } }
     public string ObsRegistryComplement { get => obsRegistryComplement; set { obsRegistryComplement = value; Notify(); } }
     public string ObsRegistryNeighborhood { get => obsRegistryNeighborhood; set { obsRegistryNeighborhood = value; Notify(); } }
-    public string ObsRegistryCity { get => obsRegistryCity; set { obsRegistryCity = value; Notify(); } }
-    public string ObsRegistryState { get => obsRegistryState; set { obsRegistryState = value; Notify(); } }
+    public string ObsRegistryCity { get => obsRegistryCity; set { if (obsRegistryCity != value) obsRegistryIbge = null; obsRegistryCity = value; Notify(); } }
+    public string ObsRegistryState { get => obsRegistryState; set { if (obsRegistryState != value) obsRegistryIbge = null; obsRegistryState = value; Notify(); } }
     public bool IsEditingObsRegistry => editingObsCpf is not null;
     public bool ObsRegistryDraftOpen { get => obsRegistryDraftOpen; set { obsRegistryDraftOpen = value; Notify(); } }
     public string ObsRegistryDraftTitle => IsEditingObsRegistry ? "Editar cadastro da UBS" : "Cadastrar referência na UBS";
@@ -112,19 +113,27 @@ public sealed partial class WorkspaceViewModel
     public void EditSelectedObsRegistry()
     {
         if (ActiveObsUnit is null || SelectedObsRegistry is not { } patient) return;
+        obsRegistryDraftVersion++;
         editingObsCpf = patient.Cpf; ObsRegistryName = patient.FullName; ObsRegistryCpf = patient.Cpf; ObsRegistryEmail = patient.Email; ObsRegistryPhone = patient.Phone ?? "";
-        var address = patient.Address; ObsRegistryCep = address?.Cep ?? ""; obsRegistryIbge = address?.Ibge; ObsRegistryStreet = address?.Street ?? "";
+        var address = patient.Address; ObsRegistryCep = address?.Cep ?? ""; ObsRegistryStreet = address?.Street ?? "";
         ObsRegistryNumber = address?.Number ?? ""; ObsRegistryComplement = address?.Complement ?? ""; ObsRegistryNeighborhood = address?.Neighborhood ?? "";
-        ObsRegistryCity = address?.City ?? ""; ObsRegistryState = address?.State ?? ""; Notify(nameof(IsEditingObsRegistry)); Notify(nameof(ObsRegistryDraftTitle)); Notify(nameof(ObsRegistrySaveLabel)); ObsRegistryDraftOpen = true;
+        ObsRegistryCity = address?.City ?? ""; ObsRegistryState = address?.State ?? ""; obsRegistryIbge = address?.Ibge; Notify(nameof(IsEditingObsRegistry)); Notify(nameof(ObsRegistryDraftTitle)); Notify(nameof(ObsRegistrySaveLabel)); ObsRegistryDraftOpen = true;
     }
     public void NewObsRegistryDraft() { ClearObsRegistryDraft(); ObsRegistryDraftOpen = true; }
     public Task LookupObsRegistryCepAsync() => RunAsync(async () =>
     {
         if (!BrazilianDataValidator.IsCompleteCep(ObsRegistryCep)) throw new NoraApiException("Informe um CEP com 8 dígitos para pesquisar o endereço.");
-        var result = await api.LookupCepAsync(ObsRegistryCep);
-        ObsRegistryCep = result.Cep; ObsRegistryStreet = result.Street; ObsRegistryNeighborhood = result.Neighborhood ?? "";
-        ObsRegistryCity = result.City; ObsRegistryState = result.State; ObsRegistryComplement = result.Complement ?? "";
-        obsRegistryIbge = result.Ibge;
+        var requestedCep = BrazilianDataValidator.NormalizeCep(ObsRegistryCep);
+        var unitId = ActiveObsUnit?.Id; var draftCpf = editingObsCpf; var draftVersion = obsRegistryDraftVersion;
+        var before = (ObsRegistryStreet, ObsRegistryNeighborhood, ObsRegistryCity, ObsRegistryState, ObsRegistryComplement);
+        var result = await api.LookupCepAsync(requestedCep);
+        if (disposed || ActiveObsUnit?.Id != unitId || editingObsCpf != draftCpf || obsRegistryDraftVersion != draftVersion || BrazilianDataValidator.NormalizeCep(ObsRegistryCep) != requestedCep) return;
+        if (ObsRegistryStreet == before.ObsRegistryStreet) ObsRegistryStreet = result.Street;
+        if (ObsRegistryNeighborhood == before.ObsRegistryNeighborhood) ObsRegistryNeighborhood = result.Neighborhood ?? "";
+        if (ObsRegistryCity == before.ObsRegistryCity) ObsRegistryCity = result.City;
+        if (ObsRegistryState == before.ObsRegistryState) ObsRegistryState = result.State;
+        if (ObsRegistryComplement == before.ObsRegistryComplement) ObsRegistryComplement = result.Complement ?? "";
+        obsRegistryIbge = ObsRegistryCity == result.City && ObsRegistryState == result.State ? result.Ibge : null;
         Say(MessageKind.Success, "Endereço preenchido. Confira e complete o número antes de salvar.");
     });
 
@@ -297,6 +306,7 @@ public sealed partial class WorkspaceViewModel
     private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private void ClearObsRegistryDraft()
     {
+        obsRegistryDraftVersion++;
         editingObsCpf = null; obsRegistryIbge = null; ObsRegistryDraftOpen = false; Notify(nameof(IsEditingObsRegistry)); Notify(nameof(ObsRegistryDraftTitle)); Notify(nameof(ObsRegistrySaveLabel));
         ObsRegistryName = ObsRegistryCpf = ObsRegistryEmail = ObsRegistryPhone = "";
         ObsRegistryCep = ObsRegistryStreet = ObsRegistryNumber = ObsRegistryComplement = ObsRegistryNeighborhood = ObsRegistryCity = ObsRegistryState = "";

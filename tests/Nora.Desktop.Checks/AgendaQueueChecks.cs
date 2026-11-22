@@ -14,6 +14,26 @@ internal static partial class Program
     private static void RunAgendaAndQueueChecks(Application application, string storageRoot, string[] args)
     {
         var previewRoot = PreviewRoot(args);
+        Check("OBS Fila: filtros e ordenação não alteram a prioridade de atendimento", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Filtro");
+            fixture.AddWaiting(unit.Id, "52998224725", "Ana Souza", "Clínica geral", DateTimeOffset.UtcNow.AddHours(-2));
+            fixture.AddWaiting(unit.Id, "11144477735", "Bruno Lima", "Clínica geral", DateTimeOffset.UtcNow.AddHours(-1));
+            var window = OpenOperational(fixture, storageRoot, "queue-filter", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window); window.ViewModel.Navigate("queue"); Settle(vm);
+                vm.QueueSort = "Paciente Z–A";
+                var ordered = vm.FilteredUnitWaitingList.ToArray();
+                Require(ordered.Length == 2 && ordered[0].PatientName == "Bruno Lima" && ordered[0].Position == 2 && ordered[1].Position == 1, "Ordenar por nome alterou a prioridade da fila.");
+                vm.QueuePatientFilter = "bruno"; vm.QueueSpecialtyFilter = "clínica";
+                Require(vm.FilteredUnitWaitingList.Single().Position == 2, "Filtros não preservaram a posição real.");
+                vm.QueueSpecialtyFilter = "Pediatria";
+                Require(!vm.FilteredUnitWaitingList.Any() && vm.HasNoFilteredWaitingEntries, "Filtro sem resultado não informa o estado vazio.");
+            }
+            finally { CloseWindow(window); }
+        });
         Check("Agenda OBS: carrega ao entrar na aba, lê o mês em uma requisição e marca os dias com consulta", () =>
         {
             using var fixture = new ApiFixture();
@@ -37,7 +57,7 @@ internal static partial class Program
                 Require(days.Single(day => day.Date == month.AddDays(1)).AppointmentCount == 2 && days.Single(day => day.Date == month.AddDays(8)).AppointmentCount == 1 && days.Sum(day => day.AppointmentCount) == 3, "Calendário não marcou os dias com consulta e a quantidade.");
                 var content = Layout(window, 1280, 740);
                 var texts = VisibleTexts(content);
-                Require(texts.Contains("2 consultas") && texts.Contains("1 consulta"), "Quantidade de consultas não aparece nos dias do calendário.");
+                Require(!texts.Contains("2 consultas") && !texts.Contains("1 consulta") && days.Single(day => day.Date == month.AddDays(1)) is { HasScheduled: true, HasCalled: true } && days.Single(day => day.Date == month.AddDays(8)).HasCancelled && days.Single(day => day.Date == month.AddDays(1)).AutomationLabel.Contains("2 consultas"), "Calendário deveria marcar situações por cor e manter a quantidade acessível.");
                 foreach (var status in new[] { "Agendada", "Chamada", "Concluída", "Falta", "Cancelada" }) Require(texts.Contains(status), "Legenda sem o estado real: " + status);
                 Require(!texts.Contains("Livre") && !texts.Contains("Ocupado"), "Legenda ainda mostra estado que não corresponde a nenhum dado.");
                 SavePreview(content, Path.Combine(previewRoot, "obs-agenda-marcacoes-light.png"));
@@ -46,7 +66,7 @@ internal static partial class Program
                 Require(vm.IsAgendaDay && vm.Appointments.Count == 2 && vm.Appointments[0].StartsAt < vm.Appointments[1].StartsAt, "Visão diária não listou as consultas do dia em ordem.");
                 Require(vm.Appointments[0].PatientDisplay == "Ana Souza · CPF 529.982.247-25", "Lista não mostra o CPF formatado junto do nome: " + vm.Appointments[0].PatientDisplay);
                 window.ViewModel.Navigate("agenda"); content = Layout(window, 1280, 740);
-                Require(VisibleTexts(content).Contains("Ana Souza · CPF 529.982.247-25"), "CPF formatado não aparece na tela.");
+                Require(VisibleTexts(content).Contains("Ana Souza") && VisibleTexts(content).Contains("CPF: 529.982.247-25"), "Nome e CPF formatado não aparecem separados na tela.");
                 vm.SelectAgendaWeekCommand.Execute(null);
                 Require(vm.IsAgendaWeek && vm.Appointments.Count == 2, "Visão semanal não derivou as consultas da semana.");
                 vm.MoveAgenda(1);
@@ -157,7 +177,8 @@ internal static partial class Program
                 var grid = Descendants<DataGrid>(content).Single(item => AutomationProperties.GetName(item) == "Fila por especialidade da UBS");
                 Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["Posição", "Paciente", "Especialidade", "Espera", "Entrada", "Situação"]), "Colunas da fila divergem do esperado.");
                 var firstRow = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
-                Require(Descendants<TextBlock>(firstRow).Any(text => text.Text == "1º") && Descendants<TextBlock>(firstRow).Any(text => text.Text == "3h 0min"), "Posição e espera não aparecem na linha.");
+                var firstEntry = vm.FilteredUnitWaitingList.First();
+                Require(Descendants<TextBlock>(firstRow).Any(text => text.Text == firstEntry.PositionDisplay) && Descendants<TextBlock>(firstRow).Any(text => text.Text == firstEntry.WaitDisplay), "Posição e espera não aparecem na linha.");
                 var cancel = FindActionButton(content, "Cancelar entrada");
                 Require(!cancel.IsEnabled, "Cancelar entrada habilitado sem seleção.");
                 grid.SelectedItem = vm.UnitWaitingList.Single(item => item.Id == 4); Layout(window, 1280, 740);

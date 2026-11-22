@@ -109,7 +109,7 @@ internal static partial class Program
                 // Renderização e temas.
                 content = Layout(window, 1280, 3400);
                 var shown = FullTexts(content);
-                Require(new[] { "Configurações da UBS", "Profissionais", "Consultórios", "Grade semanal de horários", "Bloqueios (folgas e feriados)" }.All(shown.Contains), "Seções das configurações ausentes: " + string.Join(" | ", shown.Take(12)));
+                Require(new[] { "Informações da UBS", "Profissionais", "Consultórios", "Grade semanal de horários", "Bloqueios (folgas e feriados)" }.All(shown.Contains), "Seções das informações da UBS ausentes: " + string.Join(" | ", shown.Take(12)));
                 Require(new[] { "Profissionais da UBS", "Consultórios da UBS", "Grade semanal da UBS", "Bloqueios da UBS" }.All(name => Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == name && grid.IsVisible)), "Alguma lista das configurações não aparece.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-configuracoes-admin-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 3400);
@@ -177,7 +177,7 @@ internal static partial class Program
                 var content = Show(window, "agenda", 1280, 1600);
                 Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && fixture.AvailabilityQueries.Count == 0, "Sem escolhas, nenhum horário deveria ter sido buscado.");
                 Require(vm.BookingSpecialties.Select(item => item.Name).SequenceEqual(["Cardiologia", "Clínica geral"]), "As especialidades do agendamento deveriam ser as que algum profissional ativo atende.");
-                var expander = Descendants<Expander>(content).Single(item => item.Header?.ToString() == "Agendar consulta"); expander.IsExpanded = true; content = Layout(window, 1280, 1600);
+                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
                 Require(Descendants<TextBox>(content).All(box => AutomationProperties.GetName(box) is not ("Especialidade da consulta" or "Profissional da consulta") || !box.IsVisible), "O texto livre não deveria aparecer numa UBS com profissional ativo.");
                 int Requests() => fixture.AvailabilityQueries.Count;
                 var before = Requests();
@@ -235,7 +235,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
-                var expander = Descendants<Expander>(content).Single(item => item.Header?.ToString() == "Agendar consulta"); expander.IsExpanded = true; content = Layout(window, 1280, 1600);
+                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
                 Require(vm.UsesFreeTextBooking && !vm.UsesCatalogBooking && Input(content, "Especialidade da consulta").IsVisible && FindActionButton(content, "Agendar").IsVisible, "Sem profissional ativo o texto livre deveria aparecer.");
                 Require(Descendants<ComboBox>(content).All(box => AutomationProperties.GetName(box) != "Especialidade da consulta pelo catálogo" || !box.IsVisible), "O catálogo não deveria aparecer sem profissional ativo.");
                 var cardio = fixture.AddSpecialty("Cardiologia"); fixture.AddProfessional(unit.Id, "Dra. Nova", [cardio.Id]);

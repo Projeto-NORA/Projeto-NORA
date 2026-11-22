@@ -23,7 +23,7 @@ public sealed partial class WorkspaceViewModel
     private static readonly TimeSpan MetricsRefreshAge = TimeSpan.FromMinutes(5);
 
     private int unitPeriodDays = 30;
-    private string unitFromText = "", unitToText = "", unitRangeError = "";
+    private string unitFromText = "", unitToText = "", unitRangeError = "", unitSpecialtySearch = "", unitSpecialtyFilter = "Todas";
     private (DateTime From, DateTime To)? appliedUnitRange;
     private UnitMetrics? unitMetrics;
     private UnitMetricsRequest? appliedUnitMetrics;
@@ -37,10 +37,16 @@ public sealed partial class WorkspaceViewModel
     private DateTimeOffset? panelAttemptedAt;
 
     public static IReadOnlyList<PeriodOption> UnitPeriodOptions { get; } =
-        [new(1, "Hoje"), new(7, "Últimos 7 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias"), new(0, "Personalizado")];
+        [new(1, "Hoje"), new(7, "Últimos 7 dias"), new(14, "Últimos 14 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias"), new(180, "Últimos 180 dias"), new(365, "Últimos 365 dias"), new(0, "Personalizado")];
     public ObservableCollection<MetricCard> UnitOverviewCards { get; } = [];
     public ObservableCollection<MetricCard> UnitLightningCards { get; } = [];
     public ObservableCollection<PerformanceRow> UnitSpecialtyPerformance { get; } = [];
+    public static string[] UnitSpecialtyFilterOptions { get; } = ["Todas", "Com pessoas na fila", "Com faltas"];
+    public string UnitSpecialtySearch { get => unitSpecialtySearch; set { unitSpecialtySearch = value ?? ""; Notify(); Notify(nameof(FilteredUnitSpecialtyPerformance)); Notify(nameof(UnitSpecialtyState)); } }
+    public string UnitSpecialtyFilter { get => unitSpecialtyFilter; set { unitSpecialtyFilter = value ?? "Todas"; Notify(); Notify(nameof(FilteredUnitSpecialtyPerformance)); Notify(nameof(UnitSpecialtyState)); } }
+    public IEnumerable<PerformanceRow> FilteredUnitSpecialtyPerformance => UnitSpecialtyPerformance.Where(row => row.Name.Contains(UnitSpecialtySearch.Trim(), StringComparison.CurrentCultureIgnoreCase) && (UnitSpecialtyFilter switch { "Com pessoas na fila" => row.ActiveEntries > 0, "Com faltas" => row.Missed > 0, _ => true }));
+    public UnitMetrics? UnitMetricsData => unitMetrics;
+    public bool HasUnitOutcomeData => unitMetrics is { Appointments: var a } && a.Completed + a.Missed + a.Cancelled > 0;
     public ChartSeries UnitChart { get; } = new();
     public ChartSeries PanelChart { get; } = new();
 
@@ -79,7 +85,7 @@ public sealed partial class WorkspaceViewModel
         : unitMetricsFailed ? "Os indicadores não puderam ser carregados. Os valores aparecem como — até uma nova tentativa."
         : unitPeriodDays == 0 && appliedUnitRange is null ? "Informe as datas e aplique o período personalizado."
         : "Os indicadores ainda não foram carregados.";
-    public string UnitSpecialtyState => unitMetrics is null ? "" : unitMetrics.BySpecialty.Length == 0 ? "Nenhuma especialidade com consulta ou fila neste período." : "";
+    public string UnitSpecialtyState => unitMetrics is null ? "" : unitMetrics.BySpecialty.Length == 0 ? "Nenhuma especialidade com consulta ou fila neste período." : !FilteredUnitSpecialtyPerformance.Any() ? "Nenhuma especialidade corresponde aos filtros." : "";
     /// <summary>Período e UBS a que os números mostrados se referem (a faixa de dados desatualizados avisa quando a última consulta falhou).</summary>
     public string UnitMetricsScopeLabel
     {
@@ -92,6 +98,7 @@ public sealed partial class WorkspaceViewModel
     }
 
     public string PanelWaitValue => panelMetrics is null ? "—" : DisplayFormat.Wait(panelMetrics.Waiting.AverageWaitMinutes);
+    public bool PanelWaitHasError => panelFailed;
     public string PanelWaitHint => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : panelMetrics is null ? (panelFailed ? "Não foi possível ler os indicadores agora." : "Aguardando a leitura dos indicadores")
         : panelMetrics.Waiting.AverageWaitMinutes is null ? $"Nenhuma entrada saiu da fila por oferta aceita nos últimos {PanelDays} dias."
@@ -100,9 +107,9 @@ public sealed partial class WorkspaceViewModel
 
     private static readonly string[] UnitMetricsNames =
     [
-        nameof(HasUnitMetrics), nameof(UnitMetricsStateText), nameof(UnitMetricsScopeLabel), nameof(UnitSpecialtyState), nameof(CanFilterUnitMetrics)
+        nameof(HasUnitMetrics), nameof(UnitMetricsStateText), nameof(UnitMetricsScopeLabel), nameof(UnitSpecialtyState), nameof(CanFilterUnitMetrics), nameof(UnitMetricsData), nameof(HasUnitOutcomeData), nameof(FilteredUnitSpecialtyPerformance)
     ];
-    private static readonly string[] PanelNames = [nameof(PanelWaitValue), nameof(PanelWaitHint)];
+    private static readonly string[] PanelNames = [nameof(PanelWaitValue), nameof(PanelWaitHint), nameof(PanelWaitHasError)];
     private void NotifyUnitMetrics() { foreach (var name in UnitMetricsNames) Notify(name); foreach (var name in PanelNames) Notify(name); }
 
     private bool UnitMetricsDue => unitMetricsAttemptedAt is null || DateTimeOffset.Now - unitMetricsAttemptedAt >= MetricsRefreshAge;
@@ -115,6 +122,8 @@ public sealed partial class WorkspaceViewModel
     private UnitScope AutoScopeFor(string name)
     {
         var scope = ScopeFor(name);
+        // Os alertas são avaliados em qualquer aba, no máximo a cada cinco minutos, para avisar sem exigir a abertura prévia da central.
+        if (IsOperational && HasActiveObsUnit && AlertsDue) scope |= UnitScope.Alerts;
         if (scope.HasFlag(UnitScope.Metrics) && !UnitMetricsDue) scope &= ~UnitScope.Metrics;
         if (name == "home" && PanelMetricsDue) scope |= UnitScope.PanelMetrics;
         // Catálogo (profissionais e especialidades): lido na troca de UBS; as abas que o usam só o repetem depois de 5 minutos.

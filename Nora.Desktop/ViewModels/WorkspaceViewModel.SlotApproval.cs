@@ -25,7 +25,7 @@ public sealed partial class WorkspaceViewModel
 
     public bool SlotApprovalEnabled => unitProfile?.SlotApprovalRequired ?? false;
     public string SlotApprovalState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver a aprovação das vagas."
-        : profileFailed && !profileLoaded ? "Não foi possível ler a aprovação das vagas agora. Use Atualizar configurações para tentar de novo."
+        : profileFailed && !profileLoaded ? "Não foi possível ler a aprovação das vagas agora. Use Atualizar informações da UBS para tentar de novo."
         : !profileLoaded ? "Lendo a aprovação das vagas…"
         : SlotApprovalEnabled
             ? $"Ligada{(unitProfile?.SlotApprovalSince is { } since ? $" desde {since.ToLocalTime():dd/MM/yyyy HH:mm}" : "")}. Cada cancelamento gera uma vaga que só é oferecida depois que alguém da equipe aprovar; sem aprovação até 1 h antes da consulta, ela fecha."
@@ -62,7 +62,7 @@ public sealed partial class WorkspaceViewModel
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de mudar a aprovação das vagas.");
         if (!IsAdministrator) throw new NoraApiException("Somente o administrador da UBS liga ou desliga a aprovação das vagas.");
-        if (!profileLoaded || profileFailed) throw new NoraApiException("Leia as configurações da UBS (Atualizar configurações) antes de mudar a aprovação das vagas.");
+        if (!profileLoaded || profileFailed) throw new NoraApiException("Leia as configurações da UBS (Atualizar informações da UBS) antes de mudar a aprovação das vagas.");
         var enable = !SlotApprovalEnabled;
         SlotApprovalState? result = null;
         await WithStepAsync(SlotApprovalSteps, "Salvando a aprovação das vagas…", async () => result = await api.SetSlotApprovalAsync(unit.Id, enable));

@@ -51,7 +51,7 @@ internal static partial class Program
                     Require(WindowDays(fixture.UnitMetricsQueries[^1].Query) == days && fixture.UnitMetricsQueries[^1].Unit == unit.Id, $"{what}: janela de {days} dia(s) não enviada para a UBS ativa.");
                 }
                 var period = Combo(content, "Período dos indicadores da UBS");
-                Require(period.Items.Cast<PeriodOption>().Select(option => option.Label).SequenceEqual(["Hoje", "Últimos 7 dias", "Últimos 30 dias", "Últimos 90 dias", "Personalizado"]), "Opções de período incorretas.");
+                Require(period.Items.Cast<PeriodOption>().Select(option => option.Label).SequenceEqual(["Hoje", "Últimos 7 dias", "Últimos 14 dias", "Últimos 30 dias", "Últimos 90 dias", "Últimos 180 dias", "Últimos 365 dias", "Personalizado"]), "Opções de período incorretas.");
                 period.SelectedValue = 1; Settle(vm); ExpectOneMore("Hoje", 1);
                 Require(vm.UnitMetricsScopeLabel.StartsWith($"Números de {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))} a {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))}", StringComparison.Ordinal), "O escopo de 'Hoje' não mostra o dia: " + vm.UnitMetricsScopeLabel);
                 period.SelectedValue = 7; Settle(vm); ExpectOneMore("7 dias", 7);
@@ -125,7 +125,7 @@ internal static partial class Program
                     Require(UnitCard(vm, "Comparecimento").Value == "77,9%" && UnitCard(vm, "Espera média da fila").Value == "1 h 35 min" && UnitCard(vm, "Maior espera atual").Value == "1 d 1 h", "Score ou esperas incorretos: " + UnitCard(vm, "Comparecimento").Value + " / " + UnitCard(vm, "Espera média da fila").Value + " / " + UnitCard(vm, "Maior espera atual").Value);
                     foreach (var card in vm.UnitOverviewCards.Concat(vm.UnitLightningCards)) Require(HasText(content, card.Title) && HasText(content, card.Value), $"{mode}: cartão não renderizado: {card.Title}");
                     Require(vm.UnitLightningCards.Select(card => card.Title + "=" + card.Value).SequenceEqual(["Vagas registradas=1", "Ofertas aceitas=1", "Ofertas recusadas=2", "Ofertas expiradas=1"]), "Cartões da Vaga Relâmpago incorretos.");
-                    Require(VisibleTexts(content).Any(text => text.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)) && Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Saiba mais sobre o comparecimento"), "A nota do score não aparece.");
+                    Require(Descendants<TextBlock>(content).Any(text => text.Text.Contains("Como é calculado o comparecimento") && text.ToolTip is string tip && tip.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)), "A explicação do score não aparece na dica.");
                     Require(vm.PageTitle == "Indicadores da UBS" && HasText(content, "Indicadores da UBS") && vm.UnitMetricsScopeLabel.EndsWith("UBS Números", StringComparison.Ordinal), "Título ou escopo da UBS ausentes.");
                     var table = GridNamed(content, "Indicadores da UBS por especialidade");
                     var cells = VisibleTexts(table);
@@ -149,11 +149,19 @@ internal static partial class Program
                     Require(Contrast(((SolidColorBrush)application.FindResource("SuccessBrush")).Color, surface) >= 3 && Contrast(((SolidColorBrush)application.FindResource("ErrorBrush")).Color, surface) >= 3 && Contrast(((SolidColorBrush)application.FindResource("WarningBrush")).Color, surface) >= 3, $"{mode}: cores das séries sem contraste de 3:1 com a superfície.");
                     if (mode != Appearance.System) SaveScrolled(window, Path.Combine(previewRoot, $"obs-indicators-{mode.ToString().ToLowerInvariant()}.png"), 1280, 900);
                 }
+                var pieContent = Layout(window, 1280, 2600);
+                var pie = Descendants<OutcomePie>(pieContent).Single();
+                Require(pie.IsVisible && AutomationProperties.GetName(pie).Contains("12 concluídas, 3 faltas, 2 canceladas"), "O gráfico de distribuição não apresenta os totais reais.");
+                vm.UnitSpecialtySearch = "pedi";
+                Require(vm.FilteredUnitSpecialtyPerformance.Select(row => row.Name).SequenceEqual(["Pediatria"]), "Busca por especialidade não filtrou a tabela.");
+                vm.UnitSpecialtySearch = "sem correspondência";
+                Require(!vm.FilteredUnitSpecialtyPerformance.Any() && vm.UnitSpecialtyState == "Nenhuma especialidade corresponde aos filtros.", "A busca sem resultados deveria avisar na tabela.");
+                vm.UnitSpecialtySearch = "";
                 // Sem consulta encerrada: score nulo e gráfico vazio explicam o motivo.
                 window.ViewModel.SetAppearance(Appearance.Light);
                 fixture.NoClosedAppointments = true; vm.UnitPeriodDays = 7; Settle(vm);
                 var empty = Layout(window, 1280, 2600);
-                Require(UnitCard(vm, "Comparecimento").Value == "—" && HasText(empty, "Sem consulta encerrada no período para calcular.") && vm.UnitChart.State == "Nenhuma consulta com data marcada no período." && HasText(empty, "Nenhuma consulta com data marcada no período.") && HasText(empty, "Nenhuma especialidade com consulta ou fila neste período."), "Score nulo, gráfico vazio e tabela vazia deveriam explicar o motivo.");
+                Require(UnitCard(vm, "Comparecimento").Value == "—" && UnitCard(vm, "Comparecimento").Hint == "Sem consulta encerrada no período para calcular." && Descendants<Border>(empty).Any(border => border.ToolTip?.ToString() == "Sem consulta encerrada no período para calcular.") && vm.UnitChart.State == "Nenhuma consulta com data marcada no período." && HasText(empty, "Nenhuma consulta com data marcada no período.") && HasText(empty, "Nenhuma especialidade com consulta ou fila neste período."), "Score nulo, gráfico vazio e tabela vazia deveriam explicar o motivo.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-indicators-empty-light.png"), 1280, 900);
             }
             finally { CloseWindow(window); }

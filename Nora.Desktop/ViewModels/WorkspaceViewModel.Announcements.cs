@@ -49,11 +49,15 @@ public sealed partial class WorkspaceViewModel
     private long? announcementCursor;
     private bool announcementsLoaded, announcementsFailed, announcementsFullDue;
     private int announcementsVersion, unreadAnnouncements;
+    private readonly HashSet<Guid> viewedAnnouncementIds = [];
     private DateTimeOffset? announcementsReadAt;
 
     public ObservableCollection<AnnouncementRow> Announcements { get; } = [];
     /// <summary>Contador de não lidos da navegação.</summary>
     public int UnreadAnnouncementCount => unreadAnnouncements;
+    /// <summary>Novidades ainda não vistas na aba; não altera a confirmação de leitura no servidor.</summary>
+    public int AnnouncementBadgeCount => Announcements.Count(row => row.IsUnread && !viewedAnnouncementIds.Contains(row.Id));
+    private void MarkAnnouncementsViewed() { viewedAnnouncementIds.UnionWith(Announcements.Select(row => row.Id)); Notify(nameof(AnnouncementBadgeCount)); }
     public bool ShowAnnouncements => IsAuthenticated && IsOperational && Section == "announcements";
     public string AnnouncementsState => !IsAuthenticated ? "Entre na conta para ler os comunicados."
         : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Use Atualizar comunicados para tentar de novo." : "Carregando os comunicados…")
@@ -68,8 +72,10 @@ public sealed partial class WorkspaceViewModel
     private static readonly string[] AnnouncementNames = [nameof(UnreadAnnouncementCount), nameof(AnnouncementsState), nameof(AnnouncementsSummary), nameof(AnnouncementsFootnote)];
     private void NotifyAnnouncements()
     {
+        if (Section == "announcements") viewedAnnouncementIds.UnionWith(Announcements.Select(row => row.Id));
         unreadAnnouncements = Announcements.Count(row => row.IsUnread);
         foreach (var name in AnnouncementNames) Notify(name);
+        Notify(nameof(AnnouncementBadgeCount));
     }
 
     /// <summary>Leitura tolerante e silenciosa (ciclo, abertura da aba e login): falha vira aviso na própria aba; sessão encerrada e troca de senha continuam subindo.</summary>
@@ -162,6 +168,6 @@ public sealed partial class WorkspaceViewModel
     private void ClearAnnouncements()
     {
         announcementsVersion++; announcementCursor = null; announcementsLoaded = announcementsFailed = false; announcementsFullDue = false; announcementsReadAt = null;
-        Announcements.Clear(); NotifyAnnouncements();
+        Announcements.Clear(); viewedAnnouncementIds.Clear(); NotifyAnnouncements();
     }
 }

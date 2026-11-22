@@ -143,7 +143,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         "queue" => "Fila da unidade",
         "patients" => "Pacientes da unidade",
         "slots" => "Vagas Relâmpago",
-        "unit-settings" => "Configurações da UBS",
+        "unit-settings" => "Informações da UBS",
         "family" => "Família",
         "announcements" => "Comunicados",
         _ => "Área da unidade"
@@ -409,8 +409,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         if (disposed || !IsAuthenticated || mustChangePassword) return;
         if (IsMunicipal) { EnterMunicipalSection(); return; }
+        if (Section == "alerts") MarkAlertsViewed();
         // Abrir a aba de comunicados faz uma leitura completa (traz o que foi encerrado ou venceu desde a última).
-        if (Section == "announcements") announcementsFullDue = true;
+        if (Section == "announcements") { MarkAnnouncementsViewed(); announcementsFullDue = true; }
         if (ScopeFor(Section) == UnitScope.None && Section != "announcements") return;
         sectionLoadPending = true;
         StartBackground(() =>

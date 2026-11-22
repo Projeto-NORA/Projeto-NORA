@@ -94,7 +94,8 @@ public sealed class ShellViewModel : ObservableObject
         Workspace = new(profile, api, devices);
         Workspace.PropertyChanged += (_, change) =>
         {
-            if (change.PropertyName == nameof(WorkspaceViewModel.UnreadAnnouncementCount)) { SetBadge("announcements", Workspace.UnreadAnnouncementCount); return; }
+            if (change.PropertyName == nameof(WorkspaceViewModel.AnnouncementBadgeCount)) { SetBadge("announcements", Workspace.AnnouncementBadgeCount); return; }
+            if (change.PropertyName == nameof(WorkspaceViewModel.AlertBadgeCount)) { SetBadge("alerts", Workspace.AlertBadgeCount); return; }
             if (change.PropertyName != nameof(WorkspaceViewModel.MustChangePassword)) return;
             foreach (var name in new[] { nameof(ShowPasswordRequired), nameof(IsHome), nameof(IsSettings), nameof(PageLabel), nameof(SectionSummary) }) Notify(name);
         };
@@ -108,7 +109,7 @@ public sealed class ShellViewModel : ObservableObject
         sidebarWidth = !preferences.RememberSidebar ? 264 : Math.Clamp(preferences.SidebarWidth, 208, 380);
         Navigation = profile.IsMunicipal
             ? [new("home", "\uE80F", "Visão geral", true), new("units", "\uE80A", "Unidades", true), new("specialties", "\uE8B7", "Especialidades", true), new("network", "\uE707", "Mapa da rede", true), new("indicators", "\uE9D9", "Indicadores", true), new("slots", "\uE945", "Vaga Relâmpago", true), new("capacity", "\uE787", "Capacidade", true), new("alerts", "\uE7BA", "Alertas", true), new("reports", "\uE8A5", "Relatórios e metas", true), new("communication", "\uE8F2", "Comunicação", true), new("users", "\uE77B", "Usuários e histórico", true)]
-            : [new("home", "\uE80F", "Painel da UBS", true), new("queue", "\uE8EF", "Fila", true), new("agenda", "\uE787", "Agenda", true), new("patients", "\uE77B", "Pacientes", true), new("family", "\uE716", "Família", true), new("slots", "\uE945", "Vaga Relâmpago", true), new("indicators", "\uE9D9", "Indicadores", true), new("alerts", "\uE7BA", "Alertas", true), new("announcements", "\uE715", "Comunicados", true), new("unit-settings", "\uE115", "Configurações da UBS", true)];
+            : [new("home", "\uE80F", "Painel da UBS", true), new("queue", "\uE8EF", "Fila", true), new("agenda", "\uE787", "Agenda", true), new("patients", "\uE77B", "Pacientes", true), new("family", "\uE716", "Família", true), new("slots", "\uE945", "Vaga Relâmpago", true), new("indicators", "\uE9D9", "Indicadores", true), new("alerts", "\uE7BA", "Alertas", true), new("announcements", "\uE715", "Comunicados", true), new("unit-settings", "\uE946", "Informações da UBS", true)];
         MarkSelectedNavigation();
         NavigateCommand = new RelayCommand(p => Navigate(p?.ToString() ?? "home"));
         AppearanceCommand = new RelayCommand(p => { if (Enum.TryParse<Appearance>(p?.ToString(), out var mode)) SetAppearance(mode); });

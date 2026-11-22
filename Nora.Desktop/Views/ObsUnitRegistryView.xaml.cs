@@ -1,12 +1,31 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Nora.Desktop.ViewModels;
 
 namespace Nora.Desktop.Views;
 public partial class ObsUnitRegistryView : UserControl
 {
-    public ObsUnitRegistryView() => InitializeComponent();
+    private readonly DispatcherTimer cepTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    public ObsUnitRegistryView()
+    {
+        InitializeComponent();
+        cepTimer.Tick += OnCepTimer;
+        Unloaded += (_, _) => cepTimer.Stop();
+    }
+    private void OnCepChanged(object sender, TextChangedEventArgs e)
+    {
+        cepTimer.Stop();
+        if (sender is TextBox { IsKeyboardFocusWithin: true } box && Services.BrazilianDataValidator.IsCompleteCep(box.Text)) cepTimer.Start();
+    }
+    private async void OnCepTimer(object? sender, EventArgs e)
+    {
+        cepTimer.Stop();
+        if (DataContext is not WorkspaceViewModel { ObsRegistryDraftOpen: true } vm || !Services.BrazilianDataValidator.IsCompleteCep(vm.ObsRegistryCep)) return;
+        if (!vm.CanOperate) { cepTimer.Start(); return; }
+        await vm.LookupObsRegistryCepAsync();
+    }
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadObsRegistryAsync(); }
     private async void OnLookupCep(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LookupObsRegistryCepAsync(); }
     private async void OnCreate(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.CreateObsRegistryAsync(); }

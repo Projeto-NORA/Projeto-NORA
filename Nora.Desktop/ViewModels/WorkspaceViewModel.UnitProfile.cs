@@ -83,8 +83,8 @@ public sealed partial class WorkspaceViewModel
     public string ProfileSpecialtiesText => !profileLoaded ? "" : ProfileSpecialties.Count == 0 ? "Nenhuma especialidade com horário na grade ainda." : string.Join(", ", ProfileSpecialties);
     public string ProfileSpecialtiesHint => "Vem da grade; para mudar, edite a grade.";
     public string ProfileState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver o atendimento ao público."
-        : profileFailed && !profileLoaded ? "Não foi possível ler o atendimento da UBS agora. Use Atualizar configurações para tentar de novo."
-        : profileFailed ? "A última leitura não concluiu; os dados são da leitura anterior. Use Atualizar configurações para tentar de novo."
+        : profileFailed && !profileLoaded ? "Não foi possível ler o atendimento da UBS agora. Use Atualizar informações da UBS para tentar de novo."
+        : profileFailed ? "A última leitura não concluiu; os dados são da leitura anterior. Use Atualizar informações da UBS para tentar de novo."
         : !profileLoaded ? "Lendo o atendimento da UBS…"
         : unitProfile is { Informed: false } ? "Ainda não informado. O aplicativo mostra \"Horário não informado\"." : "";
     public string ProfileUpdatedLabel => unitProfile is { UpdatedAt: { } at } ? $"Última alteração em {at.ToLocalTime():dd/MM/yyyy HH:mm}." : "";
@@ -139,7 +139,7 @@ public sealed partial class WorkspaceViewModel
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de salvar o atendimento ao público.");
         if (!IsAdministrator) throw new NoraApiException("Somente o administrador da UBS altera o atendimento ao público.");
-        if (!profileLoaded || profileFailed) throw new NoraApiException("Leia o atendimento da UBS (Atualizar configurações) antes de salvar, para não apagar o que já está gravado.");
+        if (!profileLoaded || profileFailed) throw new NoraApiException("Leia o atendimento da UBS (Atualizar informações da UBS) antes de salvar, para não apagar o que já está gravado.");
         EnsureOpeningDays();
         var intervals = new List<OpeningInterval>();
         var invalid = 0;

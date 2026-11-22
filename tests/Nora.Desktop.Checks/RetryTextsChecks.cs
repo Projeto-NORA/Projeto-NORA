@@ -38,9 +38,9 @@ internal static partial class Program
                 Require(vm.UnitAlertsState.StartsWith("Nenhum alerta.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria avaliar os alertas de novo: " + vm.UnitAlertsState);
                 // Profissionais, consultórios, grade e bloqueios das Configurações.
                 content = Show(window, "unit-settings", 1280, 5200);
-                Require(vm.ProfessionalsState == "Não foi possível ler os profissionais agora. Use Atualizar configurações para tentar de novo." && ButtonIn(content, "Atualizar configurações").IsEnabled, "A falha do catálogo deveria citar Atualizar configurações: " + vm.ProfessionalsState);
+                Require(vm.ProfessionalsState == "Não foi possível ler os profissionais agora. Use Atualizar informações da UBS para tentar de novo." && ButtonIn(content, "Atualizar informações da UBS").IsEnabled, "A falha do catálogo deveria citar a ação de atualização: " + vm.ProfessionalsState);
                 fixture.FailCatalogUnits.Clear();
-                Click(window, content, "Atualizar configurações", 1280, 5200);
+                Click(window, content, "Atualizar informações da UBS", 1280, 5200);
                 Require(vm.ProfessionalsState.StartsWith("Nenhum profissional cadastrado.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria ler o catálogo de novo: " + vm.ProfessionalsState);
             }
             finally { CloseWindow(window); }

@@ -205,8 +205,10 @@ public sealed partial class WorkspaceViewModel
     private void ApplyQueue(UnitWaitingEntry[] entries)
     {
         var selectedId = SelectedWaitingEntry?.Id;
+        var wasLoaded = unitQueueLoaded;
         var changed = Replace(UnitWaitingList, DecorateQueue(entries, DateTimeOffset.Now));
         unitQueueLoaded = true;
+        if (changed || !wasLoaded) NotifyQueueFilter();
         if (changed) SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId);
     }
 

@@ -37,7 +37,7 @@ Junto com o link, mande três informações: o endereço da API (`https://<sua-a
 3. **Primeira entrada:** em **Endereço da API**, digite `https://<sua-api>.onrender.com`, depois o CPF ou e-mail e a senha provisória. O sistema pede para trocar a senha no primeiro acesso.
 4. **Só no OBS — computador ativado:**
    - O **administrador** da UBS entra em qualquer computador.
-   - A **atendente** só entra num computador ativado: o administrador ativa em Configurações da UBS → Computadores, ou gera um código `XXXX-XXXX` que a atendente digita em "Código de ativação".
+   - A **atendente** só entra num computador ativado: o administrador ativa em Informações da UBS → Computadores, ou gera um código `XXXX-XXXX` que a atendente digita em "Código de ativação".
    - Depois de ativado, a opção "Manter conectado neste computador" fica disponível.
 5. **Dica para não digitar o endereço:** quem preferir pode definir a variável de ambiente do Windows `NORA_API_URL` com o endereço. O campo já vem preenchido.
 

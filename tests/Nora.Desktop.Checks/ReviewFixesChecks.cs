@@ -306,7 +306,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
-                var expander = Descendants<Expander>(content).Single(item => item.Header?.ToString() == "Agendar consulta"); expander.IsExpanded = true; content = Layout(window, 1280, 1600);
+                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
                 vm.BookingSpecialty = vm.BookingSpecialties.Single(item => item.Name == "Clínica geral");
                 vm.BookingProfessional = vm.BookingProfessionals.Single(item => item.FullName == "Dr. Bruno"); Settle(vm);
                 vm.BookingSlot = vm.BookingSlots[1]; vm.AppointmentPatient = vm.ObsRegistry.Single(); content = Layout(window, 1280, 1600);

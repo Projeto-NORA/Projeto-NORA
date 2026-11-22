@@ -40,7 +40,7 @@
           <CheckBox x:Name="KeepSignedInBox" Content="Manter conectado neste computador" IsChecked="{Binding KeepSignedIn, Mode=TwoWay}" IsEnabled="{Binding DeviceActivated}" Margin="0,0,0,14" AutomationProperties.Name="Manter conectado neste computador" ToolTip="Disponível só em computador ativado. A sessão fica guardada com a proteção do seu usuário do Windows." ToolTipService.ShowOnDisabled="True" />
           <StackPanel Visibility="{Binding ShowActivation, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8">
             <TextBlock Text="Código de ativação" />
-            <TextBox x:Name="ActivationInput" Text="{Binding ActivationCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="12" CharacterCasing="Upper" AutomationProperties.Name="Código de ativação do computador" ToolTip="O administrador da UBS gera o código em Configurações da UBS, Computadores. Vale 15 minutos e uma única vez." KeyDown="OnActivationKeyDown" />
+            <TextBox x:Name="ActivationInput" Text="{Binding ActivationCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="12" CharacterCasing="Upper" AutomationProperties.Name="Código de ativação do computador" ToolTip="O administrador da UBS gera o código em Informações da UBS, Computadores. Vale 15 minutos e uma única vez." KeyDown="OnActivationKeyDown" />
             <Button Content="Ativar com código" Click="OnActivate" IsEnabled="{Binding CanActivateWithCode}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Ativa este computador para a UBS do código." ToolTipService.ShowOnDisabled="True" />
           </StackPanel>
         </StackPanel>

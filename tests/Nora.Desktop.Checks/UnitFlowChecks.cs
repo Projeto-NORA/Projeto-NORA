@@ -164,6 +164,27 @@ internal static partial class Program
 
     private static void RunUnitFlowChecks(Application application, string storageRoot, string[] args)
     {
+        Check("OBS Pacientes: CEP digitado consulta e preenche o endereço automaticamente", () =>
+        {
+            using var fixture = new ApiFixture();
+            fixture.AddUnit("UBS CEP");
+            var window = OpenOperational(fixture, storageRoot, "automatic-cep");
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "patients", 1280, 1400);
+                Click(window, content, "+ Novo cadastro", 1280, 1400);
+                content = Layout(window, 1280, 1400);
+                var cep = Input(content, "CEP no cadastro da UBS");
+                cep.Focus();
+                Require(cep.IsKeyboardFocusWithin, "Campo de CEP não recebeu foco.");
+                cep.Text = "01001-000";
+                PumpUntil(() => fixture.CepLookups == 1 && !vm.IsBusy && vm.ObsRegistryCity == "São Paulo");
+                Require(vm.ObsRegistryStreet == "Praça da Sé" && vm.ObsRegistryState == "SP", "CEP não completou o endereço esperado.");
+                Require(fixture.CepLookups == 1, "CEP gerou consultas duplicadas.");
+            }
+            finally { window.ViewModel.ConfirmClose = false; window.Close(); }
+        });
         Check("OBS: cadastro de referência, fila, agenda e vaga pelo fluxo por UBS", () =>
         {
             using var fixture = new ApiFixture();
