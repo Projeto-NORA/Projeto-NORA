@@ -103,7 +103,7 @@ internal fun OpenDependentOfferSummary(ref: DependentOfferRef, now: State<Long>,
 
 @Composable
 internal fun HistoryToggle(count: Int, open: Boolean, onToggle: () -> Unit) {
-    TextButton(onClick = onToggle, modifier = Modifier.fillMaxWidth().semantics { stateDescription = if (open) "Expandido" else "Recolhido" }) {
+    TextButton(onClick = onToggle, modifier = Modifier.semantics { stateDescription = if (open) "Expandido" else "Recolhido" }) {
         Text("Histórico ($count) · ${if (open) "Ocultar" else "Mostrar"}", fontWeight = FontWeight.SemiBold)
     }
 }

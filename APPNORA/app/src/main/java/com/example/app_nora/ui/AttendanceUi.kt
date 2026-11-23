@@ -6,6 +6,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +38,7 @@ internal fun attendancePriorityText(name: String?, severalUnits: Boolean = false
 internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
     val summary = remember(patient.units, patient.unitData) { summarizeAttendance(patient.units, patient.unitData) }
     var detailOpen by rememberSaveable { mutableStateOf(false) }
+    var explanationOpen by rememberSaveable { mutableStateOf(false) }
     val units = patient.units
     val name = patient.actingLink()?.let(::dependentDisplayName)
     val participation = if (name == null) "sua participação" else "a participação de $name"
@@ -68,9 +72,14 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
                 }
             }
         }
-        MutedText(ATTENDANCE_BANDS)
-        MutedText(ATTENDANCE_EXPLANATION)
-        MutedText(attendancePriorityText(name, (units?.size ?: 0) > 1))
+        TextButton(onClick = { explanationOpen = !explanationOpen }) {
+            Text(if (explanationOpen) "Ocultar como funciona" else "Como funciona o score?")
+        }
+        if (explanationOpen) {
+            MutedText(ATTENDANCE_BANDS)
+            MutedText(ATTENDANCE_EXPLANATION)
+            MutedText(attendancePriorityText(name, (units?.size ?: 0) > 1))
+        }
         if (patient.session != null && units != null) OutlinedButton(onClick = onRefresh, enabled = !patient.attendanceLoading,
             modifier = Modifier.fillMaxWidth()) {
             Text(if (patient.attendanceLoading) "Atualizando…" else "Atualizar participação")
@@ -80,8 +89,14 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
 
 /** Cor da faixa; o rótulo escrito sempre acompanha, então a cor nunca é a única informação. */
 @Composable
-private fun bandColor(band: AttendanceBand) =
-    if (band == AttendanceBand.LOW) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+internal fun bandColor(band: AttendanceBand): Color {
+    val dark = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() < .5f
+    return when (band) {
+        AttendanceBand.LOW -> if (dark) Color(0xFFFF8A80) else Color(0xFFB3261E)
+        AttendanceBand.REGULAR -> if (dark) Color(0xFFFFD166) else Color(0xFF815600)
+        AttendanceBand.GOOD, AttendanceBand.EXCELLENT -> if (dark) Color(0xFF7BDBA7) else Color(0xFF147346)
+    }
+}
 
 /**
  * Número do score em destaque, com "de 1000" e a faixa por extenso. Sem histórico mostra "1000 · sem consultas encerradas

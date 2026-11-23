@@ -1,5 +1,11 @@
 package com.example.app_nora.ui
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,8 +27,9 @@ internal fun QueueEntries(queue: List<UnitQueueEntry>, busy: Boolean = false, on
     if (groups.active.isEmpty()) MutedText("Nenhuma solicitação ativa nesta UBS.")
     groups.active.forEach { entry ->
         QueueRow(entry)
-        if (onLeave != null) TextButton(onClick = { leaving = entry }, enabled = !busy) {
-            Text("Sair da fila", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+        if (onLeave != null) OutlinedButton(onClick = { leaving = entry }, enabled = !busy,
+            shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+            Text("Sair da fila", fontWeight = FontWeight.SemiBold)
         }
     }
     if (groups.history.isNotEmpty()) {
@@ -37,8 +44,9 @@ internal fun QueueEntries(queue: List<UnitQueueEntry>, busy: Boolean = false, on
 @Composable
 private fun QueueRow(entry: UnitQueueEntry) {
     Text(entry.specialty, fontWeight = FontWeight.SemiBold)
-    Text(statusLabel(entry.status), fontWeight = FontWeight.SemiBold)
-    MutedText("Registrada em ${formatDateTime(entry.enteredAt)}")
+    Text(statusLabel(entry.status), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.primary)
+    MutedText("Desde ${formatDateTime(entry.enteredAt)}")
 }
 
 /** Confirmação de saída da fila: diz o efeito antes de agir; o botão destrutivo nunca é o padrão. */

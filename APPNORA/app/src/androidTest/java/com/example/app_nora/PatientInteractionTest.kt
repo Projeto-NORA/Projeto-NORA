@@ -88,7 +88,7 @@ class PatientInteractionTest {
                 onLinkUnits = { submitted = it; UnitLinkResult(listOf("one"), listOf("two")) })
         }
         compose.onNodeWithText("UBS próximas").performScrollTo().performClick()
-        compose.onNodeWithText("Vincular outra UBS").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Vincular outra UBS").performScrollTo().performClick()
         compose.onNodeWithText("UBS Centro · Centro").performClick()
         compose.onNodeWithText("UBS Norte · Norte").performClick()
         compose.onNodeWithText("Conferir e vincular").performClick()

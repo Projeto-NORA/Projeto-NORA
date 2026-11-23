@@ -8,10 +8,9 @@
       <StackPanel>
         <DockPanel>
           <TextBlock DockPanel.Dock="Right" Text="{Binding NetworkAlertsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock Text="Filtros dos alertas" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="⌕  Filtros dos alertas" Foreground="{DynamicResource AccentTextBrush}" ToolTip="Cada escolha avalia os alertas novamente." FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
         </DockPanel>
-        <TextBlock Text="Cada escolha avalia os alertas de novo, uma vez." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
-        <WrapPanel IsEnabled="{Binding CanFilterAlerts}">
+        <WrapPanel Margin="0,12,0,0" IsEnabled="{Binding CanFilterAlerts}">
           <StackPanel Width="230" Margin="0,0,12,0"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
             <ComboBox Margin="0,6,0,0" ItemsSource="{Binding UnitFilterOptions}" DisplayMemberPath="SelectorLabel" SelectedValuePath="Id" SelectedValue="{Binding AlertsUnitFilter}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar alertas por UBS" /></StackPanel>
           <StackPanel Width="230" Margin="0,0,12,0"><TextBlock Text="Região" FontWeight="SemiBold" FontSize="12" />
@@ -21,8 +20,8 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Alertas da rede">
       <StackPanel>
-        <DockPanel><Button DockPanel.Dock="Right" Content="Atualizar alertas" Click="OnRefresh" IsEnabled="{Binding CanOperate}" ToolTip="Avalia os alertas da rede de novo, com os filtros escolhidos." /><TextBlock Text="Alertas da rede" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
-        <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap" Text="Fila alta numa especialidade, espera longa, taxa de faltas e ocupação da grade acima do limite, e metas fora, por UBS. Os limites vêm da configuração da API. Nenhum dado pessoal aparece." />
+        <DockPanel><Button DockPanel.Dock="Right" Content="Atualizar alertas" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar alertas" ToolTip="Avalia os alertas da rede de novo, com os filtros escolhidos." Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Alertas da rede" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="Fila alta numa especialidade, espera longa, taxa de faltas e ocupação da grade acima do limite, e metas fora, por UBS. Os limites vêm da configuração da API. Nenhum dado pessoal aparece." /></DockPanel>
+
         <DataGrid ItemsSource="{Binding NetworkAlerts}" CanUserSortColumns="True" MaxHeight="420" MinHeight="64" AutomationProperties.Name="Alertas da rede">
           <DataGrid.Columns>
             <DataGridTextColumn Header="UBS" Binding="{Binding UnitName}" Width="1.2*" MinWidth="140" ElementStyle="{StaticResource CellText}" />

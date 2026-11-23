@@ -1,9 +1,8 @@
 <UserControl x:Class="Nora.Desktop.Views.LightningFiltersView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
   <Border Style="{StaticResource Card}" Margin="0,0,0,20">
     <StackPanel>
-      <TextBlock Text="Filtros das vagas" FontSize="16" FontWeight="SemiBold" />
-      <TextBlock Text="O período considera a criação da vaga; os estados são os atuais. A UBS é aplicada na hora. Região e especialidade não se aplicam às vagas." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
-      <WrapPanel>
+      <TextBlock Text="⌕  Filtros das vagas" Foreground="{DynamicResource AccentTextBrush}" ToolTip="O período considera a criação da vaga; os estados são os atuais. Região e especialidade não se aplicam às vagas." FontSize="18" FontWeight="Bold" />
+      <WrapPanel Margin="0,12,0,0">
         <StackPanel Width="210" Margin="0,0,12,10"><TextBlock Text="Período da vaga" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{x:Static vm:WorkspaceViewModel.LightningPeriodOptions}" DisplayMemberPath="Label" SelectedValuePath="Days" SelectedValue="{Binding LightningPeriodDays}" IsSynchronizedWithCurrentItem="False" IsEnabled="{Binding CanFilterLightning}" AutomationProperties.Name="Período das vagas" ToolTip="Selecione pela data de criação da vaga." /></StackPanel>
         <StackPanel Width="210" Margin="0,0,12,10"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />

@@ -301,7 +301,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Resumo, UBS e indicadores da rede em paralelo; cada parte se aplica assim que chega, mesmo que outra falhe.</summary>
-    private Task LoadMunicipalAsync() => Task.WhenAll(LoadSummaryAsync(), LoadUnitsCoreAsync(), LoadMetricsAsync(networkVersion));
+    private Task LoadMunicipalAsync() => Task.WhenAll(LoadSummaryAsync(), LoadUnitsCoreAsync(), LoadMetricsAsync(networkVersion), RefreshNetworkAlertBadgeIfDueAsync());
 
     /// <summary>Resumo da rede com o filtro de UBS atual. Sem mudança de conteúdo nada é recalculado, só o horário da leitura.</summary>
     private async Task LoadSummaryAsync(int version = -1, CancellationToken cancellation = default)
@@ -324,7 +324,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         if (IsMunicipal)
         {
             var version = networkVersion;
-            await Task.WhenAll(LoadSummaryAsync(version), NetworkSections.Contains(Section) ? LoadMetricsAsync(version) : Task.CompletedTask, Section == "units" || !UnitsLoaded ? LoadUnitsCoreAsync() : Task.CompletedTask, LoadMunicipalSectionExtrasAsync(manual));
+            await Task.WhenAll(LoadSummaryAsync(version), NetworkSections.Contains(Section) ? LoadMetricsAsync(version) : Task.CompletedTask, Section == "units" || !UnitsLoaded ? LoadUnitsCoreAsync() : Task.CompletedTask, LoadMunicipalSectionExtrasAsync(manual),
+                Section != "alerts" || AlertsUnitFilter != Guid.Empty || AlertsRegion.Length != 0 ? RefreshNetworkAlertBadgeIfDueAsync() : Task.CompletedTask);
             return;
         }
         // Comunicados são da conta (não da UBS): uma chamada incremental por ciclo, em paralelo com a leitura da UBS; a falha dela não derruba o resto.
@@ -425,6 +426,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Secretaria: as contas e o histórico carregam ao abrir Usuários e histórico; os indicadores só se ainda não vieram.</summary>
     private void EnterMunicipalSection()
     {
+        if (Section == "alerts") MarkNetworkAlertsViewed();
         if (Section == "users" && (!staffLoaded || !historyLoaded))
             StartBackground(async () =>
             {

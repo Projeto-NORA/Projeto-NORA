@@ -96,3 +96,12 @@ fun flashOpenDecision(unitId: String, dependentId: String?, state: PatientState)
 
 /** "Remover UBS" é uma ação do próprio responsável sobre o vínculo dele: só aparece com sessão, uma UBS selecionada e agindo por si. */
 fun canRemoveUnit(state: PatientState, selected: PatientHealthUnit?): Boolean = state.session != null && selected != null && state.actingFor == null
+
+/** Confere a pessoa, a UBS e o prazo antes de oferecer confirmação de uma ação da notificação. */
+fun notificationDecisionOffer(state: PatientState, offerId: String?, unitId: String?, dependentId: String?, now: Long): UnitOffer? {
+    if (state.session == null || state.busy || offerId == null || unitId == null || state.actingFor != dependentId) return null
+    if (dependentId != null && state.actingLink() == null) return null
+    val view = state.effective()
+    if (view.selectedUnitId != unitId) return null
+    return view.unitOffers?.firstOrNull { it.id == offerId && it.isOpenAt(now) }
+}

@@ -17,8 +17,8 @@
     <ItemsControl ItemsSource="{Binding NetworkCapacityCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0,-6,6" AutomationProperties.Name="Capacidade da rede no período" />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Capacidade por UBS">
       <StackPanel>
-        <TextBlock Text="Capacidade por UBS" FontSize="19" FontWeight="SemiBold" />
-        <TextBlock Text="Ofertados: atendimentos da grade com início no período, menos os bloqueados. Ocupados: os que têm consulta marcada. Ocupação = ocupados ÷ ofertados; sem horários ofertados aparece —. A barra acompanha a ocupação; o valor escrito é a informação." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap" />
+        <TextBlock Text="Capacidade por UBS" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,12" ToolTip="Ofertados: atendimentos da grade com início no período, menos os bloqueados. Ocupados: os que têm consulta marcada. Ocupação = ocupados ÷ ofertados; sem horários ofertados aparece —. A barra acompanha a ocupação; o valor escrito é a informação." />
+
         <DataGrid ItemsSource="{Binding CapacityByUnit}" CanUserSortColumns="True" MaxHeight="340" MinHeight="64" AutomationProperties.Name="Capacidade por UBS">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Unidade" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
@@ -33,8 +33,8 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Capacidade por região">
       <StackPanel>
-        <TextBlock Text="Capacidade por região" FontSize="19" FontWeight="SemiBold" />
-        <TextBlock Text="Regiões agrupadas sem diferenciar maiúsculas, com os mesmos filtros." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
+        <TextBlock Text="Capacidade por região" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,12" ToolTip="Regiões agrupadas sem diferenciar maiúsculas, com os mesmos filtros." />
+
         <DataGrid ItemsSource="{Binding CapacityByRegion}" CanUserSortColumns="True" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Capacidade por região">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Região" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
@@ -47,8 +47,8 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Cadastro de uma UBS">
       <StackPanel>
-        <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding CapacityCatalogLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" /><TextBlock Text="Cadastro de uma UBS (somente leitura)" FontSize="19" FontWeight="SemiBold" /></DockPanel>
-        <TextBlock Text="Profissionais, consultórios e grade semanal de uma UBS. Só o administrador da própria UBS altera esses dados; a Secretaria consulta." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap" />
+        <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding CapacityCatalogLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" /><TextBlock Text="Cadastro de uma UBS (somente leitura)" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,12" ToolTip="Profissionais, consultórios e grade semanal de uma UBS. Só o administrador da própria UBS altera esses dados; a Secretaria consulta." /></DockPanel>
+
         <WrapPanel><StackPanel Width="320" Margin="0,0,12,0"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,12" ItemsSource="{Binding Units}" DisplayMemberPath="SelectorLabel" SelectedItem="{Binding CapacityUnit}" AutomationProperties.Name="UBS do cadastro em leitura" /></StackPanel>
           <Button Content="Ler o cadastro de novo" Click="OnRetryCatalog" IsEnabled="{Binding CanReloadCapacityCatalog}" VerticalAlignment="Bottom" Margin="0,0,0,12" ToolTip="Lê de novo os profissionais, os consultórios e a grade da UBS escolhida." /></WrapPanel>

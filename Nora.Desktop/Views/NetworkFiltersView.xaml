@@ -3,19 +3,18 @@
     <StackPanel>
       <DockPanel>
         <TextBlock DockPanel.Dock="Right" Text="{Binding MetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-        <TextBlock Text="Filtros da rede" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" ToolTip="Cada escolha é aplicada na hora aos números desta tela."><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,10,0" /><TextBlock Text="Filtros da rede" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" /></StackPanel>
       </DockPanel>
-      <TextBlock Text="Cada escolha é aplicada na hora aos números desta tela." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
-      <WrapPanel IsEnabled="{Binding CanFilterNetwork}">
-        <StackPanel Width="190" Margin="0,0,12,10"><TextBlock Text="Período" FontWeight="SemiBold" FontSize="12" />
+      <UniformGrid Columns="4" Margin="0,14,0,0" IsEnabled="{Binding CanFilterNetwork}">
+        <StackPanel Margin="0,0,12,10"><TextBlock Text="Período" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{x:Static vm:WorkspaceViewModel.PeriodOptions}" DisplayMemberPath="Label" SelectedValuePath="Days" SelectedValue="{Binding MetricsPeriodDays}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Período dos indicadores" /></StackPanel>
-        <StackPanel Width="190" Margin="0,0,12,10"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
+        <StackPanel Margin="0,0,12,10"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{Binding UnitFilterOptions}" DisplayMemberPath="SelectorLabel" SelectedValuePath="Id" SelectedValue="{Binding SummaryUnitFilter}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar por UBS" /></StackPanel>
-        <StackPanel Width="190" Margin="0,0,12,10"><TextBlock Text="Região" FontWeight="SemiBold" FontSize="12" />
+        <StackPanel Margin="0,0,12,10"><TextBlock Text="Região" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{Binding RegionOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding MetricsRegion}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar por região" /></StackPanel>
-        <StackPanel Width="190" Margin="0,0,12,10"><TextBlock Text="Especialidade" FontWeight="SemiBold" FontSize="12" />
+        <StackPanel Margin="0,0,12,10"><TextBlock Text="Especialidade" FontWeight="SemiBold" FontSize="12" />
           <ComboBox Margin="0,6,0,0" ItemsSource="{Binding SpecialtyOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding MetricsSpecialty}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar por especialidade" /></StackPanel>
-      </WrapPanel>
+      </UniformGrid>
       <StackPanel Visibility="{Binding IsCustomPeriod, Converter={StaticResource BoolVisibility}}" Margin="0,4,0,0">
         <WrapPanel IsEnabled="{Binding CanFilterNetwork}">
           <StackPanel Width="150" Margin="0,0,12,8"><TextBlock Text="De (dd/mm/aaaa)" FontWeight="SemiBold" FontSize="12" /><TextBox Text="{Binding MetricsFromText, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" AutomationProperties.Name="Data inicial do período" /></StackPanel>

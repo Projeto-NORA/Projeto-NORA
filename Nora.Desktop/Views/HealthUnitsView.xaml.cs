@@ -8,6 +8,6 @@ public partial class HealthUnitsView : UserControl
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadUnitsAsync(); }
     private async void OnSave(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.SaveUnitAsync(); }
     private async void OnProvision(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.ProvisionSelectedUnitDatabaseAsync(); }
-    private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.NewUnitDraft(); }
-    private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.EditSelectedUnit(); }
+    private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.NewUnitDraft(); UnitForm.BringIntoView(); }
+    private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.EditSelectedUnit(); UnitForm.BringIntoView(); }
 }

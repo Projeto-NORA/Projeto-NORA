@@ -23,15 +23,13 @@ fun JourneyScreen(patient: PatientState, onOpenAppointments: () -> Unit, onRefre
     onLeaveQueue: (Long) -> Unit, onLoadRecords: () -> Unit = {}, initialSection: JourneySection = JourneySection.APPOINTMENTS) {
     val link = patient.actingLink()
     ScreenTitle(if (link == null) "Sua Jornada" else "Jornada de ${dependentDisplayName(link)}", "Acompanhe os cuidados e os próximos passos.")
+    AttendanceCard(patient, onRefreshAttendance)
     var section by rememberSaveable { mutableStateOf(initialSection) }
     SectionCard("Consultas, exames e vacinas", "Registrados pela equipe das UBS") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             JourneySection.entries.forEach { item ->
                 FilterChip(selected = section == item, onClick = { section = item }, label = { Text(item.label, maxLines = 1) },
-                    modifier = Modifier.weight(1f),
-                    leadingIcon = if (section == item) {
-                        { Icon(Icons.Default.Check, contentDescription = null, Modifier.size(FilterChipDefaults.IconSize)) }
-                    } else null)
+                    modifier = Modifier.weight(1f))
             }
         }
         when (section) {
@@ -43,7 +41,6 @@ fun JourneyScreen(patient: PatientState, onOpenAppointments: () -> Unit, onRefre
             JourneySection.VACCINES -> RecordsList(patient, onLoadRecords, vaccines = true)
         }
     }
-    AttendanceCard(patient, onRefreshAttendance)
     ActionMessage(patient.message)
     patient.unitQueue?.let { queue ->
         if (queue.isNotEmpty()) SectionCard("Solicitações de atendimento", "Status informado pela unidade selecionada") {

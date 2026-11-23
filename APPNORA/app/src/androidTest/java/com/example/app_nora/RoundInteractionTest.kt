@@ -77,11 +77,11 @@ class RoundInteractionTest {
 
     @Test fun removeUnitShowsActingForYourselfAndHidesWhenActingForADependent() {
         openUnits(connected())
-        compose.onNodeWithText("Remover esta UBS").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("Remover esta UBS").performScrollTo().assertExists()
         // Agindo por Maria (a tela de teste não volta a agir por si sozinha): o botão some.
         compose.runOnIdle { state = connected(actingFor = maria.id) }
-        compose.onNodeWithText("Remover esta UBS").assertDoesNotExist()
-        compose.onNodeWithText("Atualizar unidades").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("Remover esta UBS").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Atualizar unidades").performScrollTo().assertExists()
     }
 
     // ---- Google ---------------------------------------------------------------------------------------------

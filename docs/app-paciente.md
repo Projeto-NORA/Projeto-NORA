@@ -1,5 +1,22 @@
 # App do paciente
 
+## Revisão visual do aplicativo — 22/11/2026
+
+O app usa a logo fornecida na abertura, com pulsação, e o símbolo no início e na entrada. As imagens têm fundo transparente e, no tema escuro, um filtro torna claras as áreas azuis da marca e mantém os detalhes distinguíveis; as [prévias dos dois temas](galeria/ajuste-marca-2026-11-22/index.html) mostram abertura, entrada e início. Títulos e cartões foram simplificados para dar prioridade às ações; Configurações usa símbolos para os temas claro, escuro e do sistema. A autoria permanece no fim das telas, em texto menor. As escolhas de navegação e hierarquia seguem as referências de [organização do aplicativo Nubank](https://building.nu.com/how-we-created-tabs/) e [navegação inferior Material](https://m1.material.io/components/bottom-navigation.html).
+
+O cartão da próxima consulta no Início dispensa o rótulo “Sua agenda” e destaca a data e o intervalo de horário; as ações se acomodam em outra linha quando a fonte ampliada não deixa espaço. As [prévias da próxima consulta](galeria/proxima-consulta-2026-11-22/index.html) incluem os dois temas.
+
+Os botões de atualização de Consultas e as ações de UBS ficam agrupados horizontalmente, com quebra quando o espaço não comporta todos; Atualizar, Vincular e Remover mantêm descrições completas para acessibilidade. O acompanhamento do Início também agrupa suas ações. As [prévias dos botões](galeria/botoes-2026-11-22/index.html) incluem fonte ampliada.
+
+A Jornada coloca o score antes dos registros; baixo é vermelho, regular amarelo e bom/excelente verde. Os detalhes do cálculo ficam acessíveis sob demanda. Um indicador discreto no topo das telas autenticadas apresenta o score carregado da visão atual; enquanto não houver resposta das UBS, mostra traço em vez de inventar um valor e acrescenta asterisco se alguma UBS não respondeu ou ainda está pendente. A aba Avisos mostra a contagem de comunicados não lidos e vagas abertas recebidos desde a última visita, separada da marcação individual de leitura, e guarda os avisos vistos por conta no aparelho.
+
+A notificação local de Vaga Relâmpago apresenta contagem regressiva e as ações “Aceitar”, “Recusar” e “Saiba mais” enquanto a conexão ativa estiver funcionando. Aceitar e recusar abrem o aplicativo e pedem confirmação depois de conferir a oferta e a UBS; o resultado depende da resposta do servidor. O recebimento com o processo encerrado depende de push FCM configurado; o projeto não contém as credenciais Firebase, e o push do servidor ainda não traz essas ações. O login mantém o identificador e limpa a senha no envio; a API devolve mensagem genérica para credenciais inválidas, portanto o app não consegue distinguir de forma confiável senha incorreta de identificador incorreto.
+
+A [galeria da revisão visual](galeria/app-paciente-revisao-2026-11-22/index.html) reúne 59 prévias com dados fictícios, incluindo tela inicial, score e indicador de Avisos. O mapa da UBS foi substituído por aviso em uma prévia porque o renderizador não abre o mapa. A compilação de depuração e 298 testes locais passaram em cópia isolada do projeto; não houve teste em aparelho nem validação de entrega real de push. A execução de lint foi interrompida antes de concluir.
+
+
+O crédito de autoria aparece ao final do conteúdo das telas do aplicativo, inclusive Configurações.
+
 ## Estado atual — 2026-11-16
 
 Esta seção descreve o APPNORA como está no código depois da Fase 3 do app (agendamento, confirmação de presença, comunicados, exames e vacinas, Família e e-mail da conta). Onde as seções seguintes divergirem, vale esta.

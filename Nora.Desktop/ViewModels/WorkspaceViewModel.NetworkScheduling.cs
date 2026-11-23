@@ -262,6 +262,48 @@ public sealed partial class WorkspaceViewModel
 
     // ---- Alertas da rede ----
 
+    // O aviso do menu cobre toda a rede, independentemente dos filtros da tabela.
+    private readonly HashSet<(Guid Unit, string Kind, string Specialty, string Metric)> networkActiveAlertKeys = [];
+    private readonly HashSet<(Guid Unit, string Kind, string Specialty, string Metric)> networkViewedAlertKeys = [];
+    private DateTimeOffset? networkBadgeAttemptedAt;
+    private int networkBadgeGeneration, networkBadgeRequestVersion, networkAlertVisit;
+
+    private void MarkNetworkAlertsViewed()
+    {
+        networkAlertVisit++;
+        networkViewedAlertKeys.UnionWith(networkActiveAlertKeys);
+        AlertBadgeCount = 0;
+    }
+
+    private void ApplyNetworkAlertBadge(AlertItem[] alerts, int visitAtStart)
+    {
+        networkActiveAlertKeys.Clear();
+        foreach (var alert in alerts)
+            networkActiveAlertKeys.Add((alert.UnitId, alert.Kind, (alert.Specialty ?? "").Trim().ToUpperInvariant(), alert.Metric ?? ""));
+        networkViewedAlertKeys.IntersectWith(networkActiveAlertKeys);
+        // Uma avaliação iniciada antes da visita não deve recriar o aviso ao retornar.
+        if (Section == "alerts" || visitAtStart != networkAlertVisit) networkViewedAlertKeys.UnionWith(networkActiveAlertKeys);
+        AlertBadgeCount = networkActiveAlertKeys.Count(key => !networkViewedAlertKeys.Contains(key));
+    }
+
+    private async Task RefreshNetworkAlertBadgeIfDueAsync()
+    {
+        if (!IsAuthenticated || !IsMunicipal || (networkBadgeAttemptedAt is { } last && DateTimeOffset.Now - last < AlertsRefreshAge)) return;
+        networkBadgeAttemptedAt = DateTimeOffset.Now;
+        var generation = networkBadgeGeneration;
+        var version = ++networkBadgeRequestVersion;
+        var visit = networkAlertVisit;
+        try
+        {
+            var alerts = await api.NetworkAlertsAsync(null, "");
+            if (!disposed && IsAuthenticated && generation == networkBadgeGeneration && version == networkBadgeRequestVersion) ApplyNetworkAlertBadge(alerts, visit);
+        }
+        catch (NoraApiException)
+        {
+            // A leitura independente não impede o acesso nem apaga o último aviso conhecido.
+        }
+    }
+
     private Guid alertsUnitFilter = Guid.Empty;
     private string alertsRegion = "";
     private bool networkAlertsLoaded, networkAlertsFailed;
@@ -292,13 +334,21 @@ public sealed partial class WorkspaceViewModel
     private async Task LoadNetworkAlertsCoreAsync(CancellationToken cancellation = default)
     {
         networkAlertsAttemptedAt = DateTimeOffset.Now;
+        var badgeVisit = networkAlertVisit;
+        var badgeGeneration = networkBadgeGeneration;
         var request = (Unit: alertsUnitFilter == Guid.Empty ? (Guid?)null : alertsUnitFilter, Region: alertsRegion);
+        var badgeVersion = request.Unit is null && string.IsNullOrWhiteSpace(request.Region) ? ++networkBadgeRequestVersion : networkBadgeRequestVersion;
         AlertItem[] alerts;
         // Falha de leitura nunca vira "nenhum alerta": o estado de falha fica registrado mesmo quando a leitura vem do botão Atualizar dados.
         try { alerts = await api.NetworkAlertsAsync(request.Unit, request.Region, cancellation); }
         catch (NoraApiException) { networkAlertsFailed = true; NotifyNetworkAlerts(); throw; }
         if (disposed || !IsAuthenticated || cancellation.IsCancellationRequested || request.Unit != (alertsUnitFilter == Guid.Empty ? (Guid?)null : alertsUnitFilter) || request.Region != alertsRegion) return;
         networkAlertsFailed = false; networkAlertsLoaded = true; networkAlertsReadAt = DateTimeOffset.Now;
+        if (request.Unit is null && string.IsNullOrWhiteSpace(request.Region) && badgeGeneration == networkBadgeGeneration && badgeVersion == networkBadgeRequestVersion)
+        {
+            networkBadgeAttemptedAt = DateTimeOffset.Now;
+            ApplyNetworkAlertBadge(alerts, badgeVisit);
+        }
         // Mesmo filtro da API (AlertService.ReadNetworkAsync): UBS escolhida e região sem diferenciar maiúsculas; só "ready" é avaliada.
         var region = request.Region.Trim(); networkAlertsEvaluatedUnits = networkAlertsSkippedUnits = 0;
         foreach (var unit in Units)
@@ -364,6 +414,8 @@ public sealed partial class WorkspaceViewModel
     {
         Interlocked.Exchange(ref networkAlertsCts, null)?.Cancel();
         networkAlertsVersion++; networkAlertsLoaded = networkAlertsFailed = false; networkAlertsAttemptedAt = networkAlertsReadAt = null; alertsUnitFilter = Guid.Empty; alertsRegion = "";
+        networkBadgeGeneration++; networkAlertVisit = 0; networkBadgeAttemptedAt = null;
+        networkActiveAlertKeys.Clear(); networkViewedAlertKeys.Clear(); AlertBadgeCount = 0;
         NetworkAlerts.Clear(); Notify(nameof(AlertsUnitFilter)); Notify(nameof(AlertsRegion)); NotifyNetworkAlerts();
     }
 

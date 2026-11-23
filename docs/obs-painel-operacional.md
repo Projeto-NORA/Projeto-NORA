@@ -1,5 +1,7 @@
 # Painel operacional da UBS
 
+O crédito de autoria aparece ao final do conteúdo das abas do desktop, no OBS e no Painel Municipal.
+
 ## Estado atual — 2026-11-21
 
 Esta seção descreve o OBS como está no código depois da Fase 3 (catálogo de profissionais, grade, capacidade, metas, alertas, comunicados, Jornada e Família). As seções seguintes mantêm o texto de etapas anteriores; onde divergem, vale esta. Todo o OBS opera sobre uma UBS por vez, pelas rotas por UBS; o fluxo global anterior foi removido do cliente.

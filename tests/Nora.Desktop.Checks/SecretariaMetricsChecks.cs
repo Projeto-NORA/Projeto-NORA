@@ -91,7 +91,7 @@ internal static partial class Program
             }
             finally { foreach (var held in fixture.HeldMetrics) held.TrySetResult(true); fixture.HoldMetrics = false; CloseWindow(window); }
         });
-        Check("Secretaria: Visão geral mostra os indicadores do período, o score com explicação, o gráfico e a tabela equivalente com os mesmos valores", () =>
+        Check("Secretaria: Indicadores mostra os resultados do período, o score, o gráfico e a tabela; Visão geral mantém os totais atuais", () =>
         {
             using var fixture = new ApiFixture();
             fixture.AddUnit("UBS Alfa", "Centro"); fixture.AddUnit("UBS Beta", "Sul");
@@ -100,11 +100,13 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "home", 1280, 1900);
+                Require(!Descendants<EvolutionChartView>(content).Any() && !HasText(content, "Consultas concluídas"), "Visão geral não deveria repetir a análise de Indicadores.");
+                content = Show(window, "indicators", 1280, 1900);
                 Require(Card(vm, "Consultas concluídas").Value == "30" && Card(vm, "Faltas").Value == "6" && Card(vm, "Cancelamentos").Value == "3" && Card(vm, "Cancelamentos").Hint == "1 feito pelo paciente", "Cartões de consultas incorretos.");
                 Require(Card(vm, "Comparecimento").Value == "82,2%", "Score deveria ter uma casa decimal em pt-BR: " + Card(vm, "Comparecimento").Value);
                 Require(Card(vm, "Espera média da fila").Value == "2 h 15 min" && Card(vm, "Maior espera atual").Value == "1 d 1 h", "Esperas não ficaram legíveis: " + Card(vm, "Espera média da fila").Value + " / " + Card(vm, "Maior espera atual").Value);
                 foreach (var card in vm.OverviewCards) Require(HasText(content, card.Title) && HasText(content, card.Value), "Cartão não renderizado: " + card.Title);
-                Require(VisibleTexts(content).Any(text => text.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)) && Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Saiba mais sobre o comparecimento"), "A explicação do score ou o 'saiba mais' não aparece.");
+                Require(Descendants<TextBlock>(content).Any(text => text.ToolTip is string tip && tip.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)) && Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Saiba mais sobre o comparecimento"), "A explicação do score ou o 'saiba mais' não aparece.");
                 // Gráfico e tabela: mesmos números.
                 var days = vm.ChartDays; Require(days.Count == 30, "A série deveria cobrir os 30 dias do período: " + days.Count);
                 var chart = Descendants<EvolutionChartView>(content).First();

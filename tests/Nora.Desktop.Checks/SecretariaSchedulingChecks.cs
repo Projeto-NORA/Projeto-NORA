@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -106,6 +107,39 @@ internal static partial class Program
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });
+        Check("Secretaria Alertas: contador da rede surge no login, some ao abrir e volta só com novidade, independente dos filtros", () =>
+        {
+            using var fixture = new ApiFixture();
+            var alfa = fixture.AddUnit("UBS Alfa", "Centro"); var beta = fixture.AddUnit("UBS Beta", "Sul");
+            var initial = SampleAlerts(alfa)[0]; var next = SampleAlerts(beta)[1];
+            fixture.AddAlert(alfa.Id, initial);
+            var window = OpenMunicipal(fixture, storageRoot, "municipal-alert-badge", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.Single(item => item.Id == "alerts");
+                void Age() => typeof(WorkspaceViewModel).GetField("networkBadgeAttemptedAt", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(vm, (DateTimeOffset?)(DateTimeOffset.Now.AddMinutes(-6)));
+                Require(nav.Badge == 1, "O alerta inicial deve aparecer no menu após o login.");
+                window.ViewModel.Navigate("alerts"); Settle(vm);
+                Require(nav.Badge == 0 && vm.NetworkAlerts.Count == 1, "Abrir a aba deve limpar o aviso, mantendo a lista.");
+                vm.AlertsUnitFilter = alfa.Id; Settle(vm);
+                window.ViewModel.Navigate("home"); Settle(vm);
+                Age(); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 0, "O mesmo alerta não deve voltar como novidade.");
+                fixture.AddAlert(beta.Id, next); Age(); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 1 && fixture.NetworkAlertQueries[^1]["unitId"] is null && fixture.NetworkAlertQueries[^1]["region"] is null, "O aviso deve incluir uma UBS fora do filtro da tabela.");
+                fixture.FailAlerts = true; Age(); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 1, "Falha na avaliação não deve apagar o aviso anterior.");
+                fixture.FailAlerts = false; window.ViewModel.Navigate("alerts"); Settle(vm);
+                Require(nav.Badge == 0, "A visita à aba deve dispensar o aviso da rede, mesmo com filtro de UBS.");
+                window.ViewModel.Navigate("home"); Settle(vm);
+                fixture.Reset(beta.Id, alerts: true); Age(); Pump(vm.RefreshAutomaticallyAsync());
+                fixture.AddAlert(beta.Id, next); Age(); Pump(vm.RefreshAutomaticallyAsync());
+                Require(nav.Badge == 1, "Um alerta que terminou e voltou deve ser uma novidade.");
+                vm.LogoutCommand.Execute(null); Settle(vm);
+                Require(nav.Badge == 0 && !vm.IsAuthenticated, "Ao sair o aviso deve ser limpo.");
+            }
+            finally { CloseWindow(window); }
+        });
         Check("Secretaria Alertas: tabela real da rede com UBS, tipo, especialidade, valor, limite e desde; uma requisição por filtro; vazio e falha honestos", () =>
         {
             using var fixture = new ApiFixture();
@@ -116,7 +150,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "alerts", 1280, 1700);
-                Require(fixture.NetworkAlertQueries.Count == 1 && vm.NetworkAlerts.Count == 3 && fixture.NetworkAlertQueries[0]["unitId"] is null && fixture.NetworkAlertQueries[0]["region"] is null, "Entrar em Alertas deveria avaliar a rede inteira uma vez.");
+                Require(fixture.NetworkAlertQueries.Count == 2 && vm.NetworkAlerts.Count == 3 && fixture.NetworkAlertQueries[^1]["unitId"] is null && fixture.NetworkAlertQueries[^1]["region"] is null, "O login deve avaliar o aviso e abrir Alertas deve ler a lista da rede.");
                 var grid = GridNamed(content, "Alertas da rede");
                 Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["UBS", "Tipo", "Especialidade", "Valor", "Limite", "Desde"]), "Colunas da tabela de alertas divergem do esperado.");
                 var cells = VisibleTexts(grid);

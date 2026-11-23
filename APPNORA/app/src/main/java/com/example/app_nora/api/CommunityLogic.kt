@@ -29,6 +29,10 @@ fun visibleAnnouncements(items: List<Announcement>, now: Long): List<Announcemen
 
 fun unreadAnnouncementCount(items: List<Announcement>, now: Long): Int = items.count { !it.isRead && !it.isExpiredAt(now) }
 
+/** Contagem da aba desde a última visita, independente do estado de leitura individual do comunicado. */
+fun noticeBadgeCount(items: List<Announcement>, seenSequence: Long, offers: List<OfferNotice>, seenOfferIds: Set<String>, now: Long): Int =
+    items.count { !it.isRead && !it.isExpiredAt(now) && it.sequence > seenSequence } + offers.count { it.offer.id !in seenOfferIds }
+
 /**
  * Memória (apenas em RAM) dos comunicados já tratados pela notificação, para o ciclo de 30 s nunca repetir o aviso do mesmo id.
  * Guarda no máximo [capacity] ids (descarta os mais antigos) e lembra quais avisos estão na bandeja para retirá-los no logout.

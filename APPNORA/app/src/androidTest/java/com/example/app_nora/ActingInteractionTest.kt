@@ -107,7 +107,7 @@ class ActingInteractionTest {
         compose.onNodeWithText("UBS próximas").performScrollTo().performClick()
         compose.onNodeWithText("Agora você está vendo as suas UBS").assertExists()
         compose.onAllNodesWithText("UBS A").onFirst().assertExists()
-        compose.onNodeWithText("Remover esta UBS").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("Remover esta UBS").performScrollTo().assertExists()
         compose.onNodeWithText(DEPENDENT_FORBIDDEN_MESSAGE).assertDoesNotExist()
         compose.runOnIdle {
             assertNull(state.actingFor)

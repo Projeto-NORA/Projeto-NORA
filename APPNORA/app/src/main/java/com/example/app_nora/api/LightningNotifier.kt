@@ -60,6 +60,16 @@ internal class LightningNotifier(private val context: Context) {
             // Só o id do vínculo (um GUID) viaja no Intent; nunca nome, CPF ou token.
             notice.dependentId?.let { putExtra(MainActivity.EXTRA_FLASH_DEPENDENT, it) }
         }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        fun decision(action: String, requestOffset: Int): PendingIntent = PendingIntent.getActivity(
+            context, offer.id.hashCode() * 31 + requestOffset, Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(MainActivity.EXTRA_FLASH_UNIT, notice.unitId)
+                notice.dependentId?.let { putExtra(MainActivity.EXTRA_FLASH_DEPENDENT, it) }
+                putExtra(MainActivity.EXTRA_FLASH_OFFER, offer.id)
+                putExtra(MainActivity.EXTRA_FLASH_DECISION, action)
+            }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val accept = decision("accept", 1)
+        val decline = decision("decline", 2)
         val publicVersion = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_presence)
             .setContentTitle("Vaga Relâmpago")
@@ -70,6 +80,9 @@ internal class LightningNotifier(private val context: Context) {
             .setContentTitle(offerNoticeTitle(notice))
             .setContentText(offerNoticeText(notice))
             .setContentIntent(open)
+            .addAction(0, "Aceitar", accept)
+            .addAction(0, "Recusar", decline)
+            .addAction(0, "Saiba mais", open)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -77,7 +90,10 @@ internal class LightningNotifier(private val context: Context) {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
         // A notificação some sozinha quando o prazo termina.
-        offer.expiresAtMillis?.let { builder.setTimeoutAfter((it - now).coerceAtLeast(1_000)) }
+        offer.expiresAtMillis?.let {
+            builder.setWhen(it).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+            builder.setTimeoutAfter((it - now).coerceAtLeast(1_000))
+        }
         manager.notify(offer.id, NOTIFICATION_ID, builder.build())
     }
 

@@ -133,11 +133,13 @@
         </Border>
       </StackPanel>
       <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid x:Name="PageContainer" Margin="32,32,32,24">
+        <StackPanel Margin="32,32,32,24"><Grid x:Name="PageContainer">
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
           <views:PasswordChangeRequiredView DataContext="{Binding Workspace}" Visibility="{Binding MustChangePassword, Converter={StaticResource BoolVisibility}}" />
         </Grid>
+        <TextBlock Text="Elaborado por: Luana Pinheiro (luana.pinheiro.cruz@gmail.com) e Mateus Todeschini (mateustodeschini123@gmail.com)" Foreground="{DynamicResource SecondaryBrush}" FontSize="11" Margin="0,28,0,0" TextWrapping="Wrap" />
+        </StackPanel>
       </ScrollViewer>
       <Border Grid.Row="3" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" />

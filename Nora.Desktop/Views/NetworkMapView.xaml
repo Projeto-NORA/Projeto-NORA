@@ -9,10 +9,10 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,20">
       <StackPanel>
-        <TextBlock Text="Mapa interativo" FontSize="19" FontWeight="SemiBold" />
-        <TextBlock Text="Selecione uma UBS cadastrada e mostre sua localização no mapa. Sem seleção, o mapa mostra uma visão geral do Brasil." Style="{StaticResource Muted}" Margin="0,8,0,14" />
+        <TextBlock Text="Mapa interativo" FontSize="19" FontWeight="SemiBold"  ToolTip="Selecione uma UBS cadastrada e mostre sua localização no mapa. Sem seleção, o mapa mostra uma visão geral do Brasil." Margin="0,0,0,12" />
+
         <TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
-        <DockPanel Margin="0,6,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Click="OnRefreshUnits" IsEnabled="{Binding CanOperate}" Margin="12,0,0,0" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedUnit}" DisplayMemberPath="Name" AutomationProperties.Name="UBS para localizar no mapa" /></DockPanel>
+        <DockPanel Margin="0,6,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar unidades" ToolTip="Atualizar unidades" Click="OnRefreshUnits" IsEnabled="{Binding CanOperate}" Margin="12,0,0,0" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedUnit}" DisplayMemberPath="Name" AutomationProperties.Name="UBS para localizar no mapa" /></DockPanel>
         <TextBlock Text="{Binding UnitsState}" Style="{StaticResource Muted}" Margin="0,0,0,12" />
         <Button x:Name="LoadButton" Content="Mostrar no mapa" Click="OnLoadMap" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" />
         <TextBlock x:Name="MapStatus" Text="O mapa usa OpenStreetMap e precisa de conexão com a internet." Style="{StaticResource Muted}" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite" />
@@ -22,6 +22,6 @@
         <TextBlock Text="Mapa © colaboradores do OpenStreetMap · Coordenadas cadastradas pela Secretaria" Style="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
       </StackPanel>
     </Border>
-    <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Localização das UBS" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="Cadastre ou edite nome, endereço, região e coordenadas na aba Unidades. O mapa mostra a UBS selecionada; confira as coordenadas antes de salvar." Style="{StaticResource Muted}" Margin="0,8,0,0" /></StackPanel></Border>
+    <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Localização das UBS" FontSize="18" FontWeight="SemiBold"  ToolTip="Cadastre ou edite nome, endereço, região e coordenadas na aba Unidades. O mapa mostra a UBS selecionada; confira as coordenadas antes de salvar." Margin="0,0,0,12" /></StackPanel></Border>
   </StackPanel>
 </UserControl>

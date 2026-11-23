@@ -5,8 +5,16 @@
   </UserControl.Resources>
   <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Lista de especialidades da rede">
     <StackPanel>
-      <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar lista" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Especialidades da rede" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
-      <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap" Text="Lista única da rede: as UBS escolhem dela ao cadastrar profissionais e grade, e o paciente vê só as ativas. Não existe exclusão. Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)." />
+      <Border x:Name="SpecialtyForm" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="2" CornerRadius="10" Padding="16" Margin="0,0,0,20">
+        <StackPanel IsEnabled="{Binding CanSaveSpecialty}" HorizontalAlignment="Stretch">
+          <TextBlock Text="{Binding SpecialtyDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
+          <TextBlock Text="Nome da especialidade (2 a 120 caracteres)" FontWeight="SemiBold" FontSize="12" />
+          <TextBox Text="{Binding SpecialtyDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Nome da especialidade" />
+          <TextBlock Text="{Binding SpecialtyNameError}" Style="{StaticResource FieldError}" Visibility="{Binding SpecialtyNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+          <Button Content="{Binding SpecialtySaveLabel}" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" />
+        </StackPanel>
+      </Border>
+      <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar lista" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de especialidades" ToolTip="Atualizar lista de especialidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock ToolTip="Lista única da rede: as UBS escolhem dela ao cadastrar profissionais e grade, e o paciente vê só as ativas. Não existe exclusão. Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)." Text="Especialidades da rede" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
       <DataGrid ItemsSource="{Binding SpecialtyCatalog}" SelectedItem="{Binding SelectedSpecialty}" MaxHeight="300" MinHeight="64" CanUserSortColumns="True" AutomationProperties.Name="Lista de especialidades">
         <DataGrid.Columns>
           <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="200" />
@@ -17,17 +25,9 @@
       <WrapPanel Margin="0,12,0,0">
         <Button Content="Editar nome da selecionada" Click="OnEdit" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" />
         <Button Content="{Binding SpecialtyActiveLabel}" Click="OnToggleActive" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" />
-        <Button Content="Nova especialidade" Click="OnNew" IsEnabled="{Binding CanSaveSpecialty}" Margin="0,0,8,8" />
+        <Button Content="+ Nova especialidade" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" IsEnabled="{Binding CanSaveSpecialty}" Margin="0,0,8,8" />
       </WrapPanel>
-      <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
-        <StackPanel IsEnabled="{Binding CanSaveSpecialty}" MaxWidth="460" HorizontalAlignment="Left">
-          <TextBlock Text="{Binding SpecialtyDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
-          <TextBlock Text="Nome da especialidade (2 a 120 caracteres)" FontWeight="SemiBold" FontSize="12" />
-          <TextBox Text="{Binding SpecialtyDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Nome da especialidade" />
-          <TextBlock Text="{Binding SpecialtyNameError}" Style="{StaticResource FieldError}" Visibility="{Binding SpecialtyNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-          <Button Content="{Binding SpecialtySaveLabel}" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" />
-        </StackPanel>
-      </Border>
+
     </StackPanel>
   </Border>
 </UserControl>

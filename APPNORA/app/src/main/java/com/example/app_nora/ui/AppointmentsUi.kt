@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.app_nora.api.*
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadUnits: () -> Unit,
     onLoadAppointments: () -> Unit, onCancelAppointment: (String) -> Unit,
@@ -30,9 +31,12 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
                 }
             }
             if (patient.units?.isEmpty() == true) MutedText("Nenhuma UBS vinculada ao seu cadastro.")
-            OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Atualizar unidades") }
+                if (patient.selectedUnitId != null)
+                    OutlinedButton(onClick = onLoadAppointments, enabled = !patient.busy, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Atualizar consultas") }
+            }
             if (patient.selectedUnitId != null) {
-                OutlinedButton(onClick = onLoadAppointments, enabled = !patient.busy) { Text("Atualizar consultas") }
                 Button(onClick = onBook, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Agendar nova consulta") }
                 if (patient.appointments?.isEmpty() == true) MutedText("Nenhuma consulta encontrada neste período.")
                 patient.appointments?.forEach { appointment ->

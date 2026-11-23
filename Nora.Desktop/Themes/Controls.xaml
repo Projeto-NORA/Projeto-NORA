@@ -101,6 +101,17 @@
     <Setter Property="Padding" Value="10,3" />
     <Setter Property="MinWidth" Value="44" />
     <Setter Property="ToolTip" Value="Atualizar" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+        <TextBlock Text="↻" FontSize="23" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><TextBlock.RenderTransform><RotateTransform x:Name="Rotation" /></TextBlock.RenderTransform></TextBlock>
+      </Border>
+      <ControlTemplate.Triggers>
+        <EventTrigger RoutedEvent="Button.Click"><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Rotation" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:0.55" /></Storyboard></BeginStoryboard></EventTrigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Frame" Property="BorderThickness" Value="2" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="TextActionButton" TargetType="Button">
     <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
@@ -357,8 +368,9 @@
     <Setter Property="ColumnHeaderHeight" Value="44" />
   </Style>
   <Style TargetType="DataGridColumnHeader">
-    <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+    <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Padding" Value="12,8" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="ContentTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></DataTemplate></Setter.Value></Setter>

@@ -3,8 +3,8 @@
     <views:NetworkFiltersView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Demanda por especialidade" FontSize="19" FontWeight="SemiBold" />
-        <TextBlock Text="A especialidade é o texto informado em cada consulta e fila; grafias que só diferem em maiúsculas formam um grupo. Clique no título de uma coluna para ordenar." Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" />
+        <TextBlock Text="Demanda por especialidade" FontSize="19" FontWeight="SemiBold"  ToolTip="A especialidade é o texto informado em cada consulta e fila; grafias que só diferem em maiúsculas formam um grupo. Clique no título de uma coluna para ordenar." Margin="0,0,0,12" />
+
         <DataGrid ItemsSource="{Binding SpecialtyPerformance}" CanUserSortColumns="True" MaxHeight="360" MinHeight="64" AutomationProperties.Name="Indicadores por especialidade">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Especialidade" Binding="{Binding Name}" Width="*" MinWidth="160" />
