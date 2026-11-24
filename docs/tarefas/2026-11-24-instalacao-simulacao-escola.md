@@ -43,7 +43,8 @@ O usuário sabe se a entrega pelo GitHub Releases funciona, tem um roteiro de pr
 - [x] Cronograma .docx → `Mateus-Projects/Claude-PLANS/Projeto-NORA/cronograma-simulacao-escola.docx`
 - [x] Conferir o .docx (validação do arquivo e leitura do texto)
 - [x] Atualizar `distribuicao.md` e `PENDENCIAS.md`
-- [ ] Criar o repositório público e o release (aguardando autorização do usuário)
+- [x] Criar o repositório público e o release (autorizado pelo usuário em 24/11/2026; `NORA-downloads`, release `v1.0-escola`)
+- [x] Conferir o link `latest` sem login e o SHA-256 do arquivo baixado
 
 ## Estado
 

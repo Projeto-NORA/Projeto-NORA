@@ -42,9 +42,13 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 pwsh -File scripts\empacotar-clientes.ps1
 ```
 
+Se for gerar só o APK direto pelo Gradle, passe o endereço da API: `.\gradlew.bat :app:assembleDebug "-PNORA_API_URL=https://nora-api-kw8x.onrender.com"` (dentro de `APPNORA`). Sem essa propriedade o build de depuração não aponta para o Render. O script `empacotar-clientes.ps1` já passa o endereço sozinho.
+
 O resultado fica em `dist\<data-hora>\`: `OBS-NORA.zip`, `Painel-Municipal.zip` e `NORA-paciente.apk`. Use o APK de depuração (o padrão): é o que já foi conferido com HTTPS. Gere sempre no mesmo PC, porque um APK gerado em outro computador não instala por cima (ver [distribuicao.md](distribuicao.md), seção 5).
 
 ### 2. Publicar o APK no GitHub (uma vez; depois só um release novo)
+
+**Já feito em 24/11/2026:** o repositório público `Projeto-NORA/NORA-downloads` existe e o release `v1.0-escola` tem o `NORA-paciente.apk` (build de depuração apontando para `https://nora-api-kw8x.onrender.com`). O link `latest` acima baixa sem login. Os comandos abaixo servem para publicar uma **versão nova**: pule o `gh repo create` e troque o nome do release.
 
 ```powershell
 gh repo create Projeto-NORA/NORA-downloads --public --add-readme --description "Instaladores do NORA"
