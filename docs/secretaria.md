@@ -2,7 +2,7 @@
 
 ## Interface — 2026-11-22
 
-A Visão geral concentra os totais atuais da rede e o filtro de UBS; o período, o score, os comparativos e a série temporal ficam em Indicadores. Nas abas Unidades e Especialidades o formulário de cadastro vem antes da listagem, com destaque e ação de salvar à direita. Os botões de edição e de novo cadastro levam ao formulário. A busca de unidades usa lupa; os filtros de indicadores usam uma linha horizontal, com período, UBS, região e especialidade. Os cabeçalhos das tabelas usam cor e peso maiores.
+A Visão geral concentra os totais atuais da rede e o filtro de UBS. O período, o score, os comparativos e a série temporal ficam em Indicadores. Nas abas Unidades e Especialidades o formulário de cadastro vem antes da listagem, com destaque e ação de salvar à direita. Os botões de edição e de novo cadastro levam ao formulário. Abra **Filtros**, no canto superior direito, para buscar nas listas ou escolher período, UBS, região e especialidade onde esses critérios se aplicam. O painel identifica a lista correspondente quando a tela tem várias. **Limpar filtros** restaura os critérios padrão da tela.
 
 Na Vaga Relâmpago, o cabeçalho usa o mesmo desenho de raio ao fundo e o destaque amarelo da tela de vagas do OBS, com botão para atualizar o resumo da rede. Botões de atualização de seções municipais usam seta com animação ao clicar e nome acessível. Parte dos textos de apresentação foi transferida para dicas nos títulos; avisos de erro, estados e limitações continuam visíveis. O mapa mantém a escolha de uma unidade e o carregamento explícito do OpenStreetMap. As janelas desktop e as telas principais do aplicativo exibem o crédito de autoria no fim do conteúdo.
 
@@ -82,6 +82,12 @@ A [galeria das telas atualizadas](galeria/secretaria-atualizada-2026-10-28/index
 ## Vínculos de contas OBS — 2026-11-07
 
 A seção Usuários e histórico permite carregar contas OBS ativas e unidades, consultar vínculos e conceder ou revogar uma UBS para a conta selecionada; a revogação pede confirmação. O servidor registra autor e data das alterações efetivas. O histórico é consultado em Usuários e histórico (ver Estado atual). As rotas globais antigas ficam bloqueadas por padrão; as rotas atuais do OBS exigem concessão de unidade. O teste WPF com API simulada passou para concessão, revogação e apresentação da tela. As rotas e a persistência também passaram em teste com PostgreSQL 18 descartável; o teste integral da janela com a API real ainda falta.
+
+### Perda de senha da equipe
+
+No OBS, a Secretaria seleciona a conta em **Usuários e histórico** e define uma senha provisória. A API encerra as sessões antigas e exige a troca da senha após a próxima entrada. A operação fica no histórico.
+
+No Painel Municipal, **Dados do perfil** permite trocar a senha com a senha atual. Por decisão de 23/11/2026, a recuperação pelo próprio gestor foi adiada. Em caso de perda de acesso, o responsável procura a TI da Secretaria. O banco permite identificar a conta, mas guarda somente um hash da senha. A TI trata a perda como uma redefinição autorizada, feita pelo terminal com `dotnet run --project Nora.Api -c Release -- --reset-password` (variável `ConnectionStrings__Nora` apontando para o banco): o comando pergunta o escopo (`municipal` ou `obs`), o e-mail da conta e a senha nova duas vezes, com entrada oculta. A senha nova é provisória: a conta precisa trocá-la no próximo login, as sessões abertas caem e o histórico registra a redefinição como "Sistema". Conta inativa, inexistente ou de outro escopo não é alterada. Para não depender de uma pessoa só, cadastre ao menos duas contas municipais com `--provision`.
 
 A decisão de 2026-11-07 permite à gestão consultar dados identificáveis por UBS. Em Unidades, a pessoa seleciona uma UBS e solicita a consulta: nome, CPF e e-mail cadastrados no banco daquela unidade aparecem na lista. A API registra autor, unidade e data do acesso; a lista é limpa ao trocar de UBS ou encerrar a sessão. A consulta foi testada via HTTP com PostgreSQL descartável e a tela foi testada com API simulada. Os indicadores filtrados por unidade foram integrados depois (ver Estado atual); dados clínicos da Jornada (exames e vacinas) não aparecem para a Secretaria.
 

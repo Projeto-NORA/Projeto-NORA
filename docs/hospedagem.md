@@ -92,20 +92,24 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
 
    Use `VerifyFull` e não `Require`: no Npgsql 10, `Require` só cifra a conexão e **não confere o certificado** do servidor, então quem estivesse no caminho entre a API e o Neon poderia se passar por ele e ler CPFs, nomes e e-mails. O Neon usa certificado de autoridade pública, que a imagem da API e o Windows já reconhecem; com `VerifyFull` a conexão é recusada se o certificado não for o do Neon.
 
+   Se o Render encerrar a API logo após iniciar e mencionar `ConnectionStrings__Nora`, confira se o valor está no formato `Host=...` acima. A API identifica a variável inválida sem incluir seu valor no diagnóstico. Se uma credencial tiver aparecido em um log antigo, a equipe responsável deve substituí-la no Neon e atualizar o valor no Render antes do novo deploy.
+
 4. O usuário padrão do projeto (`neondb_owner`) já pode criar bancos com `CREATE DATABASE`. É isso que a API faz ao cadastrar uma UBS. O Neon permite até 500 bancos por branch.
 
 ### 2. Preparar o banco a partir do seu computador
 
-A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell. O `--provision` pergunta escopo, nome, e-mail e senha: **a equipe (Secretaria e OBS) não tem CPF e entra só por e-mail**; as contas que já existiam perdem o CPF na migração 022:
+**Caminho curto (recomendado):** `pwsh -File scripts\implantar-neon.ps1`, na raiz do repositório, com o PowerShell 7. O script pede a URI do Neon (entrada oculta, sem gravar em arquivo), converte para o formato do Npgsql, conta as linhas de todas as tabelas, compila a API, aplica `--migrate` e `--migrate-all-units`, recusa o resultado se alguma tabela perder linhas, oferece o `--provision` do município e do OBS e deixa a conexão pronta na área de transferência para colar no Render. O texto abaixo é o mesmo roteiro feito à mão.
+
+A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell. Para o escopo `municipal`, informe o nome do município e depois nome completo, e-mail e senha do funcionário. Para `obs`, informe nome, e-mail e senha. A migração 023 deve ser aplicada antes do provisionamento. **A equipe (Secretaria e OBS) não tem CPF e entra só por e-mail**; as contas que já existiam perdem o CPF na migração 022:
 
 ```powershell
 $env:ConnectionStrings__Nora = "Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require"
-dotnet run --project Nora.Api -c Release -- --migrate            # cria o banco central (migrações até a 022)
+dotnet run --project Nora.Api -c Release -- --migrate            # aplica as migrações do banco central até a 025
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "municipal": conta da Secretaria
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs": administrador da primeira UBS
 ```
 
-A variável vale só naquela janela. Feche-a no fim. Depois que a Secretaria cadastrar as UBS no Painel Municipal, a API cria os bancos delas sozinha. Ao atualizar a API mais tarde, rode `--migrate` e em seguida `--migrate-all-units`, nessa ordem.
+A variável vale só naquela janela. Feche-a no fim. Depois que a Secretaria cadastrar as UBS no Painel Municipal, a API cria os bancos delas sozinha. Ao atualizar a API mais tarde, rode `--migrate` e em seguida `--migrate-all-units`, nessa ordem. Quem perder a senha de uma conta da Secretaria ou do OBS pede a redefinição à TI, que roda `dotnet run --project Nora.Api -c Release -- --reset-password` com a mesma variável (ver [secretaria.md](secretaria.md)).
 
 ### 3. Chaves e e-mail
 

@@ -24,7 +24,7 @@ Em Pacientes, o novo cadastro fica antes da listagem. Os registros têm espaçam
 
 Família separa pedidos pendentes e vínculos aprovados, com ações destacadas e orientações nos cartões. Vagas Relâmpago usa a identidade de raio e amarelo para destacar a área e as vagas aguardando aprovação; os estados e confirmações das decisões continuam visíveis.
 
-Indicadores dispõe os filtros horizontalmente e oferece períodos de 14, 180 e 365 dias. A busca por especialidade e o filtro de situação atuam apenas na tabela por especialidade, enquanto o período afeta toda a página. O gráfico de distribuição usa os totais de concluídas, faltas e canceladas da mesma leitura; os valores também aparecem em texto na legenda. Sem dados encerrados, não se desenha uma distribuição fictícia.
+Abra **Filtros**, no canto superior direito, para pesquisar e ordenar a Fila e os Pacientes ou ajustar as opções de outras listas da tela. Na Fila, a ordenação muda a exibição e a API continua calculando a ordem de oferta. Em Indicadores, o painel oferece períodos como 14, 180 e 365 dias. A busca por especialidade e a situação atuam na tabela por especialidade, enquanto o período afeta toda a página. O gráfico de distribuição usa os totais de concluídas, faltas e canceladas da mesma leitura. Os valores também aparecem em texto na legenda.
 
 O menu sinaliza alertas ativos ainda não vistos e novos comunicados até a pessoa abrir a respectiva aba. A visualização do comunicado não registra leitura: a confirmação continua sendo feita em “Marcar como lido”. Os avisos de navegação são locais à sessão do OBS; não são uma confirmação compartilhada entre computadores. A avaliação de alertas ocorre em qualquer aba, no máximo a cada cinco minutos, e uma falha preserva o último resultado conhecido.
 

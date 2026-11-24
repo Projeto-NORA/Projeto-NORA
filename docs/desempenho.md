@@ -71,7 +71,7 @@ Migração de UBS **017** (`UnitSchema.ExpectedVersion` = 17): `waiting_list(cpf
 
 ## Medições (PostgreSQL 18, cluster descartável, `max_connections=16`, 20 pacientes vinculados, máquina de desenvolvimento)
 
-`Nora.Api.Checks --performance-only`. Comandos SQL contados pelo medidor `db.client.operation.duration` do Npgsql (inclui `BEGIN` e `COMMIT`); XIDs pela diferença de `txid_current()` no banco central.
+`Nora.Api.Checks --performance-only`. Nas medições históricas abaixo, os comandos eram contados pelo medidor `db.client.operation.duration` do Npgsql e os XIDs pela diferença de `txid_current()`. O teste atual mede os comandos do próprio passe usando a atividade de diagnóstico do Npgsql e o banco identificado por `db.namespace`. A verificação confirma captura com um comando de controle e exige zero comandos na central durante o passe ocioso.
 
 | Medida | Antes | Depois |
 | --- | --- | --- |
