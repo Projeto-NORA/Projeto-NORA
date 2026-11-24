@@ -36,4 +36,10 @@ public partial class ChangePasswordView : UserControl
         if (e.Key != Key.Enter) return;
         OnChange(sender, e); e.Handled = true;
     }
+    private void OnAdvanceKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        (sender == Current ? Next : Confirm).Focus();
+        e.Handled = true;
+    }
 }
