@@ -33,7 +33,7 @@ Publicados em 24/11/2026 no release `v1.0-escola` (cada zip com cerca de 59 MB).
 
 ## O que precisa estar pronto antes
 
-1. **API no ar (P-049).** Em 24/11/2026, `https://nora-api-kw8x.onrender.com/health/ready` não respondia. Sem a API, nada funciona. Conclua o roteiro de [hospedagem.md](hospedagem.md): `scripts\implantar-neon.ps1`, conexão nova em `ConnectionStrings__Nora` no Render e `/health/ready` respondendo `ready`.
+1. **API no ar (P-049).** Após a integração da correção da URL do Neon em 24/11/2026, o [endpoint de prontidão](https://nora-api-kw8x.onrender.com/health/ready) respondeu `ready`. Confira os logins e a UBS Escola pelo roteiro de [hospedagem.md](hospedagem.md) antes da apresentação.
 2. **E-mail funcionando (Brevo).** O "Criar conta" do app manda um código por e-mail. Faça um cadastro de teste com o seu e-mail antes do dia.
 3. **Celulares Android.** Não existe app para iPhone. Pergunte antes quem tem Android; quem tiver iPhone faz dupla ou usa um aparelho emprestado.
 4. **Internet da escola.** Teste no Wi-Fi da escola se `onrender.com` e `github.com` abrem; tenha o 4G como reserva.
@@ -81,7 +81,7 @@ Entre com a conta `municipal` (criada pelo `--provision` do `implantar-neon.ps1`
 
 1. Em cada computador da escola, baixe o `OBS-NORA.zip` pelo link acima, clique com o botão direito → **Extrair tudo** e abra o `OBS-NORA.exe` (no aviso do Windows: **Mais informações → Executar assim mesmo**). O Painel Municipal é opcional: só para mostrar na tela.
 2. Entre com a conta de administrador. Em **Informações da UBS → Computadores**, ative este computador e gere um código para o outro.
-3. Para montar o catálogo completo, abra o PowerShell 7 na raiz da branch da simulação, com a API pronta e a conta de administrador já vinculada à UBS:
+3. Para montar o catálogo completo, abra o PowerShell 7 na raiz do repositório com a `main` atualizada. Rode o comando com a API pronta e a conta de administrador já vinculada à UBS.
 
    ```powershell
    pwsh -File scripts\cadastrar-medicos-simulacao.ps1 -Ubs 'UBS Escola'

@@ -92,6 +92,8 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
 
 ### 2. Preparar o banco a partir do seu computador
 
+No SQL Editor do Neon, selecione a mesma branch e o mesmo banco da conexão usada no Render. A [consulta de conferência](../scripts/conferir-neon-nora.sql) mostra se o banco escolhido tem a tabela de contas e quantas contas ativas da Secretaria e de administrador do OBS existem. Também mostra a quantidade de UBS e especialidades ativas. A consulta é somente leitura e funciona antes da primeira migração.
+
 **Caminho curto (recomendado):** `pwsh -File scripts\implantar-neon.ps1`, na raiz do repositório, com o PowerShell 7. O script pede a URI do Neon (entrada oculta, sem gravar em arquivo), converte para o formato do Npgsql, conta as linhas de todas as tabelas, compila a API, aplica `--migrate` e `--migrate-all-units`, recusa o resultado se alguma tabela perder linhas, oferece o `--provision` do município e do OBS e deixa a conexão pronta na área de transferência para colar no Render. O texto abaixo é o mesmo roteiro feito à mão.
 
 - **Só a conexão para o Render:** `pwsh -File scripts\implantar-neon.ps1 -SoConexao` converte a URI e copia a conexão do Npgsql para a área de transferência, sem tocar no banco. Serve quando o banco já foi migrado e falta só colar em `ConnectionStrings__Nora`. Com `-PularCadastro`, o script migra e confere, mas não oferece o `--provision`.
@@ -107,6 +109,8 @@ dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs":
 ```
 
 A variável vale só naquela janela. Feche-a no fim. Depois que a Secretaria cadastrar as UBS no Painel Municipal, a API cria os bancos delas sozinha. Ao atualizar a API mais tarde, rode `--migrate` e em seguida `--migrate-all-units`, nessa ordem. Quem perder a senha de uma conta da Secretaria ou do OBS pede a redefinição à TI, que roda `dotnet run --project Nora.Api -c Release -- --reset-password` com a mesma variável (ver [secretaria.md](secretaria.md)).
+
+O comando `--provision` grava a conta no banco configurado no momento da execução. Se o PowerShell estava conectado ao Neon e mostrou **Conta criada**, a conta já está naquele banco. Se a conexão apontava para um banco local, é preciso criar a conta no Neon com o script acima. Para usar o mesmo acesso em outros computadores, aponte o Painel Municipal e o OBS para a mesma API publicada no Render. No Painel Municipal, conceda à conta OBS acesso à UBS antes de operar a unidade.
 
 ### 3. Chaves e e-mail
 
