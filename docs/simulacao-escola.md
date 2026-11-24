@@ -89,6 +89,8 @@ Entre com a conta `municipal` (criada pelo `--provision` do `implantar-neon.ps1`
 
    O script pede os e-mails e as senhas da Secretaria e do administrador do OBS. Ele prepara **20 especialidades**, **40 profissionais fictícios** (dois por especialidade, sem número de conselho) e **20 consultórios** (um por especialidade). A grade padrão tem faixas de segunda a sexta, das 08h às 12h para o primeiro profissional e das 13h às 17h para o segundo, com consultas de 20 minutos.
 
+   Se o navegador mostrar `ready` e o script informar um desafio HTTP 403, confira se está usando a versão atualizada do script. Ela identifica o cliente NORA nas chamadas e mostra o `CF-Ray` quando o Cloudflare do Render intercepta uma requisição. Esse identificador permite investigar o bloqueio no suporte do Render.
+
    Se precisar ajustar toda a grade pela tela, acrescente `-SemGrade` ao comando. Se interromper a execução com a grade padrão, repita o mesmo comando para completar os dias ausentes. Grades personalizadas são preservadas.
 
 4. Em **Informações da UBS**, preencha ou confira:
