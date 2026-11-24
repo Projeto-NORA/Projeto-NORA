@@ -11,6 +11,7 @@ public partial class ShellWindow
 {
     private readonly List<PageFilterGroup> pageFilters = [];
     private PageFilterGroup[] openFilterGroups = [];
+    private bool filterClosedByButtonPress;
 
     internal void RegisterPageFilter(PageFilterGroup group)
     {
@@ -34,6 +35,7 @@ public partial class ShellWindow
 
     private void OnOpenFilters(object sender, RoutedEventArgs args)
     {
+        if (filterClosedByButtonPress) { filterClosedByButtonPress = false; return; }
         if (FiltersPopup.IsOpen) { FiltersPopup.IsOpen = false; return; }
         openFilterGroups = pageFilters.Where(group => group.IsVisible && group.Fields is not null).ToArray();
         if (openFilterGroups.Length == 0) return;
@@ -64,9 +66,19 @@ public partial class ShellWindow
 
     private void OnCloseFilters(object sender, EventArgs args)
     {
+        // StaysOpen=false closes the popup on mouse down, before the button raises Click.
+        var point = Mouse.GetPosition(FiltersButton);
+        filterClosedByButtonPress = Mouse.LeftButton == MouseButtonState.Pressed &&
+            point.X >= 0 && point.Y >= 0 && point.X < FiltersButton.ActualWidth && point.Y < FiltersButton.ActualHeight;
         foreach (var item in FilterGroups.Children.OfType<ContentControl>()) item.Content = null;
         FilterGroups.Children.Clear();
         openFilterGroups = [];
+    }
+
+    private void OnFiltersButtonMouseUp(object sender, MouseButtonEventArgs args)
+    {
+        // Click is raised after PreviewMouseLeftButtonUp; clear a cancelled drag afterwards too.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () => filterClosedByButtonPress = false);
     }
 
     private async void OnClearFilters(object sender, RoutedEventArgs args)

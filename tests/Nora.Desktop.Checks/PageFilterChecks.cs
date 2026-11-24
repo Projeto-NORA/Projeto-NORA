@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using Nora.Desktop.Models;
 using Nora.Desktop.ViewModels;
 using Nora.Desktop.Views;
@@ -13,6 +14,30 @@ internal static partial class Program
 {
     private static void RunPageFilterChecks(string storageRoot)
     {
+        Check("Filtros: indicador acompanha abertura e fechamento nos dois perfis", () =>
+        {
+            using var fixture = new ApiFixture();
+            fixture.AddUnit("UBS dos filtros");
+            foreach (var municipal in new[] { true, false })
+            {
+                var window = municipal ? OpenMunicipal(fixture, storageRoot, "filter-chevron-municipal") : OpenOperational(fixture, storageRoot, "filter-chevron-obs");
+                try
+                {
+                    LoginObs(window);
+                    Show(window, municipal ? "units" : "queue");
+                    var button = (Button)window.FindName("FiltersButton");
+                    var popup = (Popup)window.FindName("FiltersPopup");
+                    var arrow = Descendants<System.Windows.Shapes.Path>(button).Last();
+                    window.UpdateLayout();
+                    Require(((RotateTransform)arrow.RenderTransform).Angle == 0, "Seta fechada não aponta para baixo.");
+                    InvokeButton(button); window.UpdateLayout();
+                    Require(popup.IsOpen && ((RotateTransform)arrow.RenderTransform).Angle == 180, "Seta não acompanhou a abertura.");
+                    InvokeButton(button); window.UpdateLayout();
+                    Require(!popup.IsOpen && ((RotateTransform)arrow.RenderTransform).Angle == 0, "Seta não acompanhou o fechamento.");
+                }
+                finally { CloseWindow(window); }
+            }
+        });
         Check("Filtros: a fila usa um único cabeçalho e mantém busca e ordenação no painel", () =>
         {
             using var fixture = new ApiFixture();

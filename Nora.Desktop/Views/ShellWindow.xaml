@@ -101,7 +101,7 @@
             <TextBlock Text="{Binding SectionSummary}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
           </StackPanel>
           <Button x:Name="FiltersButton" Grid.Column="1" Visibility="Collapsed" VerticalAlignment="Center" Padding="14,7"
-                  Click="OnOpenFilters" AutomationProperties.Name="Filtros" ToolTip="Altere os filtros da tela atual.">
+                  Click="OnOpenFilters" PreviewMouseLeftButtonUp="OnFiltersButtonMouseUp" AutomationProperties.Name="Filtros" ToolTip="Altere os filtros da tela atual.">
             <StackPanel Orientation="Horizontal">
               <Path Data="M 1,1 H 15 L 10,7 V 13 L 6,15 V 7 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,7,0" />
               <TextBlock Text="Filtros" VerticalAlignment="Center" FontWeight="SemiBold" />
