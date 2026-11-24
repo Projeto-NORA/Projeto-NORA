@@ -13,6 +13,7 @@ public sealed partial class WorkspaceViewModel
     private string unitSearch = "", unitName = "", unitRegion = "", unitAddress = "", unitLatitude = "", unitLongitude = "";
     private HealthUnit? selectedUnit;
     private Guid? editingUnitId;
+    private string editingUnitAddress = "", editingUnitRegion = "";
     private Guid summaryUnitFilter = Guid.Empty;
     private Guid? appliedSummaryUnitId;
     private bool unitsLoaded, unitFormSubmitted, filteringUnits;
@@ -137,7 +138,8 @@ public sealed partial class WorkspaceViewModel
     public string UnitAddressError => TextError(unitAddress, 2, 240, "Informe o endereço, de 2 a 240 caracteres.");
     public string UnitLatitudeError => (unitFormSubmitted || unitLatitude.Length > 0) && !TryCoordinate(unitLatitude, -85, 85, out _) ? "Latitude inválida: use graus decimais entre -85 e 85 (ex.: -23,55)." : "";
     public string UnitLongitudeError => (unitFormSubmitted || unitLongitude.Length > 0) && !TryCoordinate(unitLongitude, -180, 180, out _) ? "Longitude inválida: use graus decimais entre -180 e 180 (ex.: -46,63)." : "";
-    private bool HasUnitFormErrors => UnitNameError.Length + UnitRegionError.Length + UnitAddressError.Length + UnitLatitudeError.Length + UnitLongitudeError.Length > 0;
+    private bool HasUnitFormErrors => UnitNameError.Length + UnitRegionError.Length + UnitAddressError.Length > 0;
+    public ObservableCollection<ProgressStep> UnitSaveSteps { get; } = [];
     /// <summary>Aviso, não bloqueio: (0, 0), coordenadas aparentemente trocadas ou fora do Brasil.</summary>
     public string UnitCoordinateWarning
     {
@@ -169,15 +171,18 @@ public sealed partial class WorkspaceViewModel
         RebuildAnnouncementChoices();
     }
 
-    public void NewUnitDraft()
+    public void NewUnitDraft(bool clearSteps = true)
     {
-        editingUnitId = null; unitFormSubmitted = false; UnitName = UnitRegion = UnitAddress = UnitLatitude = UnitLongitude = ""; Notify(nameof(UnitDraftTitle));
+        if (clearSteps) UnitSaveSteps.Clear();
+        editingUnitId = null; editingUnitAddress = editingUnitRegion = ""; unitFormSubmitted = false; UnitName = UnitRegion = UnitAddress = UnitLatitude = UnitLongitude = ""; Notify(nameof(UnitDraftTitle));
         foreach (var name in UnitFormNames) Notify(name);
     }
     public void EditSelectedUnit()
     {
         if (SelectedUnit is not { } unit) return;
+        UnitSaveSteps.Clear();
         editingUnitId = unit.Id; unitFormSubmitted = false; UnitName = unit.Name; UnitRegion = unit.Region; UnitAddress = unit.Address;
+        editingUnitAddress = unit.Address; editingUnitRegion = unit.Region;
         UnitLatitude = unit.Latitude.ToString("R", CultureInfo.InvariantCulture); UnitLongitude = unit.Longitude.ToString("R", CultureInfo.InvariantCulture);
         Notify(nameof(UnitDraftTitle));
     }
@@ -222,15 +227,23 @@ public sealed partial class WorkspaceViewModel
     public Task SaveUnitAsync() => RunAsync(async () =>
     {
         if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para cadastrar uma UBS.");
+        UnitSaveSteps.Clear();
         unitFormSubmitted = true;
         foreach (var field in UnitFormNames) Notify(field);
         if (HasUnitFormErrors) throw new NoraApiException("Corrija os campos destacados no formulário da UBS.");
         var name = UnitName.Trim(); var region = UnitRegion.Trim(); var address = UnitAddress.Trim();
-        TryCoordinate(UnitLatitude, -85, 85, out var lat); TryCoordinate(UnitLongitude, -180, 180, out var lon);
+        double lat = 0, lon = 0;
+        var haveCoordinates = TryCoordinate(UnitLatitude, -85, 85, out lat) && TryCoordinate(UnitLongitude, -180, 180, out lon);
+        var addressChanged = editingUnitId is not null && (!string.Equals(address, editingUnitAddress.Trim(), StringComparison.OrdinalIgnoreCase) || !string.Equals(region, editingUnitRegion.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!haveCoordinates || addressChanged)
+            await WithStepAsync(UnitSaveSteps, "Localizando o endereço da UBS…", async () => (lat, lon) = await unitGeocoder.FindAsync(address, region), clear: false);
+        if (disposed || !IsAuthenticated) return;
         var creating = editingUnitId is null;
-        var saved = editingUnitId is { } id ? await api.UpdateHealthUnitAsync(id, name, region, address, lat, lon) : await api.CreateHealthUnitAsync(name, region, address, lat, lon);
+        HealthUnit? saved = null;
+        await WithStepAsync(UnitSaveSteps, "Salvando a UBS…", async () => saved = editingUnitId is { } id ? await api.UpdateHealthUnitAsync(id, name, region, address, lat, lon) : await api.CreateHealthUnitAsync(name, region, address, lat, lon), clear: false);
+        if (saved is null) throw new NoraApiException("Não foi possível salvar a UBS. Tente novamente.");
         if (disposed) return;
-        UpsertUnit(saved); SelectedUnit = saved; NewUnitDraft();
+        UpsertUnit(saved); SelectedUnit = saved; NewUnitDraft(clearSteps: false);
         if (saved.DatabasePending)
             Say(MessageKind.Info, "UBS salva, mas a base de dados dela não foi criada: o usuário PostgreSQL da API precisa de permissão para criar bancos. Use \"Tentar criar a base\" depois de ajustar a permissão.");
         else Say(MessageKind.Success, "UBS salva. Selecione-a no mapa para conferir a localização.");

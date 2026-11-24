@@ -285,7 +285,7 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
-        Check("Secretaria: formulário de UBS mostra mensagem por campo e apenas avisa sobre coordenadas trocadas, fora do Brasil ou (0, 0)", () =>
+        Check("Secretaria: formulário de UBS valida nome, região e endereço sem exibir coordenadas", () =>
         {
             using var fixture = new ApiFixture();
             var window = OpenMunicipal(fixture, storageRoot, "sec-unit-form", Appearance.Light);
@@ -297,7 +297,8 @@ internal static partial class Program
                 Require(vm.MessageKind == MessageKind.Error && fixture.Count("POST", "/api/municipal/units") == 0, "Formulário vazio deveria ser barrado antes da API.");
                 Require(vm.UnitNameError.Contains("nome da UBS") && vm.UnitRegionError.Contains("região") && vm.UnitAddressError.Contains("endereço") && vm.UnitLatitudeError.Contains("Latitude") && vm.UnitLongitudeError.Contains("Longitude"), "Faltou mensagem em algum campo.");
                 content = Layout(window, 1280, 1500);
-                Require(VisibleTexts(content).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 5, "As mensagens por campo não aparecem na tela.");
+                Require(VisibleTexts(content).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 3, "As mensagens dos campos exibidos não aparecem na tela.");
+                Require(!Descendants<TextBox>(content).Any(box => box.IsVisible && (AutomationProperties.GetName(box) == "Latitude da UBS" || AutomationProperties.GetName(box) == "Longitude da UBS")), "O formulário ainda mostra coordenadas manuais.");
                 vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua A, 1";
                 (string Latitude, string Longitude, string Fragment)[] warnings = [("-46,63", "-23,55", "trocadas"), ("0", "0", "oceano"), ("48,85", "2,35", "fora do Brasil"), ("-23,55", "-46,63", "")];
                 foreach (var (latitude, longitude, fragment) in warnings)
