@@ -80,14 +80,25 @@ function Get-Key([string] $nome) {
 }
 
 function Invoke-Nora([string] $Metodo, [string] $Rota, $Corpo = $null, [string] $Token = $null, [int] $Segundos = 60) {
-    $parametros = @{ Method = $Metodo; Uri = "$Api$Rota"; SkipHttpErrorCheck = $true; StatusCodeVariable = 'status'; TimeoutSec = $Segundos }
+    $parametros = @{
+        Method = $Metodo; Uri = "$Api$Rota"; UserAgent = 'Projeto-NORA-Simulacao/1.0'
+        SkipHttpErrorCheck = $true; StatusCodeVariable = 'status'; ResponseHeadersVariable = 'cabecalhos'; TimeoutSec = $Segundos
+    }
     if ($Token) { $parametros.Headers = @{ Authorization = "Bearer $Token" } }
     if ($null -ne $Corpo) { $parametros.Body = ($Corpo | ConvertTo-Json -Depth 5 -Compress); $parametros.ContentType = 'application/json; charset=utf-8' }
     $resposta = Invoke-RestMethod @parametros
-    [pscustomobject]@{ Status = [int]$status; Body = $resposta }
+    [pscustomobject]@{
+        Status = [int]$status; Body = $resposta
+        DesafioCloudflare = $cabecalhos['cf-mitigated'] -contains 'challenge'
+        Ray = $cabecalhos['cf-ray'] -join ', '
+    }
 }
 
 function Assert-Status($resultado, [int[]] $esperados, [string] $acao) {
+    if ($resultado.DesafioCloudflare) {
+        $ray = if ($resultado.Ray) { " CF-Ray $($resultado.Ray)." } else { '' }
+        throw "O Cloudflare do Render pediu um desafio de navegador ao $acao (HTTP $($resultado.Status)).$ray"
+    }
     if ($resultado.Status -in $esperados) { return }
     $detalhe = if ($resultado.Body -and $resultado.Body.title) { "$($resultado.Body.title): $($resultado.Body.detail)" } else { "$($resultado.Body)" }
     throw "Falhou ao $acao (HTTP $($resultado.Status)). $detalhe"
@@ -112,13 +123,23 @@ try {
     Write-Step "Acordando a API em $Api…"
     $pronto = $false
     foreach ($tentativa in 1..4) {
+        $saude = $null
         try {
             $saude = Invoke-Nora GET '/health/ready' -Segundos 90
-            if ($saude.Status -eq 200) { $pronto = $true; break }
-            Write-Note "Tentativa $tentativa de 4: HTTP $($saude.Status)."
-        } catch { Write-Note "Tentativa $tentativa de 4: a API ainda não respondeu." }
+        } catch {
+            Write-Note "Tentativa $tentativa de 4: a API ainda não respondeu."
+            continue
+        }
+        if ($saude.DesafioCloudflare -or $saude.Status -eq 403) {
+            Assert-Status $saude 200 'verificar a prontidão da API'
+        }
+        if ($saude.Status -eq 200) { $pronto = $true; break }
+        Write-Note "Tentativa $tentativa de 4: HTTP $($saude.Status)."
     }
-    if (-not $pronto) { throw "A API não respondeu em $Api/health/ready. Confira o deploy no Render (docs/hospedagem.md) antes de cadastrar." }
+    if (-not $pronto) {
+        if ($saude) { Assert-Status $saude 200 'verificar a prontidão da API' }
+        throw "Sem resposta de $Api/health/ready. Confira o deploy no Render (docs/hospedagem.md)."
+    }
     Write-Done 'API pronta.'
 
     Write-Step 'Especialidades (conta da Secretaria)…'
