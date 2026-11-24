@@ -20,7 +20,16 @@ https://github.com/Projeto-NORA/NORA-downloads/releases/latest/download/NORA-pac
 | Google Drive / WhatsApp | conhecido | o Drive às vezes pede login e mostra prévia em vez de baixar; sem controle de versão |
 | Play Store (teste interno) | instala como app normal | conta de desenvolvedor paga, AAB e revisão: exagero para 10 pessoas |
 
-Os desktops (`OBS-NORA.zip` e `Painel-Municipal.zip`) **não** precisam ir para o público: só você instala, em 1 ou 2 computadores da escola. Leve-os num pen drive a partir da pasta `dist\`.
+Os desktops (`OBS-NORA.zip` e `Painel-Municipal.zip`) vão **no mesmo release** (decisão do usuário em 24/11/2026): você baixa nos computadores da escola, sem pen drive. Como o repositório é público, qualquer pessoa conseguiria baixar os dois programas. Eles não têm senha nem segredo dentro (só o endereço da API, que já é público), e sem conta ninguém entra; mesmo assim, **apague esses dois arquivos do release depois da simulação** (ver "Depois da simulação").
+
+Links diretos, que sempre pegam a versão mais nova do release:
+
+```text
+https://github.com/Projeto-NORA/NORA-downloads/releases/latest/download/OBS-NORA.zip
+https://github.com/Projeto-NORA/NORA-downloads/releases/latest/download/Painel-Municipal.zip
+```
+
+Publicados em 24/11/2026 no release `v1.0-escola` (cada zip com cerca de 59 MB). Conferido: o download pelo link, sem login, tem o mesmo SHA-256 do arquivo gerado.
 
 ## O que precisa estar pronto antes
 
@@ -70,7 +79,7 @@ Entre com a conta `municipal` (criada pelo `--provision` do `implantar-neon.ps1`
 
 ### 4. Preparar a UBS no OBS (você, como administrador)
 
-1. Extraia o `OBS-NORA.zip` em cada computador da escola e abra o `OBS-NORA.exe` (no aviso do Windows: **Mais informações → Executar assim mesmo**).
+1. Em cada computador da escola, baixe o `OBS-NORA.zip` pelo link acima, clique com o botão direito → **Extrair tudo** e abra o `OBS-NORA.exe` (no aviso do Windows: **Mais informações → Executar assim mesmo**). O Painel Municipal é opcional: só para mostrar na tela.
 2. Entre com a conta de administrador. Em **Informações da UBS → Computadores**, ative este computador e gere um código para o outro.
 3. Em **Informações da UBS**:
    - **Atendimento ao público:** horário do dia da simulação.
@@ -105,3 +114,20 @@ Mande o link (ou o QR code) **na véspera**, para ninguém perder tempo na apres
 1. Desative os 10 pacientes no OBS (ou apague a UBS da simulação) se o piloto não continuar.
 2. Faça o backup e apague os dados no prazo combinado (ver [hospedagem.md](hospedagem.md), "Encerrar o piloto").
 3. Os funcionários podem desinstalar o NORA normalmente.
+4. Tire os desktops do release público, para ninguém mais baixar os programas:
+
+   ```powershell
+   gh release delete-asset v1.0-escola OBS-NORA.zip --repo Projeto-NORA/NORA-downloads --yes
+   gh release delete-asset v1.0-escola Painel-Municipal.zip --repo Projeto-NORA/NORA-downloads --yes
+   ```
+
+## Dados criados em casa, uso na escola
+
+Os dados não ficam no seu computador, e sim no banco Neon. O que você criar em casa aparece na escola sem copiar nada:
+
+- **Pelo PowerShell (em casa):** a conta da Secretaria (`municipal`) e a do administrador do OBS, com `--provision` (o `scripts\implantar-neon.ps1` já oferece).
+- **Pelas telas (em casa):** a UBS, as especialidades e as contas extras no Painel Municipal; profissionais, consultórios, grade e aprovação das vagas no OBS. Não existe comando de PowerShell para isso (o `--demo-bootstrap` só serve para o banco local de testes).
+- **Entre uma vez em casa com cada conta.** Se o sistema pedir a troca da senha provisória, troque lá, para não perder tempo diante dos funcionários.
+- **Na escola, use a conta de administrador do OBS:** ela entra em qualquer computador. A atendente só entra em computador ativado, e a ativação é por máquina (Informações da UBS → Computadores, cerca de 1 minuto cada).
+- **Os pacientes continuam sendo cadastrados na hora**, porque o app só cria a conta depois do cadastro pela recepção.
+- **Sem a API no ar (P-049) o login não funciona, em casa ou na escola.**
