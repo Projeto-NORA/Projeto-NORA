@@ -8,6 +8,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.input.ImeAction
 import com.example.app_nora.api.*
 import com.example.app_nora.preferences.UserSettings
 import com.example.app_nora.ui.LocalClockMillis
@@ -48,6 +49,62 @@ class PatientInteractionTest {
         enterButton.assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals("patient@example.test", submitted) }
         enterButton.assertIsNotEnabled()
+    }
+
+    @Test fun pacienteRedefineSenhaComCpfECodigo() {
+        var requestedCpf = ""
+        var submitted: Triple<String, String, String>? = null
+        compose.setContent {
+            NoraPatientContent(UserSettings(), {}, PatientState(address = "https://nora.example.test"),
+                onLogin = { _, _ -> },
+                onRequestPasswordReset = { cpf -> requestedCpf = cpf; "desafio-de-teste" },
+                onConfirmPasswordReset = { id, code, password -> submitted = Triple(id, code, password); true })
+        }
+        compose.onNodeWithText("Esqueci a senha").performScrollTo().performClick()
+        compose.onNode(hasText("CPF") and hasSetTextAction()).performTextInput("52998224725")
+        compose.onNodeWithText("Enviar código").performClick()
+        compose.onNodeWithText("Verificar código").assertExists()
+        compose.onNodeWithText("Alterar senha").assertIsNotEnabled()
+        compose.onNodeWithText("Código de 6 dígitos").performTextInput("314159")
+        compose.onNodeWithText("Nova senha").performTextInput("senha-nova-teste")
+        val confirmation = compose.onNodeWithText("Confirme a nova senha")
+        confirmation.performTextInput("senha-diferente")
+        confirmation.performImeAction()
+        compose.onNodeWithText("Alterar senha").performClick()
+        compose.runOnIdle { assertEquals(null, submitted) }
+        confirmation.performTextReplacement("senha-nova-teste")
+        confirmation.performImeAction()
+        compose.onNodeWithText("Alterar senha").performClick()
+        compose.onNodeWithText("Senha alterada").assertExists()
+        compose.runOnIdle {
+            assertEquals("52998224725", requestedCpf)
+            assertEquals(Triple("desafio-de-teste", "314159", "senha-nova-teste"), submitted)
+        }
+    }
+
+    @Test fun filtrosDeConsultasCombinamBuscaESituacaoEMantemUnidade() {
+        val appointments = listOf(
+            PatientAppointment("prior", "Clínica geral", "Profissional A", isoAt(now), isoAt(now), "completed"),
+            PatientAppointment("next", "Cardiologia", "Profissional B", isoAt(now + 86_400_000), isoAt(now + 86_400_000), "scheduled"),
+        )
+        compose.setContent {
+            NoraPatientContent(UserSettings(), {}, connected(appointments = appointments))
+        }
+        compose.onNode(hasText("Consultas") and hasClickAction()).performScrollTo().performClick()
+        compose.onNode(hasText("Filtros") and hasClickAction()).performClick()
+        compose.onNodeWithText("Especialidade ou profissional").performTextInput("clinica")
+        compose.onNode(hasImeAction(ImeAction.Done)).performImeAction()
+        compose.onNodeWithText("Concluídas").performScrollTo().performClick()
+        compose.onNodeWithText("Ver resultados").performClick()
+        compose.onNodeWithText("Clínica geral").assertExists()
+        compose.onNodeWithText("Cardiologia").assertDoesNotExist()
+        compose.onNodeWithText(unit.name).assertExists()
+
+        compose.onNode(hasText("Filtros") and hasClickAction()).performClick()
+        compose.onNodeWithText("Limpar filtros").performClick()
+        compose.onNodeWithText("Ver resultados").performClick()
+        compose.onNodeWithText("Cardiologia").assertExists()
+        compose.onNodeWithText(unit.name).assertExists()
     }
 
     @Test fun registrationCanSelectMultipleUnitsBeforeSignupIsAvailable() {

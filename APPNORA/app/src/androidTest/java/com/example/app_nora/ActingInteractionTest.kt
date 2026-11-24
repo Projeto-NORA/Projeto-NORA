@@ -83,7 +83,7 @@ class ActingInteractionTest {
         var flash by mutableStateOf<Pair<String?, String?>>(null to null)
         content(base().copy(actingFor = maria.id), onRefresh = { refreshes++ }, flash = { flash }, onFlashOpened = { opened++; flash = null to null })
         compose.onNode(hasText("Oportunidades") and hasClickAction()).performScrollTo().performClick()
-        compose.onNodeWithText("Oportunidades compatíveis enviadas pela unidade.").assertExists()
+        compose.onNodeWithText("Acompanhe as oportunidades da unidade.").assertExists()
         val before = compose.runOnIdle { refreshes }
         // A notificação de uma oferta nova de Maria chega com a tela de Maria já aberta.
         compose.runOnIdle { flash = maria.unitId to maria.id }
@@ -131,6 +131,7 @@ class ActingInteractionTest {
         compose.onNodeWithText("Cancelamentos pelo aplicativo: 2").performScrollTo().assertExists()
         // Pontos e prioridade falam da Maria: a descrição do score leva o nome dela e a regra cita o direito dela.
         compose.onNodeWithContentDescription("Score de Maria Souza: 670 de 1000 pontos, faixa Bom").performScrollTo().assertExists()
+        compose.onNodeWithText("Como funciona o score?").performScrollTo().performClick()
         compose.onNodeWithText("O score não muda a prioridade clínica nem o direito de Maria Souza ao atendimento.", substring = true)
             .performScrollTo().assertExists()
     }

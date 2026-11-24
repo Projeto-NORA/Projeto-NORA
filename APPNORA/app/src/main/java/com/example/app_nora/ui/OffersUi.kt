@@ -146,7 +146,12 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
 @Composable
 fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
-    ScreenTitle("Vaga Relâmpago", "Oportunidades compatíveis enviadas pela unidade.")
+    var filter by rememberSaveable(patient.selectedUnitId, patient.actingFor) { mutableStateOf(OfferFilter.ALL) }
+    ScreenTitle("Vaga Relâmpago", "Acompanhe as oportunidades da unidade.", action = {
+        if (patient.session != null) NoraFilters(if (filter == OfferFilter.ALL) 0 else 1, onClear = { filter = OfferFilter.ALL }) {
+            FilterChoices("Oportunidades", OfferFilter.entries, filter, { it.label }) { filter = it }
+        }
+    })
     SectionCard("Escolha uma UBS", "Somente unidades vinculadas ao seu cadastro") {
         if (patient.session == null) MutedText("Entre na sua conta para consultar oportunidades.")
         patient.units?.forEach { unit ->
@@ -166,17 +171,25 @@ fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (S
     val unitName = patient.units?.find { it.id == patient.selectedUnitId }?.name
     if (patient.session == null || patient.unitOffers == null) SectionCard("Suas oportunidades", "Oportunidades compatíveis") {
         MutedText("Escolha uma UBS e atualize o acompanhamento para consultar as oportunidades.")
-    } else if (groups.pending.isEmpty()) SectionCard(
+    } else if (filter == OfferFilter.HISTORY && groups.history.isEmpty()) {
+        SectionCard("Histórico", "") { MutedText("Nenhuma oportunidade no histórico da unidade.") }
+    } else if (filter != OfferFilter.HISTORY && groups.pending.isEmpty()) SectionCard(
         if (offers.isEmpty()) "Nenhuma oportunidade no momento" else "Nenhuma oportunidade aguarda resposta",
         "Você não precisa ficar procurando vagas") {
         MutedText("Quando uma oportunidade estiver disponível, ela aparecerá aqui e você receberá um aviso enquanto a conexão do NORA estiver ativa.")
     }
-    groups.pending.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
-    if (groups.history.isNotEmpty()) {
-        HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
-        if (historyOpen) groups.history.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
+    if (filter != OfferFilter.HISTORY)
+        groups.pending.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
+    if (filter != OfferFilter.PENDING && groups.history.isNotEmpty()) {
+        if (filter == OfferFilter.ALL) HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
+        if (historyOpen || filter == OfferFilter.HISTORY)
+            groups.history.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
     }
     OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.fillMaxWidth()) {
         Text(if (patient.busy) "Atualizando…" else "Atualizar oportunidades")
     }
+}
+
+private enum class OfferFilter(val label: String) {
+    ALL("Todas"), PENDING("Aguardando resposta"), HISTORY("Histórico")
 }

@@ -86,7 +86,14 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     onLoadAvailability: (String, Int) -> Unit, onBook: (AvailableSlot) -> Unit, onOpenAppointments: () -> Unit,
     initialSpecialtyId: String? = null, actingName: String? = null) {
     val clock = LocalClockMillis.current
-    ScreenTitle("Agendar consulta", "Escolha a UBS, a especialidade e um horário livre.")
+    var professionalQuery by remember(patient.selectedUnitId, patient.actingFor) { mutableStateOf("") }
+    ScreenTitle("Agendar consulta", "Escolha a UBS, a especialidade e um horário livre.", action = {
+        if (patient.session != null && patient.lastBooked == null) NoraFilters(
+            if (professionalQuery.isBlank()) 0 else 1, onClear = { professionalQuery = "" }
+        ) {
+            FilterSearch(professionalQuery, { professionalQuery = it }, "Profissional nos horários livres")
+        }
+    })
     BookingRules(actingName)
     if (patient.session == null) {
         SectionCard("Entre na sua conta", "Agendamento") { MutedText("Entre na sua conta para ver os horários livres das suas UBS.") }
@@ -169,7 +176,12 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                         day.dayStart == shown.dayStart, !patient.busy) { chosenDay = day.dayStart }
                 }
                 Text("Horário", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                shown.slots.forEach { slot ->
+                val matchingSlots = remember(shown.slots, professionalQuery) {
+                    val query = professionalQuery.normalizedSearchText()
+                    if (query.isEmpty()) shown.slots else shown.slots.filter { it.professionalName.normalizedSearchText().contains(query) }
+                }
+                if (matchingSlots.isEmpty()) MutedText("Nenhum horário desse dia corresponde ao filtro de profissional.")
+                matchingSlots.forEach { slot ->
                     key(slot.startsAt, slot.professionalId) {
                         OutlinedButton(onClick = { confirming = slot }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) {
                             Text("${formatClock(slot.startsAt)} às ${formatClock(slot.endsAt)} · ${slot.professionalName}")

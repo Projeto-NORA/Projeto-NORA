@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -14,6 +15,21 @@ val googleWebClientId: String = run {
     if (file.exists()) file.inputStream().use { local.load(it) }
     (providers.gradleProperty("NORA_GOOGLE_WEB_CLIENT_ID").orNull ?: local.getProperty("NORA_GOOGLE_WEB_CLIENT_ID") ?: "").trim()
 }
+
+// Endereço público da API já preenchido no pacote distribuído.
+val noraApiUrl = providers.gradleProperty("NORA_API_URL")
+    .orElse(providers.environmentVariable("NORA_API_URL"))
+    .getOrElse("").trim().let { value ->
+        if (value.isBlank()) "" else {
+            val uri = runCatching { URI(value) }.getOrNull()
+            require(uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+                uri.userInfo == null && uri.query == null && uri.fragment == null &&
+                uri.path in setOf("", "/") && (uri.port == -1 || uri.port in 1..65535)) {
+                "NORA_API_URL deve ser o endereço HTTPS público da API, sem caminho nem credenciais."
+            }
+            value.trimEnd('/')
+        }
+    }
 
 // Assinatura de release (P-048): só existe quando há um arquivo de propriedades FORA do Git, com storeFile, storePassword, keyAlias e
 // keyPassword. Procura em NORA_ANDROID_SIGNING (variável de ambiente ou propriedade Gradle) e, sem ela, em APPNORA/keystore.properties.
@@ -45,6 +61,7 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "NORA_GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "NORA_API_URL", "\"$noraApiUrl\"")
     }
     if (signingProperties != null && signingPropertiesFile != null) {
         signingConfigs {
@@ -60,6 +77,8 @@ android {
     }
     buildTypes {
         release {
+            val releaseApiUrl = noraApiUrl.ifEmpty { "https://nora-api-kw8x.onrender.com" }
+            buildConfigField("String", "NORA_API_URL", "\"$releaseApiUrl\"")
             if (signingProperties != null) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true

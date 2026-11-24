@@ -85,7 +85,7 @@ interface AddressStore {
 
 private class PreferencesAddressStore(context: Context) : AddressStore {
     private val preferences = context.getSharedPreferences("nora_connection", Context.MODE_PRIVATE)
-    override fun load(): String = preferences.all["address"] as? String ?: ""
+    override fun load(): String = BuildConfig.NORA_API_URL.ifBlank { preferences.all["address"] as? String ?: "" }
     override fun save(address: String) { preferences.edit { putString("address", address) } }
 }
 

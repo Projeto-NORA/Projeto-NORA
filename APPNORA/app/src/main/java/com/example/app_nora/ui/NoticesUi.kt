@@ -3,6 +3,7 @@ package com.example.app_nora.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -15,22 +16,42 @@ import com.example.app_nora.api.*
 @Composable
 fun NoticesScreen(patient: PatientState, onOpenOffer: (String) -> Unit, onOpenDependentOffer: (String, String) -> Unit = { _, _ -> },
     onMarkRead: (String) -> Unit = {}, onReload: () -> Unit = {}, onLoadUnits: () -> Unit = {}) {
-    ScreenTitle("Avisos", "Comunicados da rede e oportunidades para você.")
+    var mode by rememberSaveable { mutableStateOf(NoticeFilter.ALL) }
+    ScreenTitle("Avisos", "Comunicados da rede e oportunidades para você.", action = {
+        if (patient.session != null) NoraFilters(if (mode == NoticeFilter.ALL) 0 else 1, onClear = { mode = NoticeFilter.ALL }) {
+            FilterChoices("Tipo de aviso", NoticeFilter.entries, mode, { it.label }) { mode = it }
+        }
+    })
+    if (patient.session == null) {
+        SectionCard("Acesse sua conta", "Avisos da sua rede") { MutedText("Entre na sua conta para consultar avisos.") }
+        return
+    }
+    if (mode == NoticeFilter.ALL || mode == NoticeFilter.OFFERS) {
+        NoticeOffers(patient, onOpenOffer, onOpenDependentOffer, onLoadUnits)
+    }
+    if (mode != NoticeFilter.OFFERS) {
+        AnnouncementsSection(patient.announcements, onMarkRead, onReload, mode == NoticeFilter.UNREAD)
+    }
+}
+
+@Composable
+private fun NoticeOffers(
+    patient: PatientState,
+    onOpenOffer: (String) -> Unit,
+    onOpenDependentOffer: (String, String) -> Unit,
+    onLoadUnits: () -> Unit,
+) {
     val openOffers = rememberOpenOffers(patient)
     val dependentOffers = rememberOpenDependentOffers(patient)
     val open = openOffers.list.value
     val openDependents = dependentOffers.list.value
     val allLoaded = offersLoadedForAll(patient.units, patient.unitData)
-    if (patient.session == null) {
-        SectionCard("Acesse sua conta", "Avisos da sua rede") { MutedText("Entre na sua conta para consultar avisos.") }
-        return
-    }
     // Sem as UBS (a leitura falhou) os comunicados continuam valendo: eles não dependem delas, só as ofertas das unidades.
     if (patient.units == null) {
         val reading = patient.loadingUnits || patient.busy
         SectionCard("Suas UBS", "Oportunidades da unidade") {
             MutedText(if (reading) "Carregando suas UBS…"
-            else "Não foi possível carregar suas UBS. As Vagas Relâmpago dependem delas; os comunicados abaixo não.")
+            else "Não foi possível carregar suas UBS para consultar as Vagas Relâmpago.")
             if (!reading) OutlinedButton(onClick = onLoadUnits, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
         }
     } else if (open.isEmpty() && openDependents.isEmpty()) {
@@ -51,14 +72,19 @@ fun NoticesScreen(patient: PatientState, onOpenOffer: (String) -> Unit, onOpenDe
             }
         }
     }
-    AnnouncementsSection(patient.announcements, onMarkRead, onReload)
+}
+
+internal enum class NoticeFilter(val label: String) {
+    ALL("Todos os avisos"), OFFERS("Vagas Relâmpago"), ANNOUNCEMENTS("Comunicados"), UNREAD("Comunicados não lidos")
 }
 
 @Composable
-internal fun AnnouncementsSection(state: AnnouncementsState, onMarkRead: (String) -> Unit, onReload: () -> Unit) {
+internal fun AnnouncementsSection(state: AnnouncementsState, onMarkRead: (String) -> Unit, onReload: () -> Unit, unreadOnly: Boolean = false) {
     val clock = LocalClockMillis.current
     val now = remember(state.items) { clock() }
-    val visible = remember(state.items, now) { visibleAnnouncements(state.items, now) }
+    val visible = remember(state.items, now, unreadOnly) {
+        visibleAnnouncements(state.items, now).filter { !unreadOnly || !it.isRead }
+    }
     val unread = remember(state.items, now) { unreadAnnouncementCount(state.items, now) }
     SectionCard("Comunicados da rede", when {
         !state.loaded -> "Mensagens da Secretaria para as suas UBS"
@@ -68,7 +94,10 @@ internal fun AnnouncementsSection(state: AnnouncementsState, onMarkRead: (String
         when {
             state.error != null && !state.loaded -> MutedText(state.error)
             !state.loaded -> MutedText(if (state.loading) "Consultando os comunicados…" else "Os comunicados ainda não foram consultados.")
-            visible.isEmpty() -> MutedText("Nenhum comunicado da rede no momento. Quando a Secretaria publicar um, ele aparece aqui.")
+            visible.isEmpty() -> MutedText(
+                if (unreadOnly) "Nenhum comunicado não lido."
+                else "Nenhum comunicado da rede no momento. Quando a Secretaria publicar um, ele aparece aqui."
+            )
         }
         if (state.error != null && state.loaded) MutedText(state.error)
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
