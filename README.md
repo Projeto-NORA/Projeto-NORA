@@ -40,6 +40,7 @@ A conexão privada e o provisionamento definitivo (P-012) foram encerrados em 20
 - [App do paciente](docs/app-paciente.md).
 - [Hospedagem (Render + Neon, plano B na Hostinger)](docs/hospedagem.md).
 - [Distribuição dos três aplicativos](docs/distribuicao.md).
+- [Simulação na escola (instalação e roteiro)](docs/simulacao-escola.md); cronograma em Word: [cronograma-simulacao-escola.docx](../Mateus-Projects/Claude-PLANS/Projeto-NORA/cronograma-simulacao-escola.docx).
 - [Documento da tarefa das pendências finais](docs/tarefas/2026-11-16-pendencias-finais.md).
 - [Roteiro da demonstração (17/11/2026)](../Mateus-Projects/Claude-PLANS/Projeto-NORA/roteiro-demonstracao.md).
 - [Documento da tarefa da integração back x front](docs/tarefas/2026-11-11-integracao-back-front.md).

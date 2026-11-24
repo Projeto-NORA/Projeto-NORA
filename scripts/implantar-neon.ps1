@@ -47,6 +47,7 @@ function Find-Psql {
     $candidates = @(
         (Get-Command psql -ErrorAction SilentlyContinue)?.Source,
         (Join-Path $env:LOCALAPPDATA 'Programs\PostgreSQL\18\bin\psql.exe'),
+        'C:\Tools\postgresql-18\bin\psql.exe',
         'C:\Program Files\PostgreSQL\18\bin\psql.exe', 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
     )
     $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1

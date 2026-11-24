@@ -26,7 +26,7 @@ Para o APK de release assinado, veja a seção 6 (`-Release`). O script mostra c
 
 ## 2. Enviar
 
-O melhor caminho é uma pasta do Google Drive ou do OneDrive com o link compartilhado só com os participantes. E-mail costuma bloquear `.exe` e `.apk`. O WhatsApp aceita, mas o arquivo grande demora.
+Para a simulação na escola, em que os funcionários baixam o app sozinhos, o caminho escolhido é o GitHub Releases num repositório **público só de instaladores** (o repositório do código é privado e o release dele não abre para quem não tem acesso): veja [simulacao-escola.md](simulacao-escola.md). Para enviar a poucas pessoas conhecidas, serve também uma pasta do Google Drive ou do OneDrive com o link compartilhado só com os participantes. E-mail costuma bloquear `.exe` e `.apk`. O WhatsApp aceita, mas o arquivo grande demora.
 
 Junto com o link, oriente cada pessoa da equipe a usar o e-mail cadastrado. Envie a senha provisória individualmente.
 
