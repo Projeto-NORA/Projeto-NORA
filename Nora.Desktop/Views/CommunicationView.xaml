@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.CommunicationView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels" xmlns:views="clr-namespace:Nora.Desktop.Views">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.CommunicationView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <!-- Comunicação (Secretaria): publica comunicados em texto puro para equipes (OBS) e/ou pacientes, com pré-visualização, contagem de leituras por público e encerramento. -->
   <UserControl.Resources>
     <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
@@ -14,21 +14,21 @@
 
         <StackPanel MaxWidth="760" HorizontalAlignment="Left">
           <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding AnnouncementTitleCounter}" Style="{StaticResource Muted}" FontSize="12" /><TextBlock Text="Título" Style="{StaticResource FieldLabel}" /></DockPanel>
-          <TextBox Text="{Binding AnnouncementTitle, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Título do comunicado" />
+          <TextBox Text="{Binding AnnouncementTitle, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Título do comunicado"  enter:EnterNavigation.Group="CommunicationView.message"/>
           <TextBlock Text="{Binding AnnouncementTitleError}" Style="{StaticResource FieldError}" Visibility="{Binding AnnouncementTitleError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding AnnouncementBodyCounter}" Style="{StaticResource Muted}" FontSize="12" /><TextBlock Text="Texto" Style="{StaticResource FieldLabel}" /></DockPanel>
-          <TextBox Text="{Binding AnnouncementBodyText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="260" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" MaxLength="4000" AutomationProperties.Name="Texto do comunicado" />
+          <TextBox Text="{Binding AnnouncementBodyText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="260" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" MaxLength="4000" AutomationProperties.Name="Texto do comunicado"  enter:EnterNavigation.Group="CommunicationView.message"/>
           <TextBlock Text="{Binding AnnouncementBodyError}" Style="{StaticResource FieldError}" Visibility="{Binding AnnouncementBodyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <StackPanel>
               <TextBlock Text="Para quem" Style="{StaticResource FieldLabel}" />
-              <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.AudienceOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementAudienceKey}" AutomationProperties.Name="Público do comunicado" />
+              <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.AudienceOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementAudienceKey}" AutomationProperties.Name="Público do comunicado"  enter:EnterNavigation.Group="CommunicationView.message"/>
               <TextBlock Text="{Binding AnnouncementAudienceError}" Style="{StaticResource FieldError}" Visibility="{Binding AnnouncementAudienceError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
             <StackPanel Grid.Column="2">
               <TextBlock Text="Alcance" Style="{StaticResource FieldLabel}" />
-              <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.ScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementScopeKey}" AutomationProperties.Name="Alcance do comunicado" />
+              <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.ScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementScopeKey}" AutomationProperties.Name="Alcance do comunicado"  enter:EnterNavigation.Group="CommunicationView.message"/>
             </StackPanel>
           </Grid>
           <StackPanel Visibility="{Binding ShowRegionChoices, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8">
@@ -51,12 +51,12 @@
           <TextBlock Text="{Binding AnnouncementScopeError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding AnnouncementScopeError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           <TextBlock Text="Validade (opcional): data e hora no seu horário. Depois dela o comunicado some das leituras." Style="{StaticResource FieldLabel}" TextWrapping="Wrap" />
           <WrapPanel>
-            <StackPanel Margin="0,0,16,0"><TextBlock Text="Data (dd/mm/aaaa)" Style="{StaticResource Muted}" FontSize="12" /><TextBox Text="{Binding AnnouncementExpiryDate, UpdateSourceTrigger=PropertyChanged}" MinWidth="150" MaxLength="10" AutomationProperties.Name="Data de validade do comunicado" ToolTip="dd/mm/aaaa" /></StackPanel>
-            <StackPanel><TextBlock Text="Hora (HH:mm)" Style="{StaticResource Muted}" FontSize="12" /><TextBox Text="{Binding AnnouncementExpiryTime, UpdateSourceTrigger=PropertyChanged}" MinWidth="90" MaxLength="5" AutomationProperties.Name="Hora de validade do comunicado" ToolTip="HH:mm; em branco vale 23:59" /></StackPanel>
+            <StackPanel Margin="0,0,16,0"><TextBlock Text="Data (dd/mm/aaaa)" Style="{StaticResource Muted}" FontSize="12" /><TextBox Text="{Binding AnnouncementExpiryDate, UpdateSourceTrigger=PropertyChanged}" MinWidth="150" MaxLength="10" AutomationProperties.Name="Data de validade do comunicado" ToolTip="dd/mm/aaaa"  enter:EnterNavigation.Group="CommunicationView.message"/></StackPanel>
+            <StackPanel><TextBlock Text="Hora (HH:mm)" Style="{StaticResource Muted}" FontSize="12" /><TextBox Text="{Binding AnnouncementExpiryTime, UpdateSourceTrigger=PropertyChanged}" MinWidth="90" MaxLength="5" AutomationProperties.Name="Hora de validade do comunicado" ToolTip="HH:mm; em branco vale 23:59"  enter:EnterNavigation.Group="CommunicationView.message"/></StackPanel>
           </WrapPanel>
           <TextBlock Text="{Binding AnnouncementExpiryError}" Style="{StaticResource FieldError}" Visibility="{Binding AnnouncementExpiryError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           <WrapPanel Margin="0,4,0,0">
-            <Button Content="Publicar comunicado" Click="OnPublish" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" />
+            <Button Content="Publicar comunicado" Click="OnPublish" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"  enter:EnterNavigation.Group="CommunicationView.message"/>
             <Button Content="Limpar formulário" Click="OnClear" />
           </WrapPanel>
         </StackPanel>

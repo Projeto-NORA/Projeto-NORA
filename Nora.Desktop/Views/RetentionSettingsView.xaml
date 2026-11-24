@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.RetentionSettingsView"
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.RetentionSettingsView"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Loaded="OnLoaded" Unloaded="OnUnloaded" IsVisibleChanged="OnVisibilityChanged">
@@ -13,16 +13,16 @@
       <StackPanel x:Name="Controls" IsEnabled="False">
         <CheckBox x:Name="NeverDelete" IsChecked="True" Content="Nunca excluir sozinho" Checked="OnPolicyChanged" Unchecked="OnPolicyChanged" />
         <WrapPanel x:Name="PolicyActions" Margin="0,8,0,0" Visibility="Collapsed">
-          <TextBox x:Name="PolicyDays" Width="70" VerticalAlignment="Center" AutomationProperties.Name="Prazo automático em dias" />
+          <TextBox x:Name="PolicyDays" Width="70" VerticalAlignment="Center" AutomationProperties.Name="Prazo automático em dias"  enter:EnterNavigation.Group="RetentionSettingsView.policy"/>
           <TextBlock x:Name="PolicyDaysLabel" Text="dias" VerticalAlignment="Center" Margin="7,0,12,0" />
-          <Button x:Name="SavePolicy" Content="Salvar prazo" Click="OnSavePolicy" />
+          <Button x:Name="SavePolicy" Content="Salvar prazo" Click="OnSavePolicy"  enter:EnterNavigation.Group="RetentionSettingsView.policy"/>
         </WrapPanel>
         <ComboBox x:Name="Items" DisplayMemberPath="Name" Margin="0,12,0,4" SelectionChanged="OnSelectionChanged"
-                  AutomationProperties.Name="Cadastros desativados" />
+                  AutomationProperties.Name="Cadastros desativados"  enter:EnterNavigation.Group="RetentionSettingsView.schedule"/>
         <TextBlock x:Name="ItemStatus" Style="{StaticResource Muted}" Margin="0,0,0,5" />
         <WrapPanel x:Name="ItemActions" Visibility="Collapsed">
-          <TextBox x:Name="ItemDays" Width="70" Margin="0,0,7,4" Text="30" AutomationProperties.Name="Prazo deste cadastro em dias" />
-          <Button x:Name="Schedule" Content="Agendar exclusão" Margin="0,0,7,4" Click="OnSchedule" />
+          <TextBox x:Name="ItemDays" Width="70" Margin="0,0,7,4" Text="30" AutomationProperties.Name="Prazo deste cadastro em dias"  enter:EnterNavigation.Group="RetentionSettingsView.schedule"/>
+          <Button x:Name="Schedule" Content="Agendar exclusão" Margin="0,0,7,4" Click="OnSchedule"  enter:EnterNavigation.Group="RetentionSettingsView.schedule"/>
           <Button x:Name="CancelSchedule" Content="Cancelar exclusão" Margin="0,0,0,4" Click="OnCancelSchedule" />
         </WrapPanel>
       </StackPanel>
