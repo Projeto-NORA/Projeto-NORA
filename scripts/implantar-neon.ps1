@@ -18,7 +18,12 @@
   As migrações são aditivas e podem ser repetidas. A senha nunca passa pelo chat nem pelo Git.
 #>
 [CmdletBinding()]
-param([switch] $PularCadastro)
+param(
+    # Só converte a URI do Neon para o formato do Npgsql e copia para a área de transferência (para colar no Render). Não toca no banco.
+    [switch] $SoConexao,
+    # Migra e confere, mas não oferece o cadastro do município e do OBS.
+    [switch] $PularCadastro
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -47,6 +52,21 @@ function Find-Psql {
     $candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 }
 
+# O psql portátil do Windows não enxerga a loja de certificados do sistema (sslrootcert=system falha com "certificate verify failed").
+# Exportamos as raízes que o próprio Windows confia para um arquivo temporário: a verificação completa do certificado continua valendo.
+function New-WindowsRootBundle {
+    $certs = @(Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root -ErrorAction SilentlyContinue |
+        Where-Object { $_.NotAfter -gt (Get-Date) } | Sort-Object Thumbprint -Unique)
+    if ($certs.Count -eq 0) { throw 'Não encontrei certificados raiz confiáveis no Windows.' }
+    $text = [Text.StringBuilder]::new()
+    foreach ($cert in $certs) {
+        [void]$text.Append("-----BEGIN CERTIFICATE-----`n").Append([Convert]::ToBase64String($cert.RawData, 'InsertLineBreaks').Replace("`r`n", "`n")).Append("`n-----END CERTIFICATE-----`n")
+    }
+    $path = Join-Path ([IO.Path]::GetTempPath()) ("nora-raizes-$([guid]::NewGuid().ToString('N')).pem")
+    [IO.File]::WriteAllText($path, $text.ToString(), [Text.Encoding]::ASCII)
+    $path
+}
+
 function Write-Step([string] $Text) { Write-Host "→ $Text" -ForegroundColor Yellow }
 function Write-Done([string] $Text) { Write-Host "✓ $Text" -ForegroundColor Green }
 
@@ -70,17 +90,39 @@ function Invoke-NoraApi([string[]] $Arguments) {
 if ($MyInvocation.InvocationName -eq '.') { return }   # permite carregar só as funções para teste
 
 $script:Repo = Split-Path -Parent $PSScriptRoot
+$rootBundle = $null
 try {
     Write-Step 'Cole a URI do Neon (postgresql://...) e tecle Enter. Nada aparece na tela.'
     $connection = ConvertTo-NpgsqlConnection (Read-Host -MaskInput 'URI do Neon')
     Write-Done "Conexão direta reconhecida: $($connection.Host) (banco $($connection.Database))."
 
+    if ($SoConexao) {
+        Set-Clipboard -Value $connection.Npgsql
+        Write-Done 'A conexão no formato do Npgsql está na área de transferência.'
+        Write-Host '   Cole no Render: nora-api > Environment > ConnectionStrings__Nora > Save, rebuild, and deploy.' -ForegroundColor Cyan
+        return
+    }
+
     $psql = Find-Psql
     $env:PGHOST = $connection.Host; $env:PGPORT = "$($connection.Port)"; $env:PGDATABASE = $connection.Database
     $env:PGUSER = $connection.User; $env:PGPASSWORD = $connection.Password
-    $env:PGSSLMODE = 'verify-full'; $env:PGSSLROOTCERT = 'system'; $env:PGCHANNELBINDING = 'require'
+    $env:PGSSLMODE = 'verify-full'; $env:PGCHANNELBINDING = 'require'
     $before = $null
-    if ($psql) { Write-Step 'Contando as linhas de todas as tabelas (antes)…'; $before = Get-TableCounts $psql; Write-Done "$($before.Count) tabelas lidas." }
+    if ($psql) {
+        try {
+            $rootBundle = New-WindowsRootBundle
+            $env:PGSSLROOTCERT = $rootBundle
+            Write-Step 'Contando as linhas de todas as tabelas (antes)…'
+            $before = Get-TableCounts $psql
+            Write-Done "$($before.Count) tabelas lidas."
+        }
+        catch {
+            Write-Host "! Não consegui contar as linhas: $($_.Exception.Message)" -ForegroundColor DarkYellow
+            Write-Host '  As migrações só acrescentam colunas e tabelas, mas sem a contagem não há conferência final de que nada se perdeu.' -ForegroundColor DarkYellow
+            if ((Read-Host 'Seguir mesmo assim? [s/N]') -notmatch '^[sSyY]') { Write-Host 'Parei sem alterar nada.' -ForegroundColor Red; exit 1 }
+            $before = $null
+        }
+    }
     else { Write-Host '! psql não encontrado: a conferência de linhas será pulada (as migrações só acrescentam).' -ForegroundColor DarkYellow }
 
     Write-Step 'Compilando a API em Release…'
@@ -119,5 +161,6 @@ try {
     Write-Host '   Cole no Render: nora-api > Environment > ConnectionStrings__Nora > Save, rebuild, and deploy.' -ForegroundColor Cyan
 }
 finally {
-    Remove-Item Env:ConnectionStrings__Nora, Env:PGPASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:ConnectionStrings__Nora, Env:PGPASSWORD, Env:PGSSLROOTCERT -ErrorAction SilentlyContinue
+    if ($rootBundle) { Remove-Item -LiteralPath $rootBundle -Force -ErrorAction SilentlyContinue }
 }
