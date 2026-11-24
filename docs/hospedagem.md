@@ -100,6 +100,9 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
 
 **Caminho curto (recomendado):** `pwsh -File scripts\implantar-neon.ps1`, na raiz do repositório, com o PowerShell 7. O script pede a URI do Neon (entrada oculta, sem gravar em arquivo), converte para o formato do Npgsql, conta as linhas de todas as tabelas, compila a API, aplica `--migrate` e `--migrate-all-units`, recusa o resultado se alguma tabela perder linhas, oferece o `--provision` do município e do OBS e deixa a conexão pronta na área de transferência para colar no Render. O texto abaixo é o mesmo roteiro feito à mão.
 
+- **Só a conexão para o Render:** `pwsh -File scripts\implantar-neon.ps1 -SoConexao` converte a URI e copia a conexão do Npgsql para a área de transferência, sem tocar no banco. Serve quando o banco já foi migrado e falta só colar em `ConnectionStrings__Nora`. Com `-PularCadastro`, o script migra e confere, mas não oferece o `--provision`.
+- **Certificado do Neon no psql:** o psql portátil do Windows não lê a loja de certificados do sistema, e `sslrootcert=system` falha com `certificate verify failed`. Por isso o script exporta as raízes confiáveis do Windows para um arquivo temporário, usa esse arquivo em `PGSSLROOTCERT` (com `verify-full`) e o apaga no fim. A API não precisa disso: o .NET já usa a loja do Windows.
+
 A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision` pede dados no terminal e por isso não roda no Render. Na raiz do repositório, numa janela do PowerShell. Para o escopo `municipal`, informe o nome do município e depois nome completo, e-mail e senha do funcionário. Para `obs`, informe nome, e-mail e senha. A migração 023 deve ser aplicada antes do provisionamento. **A equipe (Secretaria e OBS) não tem CPF e entra só por e-mail**; as contas que já existiam perdem o CPF na migração 022:
 
 ```powershell

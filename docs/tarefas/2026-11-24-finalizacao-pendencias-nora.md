@@ -40,17 +40,39 @@ Deixar o NORA com as pendências fechadas ou com o motivo registrado, a API publ
 
 ## Checklist
 
-- [ ] Conferir o remoto antes do push e juntar o que vier dele sem perder nada.
-- [ ] P-049: diagnosticar o deploy que falhou, corrigir a variável e publicar. Validar `/health` e `/health/ready`.
-- [ ] P-049: aplicar as migrações no Neon e conferir que nenhuma tabela perdeu dados.
-- [ ] P-049: enviar um e-mail real pelo Brevo, com dados fictícios.
-- [ ] P-058: rodar a suíte instrumentada completa do APPNORA no emulador.
-- [ ] P-042: mover para `docs/IDEIAS.md` por decisão do usuário.
-- [ ] Recuperação de senha: confirmar no código e nos testes que funciona no APPNORA e no OBS. Confirmar que o Painel Municipal está documentado como adiado.
-- [ ] Build .NET Release, suítes da API e do WPF e testes unitários do Android depois das mudanças.
-- [ ] Loop de verificação até uma volta sem achados.
-- [ ] Atualizar a documentação, `PENDENCIAS.md` e este documento. Fazer os commits por assunto e o push.
+- [x] Conferir o remoto antes do push e juntar o que vier dele sem perder nada. Não havia commit novo da namorada do usuário: `origin/main` estava em `492f7c3` no início e foi para `3c7e454` só com os commits desta tarefa.
+- [x] P-049: diagnosticar o deploy que falhou. Nos logs do Render, `ConnectionStrings__Nora` guardava a URI do Neon e a API caía na subida imprimindo a senha. A senha foi trocada no Neon e o pooling desligado.
+- [ ] P-049: publicar e validar `/health/ready`. O usuário está colando a conexão nova no Render (ver Estado).
+- [x] P-049: aplicar as migrações no Neon e conferir que nenhuma tabela perdeu dados. Primeira rodada pelo script desta sessão chegou ao `PRONTO`; o usuário roda `scripts/implantar-neon.ps1` para chegar à 025 e cadastrar o município e o OBS.
+- [ ] P-049: enviar um e-mail real pelo Brevo, com dados fictícios, para `noraprojeto@gmail.com`. Depende da API no ar.
+- [x] P-058: rodar a suíte instrumentada completa do APPNORA no emulador (resultado no Estado; a única falha virou a P-059).
+- [x] P-042: movida para `docs/IDEIAS.md` como I-001.
+- [x] Recuperação de senha: APPNORA por código no e-mail (2/2 na API com PostgreSQL 18: destinatário certo, código vencido, uso único, sessão antiga encerrada); OBS pela Secretaria, com senha provisória e troca obrigatória; Painel Municipal adiado, com a TI usando `--reset-password` no terminal.
+- [x] Build .NET Release (0 avisos, 0 erros), API no PostgreSQL 18 (287/287) e WPF sem API (191/191) depois das mudanças.
+- [x] Loop de verificação: a revisão independente achou dois riscos médios, decididos pelo usuário e corrigidos (prazo menor recomeça a contagem; OBS só com login). O risco baixo da lista limitada a 200 virou a P-060.
+- [x] Atualizar a documentação, `PENDENCIAS.md` e este documento. Fazer os commits por assunto e o push.
 
 ## Estado
 
-Tarefa aberta em 24/11/2026. O remoto conferido no início não tinha commit novo (`main` = `origin/main` = `492f7c3`). O trabalho do Codex está copiado para o worktree.
+Atualizado em 24/11/2026.
+
+**Na `main` e no GitHub (`3c7e454`):**
+
+- Exclusão programada. Reduzir o prazo geral recomeça a contagem na data da mudança; aumentar mantém o início. Teste novo em `RetentionChecks.cs`.
+- Computadores do OBS desligados por padrão (`Nora:ObsDevices:Enabled=false` na API, `ObsDeviceStore(computersEnabled: false)` no OBS). O login vale sozinho e pode ser mantido por 30 dias. Os testes antigos dos computadores ligam o recurso de propósito, e há testes novos do padrão na API e no WPF.
+- Perfil da equipe, sessão de 30 dias, filtros, pesquisa e preferências (trabalho do Codex de 23/11).
+- `--reset-password` (migração central 025) e `scripts/implantar-neon.ps1`, feitos por um fork desta conversa entre 03:00 e 06:40.
+
+**Validações:**
+
+- API no PostgreSQL 18.6 descartável: 283/283 antes das mudanças desta sessão e 287/287 depois. A segunda rodada foi do fork.
+- WPF sem API: 190/190 e depois 191/191, com o teste do login só por senha.
+- Android: duas rodadas completas sem a API real, 50 testes com 48 passando e 2 pulados por assumption.
+- Rodada final com a API real (`validar-clientes-descartavel.ps1 -Android -Port 55530`): WPF 194/194. Android: 46 passando, inclusive o teste da API real, 3 pulados por assumption e 1 falha do teste de presença (P-059: 2 falhas em 2 rodadas com a API real e 0 em 7 sem ela). A P-058 foi resolvida, e a P-059 segue aberta com a hipótese e o próximo passo.
+
+**O que falta:**
+
+- Implantação: colar a conexão no Render, conferir `/health/ready` e testar o Brevo. Fica com o usuário nesta rodada.
+- A P-059, o teste de presença intermitente.
+
+**Processo:** esta sessão e um fork trabalharam ao mesmo tempo no mesmo worktree. O fork o alinhou a `3c7e454` com `git reset --hard`; os 149 arquivos eram idênticos aos commits, nada se perdeu.
