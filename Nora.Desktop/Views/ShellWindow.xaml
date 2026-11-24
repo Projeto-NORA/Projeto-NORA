@@ -1,4 +1,9 @@
 <Window x:Class="Nora.Desktop.Views.ShellWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="1320" Height="860" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="{Binding Profile.Name}">
+  <Window.Resources>
+    <Geometry x:Key="HealthUnitIcon">M 2,21 V 11 H 6 V 4 H 18 V 11 H 22 V 21 Z M 9,21 V 16 H 15 V 21 M 9.5,9.5 H 14.5 M 12,7 V 12</Geometry>
+    <Geometry x:Key="SpecialtiesIcon">M 3,3 V 9 A 5,5 0 0 0 13,9 V 3 M 3,3 H 5 M 13,3 H 11 M 8,14 V 16 A 6,6 0 0 0 20,16 V 13 M 20,9 A 2,2 0 1 1 20,13 A 2,2 0 1 1 20,9 Z</Geometry>
+    <Geometry x:Key="ReportsIcon">M 5,3 H 15 L 20,8 V 21 H 5 Z M 15,3 V 8 H 20 M 9,17 V 15 M 12.5,17 V 13 M 16,17 V 11</Geometry>
+  </Window.Resources>
   <Grid x:Name="ShellLayout">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="{Binding SidebarColumnWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MinWidth="208" MaxWidth="380" />
@@ -70,11 +75,31 @@
                     </Style>
                   </Button.Style>
                   <StackPanel Orientation="Horizontal">
-                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="18" Width="24" VerticalAlignment="Center" />
+                    <Grid Width="24" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                 Visibility="{Binding Icon, Converter={StaticResource TextVisibility}}" VerticalAlignment="Center" />
+                      <Path x:Name="NavigationVector" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center"
+                            Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"
+                            StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Collapsed" />
+                    </Grid>
                     <TextBlock Text="{Binding Title}" Margin="10,0,0,0" />
                     <Border Visibility="{Binding HasBadge, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource BrandBrush}" CornerRadius="10" MinWidth="22" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource BrandTextBrush}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" /></Border>
                   </StackPanel>
                 </Button>
+                <DataTemplate.Triggers>
+                  <DataTrigger Binding="{Binding Id}" Value="units">
+                    <Setter TargetName="NavigationVector" Property="Data" Value="{StaticResource HealthUnitIcon}" />
+                    <Setter TargetName="NavigationVector" Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding Id}" Value="specialties">
+                    <Setter TargetName="NavigationVector" Property="Data" Value="{StaticResource SpecialtiesIcon}" />
+                    <Setter TargetName="NavigationVector" Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding Id}" Value="reports">
+                    <Setter TargetName="NavigationVector" Property="Data" Value="{StaticResource ReportsIcon}" />
+                    <Setter TargetName="NavigationVector" Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </DataTemplate.Triggers>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl></ScrollViewer>

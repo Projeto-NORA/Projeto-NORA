@@ -22,6 +22,12 @@
         <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.12" Color="#061E3B" />
       </Setter.Value>
     </Setter>
+    <Style.Triggers>
+      <!-- O efeito rasteriza também o texto dentro do cartão e desativa o ClearType. -->
+      <DataTrigger Binding="{Binding DataContext.IsMunicipal, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+        <Setter Property="Effect" Value="{x:Null}" />
+      </DataTrigger>
+    </Style.Triggers>
   </Style>
   <Style TargetType="Button">
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />

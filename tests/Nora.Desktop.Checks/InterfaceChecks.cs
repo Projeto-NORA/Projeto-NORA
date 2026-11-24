@@ -55,6 +55,82 @@ internal static partial class Program
                 }
                 finally { window.ViewModel.ConfirmClose = false; window.Close(); }
             });
+            Check("Municipal: nitidez do texto na área principal nos dois temas", () =>
+            {
+                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+                var window = new ShellWindow(DesktopProfile.Municipal, Path.Combine(storageRoot, "municipal-text"), new NoraApiClient(fixture));
+                try
+                {
+                    window.ViewModel.ConfirmClose = false;
+                    window.ViewModel.Animations = false;
+                    PrepareWindow(window);
+                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
+                    Require(window.ViewModel.Workspace.IsAuthenticated, "Login da fixture falhou.");
+                    window.ViewModel.Navigate("users");
+                    foreach (var appearance in new[] { Appearance.Light, Appearance.Dark })
+                    {
+                        window.ViewModel.SetAppearance(appearance);
+                        var content = Layout(window, 1280, 860);
+                        var labels = Descendants<TextBlock>(content).Where(text => text.IsVisible &&
+                            text.Text is "Vínculos de contas OBS" or "UBS autorizadas" or "Histórico de ações").ToArray();
+                        Require(labels.Length == 3, "Faltam textos da tela Usuários e histórico.");
+                        foreach (var label in labels)
+                        {
+                            var card = (Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(label));
+                            var foreground = ((SolidColorBrush)label.Foreground).Color;
+                            var contrast = ((LinearGradientBrush)card.Background).GradientStops
+                                .Min(stop => Contrast(foreground, stop.Color));
+                            Console.WriteLine($"{appearance}: {label.Text}, contraste {contrast:F2}:1.");
+                            Require(contrast >= 4.5, $"Contraste insuficiente em {label.Text}.");
+                            for (DependencyObject? parent = label; parent != null; parent = VisualTreeHelper.GetParent(parent))
+                            {
+                                if (parent is UIElement { Effect: { } effect })
+                                    throw new InvalidOperationException($"{label.Text} está dentro de {effect.GetType().Name}.");
+                            }
+                        }
+                    }
+                }
+                finally { window.Close(); }
+            });
+            Check("Municipal: ícones de Unidades, Especialidades e Relatórios e metas seguem navegação e tema", () =>
+            {
+                using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+                var window = new ShellWindow(DesktopProfile.Municipal, Path.Combine(storageRoot, "municipal-icons"), new NoraApiClient(fixture));
+                try
+                {
+                    window.ViewModel.ConfirmClose = false;
+                    window.ViewModel.Animations = false;
+                    PrepareWindow(window);
+                    LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
+                    Require(window.ViewModel.Workspace.IsAuthenticated, "Login da fixture falhou.");
+                    var items = new[]
+                    {
+                        (Id: "units", Title: "Unidades", Resource: "HealthUnitIcon"),
+                        (Id: "specialties", Title: "Especialidades", Resource: "SpecialtiesIcon"),
+                        (Id: "reports", Title: "Relatórios e metas", Resource: "ReportsIcon")
+                    };
+                    foreach (var appearance in new[] { Appearance.Light, Appearance.Dark })
+                    {
+                        window.ViewModel.SetAppearance(appearance);
+                        Layout(window, 1280, 860);
+                        var sidebar = (Border)window.FindName("Sidebar");
+                        foreach (var item in items)
+                        {
+                            var button = Descendants<Button>(sidebar).Single(candidate => Equals(candidate.CommandParameter, item.Id));
+                            Require(AutomationProperties.GetName(button) == item.Title, $"Nome acessível incorreto em {item.Id}.");
+                            InvokeButton(button);
+                            Layout(window, 1280, 860);
+                            Require(window.ViewModel.Page == item.Id, $"Destino incorreto em {item.Title}.");
+                            var icon = Descendants<System.Windows.Shapes.Path>(button).Single();
+                            Require(icon.IsVisible && Equals(icon.Data, window.FindResource(item.Resource)), $"Desenho incorreto em {item.Title}.");
+                            var stroke = ((SolidColorBrush)icon.Stroke).Color;
+                            var background = ((SolidColorBrush)button.Background).Color;
+                            Require(Contrast(stroke, background) >= 3, $"Contraste insuficiente no ícone de {item.Title}.");
+                        }
+                    }
+                }
+                finally { window.Close(); }
+            });
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
             {
                 Check($"{profile.Name}: render nativo e seleção acessível nos três temas", () =>
