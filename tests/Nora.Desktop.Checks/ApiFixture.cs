@@ -151,6 +151,19 @@ internal static partial class Program
                 return new(UnauthorizedReads ? HttpStatusCode.Unauthorized : HttpStatusCode.InternalServerError);
             if (path == "/api/auth/me" && request.Method == HttpMethod.Get)
                 return Reply(new AccountUser(AccountId, UseWorkspaceIdentity ? Scope == "obs" ? "Operador Fixture" : "Gestor Fixture" : "Paciente Fixture", Scope == "obs" ? ObsRole : "manager", Scope, MustChangePassword));
+            if (path == "/api/auth/profile")
+            {
+                var name = Scope == "obs" ? "Operador Fixture" : "Gestor Fixture";
+                if (request.Method == HttpMethod.Patch)
+                {
+                    using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                    name = body.RootElement.GetProperty("fullName").GetString()!;
+                }
+                return Reply(new StaffSelfProfile(name, "equipe@example.test", Scope == "obs" ? ObsRole : "manager", Scope,
+                    Scope == "municipal" ? "São José dos Campos" : null, units.Select(unit => new StaffUnitOption(unit.Id, unit.Name)).ToArray()));
+            }
+            if (path.EndsWith("/retention", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+                return Reply(new RetentionOverview(new(null), []));
             if (path == "/api/auth/logout") { LogoutCalled = true; return FailLogout ? new(HttpStatusCode.InternalServerError) { Content = new StringContent("private-server-secret") } : new(HttpStatusCode.NoContent); }
             // As próximas leituras da Jornada ficam retidas até o teste liberá-las (ignoram o cancelamento, como um servidor lento).
             if (HoldNextHealthQueries > 0 && request.Method == HttpMethod.Post && path.EndsWith("/health-records/query", StringComparison.Ordinal))

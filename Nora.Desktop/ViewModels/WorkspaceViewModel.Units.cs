@@ -84,7 +84,7 @@ public sealed partial class WorkspaceViewModel
     private void ClearAgendaRangeError() { if (unitAgendaRangeError.Length > 0) UnitAgendaRangeError = ""; }
     public string UnitAgendaStatus { get => unitAgendaStatus; set { value ??= ""; if (unitAgendaStatus == value) return; unitAgendaStatus = value; Notify(); RefreshVisibleAppointments(); } }
     public bool MunicipalAppointmentsLoaded { get => municipalAppointmentsLoaded; private set { municipalAppointmentsLoaded = value; Notify(); Notify(nameof(MunicipalAppointmentsState)); } }
-    public string MunicipalAppointmentsState => !MunicipalAppointmentsLoaded ? "Selecione uma UBS, escolha o período e consulte a agenda."
+    public string MunicipalAppointmentsState => !MunicipalAppointmentsLoaded ? "Selecione uma UBS e abra Filtros para consultar a agenda do período."
         : MunicipalAppointments.Count == 0 ? "Nenhuma consulta no período."
         : VisibleMunicipalAppointments.Count == 0 ? "Nenhuma consulta com esta situação no período." : "";
     private void RefreshVisibleAppointments()

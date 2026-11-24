@@ -265,11 +265,13 @@ internal static partial class Program
                     var content = Layout(window, 980, 640);
                     if (profile.IsMunicipal)
                     {
-                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Visão geral"), "Visão geral da Secretaria não renderizou.");
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes aguardando"), "Total de pacientes aguardando não apareceu na Visão geral.");
-                        // Os quatro filtros agora são reais: nenhum combo desabilitado nem rótulo "Indisponível".
-                        Require(Descendants<ComboBox>(content).Count(box => box.IsEnabled) == 4 && Descendants<ComboBox>(content).All(box => box.IsEnabled), "Os quatro filtros da rede deveriam estar habilitados.");
-                        Require(!Descendants<TextBlock>(content).Any(text => text.Text == "Indisponível") && !Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string),  "Ainda há filtro rotulado como indisponível.");
+                        // A visão geral aplica apenas o escopo que muda seus totais.
+                        var filters = OpenPageFilters(window);
+                        Require(Descendants<ComboBox>(filters).Single().IsEnabled, "O filtro por UBS da Visão geral deveria estar habilitado.");
+                        Require(!Descendants<TextBlock>(filters).Any(text => text.Text == "Indisponível") && !Descendants<ComboBox>(filters).Any(box => box.Items.Count == 1 && box.Items[0] is string),  "Ainda há filtro rotulado como indisponível.");
+                        ((System.Windows.Controls.Primitives.Popup)window.FindName("FiltersPopup")).IsOpen = false;
                     }
                     else
                     {
@@ -284,7 +286,7 @@ internal static partial class Program
                     window.ViewModel.Navigate("slots");
                     var slotsContent = Layout(window, 980, 640);
                     Require(Descendants<TextBlock>(slotsContent).Any(text => text.Text == "Ofertas criadas") && Descendants<TextBlock>(slotsContent).Any(text => text.Text == "5"), "Contagens de ofertas não aparecem na tela.");
-                    var period = Descendants<ComboBox>(slotsContent).Single(box => AutomationProperties.GetName(box) == "Período das vagas");
+                    var period = Combo(slotsContent, "Período das vagas");
                     Require(period.IsEnabled, "Filtro de período não habilitado.");
                     period.SelectedValue = 7;
                     Layout(window, 980, 640);
@@ -395,7 +397,7 @@ internal static partial class Program
         var account = Descendants<Button>((FrameworkElement)window.Content).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
         InvokeButton(account);
         var menu = account.ContextMenu ?? throw new InvalidOperationException("Menu da conta ausente.");
-        Require(menu.IsOpen && menu.Items.Count == 2, "Conta não abriu exatamente Configurações e Sair.");
+        Require(menu.IsOpen && menu.Items.Count == 3, "Conta não abriu Configurações, Dados do perfil e Sair.");
         var item = menu.Items.Cast<MenuItem>().Single(item => item.Header?.ToString() == header);
         Require(item.IsEnabled && item.Command?.CanExecute(item.CommandParameter) == true, "Ação do menu indisponível: " + header);
         var peer = new System.Windows.Automation.Peers.MenuItemAutomationPeer(item);

@@ -79,7 +79,9 @@ try {
         try {
             # Depuração: assinado com a chave de depuração do SDK, instala em qualquer Android e aceita só HTTPS (HTTP apenas para o
             # emulador). Release: assinado com a chave própria, com R8 (docs/distribuicao.md).
-            & .\gradlew.bat $tarefa --console=plain -q
+            $noraApiUrl = $env:NORA_API_URL
+            if (-not $noraApiUrl) { $noraApiUrl = 'https://nora-api-kw8x.onrender.com' }
+            & .\gradlew.bat $tarefa "-PNORA_API_URL=$noraApiUrl" --console=plain -q
             if ($LASTEXITCODE -ne 0) { throw "Falha no Gradle (código $LASTEXITCODE)." }
         } finally { Pop-Location }
         $apk = Join-Path $raiz $(if ($Release) { 'APPNORA\app\build\outputs\apk\release\app-release.apk' } else { 'APPNORA\app\build\outputs\apk\debug\app-debug.apk' })

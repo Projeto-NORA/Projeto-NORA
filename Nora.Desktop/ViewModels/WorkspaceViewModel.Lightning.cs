@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Data;
 using Nora.Desktop.Generics;
 using Nora.Desktop.Models;
@@ -48,9 +49,13 @@ public sealed partial class WorkspaceViewModel
     public bool HasNoFilteredWaitingEntries => unitQueueLoaded && UnitWaitingList.Count > 0 && !FilteredUnitWaitingList.Any();
     private void ConfigureQueueView(ListCollectionView view)
     {
+        var patient = QueuePatientFilter.Trim();
+        var specialty = QueueSpecialtyFilter.Trim();
+        var comparison = CultureInfo.CurrentCulture.CompareInfo;
+        const CompareOptions options = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
         using (view.DeferRefresh())
         {
-            view.Filter = item => item is UnitWaitingEntry entry && entry.PatientName.Contains(QueuePatientFilter.Trim(), StringComparison.CurrentCultureIgnoreCase) && entry.Specialty.Contains(QueueSpecialtyFilter.Trim(), StringComparison.CurrentCultureIgnoreCase);
+            view.Filter = item => item is UnitWaitingEntry entry && comparison.IndexOf(entry.PatientName, patient, options) >= 0 && comparison.IndexOf(entry.Specialty, specialty, options) >= 0;
             view.SortDescriptions.Clear();
             if (QueueSort is "Paciente A–Z" or "Paciente Z–A")
                 view.SortDescriptions.Add(new SortDescription(nameof(UnitWaitingEntry.PatientName), QueueSort == "Paciente Z–A" ? ListSortDirection.Descending : ListSortDirection.Ascending));

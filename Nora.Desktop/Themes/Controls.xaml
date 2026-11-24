@@ -7,7 +7,7 @@
   </Style>
   <Style x:Key="Muted" TargetType="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
-    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontSize" Value="14" />
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="LineHeight" Value="21" />
   </Style>
@@ -36,26 +36,25 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="Frame" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
-            <Border.RenderTransform><ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1" /></Border.RenderTransform>
-            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
-          </Border>
+          <Grid x:Name="ButtonChrome">
+            <Border x:Name="Frame" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" />
+            <Border x:Name="Hover" CornerRadius="9" Background="{DynamicResource ButtonHoverBrush}" Visibility="Collapsed" IsHitTestVisible="False" />
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True" />
+          </Grid>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Frame" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-              <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-              <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1.018" Duration="0:0:0.12" /><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1.018" Duration="0:0:0.12" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
-              <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16" /><DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
+              <Setter TargetName="Hover" Property="Visibility" Value="Visible" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="Frame" Property="Opacity" Value="0.75" />
+              <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.75" />
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
-              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+              <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" />
               <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-              <Setter TargetName="Frame" Property="Opacity" Value="0.5" />
+              <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.5" />
+              <Setter TargetName="Hover" Property="Visibility" Value="Collapsed" />
               <Setter Property="Cursor" Value="Arrow" />
             </Trigger>
           </ControlTemplate.Triggers>

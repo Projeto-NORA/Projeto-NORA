@@ -6,7 +6,7 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-public sealed class ShellViewModel : ObservableObject
+public sealed partial class ShellViewModel : ObservableObject
 {
     private DesktopPreferences preferences;
     private readonly PreferencesService storage;
@@ -25,26 +25,26 @@ public sealed class ShellViewModel : ObservableObject
     public string Status { get => status; private set { status = value; Notify(); } }
     public bool HasPreferenceError => storage.Error != null;
     public string Page { get => page; private set { page = value; MarkSelectedNavigation(); Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); Notify(nameof(SectionSummary)); } }
-    public bool IsHome => Page != "settings" && !ShowPasswordRequired;
-    public bool IsSettings => Page == "settings" && !ShowPasswordRequired;
+    public bool IsHome => Page != "settings" && !ShowPasswordRequired && !ShowCompactAccess;
+    public bool IsSettings => Page == "settings" && !ShowPasswordRequired && !ShowCompactAccess;
     /// <summary>Senha provisória: a janela mostra só a definição da nova senha (e Sair), sem menu nem dados.</summary>
     public bool ShowPasswordRequired => Workspace.MustChangePassword;
     public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : Navigation.FirstOrDefault(n => n.Id == Page)?.Title ?? "Visão geral";
     public string SectionSummary => ShowPasswordRequired ? "Troca obrigatória da senha provisória" : Page switch
     {
-        "home" => IsMunicipal ? "Panorama e prioridades da rede" : "Visão operacional e prioridades do dia",
-        "units" => "Acompanhe as unidades da rede",
+        "home" => IsMunicipal ? "Acompanhe os totais atuais e as prioridades da rede." : "Acompanhe a operação e as prioridades do dia.",
+        "units" => "Cadastre unidades e acompanhe seu desempenho.",
         "specialties" => "Lista da rede, demanda, fila e espera por especialidade",
         "network" => "Distribuição e carga por região",
         "capacity" => "Capacidade e uso das agendas",
         "reports" => "Relatórios, metas e exportação",
         "communication" => "Comunicados para as equipes e os pacientes das unidades",
         "users" => "Acessos e histórico de ações",
-        "queue" => "Organize a ordem de atendimento e acompanhe esperas",
+        "queue" => "Acompanhe posição, tempo de espera e situação de cada entrada da fila.",
         "agenda" => "Consulte períodos, horários e situações da agenda",
         "patients" => "Pesquise, cadastre e consulte pacientes autorizados",
         "slots" => "Reaproveite oportunidades e acompanhe Vagas Relâmpago",
-        "indicators" => "Acompanhe o desempenho da unidade",
+        "indicators" => IsMunicipal ? "Acompanhe acesso, produção e evolução da rede." : "Acompanhe o desempenho da unidade.",
         "alerts" => "Priorize situações que exigem atenção",
         "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios",
         "family" => "Pedidos de vínculo entre responsáveis e dependentes",
@@ -144,6 +144,7 @@ public sealed class ShellViewModel : ObservableObject
         foreach (var name in new[] { nameof(ShowSidebarTips), nameof(ConfirmClose), nameof(SaveNavigation), nameof(Animations), nameof(RememberSidebar), nameof(FullScreen), nameof(SidebarExpanded), nameof(SidebarWidth), nameof(SidebarColumnWidth), nameof(Appearance), nameof(LightSelected), nameof(DarkSelected), nameof(SystemSelected) }) Notify(name);
         // The restored persisted navigation starts at home on the next launch; settings stays visible now.
         Persist();
+        Notify(nameof(ShortcutRows));
         if (storage.Error == null) Status = "Preferências padrão restauradas neste aplicativo.";
     }
     private void Changed([System.Runtime.CompilerServices.CallerMemberName] string? name = null) { Notify(name); Persist(); }

@@ -66,7 +66,7 @@ internal static partial class Program
                 {
                     Input(content, "Data inicial do período da UBS").Text = from; Input(content, "Data final do período da UBS").Text = to;
                     Click(window, content, "Aplicar período da UBS");
-                    Require(fixture.UnitMetricsQueries.Count == count && vm.UnitRangeError.Contains(fragment) && HasText(Layout(window, 1280, 900), vm.UnitRangeError), $"Período inválido {from}–{to} não foi barrado com a mensagem: {vm.UnitRangeError}");
+                    Require(fixture.UnitMetricsQueries.Count == count && vm.UnitRangeError.Contains(fragment) && HasText(OpenPageFilters(window), vm.UnitRangeError), $"Período inválido {from}–{to} não foi barrado com a mensagem: {vm.UnitRangeError}");
                 }
                 Input(content, "Data inicial do período da UBS").Text = "01/10/2026"; Input(content, "Data final do período da UBS").Text = "31/10/2026";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado", 31);
@@ -126,7 +126,7 @@ internal static partial class Program
                     foreach (var card in vm.UnitOverviewCards.Concat(vm.UnitLightningCards)) Require(HasText(content, card.Title) && HasText(content, card.Value), $"{mode}: cartão não renderizado: {card.Title}");
                     Require(vm.UnitLightningCards.Select(card => card.Title + "=" + card.Value).SequenceEqual(["Vagas registradas=1", "Ofertas aceitas=1", "Ofertas recusadas=2", "Ofertas expiradas=1"]), "Cartões da Vaga Relâmpago incorretos.");
                     Require(Descendants<TextBlock>(content).Any(text => text.Text.Contains("Como é calculado o comparecimento") && text.ToolTip is string tip && tip.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)), "A explicação do score não aparece na dica.");
-                    Require(vm.PageTitle == "Indicadores da UBS" && HasText(content, "Indicadores da UBS") && vm.UnitMetricsScopeLabel.EndsWith("UBS Números", StringComparison.Ordinal), "Título ou escopo da UBS ausentes.");
+                    Require(HasText(content, "Indicadores") && !HasText(content, "Indicadores da UBS") && vm.UnitMetricsScopeLabel.EndsWith("UBS Números", StringComparison.Ordinal), "Título único ou escopo da UBS ausentes.");
                     var table = GridNamed(content, "Indicadores da UBS por especialidade");
                     var cells = VisibleTexts(table);
                     Require(new[] { "Clínica geral", "Pediatria", "82,6%", "75,0%", "2 h" }.All(cells.Contains) && cells.Count(text => text == "—") == 1, "Tabela por especialidade sem os números esperados: " + string.Join(" | ", cells));
@@ -253,7 +253,7 @@ internal static partial class Program
                 Require(!texts.Any(text => text.Contains('%')), "A lista não deveria mais mostrar participação em %.");
                 Require(Descendants<TextBlock>(list).Any(text => text.ToolTip?.ToString() == WorkspaceViewModel.ScorePriorityText), "A dica do score deveria explicar seu efeito na Vaga Relâmpago sem mudar a prioridade clínica.");
                 Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ScoreDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["1000 · sem consultas encerradas ainda", "429 · Regular", "750 · Bom", "900 · Excelente", "—"]), "O score de cada cadastro está incorreto.");
-                var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar cadastro da UBS");
+                var sort = Combo(content, "Ordenar cadastro da UBS");
                 Require(sort.Items.Cast<ComboBoxItem>().Select(item => item.Content?.ToString()).SequenceEqual(["Mais recentes", "Nome A–Z", "Nome Z–A", "Maior score", "Menor score"]), "As ordenações por score não foram renomeadas.");
                 sort.SelectedValue = "Maior score"; Layout(window, 1280, 1300);
                 Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(["Bia Sem Consulta", "Ana Alta", "Edu Sem Pontos", "Caio Baixo", "Duda Antiga"]), "Ordem por maior score incorreta (1000 de quem não tem histórico primeiro; sem dado da API vai para o fim).");

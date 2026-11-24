@@ -5,7 +5,6 @@
     <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style>
   </UserControl.Resources>
   <StackPanel>
-    <TextBlock Text="Família" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,20" ToolTip="A equipe decide pedidos de vínculo entre responsáveis e dependentes cadastrados nesta UBS." />
     <views:ObsUnitNoticeView />
     <DockPanel Margin="0,0,0,14">
       <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefresh" IsEnabled="{Binding HasActiveObsUnit}" AutomationProperties.Name="Atualizar pedidos" ToolTip="Lê de novo os pedidos e os vínculos desta UBS." />
@@ -18,7 +17,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Pedidos aguardando decisão" ToolTip="Pedidos são ordenados do mais antigo. Confira os documentos e a situação do dependente antes de aprovar; o sistema não verifica sua idade.">
       <StackPanel>
         <TextBlock Text="Pedidos aguardando decisão" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding FamilyPending}" SelectedItem="{Binding SelectedPendingFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Pedidos de família pendentes" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Pedidos aguardando decisão" SearchFields="GuardianName,DependentDisplay" ItemsTarget="{Binding ElementName=PendingFilterList}" />
+        <DataGrid x:Name="PendingFilterList" ItemsSource="{Binding FamilyPending}" SelectedItem="{Binding SelectedPendingFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Pedidos de família pendentes" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Responsável" Binding="{Binding GuardianName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="CPF do responsável" Binding="{Binding GuardianCpfDisplay}" SortMemberPath="GuardianCpf" Width="150" />
@@ -46,7 +46,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Vínculos aprovados" ToolTip="Encerrar o vínculo remove o acesso do responsável nesta UBS. Algumas consultas futuras podem ser canceladas conforme a situação do dependente.">
       <StackPanel>
         <TextBlock Text="Vínculos aprovados" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding FamilyApproved}" SelectedItem="{Binding SelectedApprovedFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Vínculos de família aprovados" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Vínculos aprovados" SearchFields="GuardianName,DependentDisplay" ItemsTarget="{Binding ElementName=ApprovedFilterList}" />
+        <DataGrid x:Name="ApprovedFilterList" ItemsSource="{Binding FamilyApproved}" SelectedItem="{Binding SelectedApprovedFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Vínculos de família aprovados" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Responsável" Binding="{Binding GuardianName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="CPF do responsável" Binding="{Binding GuardianCpfDisplay}" SortMemberPath="GuardianCpf" Width="150" />

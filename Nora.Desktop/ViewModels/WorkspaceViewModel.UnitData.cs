@@ -130,7 +130,7 @@ public sealed partial class WorkspaceViewModel
         var familyApproved = scope.HasFlag(UnitScope.Family) ? ReadTolerantAsync(() => api.FamilyLinksAsync(unit.Id, "approved")) : null;
         // Atendimento ao público (todos da equipe leem) e computadores (só o administrador): leituras tolerantes, uma falha não derruba a UBS.
         var profileRead = scope.HasFlag(UnitScope.Profile) ? ReadTolerantAsync(() => api.UnitProfileAsync(unit.Id)) : null;
-        var devicesRead = scope.HasFlag(UnitScope.Devices) && IsAdministrator ? ReadTolerantAsync(() => api.ObsDevicesAsync(unit.Id)) : null;
+        var devicesRead = scope.HasFlag(UnitScope.Devices) && IsAdministrator && HasDeviceSupport ? ReadTolerantAsync(() => api.ObsDevicesAsync(unit.Id)) : null;
         await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved, profileRead, devicesRead }.OfType<Task>());
         return new UnitSnapshot
         {

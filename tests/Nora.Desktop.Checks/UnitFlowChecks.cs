@@ -44,14 +44,14 @@ internal static partial class Program
                 Require(vm.Appointments.Count == 2, "Agenda da semana não foi carregada já no login.");
                 Require(fixture.Count("GET", "/registry") == 1 && fixture.Count("GET", "/waiting-list") == 1 && fixture.Count("GET", "/lightning-slots") == 1 && fixture.Count("GET", "/appointments") == 2, "O login deveria ler cada parte uma única vez, sem esperar o temporizador.");
                 var content = Layout(window, 1280, 740);
-                Require(VisibleTexts(content).Count(text => text == "UBS Única") >= 3, "Nome da UBS ativa não aparece no cabeçalho, na barra lateral e no Painel.");
+                Require(VisibleTexts(content).Count(text => text == "UBS Única") >= 2, "Nome da UBS ativa ausente da barra lateral ou do Painel.");
                 window.ViewModel.Navigate("settings"); content = Layout(window, 1280, 740);
                 var texts = VisibleTexts(content);
-                Require(texts.Contains("Administrador") && texts.Contains("UBS Única") && texts.Contains("Perfil da conta") && texts.Contains("Operador Fixture"), "Configurações não mostram nome, perfil e UBS ativa.");
+                Require(texts.Contains("UBS Única") && texts.Contains("Operador Fixture") && !texts.Contains("Perfil da conta"), "Configurações devem mostrar o menu da conta e manter o formulário de perfil separado.");
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
-        Check("OBS: perfil atendente e ausência de UBS aparecem em Configurações e no rótulo da unidade", () =>
+        Check("OBS: ausência de UBS permanece visível no menu da conta", () =>
         {
             using var fixture = new ApiFixture { ObsRole = "attendant" };
             fixture.AddUnit("UBS Norte", "Norte"); fixture.AddUnit("UBS Sul", "Sul");
@@ -62,7 +62,7 @@ internal static partial class Program
                 Require(vm.AccountRoleLabel == "Atendente" && vm.UnitLabel == "Nenhuma unidade selecionada", "Perfil ou rótulo sem UBS incorretos.");
                 window.ViewModel.Navigate("settings"); var content = Layout(window, 1280, 740);
                 var texts = VisibleTexts(content);
-                Require(texts.Contains("Atendente") && texts.Count(text => text == "Nenhuma unidade selecionada") >= 3, "Configurações, cabeçalho e barra lateral não dizem que nenhuma unidade foi selecionada.");
+                Require(texts.Contains("Nenhuma unidade selecionada"), "A barra lateral não informa que nenhuma unidade foi selecionada.");
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });

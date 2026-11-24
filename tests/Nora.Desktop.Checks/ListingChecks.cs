@@ -26,22 +26,23 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                foreach (var (route, visibleText, hiddenText) in new[]
+                var pages = new (string Route, Type View)[]
                 {
-                    ("home", "Resumo do dia", "Agenda da unidade"),
-                    ("agenda", "Agenda da unidade", "Resumo do dia"),
-                    ("patients", "Cadastro de pacientes da UBS", "Agenda da unidade"),
-                    ("queue", "Fila da UBS", "Pacientes aguardando"),
-                    ("slots", "Vagas Relâmpago da UBS", "Fila da UBS"),
-                    ("indicators", "Indicadores da UBS", "Central de alertas"),
-                    ("alerts", "Central de alertas", "Indicadores da UBS"),
-                    ("unit-settings", "Informações da UBS", "Resumo do dia")
-                })
+                    ("home", typeof(OperationalOverviewView)),
+                    ("agenda", typeof(AgendaView)),
+                    ("patients", typeof(ObsUnitRegistryView)),
+                    ("queue", typeof(UnitQueueView)),
+                    ("slots", typeof(UnitLightningSlotsView)),
+                    ("indicators", typeof(UnitIndicatorsView)),
+                    ("alerts", typeof(UnitAlertsView)),
+                    ("unit-settings", typeof(UnitSettingsView))
+                };
+                foreach (var (route, expectedView) in pages)
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 1280, 740);
-                    Require(Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == visibleText), "A aba não mostrou seu conteúdo: " + route);
-                    Require(!Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == hiddenText), "A aba manteve conteúdo de outra tela visível: " + route);
+                    var visiblePages = Descendants<UserControl>(content).Where(view => view.IsVisible && pages.Any(page => page.View == view.GetType())).ToArray();
+                    Require(visiblePages.Length == 1 && visiblePages[0].GetType() == expectedView, "A aba não mostrou exclusivamente seu conteúdo: " + route);
                 }
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -56,12 +57,12 @@ internal static partial class Program
                 PrepareWindow(window);
                 foreach (var (route, visibleText, repeatedLogin) in new[]
                 {
-                    ("agenda", "Agenda da unidade", false),
-                    ("indicators", "Indicadores da UBS", false),
-                    ("alerts", "Central de alertas", false),
-                    ("queue", "Fila da unidade", false),
-                    ("patients", "Pacientes da unidade", false),
-                    ("slots", "Vagas Relâmpago", false),
+                    ("agenda", "Agenda", false),
+                    ("indicators", "Indicadores", false),
+                    ("alerts", "Alertas", false),
+                    ("queue", "Fila", false),
+                    ("patients", "Pacientes", false),
+                    ("slots", "Vaga Relâmpago", false),
                     ("unit-settings", "Informações da UBS", false)
                 })
                 {

@@ -158,6 +158,8 @@ internal static partial class Program
                 Require(vm.SystemSelected && vm.SidebarExpanded && vm.ConfirmClose && themes.Mode == Appearance.System && loaded.Appearance == Appearance.System && loaded.LastPage == "home", "Restauração não atualizou todas as camadas.");
             });
             RunInterfaceChecks(application, root, args);
+            RunPageFilterChecks(root);
+            RunDesktopAccessChecks(root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);
             RunRoundEndToEndChecks(root, args);

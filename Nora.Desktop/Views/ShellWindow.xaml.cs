@@ -18,13 +18,19 @@ public partial class ShellWindow : Window
     private readonly ThemeService themes;
     private readonly FullScreenService fullScreen;
     public ShellViewModel ViewModel { get; }
-    /// <param name="devices">Armazenamento do computador do OBS; o OBS real passa o dele, os testes e a Secretaria não passam nada.</param>
-    public ShellWindow(DesktopProfile profile, string? storageRoot = null, NoraApiClient? api = null, IObsDeviceStore? devices = null)
+    /// <param name="devices">Armazenamento protegido das sessões e da identificação do computador do OBS.</param>
+    public ShellWindow(DesktopProfile profile, string? storageRoot = null, NoraApiClient? api = null, IObsDeviceStore? devices = null, bool compactAccess = false)
     {
         themes = new ThemeService(Application.Current);
         ViewModel = new ShellViewModel(profile, new PreferencesService(profile.Id, storageRoot), themes, api, devices);
         InitializeComponent();
         DataContext = ViewModel;
+        if (compactAccess)
+        {
+            DesktopAccessHost.Content = new DesktopAccessView();
+            ViewModel.EnableCompactAccess();
+        }
+        InitializeScreenSearch();
         fullScreen = new(this);
         SourceInitialized += (_, _) => ApplyWindowCorners();
         StateChanged += (_, _) => ApplyWindowCorners();
@@ -33,7 +39,7 @@ public partial class ShellWindow : Window
         Loaded += async (_, _) =>
         {
             fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners();
-            // Abertura do OBS: confere o computador e restaura a sessão guardada (sem armazenamento de computador, não faz nada).
+            // Restaura a sessão guardada e confere o computador nas instalações OBS.
             try { await ViewModel.Workspace.OpenAsync(); }
             catch (Exception error) when (error is not OutOfMemoryException) { ViewModel.Workspace.ReportUnexpected(error); }
         };
@@ -45,6 +51,7 @@ public partial class ShellWindow : Window
         if (args.PropertyName == nameof(ShellViewModel.FullScreen) && IsLoaded) { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); }
         if (args.PropertyName == nameof(ShellViewModel.Page))
         {
+            CloseScreenSearch(restoreFocus: false);
             PageScroll.ScrollToTop();
             if (ViewModel.Animations)
                 PageContainer.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(160)));
@@ -98,15 +105,28 @@ public partial class ShellWindow : Window
     private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
     private void OnKeyDown(object sender, KeyEventArgs args)
     {
-        var modifiers = Keyboard.Modifiers;
-        if (args.Key == Key.F11 && modifiers == ModifierKeys.None) ViewModel.FullScreen = !ViewModel.FullScreen;
-        else if (args.Key == Key.Escape && ViewModel.FullScreen) ViewModel.FullScreen = false;
-        else if (args.Key == Key.D1 && modifiers == ModifierKeys.Control) ViewModel.Navigate("home");
-        else if (args.Key == Key.OemComma && modifiers == ModifierKeys.Control) ViewModel.Navigate("settings");
-        else if (args.Key == Key.B && modifiers == ModifierKeys.Control) ViewModel.SidebarExpanded = !ViewModel.SidebarExpanded;
-        else if (args.Key == Key.T && modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) ViewModel.CycleTheme();
-        else return;
+        if (HandleScreenSearchKey(args)) { args.Handled = true; return; }
+        var shortcut = DesktopShortcuts.Definitions.FirstOrDefault(item => item.Id != "close" && ViewModel.ResolveShortcut(item).Matches(this, args));
+        switch (shortcut?.Id)
+        {
+            case "fullscreen": ViewModel.FullScreen = !ViewModel.FullScreen; break;
+            case "esc" when ViewModel.FullScreen: ViewModel.FullScreen = false; break;
+            case "home": ViewModel.Navigate("home"); break;
+            case "settings": ViewModel.Navigate("settings"); break;
+            case "search": OpenScreenSearch(); break;
+            case "sidebar": ViewModel.ToggleSidebarCommand.Execute(null); break;
+            case "theme": ViewModel.CycleTheme(); break;
+            default: return;
+        }
         args.Handled = true;
+    }
+
+    private void OnOpenProfile(object sender, RoutedEventArgs args)
+    {
+        if (!ViewModel.Workspace.IsAuthenticated || ViewModel.Workspace.MustChangePassword) return;
+        var dialog = new StaffProfileWindow(ViewModel.Workspace) { Owner = this };
+        CloseDetailsOnSessionChange(dialog);
+        dialog.ShowDialog();
     }
     private void OnClosing(object? sender, CancelEventArgs args)
     {

@@ -70,14 +70,14 @@ internal static partial class Program
                         {
                             window.ViewModel.SetAppearance(mode);
                             var content = Layout(window, 1280, 740);
-                            var appearanceButtons = Descendants<Button>(content).Where(button => button.CommandParameter?.ToString() is "Light" or "Dark" or "System").ToArray();
+                            var appearanceButtons = Descendants<RadioButton>(content).Where(button => button.CommandParameter?.ToString() is "Light" or "Dark" or "System").ToArray();
                             Require(appearanceButtons.Length == 3, "Opções de aparência ausentes.");
                             var selected = appearanceButtons.Single(button => button.CommandParameter?.ToString() == mode.ToString());
-                            Require(((SolidColorBrush)selected.BorderBrush).Color == ((SolidColorBrush)application.FindResource("BrandBrush")).Color, "Card selecionado não tem borda da marca.");
-                            Require(AutomationProperties.GetHelpText(selected) == "Opção de aparência selecionada", "Seleção não anunciada pela acessibilidade.");
-                            var selectedLabel = Descendants<TextBlock>(selected).Single(text => text.Text == "Selecionada ✓");
-                            Require(selectedLabel.Visibility == Visibility.Visible && selectedLabel.ActualHeight > 0, "Texto da seleção está oculto.");
-                            Require(appearanceButtons.Where(button => button != selected).All(button => AutomationProperties.GetHelpText(button) == "Opção de aparência não selecionada"), "Mais de uma aparência anunciada como selecionada.");
+                            var tile = (Border)selected.Template.FindName("Tile", selected);
+                            Require(((SolidColorBrush)tile.BorderBrush).Color == ((SolidColorBrush)application.FindResource("AccentTextBrush")).Color, "Card selecionado não tem borda de destaque.");
+                            var selectedPeer = new RadioButtonAutomationPeer(selected);
+                            Require(((ISelectionItemProvider)selectedPeer.GetPattern(PatternInterface.SelectionItem)).IsSelected, "A acessibilidade não reconhece a aparência selecionada.");
+                            Require(appearanceButtons.Count(button => button.IsChecked == true) == 1, "O tema selecionado deve ser único.");
                             SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-settings-{mode.ToString().ToLowerInvariant()}.png"));
                         }
                         window.ViewModel.Navigate("home");
@@ -117,14 +117,15 @@ internal static partial class Program
                     window.ViewModel.Navigate("settings");
                     PrepareWindow(window);
                     var content = Layout(window, 1280, 740);
-                    var dark = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "Dark");
-                    InvokeButton(dark);
+                    var dark = Descendants<RadioButton>(content).Single(button => button.CommandParameter?.ToString() == "Dark");
+                    ((ISelectionItemProvider)new RadioButtonAutomationPeer(dark).GetPattern(PatternInterface.SelectionItem)).Select();
                     Layout(window, 1280, 740);
                     Require(window.ViewModel.DarkSelected, "Ação do card não atualizou aparência.");
                     Require(new PreferencesService("obs", isolatedStorage).Load().Appearance == Appearance.Dark, "Ação do card não persistiu aparência.");
                     var restore = Descendants<Button>(content).Single(button => button.Content?.ToString() == "Restaurar padrões");
                     InvokeButton(restore);
                     Layout(window, 1280, 740);
+                    InvokeButton(Descendants<Button>(content).Single(button => Equals(button.Content, "Confirmar restauração")));
                     var restored = new PreferencesService("obs", isolatedStorage).Load();
                     Require(window.ViewModel.SystemSelected && window.ViewModel.IsSettings && restored.Appearance == Appearance.System && restored.LastPage == "home", "Ação de restauração deixou interface ou persistência inconsistente.");
                 }

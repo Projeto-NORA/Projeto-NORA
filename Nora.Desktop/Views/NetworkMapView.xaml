@@ -1,17 +1,8 @@
 <UserControl x:Class="Nora.Desktop.Views.NetworkMapView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf">
   <StackPanel>
-    <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="20" Padding="24" Margin="0,0,0,20">
-      <StackPanel>
-        <TextBlock Text="MAPA DA REDE" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextBrush}" />
-        <TextBlock Text="A rede em perspectiva" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource BrandTextBrush}" Margin="0,7,0,4" />
-        <TextBlock Text="Explore o território e encontre as unidades de saúde." Foreground="{DynamicResource BrandTextBrush}" TextWrapping="Wrap" />
-      </StackPanel>
-    </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,20">
       <StackPanel>
-        <TextBlock Text="Mapa interativo" FontSize="19" FontWeight="SemiBold"  ToolTip="Selecione uma UBS cadastrada e mostre sua localização no mapa. Sem seleção, o mapa mostra uma visão geral do Brasil." Margin="0,0,0,12" />
-
-        <TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />
+        <TextBlock Text="UBS para localizar" FontWeight="SemiBold" ToolTip="Você pode atualizar os dados e as coordenadas da unidade na aba Unidades." />
         <DockPanel Margin="0,6,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar unidades" ToolTip="Atualizar unidades" Click="OnRefreshUnits" IsEnabled="{Binding CanOperate}" Margin="12,0,0,0" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedUnit}" DisplayMemberPath="Name" AutomationProperties.Name="UBS para localizar no mapa" /></DockPanel>
         <TextBlock Text="{Binding UnitsState}" Style="{StaticResource Muted}" Margin="0,0,0,12" />
         <Button x:Name="LoadButton" Content="Mostrar no mapa" Click="OnLoadMap" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" />
@@ -22,6 +13,5 @@
         <TextBlock Text="Mapa © colaboradores do OpenStreetMap · Coordenadas cadastradas pela Secretaria" Style="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
       </StackPanel>
     </Border>
-    <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Localização das UBS" FontSize="18" FontWeight="SemiBold"  ToolTip="Cadastre ou edite nome, endereço, região e coordenadas na aba Unidades. O mapa mostra a UBS selecionada; confira as coordenadas antes de salvar." Margin="0,0,0,12" /></StackPanel></Border>
   </StackPanel>
 </UserControl>

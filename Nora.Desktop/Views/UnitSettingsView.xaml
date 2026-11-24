@@ -7,7 +7,6 @@
     <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontSize" Value="12" /></Style>
   </UserControl.Resources>
   <StackPanel>
-    <TextBlock Text="Informações da UBS" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,20" ToolTip="Profissionais, consultórios, grade semanal e bloqueios da unidade ativa." />
     <views:ObsUnitNoticeView />
     <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,18" AutomationProperties.Name="Somente leitura para atendente" Visibility="{Binding ShowCatalogReadOnlyNotice, Converter={StaticResource BoolVisibility}}">
       <Grid>
@@ -118,7 +117,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Profissionais" ToolTip="Gerencie profissionais e suas especialidades. O conselho não é conferido pelo sistema; desativar não cancela consultas já marcadas.">
       <StackPanel>
         <TextBlock Text="Profissionais" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Profissionais" SearchFields="FullName,SpecialtiesDisplay,CouncilDisplay,StatusDisplay" ItemsTarget="{Binding ElementName=ProfessionalsFilterList}" />
+        <DataGrid x:Name="ProfessionalsFilterList" ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding FullName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Especialidades" Binding="{Binding SpecialtiesDisplay}" Width="1.4*" MinWidth="160" ElementStyle="{StaticResource CellText}" />
@@ -163,7 +163,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Consultórios" ToolTip="Consultórios desativados deixam de oferecer horários, mas a grade permanece cadastrada.">
       <StackPanel>
         <TextBlock Text="Consultórios" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Consultórios" SearchFields="Name,StatusDisplay" ItemsTarget="{Binding ElementName=RoomsFilterList}" />
+        <DataGrid x:Name="RoomsFilterList" ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="130" />
@@ -191,7 +192,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Grade semanal" ToolTip="A grade define atendimentos por dia, profissional, especialidade e consultório. Horários sobrepostos não são aceitos.">
       <StackPanel>
         <TextBlock Text="Grade semanal de horários" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Grade semanal" SearchFields="WeekdayDisplay,ProfessionalName,RoomName,SpecialtyName" ItemsTarget="{Binding ElementName=ScheduleFilterList}" />
+        <DataGrid x:Name="ScheduleFilterList" ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Dia" Binding="{Binding WeekdayDisplay}" SortMemberPath="Weekday" Width="130" />
             <DataGridTextColumn Header="Horário" Binding="{Binding RangeDisplay}" Width="110" />
@@ -240,7 +242,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Bloqueios" ToolTip="Bloqueios retiram horários livres de um profissional ou da UBS inteira no período informado.">
       <StackPanel>
         <TextBlock Text="Bloqueios (folgas e feriados)" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Bloqueios" SearchFields="ScopeDisplay,Reason" ItemsTarget="{Binding ElementName=BlocksFilterList}" />
+        <DataGrid x:Name="BlocksFilterList" ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Vale para" Binding="{Binding ScopeDisplay}" Width="*" MinWidth="140" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Período" Binding="{Binding PeriodDisplay}" SortMemberPath="StartsAt" Width="1.2*" MinWidth="200" ElementStyle="{StaticResource CellText}" />

@@ -29,7 +29,7 @@ internal static partial class Program
         Layout(window, width, height); Settle(vm);
         return Layout(window, width, height);
     }
-    private static ComboBox Combo(FrameworkElement content, string name) => Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == name);
+    private static ComboBox Combo(FrameworkElement content, string name) => PageField<ComboBox>(content, box => AutomationProperties.GetName(box) == name);
     private static DataGrid GridNamed(FrameworkElement content, string name) => Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == name);
     private static PasswordBox Secret(FrameworkElement content, string name) => Descendants<PasswordBox>(content).Single(box => box.IsVisible && AutomationProperties.GetName(box) == name);
     private static void Click(ShellWindow window, FrameworkElement content, string label, double width = 1280, double height = 900)
@@ -193,8 +193,10 @@ internal static partial class Program
                 foreach (var route in new[] { "units", "specialties", "indicators", "slots", "reports", "capacity" })
                 {
                     content = Show(window, route);
-                    Require(Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS deveria aparecer em " + route);
-                    Require(!Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string), "Combo 'Indisponível' ainda aparece em " + route);
+                    Require(!Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS continua no corpo de " + route);
+                    var fields = Descendants<ComboBox>(OpenPageFilters(window)).ToArray();
+                    Require(fields.Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS está ausente do painel de " + route);
+                    Require(!fields.Any(box => box.Items.Count == 1 && box.Items[0] is string), "Combo 'Indisponível' ainda aparece em " + route);
                 }
                 foreach (var route in new[] { "alerts", "communication", "network" })
                 {

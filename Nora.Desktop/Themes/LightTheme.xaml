@@ -11,7 +11,8 @@
   <SolidColorBrush x:Key="BorderBrush" Color="#D5E0EC" />
   <SolidColorBrush x:Key="TextBrush" Color="#102A43" />
   <SolidColorBrush x:Key="BrandSoftBrush" Color="#E6F0FA" />
-  <SolidColorBrush x:Key="SecondaryBrush" Color="#526B84" />
+  <SolidColorBrush x:Key="SecondaryBrush" Color="#38546E" />
+  <SolidColorBrush x:Key="ButtonHoverBrush" Color="#1405284A" />
   <SolidColorBrush x:Key="ErrorBrush" Color="#B4233E" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="SurfaceAltBrush" Color="#EDF3F9" />

@@ -5,7 +5,6 @@
   <StackPanel>
     <views:ObsUnitNoticeView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; em caso de empate, vale a ordem de entrada. O score não altera a prioridade clínica nem o direito ao atendimento."><StackPanel IsEnabled="{Binding CanEditDraft}">
-      <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
       <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
         <TextBlock Text="Adicionar à fila" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,6,0,8" />
@@ -42,12 +41,14 @@
             <Button Content="Oferecer ao 1º da fila" Click="OnCallNextOffer" IsEnabled="{Binding CanCallNextOffer}" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Escolha um horário e confira que há alguém na fila para poder oferecer." ToolTipService.ShowOnDisabled="True" />
           </StackPanel>
         </Border>
-        <TextBlock Text="Filtros:" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,12,0,6" />
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="190" /></Grid.ColumnDefinitions>
-          <StackPanel Margin="0,0,8,0"><TextBlock Text="Paciente" /><TextBox Text="{Binding QueuePatientFilter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Filtrar fila por paciente" /></StackPanel>
-          <StackPanel Grid.Column="1" Margin="8,0"><TextBlock Text="Especialidade" /><TextBox Text="{Binding QueueSpecialtyFilter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Filtrar fila por especialidade" /></StackPanel>
-          <StackPanel Grid.Column="2" Margin="8,0,0,0"><TextBlock Text="Ordenar por" /><ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.QueueSortOptions}" SelectedItem="{Binding QueueSort}" Margin="0,6,0,16" AutomationProperties.Name="Ordenação da fila" /></StackPanel>
-        </Grid>
+
+        <views:PageFilterGroup Label="Entradas da fila" FilterKey="queue">
+          <StackPanel>
+            <StackPanel Margin="0,0,0,8"><TextBlock Text="Paciente" /><TextBox Text="{Binding QueuePatientFilter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Filtrar fila por paciente" /></StackPanel>
+            <StackPanel Margin="0,0,0,8"><TextBlock Text="Especialidade" /><TextBox Text="{Binding QueueSpecialtyFilter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Filtrar fila por especialidade" /></StackPanel>
+            <StackPanel Margin="0,0,0,8"><TextBlock Text="Ordenar por" /><ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.QueueSortOptions}" SelectedItem="{Binding QueueSort}" Margin="0,6,0,16" AutomationProperties.Name="Ordenação da fila" /></StackPanel>
+          </StackPanel>
+        </views:PageFilterGroup>
         <DataGrid x:Name="QueueGrid" ItemsSource="{Binding FilteredUnitWaitingListView}" SelectedItem="{Binding SelectedWaitingEntry}" IsSynchronizedWithCurrentItem="False" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MinHeight="64" MaxHeight="360" AutomationProperties.Name="Fila por especialidade da UBS" MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnRowKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da entrada. Ordenar a lista não muda a prioridade da fila.">
           <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
         <DataGrid.ColumnHeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.ColumnHeaderStyle>

@@ -59,7 +59,7 @@ internal static partial class Program
                 {
                     Input(content, "Data inicial do período").Text = from; Input(content, "Data final do período").Text = to;
                     Click(window, content, "Aplicar período");
-                    Require(fixture.MetricsQueries.Count == count && vm.MetricsRangeError.Contains(fragment) && HasText(Layout(window, 1280, 900), vm.MetricsRangeError), $"Período inválido {from}–{to} não foi barrado com a mensagem: {vm.MetricsRangeError}");
+                    Require(fixture.MetricsQueries.Count == count && vm.MetricsRangeError.Contains(fragment) && HasText(OpenPageFilters(window), vm.MetricsRangeError), $"Período inválido {from}–{to} não foi barrado com a mensagem: {vm.MetricsRangeError}");
                 }
                 Input(content, "Data inicial do período").Text = "01/10/2026"; Input(content, "Data final do período").Text = "31/10/2026";
                 Click(window, content, "Aplicar período"); ExpectOneMore("Período personalizado");

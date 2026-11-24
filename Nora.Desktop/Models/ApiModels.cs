@@ -6,6 +6,8 @@ namespace Nora.Desktop.Models;
 public sealed record AccountUser(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false);
 /// <summary>Resposta do login. <c>KeepSignedIn</c> e <c>Device</c> só vêm da API nova (computador do OBS); sem eles a sessão é a de sempre.</summary>
 public sealed record LoginSession(string Token, DateTimeOffset ExpiresAt, AccountUser User, bool KeepSignedIn = false, DeviceSummary? Device = null);
+public sealed record StaffUnitOption(Guid Id, string Name);
+public sealed record StaffSelfProfile(string FullName, string Email, string Role, string Scope, string? MunicipalityName, StaffUnitOption[] Units);
 public sealed record AddressInfo(string Cep, string Street, string? Number, string? Complement, string? Neighborhood, string City, string State, string? Ibge = null)
 {
     public string Display => $"{Street}{(string.IsNullOrWhiteSpace(Number) ? "" : ", " + Number)} · {Neighborhood ?? "Bairro não informado"} · {City}/{State}";
