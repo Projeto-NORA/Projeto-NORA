@@ -67,7 +67,7 @@ gh release create v1.0-escola "$pasta\NORA-paciente.apk" --repo Projeto-NORA/NOR
 
 O `--add-readme` existe porque o GitHub não cria release num repositório vazio. Para uma versão nova, gere de novo e rode só o `gh release create` com outro nome (`v1.1-escola`); o link `latest` passa a apontar para ela.
 
-Transforme o link do `latest` (acima) em QR code e ponha num slide ou numa folha impressa.
+**QR Codes:** a imagem com os três (App do Paciente, OBS-NORA e Painel Municipal, lado a lado, cada um com o nome em cima) está em `Mateus-Projects/Claude-PLANS/Projeto-NORA/qrcodes-instaladores-nora.png`, gerada em 24/11/2026. Cada QR foi lido de volta por um leitor automático e abre o link `latest/download/<arquivo>` correspondente; os três downloads responderam HTTP 200 sem login. Como os links são `latest`, a imagem continua valendo quando houver release novo. O roteiro do zero, para quem não programa, está em `Claude-PLANS/Projeto-NORA/passo-a-passo-final-simulacao.md`.
 
 ### 3. Preparar a rede no Painel Municipal (você, uma vez)
 

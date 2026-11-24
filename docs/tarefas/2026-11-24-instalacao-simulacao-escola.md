@@ -53,3 +53,11 @@ O usuário sabe se a entrega pelo GitHub Releases funciona, tem um roteiro de pr
 - Pendências: P-049 atualizada (API sem resposta em 24/11), P-061 (publicar o APK, espera autorização) e P-062 (ensaio no celular real, teste do usuário).
 - Falta, do lado do usuário: concluir a P-049 e autorizar a criação do repositório público `NORA-downloads` com o release.
 - Desktops publicados no release `v1.0-escola` (autorizado pelo usuário): `OBS-NORA.zip` (62.187.248 bytes) e `Painel-Municipal.zip` (61.923.361 bytes), gerados por `empacotar-clientes.ps1 -SemAndroid`; endereço da API embutido conferido em `Nora.Desktop.csproj`; download público conferido com SHA-256 igual. Guia atualizado (instalação pelo release e seção "Dados criados em casa, uso na escola"); P-063 aberta para apagar os zips depois da simulação.
+
+## Rodada 2 (24/11/2026, depois do pedido de QR Codes e passo a passo)
+
+- Pedido: consultar o outro chat do NORA, escrever o passo a passo do zero e gerar uma imagem com os 3 QR Codes (App do Paciente, OBS-NORA, Painel Municipal), cada um com o nome em cima.
+- Outro chat ("Projeto finalização e validações"): lido pelas pendências e commits na `main` (8734f37), sem mensagem (o chat estava fechado). Nada novo além da P-049; P-059 e P-060 seguem abertas e não afetam a simulação.
+- Chat paralelo nesta pasta publicou `OBS-NORA.zip` e `Painel-Municipal.zip` no release (P-063 para apagá-los depois).
+- Feito: imagem dos 3 QR Codes (lidos de volta, 3/3 corretos), passo a passo em `Claude-PLANS/Projeto-NORA/passo-a-passo-final-simulacao.md`, downloads dos 3 arquivos conferidos (HTTP 200).
+- Não feito: ligar a API (P-049: exige a senha do Neon e a conta do Render do NORA, fora do alcance da IA).
