@@ -15,6 +15,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 {
     private readonly DesktopProfile profile;
     private readonly NoraApiClient api;
+    private readonly IHealthUnitGeocoder unitGeocoder;
     // Uma operação por vez: ação do usuário, ciclo automático e carga de seção entram em fila em vez de se descartarem.
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly DispatcherTimer refreshTimer;
@@ -55,10 +56,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     ];
 
     /// <param name="devices">Armazenamento local da sessão no Windows e da identificação do computador do OBS.</param>
-    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null)
+    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null, IHealthUnitGeocoder? unitGeocoder = null)
     {
         this.profile = profile;
         this.api = api ?? new();
+        this.unitGeocoder = unitGeocoder ?? new HealthUnitGeocoder();
         this.devices = devices;
         if (profile.IsMunicipal) this.api.SetDeviceCredential(null, null);
         this.clipboard = clipboard ?? new WindowsClipboardService();

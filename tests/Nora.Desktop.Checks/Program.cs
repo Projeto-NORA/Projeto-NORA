@@ -87,6 +87,7 @@ internal static partial class Program
             using var themes = new ThemeService(application);
             themes.Apply(Appearance.Light);
             CheckEnterNavigation();
+            CheckHealthUnitGeocoding();
             Check("Temas claro e escuro expõem as mesmas chaves", () =>
             {
                 var light = new ResourceDictionary { Source = new Uri("/Nora.Desktop;component/Themes/LightTheme.xaml", UriKind.Relative) };
