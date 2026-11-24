@@ -27,7 +27,21 @@ public partial class DesktopAccessView : UserControl
     private void OnLoginKeyDown(object sender, KeyEventArgs args)
     {
         if (args.Key != Key.Enter) return;
+        if (sender == LoginPassword && Unit.IsVisible && Unit.IsEnabled)
+        {
+            Unit.Focus();
+            args.Handled = true;
+            return;
+        }
+        if (sender == Unit && Unit.IsDropDownOpen) return;
         args.Handled = true;
         OnLogin(sender, args);
+    }
+
+    private void OnEmailKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.Enter) return;
+        LoginPassword.Focus();
+        args.Handled = true;
     }
 }
