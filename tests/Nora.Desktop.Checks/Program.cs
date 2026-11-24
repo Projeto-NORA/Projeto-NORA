@@ -85,6 +85,8 @@ internal static partial class Program
             // the same UI context so real asynchronous HTTP continuations stay on STA.
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(application.Dispatcher));
             using var themes = new ThemeService(application);
+            themes.Apply(Appearance.Light);
+            CheckEnterNavigation();
             Check("Temas claro e escuro expõem as mesmas chaves", () =>
             {
                 var light = new ResourceDictionary { Source = new Uri("/Nora.Desktop;component/Themes/LightTheme.xaml", UriKind.Relative) };

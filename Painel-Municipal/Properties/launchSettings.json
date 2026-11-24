@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Painel-Municipal": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "NORA_API_URL": "https://nora-api-kw8x.onrender.com"
+      }
+    }
+  }
+}

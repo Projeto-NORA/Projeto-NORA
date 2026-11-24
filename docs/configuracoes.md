@@ -6,6 +6,10 @@ Os três aplicativos oferecem Clara, Escura e Sistema. Sistema é o padrão inic
 
 ## Desktops
 
+Nos formulários do OBS e do Painel Municipal, Enter avança pelos campos disponíveis e, ao chegar ao último, aciona a ação principal do formulário. Controles desabilitados e campos somente de leitura são ignorados; em caixas de seleção abertas, Enter confirma a escolha primeiro. Em textos de várias linhas, Enter continua inserindo uma quebra de linha. Filtros que atualizam automaticamente não precisam de botão de envio.
+
+Os perfis de inicialização do Visual Studio dos dois desktops definem `NORA_API_URL` como `https://nora-api-kw8x.onrender.com`. Assim, ao iniciar por esses perfis, os aplicativos usam o serviço hospedado e os dados desse ambiente; para desenvolvimento isolado, ajuste a variável do perfil para o endereço da API local.
+
 OBS e Municipal salvam arquivos independentes em `%LOCALAPPDATA%/NORA/obs/preferences.json` e `%LOCALAPPDATA%/NORA/municipal/preferences.json`. O serviço lê/normaliza tema e rota, recupera padrões quando o JSON é inválido e informa o erro na barra inferior. A leitura preserva o arquivo corrompido; uma alteração posterior de preferência substitui o conteúdo pelo estado atual. A gravação usa arquivo temporário e substituição do destino. Se falhar, a interface informa que a mudança vale apenas para a sessão.
 
 As preferências controlam dicas na sidebar, confirmação de fechamento, restauração da navegação, animação ao trocar tela, lembrança da largura da sidebar e tela cheia. Desativar a restauração de navegação faz a próxima abertura iniciar na Home. No OBS são restauradas Home, Configurações, Pacientes, Fila, Vaga Relâmpago, Configurações da UBS, Família e Comunicados; Agenda, Indicadores e Alertas reabrem na Home. Desativar a lembrança da sidebar faz a próxima abertura usar a largura padrão. Restaurar padrões mantém Configurações aberta na sessão atual e salva Home para a próxima abertura.

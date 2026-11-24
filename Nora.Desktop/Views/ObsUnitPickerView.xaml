@@ -1,12 +1,12 @@
-<UserControl x:Class="Nora.Desktop.Views.ObsUnitPickerView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.ObsUnitPickerView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- Seletor único de UBS: Painel da UBS e Pacientes usam o mesmo. Trocar de UBS sempre exige confirmar. -->
   <StackPanel IsEnabled="{Binding CanOperate}">
     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10" Text="{Binding ObsUnitPrompt}" AutomationProperties.LiveSetting="Polite" />
     <TextBlock Text="Escolha a UBS (nome e região)" />
-    <ComboBox ItemsSource="{Binding ObsUnits}" SelectedItem="{Binding CandidateObsUnit}" DisplayMemberPath="SelectorLabel" IsEnabled="{Binding HasAvailableObsUnits}" AutomationProperties.Name="UBS autorizada no OBS" Margin="0,6,0,12" />
+    <ComboBox ItemsSource="{Binding ObsUnits}" SelectedItem="{Binding CandidateObsUnit}" DisplayMemberPath="SelectorLabel" IsEnabled="{Binding HasAvailableObsUnits}" AutomationProperties.Name="UBS autorizada no OBS" Margin="0,6,0,12"  enter:EnterNavigation.Group="ObsUnitPickerView.picker"/>
     <DockPanel LastChildFill="False" Margin="0,0,0,8">
       <Button Click="OnLoadUnits" DockPanel.Dock="Left" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de UBS" ToolTip="Atualizar lista de UBS" />
-      <Button Content="Confirmar UBS" Click="OnConfirm" IsEnabled="{Binding CanConfirmObsUnit}" DockPanel.Dock="Right" Style="{StaticResource ObsPrimaryButton}" Margin="12,0,0,0" ToolTip="Carrega os dados da UBS escolhida." />
+      <Button Content="Confirmar UBS" Click="OnConfirm" IsEnabled="{Binding CanConfirmObsUnit}" DockPanel.Dock="Right" Style="{StaticResource ObsPrimaryButton}" Margin="12,0,0,0" ToolTip="Carrega os dados da UBS escolhida."  enter:EnterNavigation.Group="ObsUnitPickerView.picker"/>
       <Button Content="Sugerir UBS pela localização" Click="OnLocate" IsEnabled="{Binding HasAvailableObsUnits}" DockPanel.Dock="Right" Style="{StaticResource TextActionButton}" />
     </DockPanel>
   </StackPanel>

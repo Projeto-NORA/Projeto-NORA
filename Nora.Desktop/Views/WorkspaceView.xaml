@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.WorkspaceView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.WorkspaceView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <UserControl.Resources>
     <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
       <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
@@ -24,11 +24,11 @@
         <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,12" />
         <TextBlock Text="Entre com o e-mail da sua conta. O formato do e-mail é conferido antes do envio e suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
         <TextBlock Text="Endereço da API" />
-        <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API" />
+        <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API"  enter:EnterNavigation.Group="WorkspaceView.login"/>
         <TextBlock Text="E-mail" />
-        <TextBox x:Name="IdentifierInput" Text="{Binding Identifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail" />
+        <TextBox x:Name="IdentifierInput" Text="{Binding Identifier, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail"  enter:EnterNavigation.Group="WorkspaceView.login"/>
         <TextBlock Text="Senha" />
-        <PasswordBox x:Name="LoginPassword" AutomationProperties.Name="Senha de acesso" KeyDown="OnLoginKeyDown" />
+        <PasswordBox x:Name="LoginPassword" AutomationProperties.Name="Senha de acesso" KeyDown="OnLoginKeyDown"  enter:EnterNavigation.Group="WorkspaceView.login"/>
         <!-- Computador do OBS (P-014): só aparece no OBS. A atendente precisa de computador ativado; o administrador entra normalmente. -->
         <StackPanel Visibility="{Binding HasDeviceSupport, Converter={StaticResource BoolVisibility}}">
           <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,14" AutomationProperties.Name="Situação deste computador">
@@ -40,11 +40,11 @@
           <CheckBox x:Name="KeepSignedInBox" Content="Manter conectado neste computador" IsChecked="{Binding KeepSignedIn, Mode=TwoWay}" IsEnabled="{Binding DeviceActivated}" Margin="0,0,0,14" AutomationProperties.Name="Manter conectado neste computador" ToolTip="Disponível só em computador ativado. A sessão fica guardada com a proteção do seu usuário do Windows." ToolTipService.ShowOnDisabled="True" />
           <StackPanel Visibility="{Binding ShowActivation, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8">
             <TextBlock Text="Código de ativação" />
-            <TextBox x:Name="ActivationInput" Text="{Binding ActivationCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="12" CharacterCasing="Upper" AutomationProperties.Name="Código de ativação do computador" ToolTip="O administrador da UBS gera o código em Informações da UBS, Computadores. Vale 15 minutos e uma única vez." KeyDown="OnActivationKeyDown" />
-            <Button Content="Ativar com código" Click="OnActivate" IsEnabled="{Binding CanActivateWithCode}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Ativa este computador para a UBS do código." ToolTipService.ShowOnDisabled="True" />
+            <TextBox x:Name="ActivationInput" Text="{Binding ActivationCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="12" CharacterCasing="Upper" AutomationProperties.Name="Código de ativação do computador" ToolTip="O administrador da UBS gera o código em Informações da UBS, Computadores. Vale 15 minutos e uma única vez." KeyDown="OnActivationKeyDown"  enter:EnterNavigation.Group="WorkspaceView.activation"/>
+            <Button Content="Ativar com código" Click="OnActivate" IsEnabled="{Binding CanActivateWithCode}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Ativa este computador para a UBS do código." ToolTipService.ShowOnDisabled="True"  enter:EnterNavigation.Group="WorkspaceView.activation"/>
           </StackPanel>
         </StackPanel>
-        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Entre para acessar os dados da sua unidade." />
+        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Entre para acessar os dados da sua unidade."  enter:EnterNavigation.Group="WorkspaceView.login"/>
       </StackPanel>
       <ItemsControl ItemsSource="{Binding OpeningSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,14,0,0" Visibility="{Binding HasOpeningSteps, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Passos da abertura" />
       </StackPanel>
