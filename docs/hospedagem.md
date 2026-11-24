@@ -84,15 +84,9 @@ Usar dados reais de pessoas, ainda mais de alunos menores de idade, é tratament
    - **PostgreSQL 18**;
    - região **AWS US East (N. Virginia)**, a mesma que você vai escolher no Render.
 2. Em **Connect**, desligue **Connection pooling**. Copie a conexão direta: o host **não** pode ter `-pooler`.
-3. O Neon mostra a conexão como URI (`postgresql://usuario:senha@host/neondb?sslmode=require`), mas a API usa o formato do Npgsql. Monte assim, sem colar no Git nem em chat:
+3. Copie a URL direta exibida pelo Neon, que começa com `postgresql://`, e cole o valor completo na variável `ConnectionStrings__Nora` do Render. A API converte a URL para o formato do Npgsql. Para o domínio do Neon, a opção padrão `sslmode=require` também valida o certificado e o nome do servidor. Os parâmetros `sslmode` e `channel_binding` são reconhecidos.
 
-   ```text
-   Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require
-   ```
-
-   Use `VerifyFull` e não `Require`: no Npgsql 10, `Require` só cifra a conexão e **não confere o certificado** do servidor, então quem estivesse no caminho entre a API e o Neon poderia se passar por ele e ler CPFs, nomes e e-mails. O Neon usa certificado de autoridade pública, que a imagem da API e o Windows já reconhecem; com `VerifyFull` a conexão é recusada se o certificado não for o do Neon.
-
-   Se o Render encerrar a API logo após iniciar e mencionar `ConnectionStrings__Nora`, confira se o valor está no formato `Host=...` acima. A API identifica a variável inválida sem incluir seu valor no diagnóstico. Se uma credencial tiver aparecido em um log antigo, a equipe responsável deve substituí-la no Neon e atualizar o valor no Render antes do novo deploy.
+   Se uma credencial tiver aparecido em um log antigo, a equipe responsável deve substituí-la no Neon e atualizar o valor no Render antes do novo deploy. A API informa configuração inválida sem mostrar seu valor no diagnóstico.
 
 4. O usuário padrão do projeto (`neondb_owner`) já pode criar bancos com `CREATE DATABASE`. É isso que a API faz ao cadastrar uma UBS. O Neon permite até 500 bancos por branch.
 
