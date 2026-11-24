@@ -61,8 +61,8 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
     MutedText("Para remarcar, procure a equipe da UBS.")
     cancelPending?.let { appointment ->
         AlertDialog(onDismissRequest = { cancelPending = null }, title = { Text("Cancelar consulta?") },
-            text = { Text("Confirma o cancelamento de ${appointment.specialty} em ${formatDateTime(appointment.startsAt)}?") },
-            confirmButton = { TextButton(onClick = { cancelPending = null; onCancelAppointment(appointment.id) }) { Text("Confirmar cancelamento") } },
+            text = { Text("${appointment.specialty} · ${formatDateTime(appointment.startsAt)}\nO cancelamento pode afetar seu score.") },
+            confirmButton = { TextButton(onClick = { cancelPending = null; onCancelAppointment(appointment.id) }) { Text("Confirmar") } },
             dismissButton = { TextButton(onClick = { cancelPending = null }) { Text("Voltar") } })
     }
 }

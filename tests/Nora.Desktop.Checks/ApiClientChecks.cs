@@ -267,9 +267,9 @@ internal static partial class Program
                     {
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes aguardando"), "Total de pacientes aguardando não apareceu na Visão geral.");
-                        // Os quatro filtros agora são reais: nenhum combo desabilitado nem rótulo "Indisponível".
-                        Require(Descendants<ComboBox>(content).Count(box => box.IsEnabled) == 4 && Descendants<ComboBox>(content).All(box => box.IsEnabled), "Os quatro filtros da rede deveriam estar habilitados.");
-                        Require(!Descendants<TextBlock>(content).Any(text => text.Text == "Indisponível") && !Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string),  "Ainda há filtro rotulado como indisponível.");
+                        // A Visão geral tem apenas o seletor de UBS; os demais filtros ficam em Indicadores.
+                        var unitFilter = Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Filtrar por UBS");
+                        Require(unitFilter.IsEnabled, "O filtro de UBS da Visão geral deveria estar habilitado.");
                     }
                     else
                     {

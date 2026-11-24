@@ -62,9 +62,9 @@ internal fun PresenceConfirmation(appointment: PatientAppointment, now: Long, bu
 @Composable
 private fun BookingRules(actingName: String?) {
     SectionCard("Como funciona", "Regras do agendamento pelo aplicativo") {
-        MutedText("Você pode marcar qualquer horário livre, em qualquer data: não há antecedência mínima nem máxima.")
+        MutedText("Escolha qualquer horário disponível.")
         MutedText(bookingLimitRuleText(actingName))
-        MutedText("A consulta vale na hora: não há aprovação da unidade. Nada é cancelado por falta de confirmação de presença.")
+        MutedText("A consulta é marcada na hora. A falta de confirmação não a cancela.")
     }
 }
 

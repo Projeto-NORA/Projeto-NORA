@@ -113,3 +113,8 @@ AVD `Medium_Phone_API_37.0` (Android 17, aceleração WHPX), ligado com `emulato
 - **Tema escuro:** contraste bom em entrada, Configurações e Criar conta; sem texto ilegível.
 - **Rotação (retrato para paisagem e volta):** na tela Criar conta com "Maria" digitado, o texto **permaneceu** nas duas rotações, sem crash; em paisagem o formulário rola e é limitado em largura.
 - **Início com dados de prévia:** o app não tem modo de prévia; a tela Início exige login numa API real, então não foi capturada (fica para a conferência com a API, em aparelho).
+
+
+## Tentativa de captura do alerta — 2026-11-23
+
+Foi iniciado o AVD `Pixel_5` em modo somente leitura, sem salvar snapshot, para mostrar uma notificação de Vaga Relâmpago com dados fictícios. A compilação isolada do app e do teste instrumentado passou. Com 1 GiB de RAM no emulador, o Android encerrou o processo do teste por falta de memória e também registrou ANR de inicialização; a interface do sistema deixou de responder. A repetição após desativar aplicativos extras apenas na sessão temporária também não publicou a notificação. Portanto não existe captura válida desta tentativa. O emulador foi encerrado e seus dados foram preservados. Uma nova tentativa precisa de mais memória livre no computador e de memória suficiente para o AVD.

@@ -28,11 +28,11 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 foreach (var (route, visibleText, hiddenText) in new[]
                 {
-                    ("home", "Resumo do dia", "Agenda da unidade"),
-                    ("agenda", "Agenda da unidade", "Resumo do dia"),
-                    ("patients", "Cadastro de pacientes da UBS", "Agenda da unidade"),
-                    ("queue", "Fila da UBS", "Pacientes aguardando"),
-                    ("slots", "Vagas Relâmpago da UBS", "Fila da UBS"),
+                    ("home", "Resumo do dia", "Agenda"),
+                    ("agenda", "Agenda", "Resumo do dia"),
+                    ("patients", "Pacientes", "Agenda"),
+                    ("queue", "Fila", "Pacientes aguardando"),
+                    ("slots", "Vaga Relâmpago", "Fila"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
                     ("alerts", "Central de alertas", "Indicadores da UBS"),
                     ("unit-settings", "Informações da UBS", "Resumo do dia")
@@ -40,8 +40,9 @@ internal static partial class Program
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 1280, 740);
-                    Require(Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == visibleText), "A aba não mostrou seu conteúdo: " + route);
-                    Require(!Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text == hiddenText), "A aba manteve conteúdo de outra tela visível: " + route);
+                    var page = Descendants<HomeView>(content).Single(view => view.IsVisible);
+                    Require(Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text == visibleText), "A aba não mostrou seu conteúdo: " + route);
+                    Require(!Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text == hiddenText), "A aba manteve conteúdo de outra tela visível: " + route);
                 }
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -56,7 +57,7 @@ internal static partial class Program
                 PrepareWindow(window);
                 foreach (var (route, visibleText, repeatedLogin) in new[]
                 {
-                    ("agenda", "Agenda da unidade", false),
+                    ("agenda", "Agenda", false),
                     ("indicators", "Indicadores da UBS", false),
                     ("alerts", "Central de alertas", false),
                     ("queue", "Fila da unidade", false),

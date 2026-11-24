@@ -22,7 +22,7 @@
       <StackPanel>
       <StackPanel IsEnabled="{Binding CanLogin}">
         <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,12" />
-        <TextBlock Text="Entre com o e-mail da sua conta. O formato do e-mail é conferido antes do envio e suas preferências continuam disponíveis em Configurações." Style="{StaticResource Muted}" Margin="0,0,0,20" />
+        <TextBlock Text="Entre com o e-mail da sua conta." Style="{StaticResource Muted}" Margin="0,0,0,20" />
         <TextBlock Text="Endereço da API" />
         <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API" />
         <TextBlock Text="E-mail" />

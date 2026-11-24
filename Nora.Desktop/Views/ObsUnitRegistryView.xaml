@@ -14,7 +14,7 @@
   </UserControl.Resources>
   <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Consulte e registre os dados que serão conferidos no aplicativo do paciente.">
     <StackPanel IsEnabled="{Binding CanEditDraft}">
-      <TextBlock Text="Cadastro de pacientes da UBS" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,14" />
+      <TextBlock Text="Pacientes" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,14" />
       <Expander Header="Escolher ou trocar UBS" Style="{StaticResource ObsExpander}" IsExpanded="{Binding ObsUnitSelectionOpen}" Margin="0,0,0,8"><views:ObsUnitPickerView Margin="0,8,0,0" /></Expander>
       <StackPanel Margin="0,12,0,8"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">

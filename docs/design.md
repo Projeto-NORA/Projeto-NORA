@@ -1,5 +1,11 @@
 # Design e experiência da família NORA
 
+## Títulos e mensagens
+
+OBS e Secretaria usam o título da própria tela como identificação principal; a barra superior mostra a unidade sem repetir título e resumo. No app, Família tem um título curto, as confirmações são objetivas e os efeitos das ações continuam visíveis. A navegação de retorno e a busca do Início estão descritas em [App do paciente](app-paciente.md#navegação-e-textos--23112026).
+
+A solução Windows compilou com um aviso de acesso ao NuGet. Na suíte desktop, 183 de 186 verificações passaram inicialmente; as duas que esperavam títulos anteriores e a que esperava quatro filtros na Visão geral foram atualizadas e passaram nas repetições direcionadas. Não houve execução E2E com PostgreSQL nesta rodada.
+
 ## Referências e escopo
 
 O prompt visual anexado pelo usuário define a identidade e a experiência desta primeira etapa: Android Kotlin/Jetpack Compose, NORA OBS em WPF e NORA Municipal em WPF. O usuário confirmou começar pela base visual e pelas configurações. Regras clínicas, autenticação e contratos da API dependem de especificação própria, registrada em `PENDENCIAS.md`.

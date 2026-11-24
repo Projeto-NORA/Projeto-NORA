@@ -54,8 +54,7 @@ private fun QueueRow(entry: UnitQueueEntry) {
 internal fun LeaveQueueDialog(entry: UnitQueueEntry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Sair da fila?") },
-        text = { Text("Você perde a posição na fila de ${entry.specialty} nesta UBS. Se houver uma oferta de vaga pendente " +
-            "desta solicitação, ela também será cancelada.") },
+        text = { Text("Você perderá a posição na fila de ${entry.specialty} e qualquer oferta pendente.") },
         confirmButton = { TextButton(onClick = onConfirm) { Text("Sair da fila", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Continuar na fila") } })
 }

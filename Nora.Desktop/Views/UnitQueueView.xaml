@@ -5,7 +5,7 @@
   <StackPanel>
     <views:ObsUnitNoticeView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; em caso de empate, vale a ordem de entrada. O score não altera a prioridade clínica nem o direito ao atendimento."><StackPanel IsEnabled="{Binding CanEditDraft}">
-      <TextBlock Text="Fila da UBS" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+      <TextBlock Text="Fila" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
       <StackPanel Margin="0,0,0,10"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
         <TextBlock Text="Adicionar à fila" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,6,0,8" />

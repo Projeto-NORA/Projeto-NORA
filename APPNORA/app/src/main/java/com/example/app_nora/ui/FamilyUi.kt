@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions(),
     onRegistrationUnits: suspend () -> List<RegistrationUnit> = { emptyList() }, initialCatalog: List<RegistrationUnit>? = null) {
-    ScreenTitle("Modo Família", "Peça o vínculo com um dependente e aja por ele sem misturar os dados de cada pessoa.")
+    ScreenTitle("Família", "Gerencie vínculos com dependentes.")
     if (patient.session == null) {
         SectionCard("Entre na sua conta", "Modo Família") { MutedText("Entre na sua conta para pedir o vínculo com um dependente.") }
         return
@@ -65,20 +65,19 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
         HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
         if (historyOpen) groups.history.forEach { link -> key(link.id) { LinkCard(link, patient, {}, {}, {}) } }
     }
-    MutedText("A equipe da UBS confere os documentos antes de aprovar. Enquanto o pedido estiver pendente, nenhum dado da pessoa aparece no seu aplicativo.")
+    MutedText("A UBS confere os documentos antes de liberar os dados.")
 
     cancelling?.let { link ->
         AlertDialog(onDismissRequest = { cancelling = null }, containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Cancelar o pedido?") },
-            text = { Text("O pedido de vínculo com ${dependentDisplayName(link)} na ${link.unitName} será cancelado. Para pedir de novo, será preciso enviar um novo pedido.") },
+            text = { Text("Cancelar o pedido de ${dependentDisplayName(link)} na ${link.unitName}?") },
             confirmButton = { TextButton(onClick = { cancelling = null; actions.onCancelRequest(link.id) }) { Text("Cancelar pedido", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { cancelling = null }) { Text("Manter pedido") } })
     }
     ending?.let { link ->
         AlertDialog(onDismissRequest = { ending = null }, containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Encerrar o vínculo?") },
-            text = { Text("Você deixa de ver e de agir pelos dados de ${dependentDisplayName(link)} na ${link.unitName}: consultas, agendamento, " +
-                "fila, Vaga Relâmpago e Jornada. Para voltar, será preciso pedir o vínculo de novo e a equipe da UBS aprovar.") },
+            text = { Text("Você perderá o acesso aos dados de ${dependentDisplayName(link)} na ${link.unitName}. Para voltar, solicite nova aprovação.") },
             confirmButton = { TextButton(onClick = { ending = null; actions.onEnd(link.id) }) { Text("Encerrar vínculo", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { ending = null }) { Text("Manter vínculo") } })
     }

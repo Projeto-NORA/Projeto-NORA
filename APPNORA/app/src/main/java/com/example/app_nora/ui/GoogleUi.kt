@@ -126,7 +126,7 @@ internal fun GoogleAccountCard(patient: PatientState, google: GoogleActions) {
         onDismissRequest = { confirmUnlink = false },
         containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Desvincular o Google?") },
-        text = { Text("Você deixa de entrar com o Google. O acesso com CPF ou e-mail e senha continua funcionando e você pode vincular de novo quando quiser.") },
+        text = { Text("O acesso com Google será removido. CPF ou e-mail e senha continuam válidos.") },
         confirmButton = { TextButton(onClick = {
             confirmUnlink = false
             scope.launch {

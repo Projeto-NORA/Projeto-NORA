@@ -115,7 +115,7 @@ class ActingInteractionTest {
             assertEquals(0, loadsWhileActing)
         }
         // Já agindo por si, abrir a tela de novo não avisa nada.
-        compose.onNodeWithText("Voltar ao início").performClick()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
         compose.onNodeWithText("UBS próximas").performScrollTo().performClick()
         compose.onNodeWithText("Unidades de saúde").assertExists()
         compose.onNodeWithText("Agora você está vendo as suas UBS").assertDoesNotExist()

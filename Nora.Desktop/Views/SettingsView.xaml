@@ -54,14 +54,14 @@
           <StackPanel Grid.Column="1" Margin="10,0,0,0"><TextBlock Text="{Binding Workspace.UnitLabelTitle}" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.UnitLabel}" /></Border></StackPanel>
           <StackPanel Grid.Row="1" Margin="0,14,10,0"><TextBlock Text="Perfil da conta" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.AccountRoleLabel}" /></Border></StackPanel>
         </Grid>
-        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail e localidade" FontWeight="SemiBold" /><TextBlock Text="A API ainda não tem rota para alterar nome, e-mail ou localidade, por isso esses controles continuam indisponíveis. Nenhum dado pessoal é gravado somente neste computador. A senha já pode ser trocada no cartão abaixo." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
+        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail e localidade" FontWeight="SemiBold" /><TextBlock Text="Nome, e-mail e localidade ainda não podem ser alterados. A senha pode ser alterada abaixo." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
         <WrapPanel Margin="0,14,0,0"><Button Content="Alterar nome e localidade" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar e-mail" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /></WrapPanel>
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" x:Name="PasswordCard">
       <StackPanel>
         <TextBlock Text="Alterar senha" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" ToolTip="Ao trocar a senha, as outras sessões desta conta são encerradas; esta continua aberta." />
-        <TextBlock Text="Informe a senha atual e escolha uma nova. Ao concluir, as outras sessões desta conta são encerradas; esta continua aberta. A senha nunca é salva neste computador." Style="{StaticResource Muted}" Margin="0,8,0,18" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
+        <TextBlock Text="Informe a senha atual e escolha uma nova. As outras sessões serão encerradas." Style="{StaticResource Muted}" Margin="0,8,0,18" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
         <TextBlock Text="Entre na conta para alterar a senha." Style="{StaticResource Muted}" Visibility="{Binding Workspace.IsSignedOut, Converter={StaticResource BoolVisibility}}" />
         <views:ChangePasswordView DataContext="{Binding Workspace}" Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}" />
       </StackPanel>
@@ -69,7 +69,7 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,24">
       <StackPanel>
         <TextBlock Text="Conexão" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" ToolTip="Endereço da API para o próximo login." />
-        <TextBlock Text="Endereço da API para o próximo login. Também pode ser definido pela variável privada NORA_API_URL. Senha e sessão não são salvas." Style="{StaticResource Muted}" Margin="0,8,0,16" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
+        <TextBlock Text="Endereço da API para o próximo login." Style="{StaticResource Muted}" Margin="0,8,0,16" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
         <TextBox Text="{Binding Workspace.Endpoint, UpdateSourceTrigger=PropertyChanged}" Padding="10" MinHeight="42" Background="{DynamicResource SurfaceAltBrush}" Foreground="{DynamicResource TextBrush}" BorderBrush="{DynamicResource BorderBrush}" AutomationProperties.Name="Endereço da API em Configurações" />
         <TextBlock Text="{Binding Workspace.ConnectionLabel}" Style="{StaticResource Muted}" Margin="0,12,0,0" />
       </StackPanel>

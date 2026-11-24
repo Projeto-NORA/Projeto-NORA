@@ -33,10 +33,10 @@ class SettingsInteractionTest {
         showLoginScreen({ settings }) { settings = it }
         openSettingsFromHelp()
         compose.onNodeWithText("Aparência").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Voltar ao início").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Voltar").assertIsDisplayed()
         // Desce até o fim das Configurações, volta à entrada e reabre: a tela começa de novo no topo, na Aparência.
         compose.onNodeWithText("Restaurar preferências padrão").performScrollTo()
-        compose.onNodeWithContentDescription("Voltar ao início").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
         compose.onNodeWithText("Acessar minha conta").assertIsDisplayed()
         openSettingsFromHelp()
         compose.onNodeWithText("Aparência").assertIsDisplayed()
@@ -55,7 +55,7 @@ class SettingsInteractionTest {
         // Sem conta conectada não há como sair: a tela diz isso e não oferece "Sair da conta".
         compose.onNodeWithText("Nenhuma conta conectada neste dispositivo.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Sair da conta").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Voltar ao início").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
         compose.onNodeWithText("Acessar minha conta").assertIsDisplayed()
     }
 }

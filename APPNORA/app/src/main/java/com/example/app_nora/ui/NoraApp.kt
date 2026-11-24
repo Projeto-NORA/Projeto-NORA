@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import com.example.app_nora.R
@@ -298,11 +299,26 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     // A visão de quem o paciente está agindo: ele mesmo, ou o dependente (UBS do vínculo e dados lidos pelas rotas do dependente).
     val view = patient.effective()
     var destination by rememberSaveable { mutableStateOf(PatientDestination.HOME) }
+    var history by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    fun currentPage() = if (settingsOpen) "SETTINGS" else destination.name
+    fun navigate(page: String) {
+        if (page == currentPage()) return
+        history = if (page == PatientDestination.HOME.name) emptyList() else history + currentPage()
+        settingsOpen = page == "SETTINGS"
+        if (!settingsOpen) destination = PatientDestination.valueOf(page)
+    }
+    fun back() {
+        val previous = history.lastOrNull() ?: PatientDestination.HOME.name
+        history = history.dropLast(1)
+        settingsOpen = previous == "SETTINGS"
+        if (!settingsOpen) destination = PatientDestination.valueOf(previous)
+    }
     // Sessão que termina (401, logout ou fechamento) volta ao Início: é lá que o formulário de entrada e a mensagem aparecem.
     var hadSession by rememberSaveable { mutableStateOf(patient.session != null) }
     LaunchedEffect(patient.session == null) {
         if (patient.session != null) hadSession = true
-        else if (hadSession) { hadSession = false; destination = PatientDestination.HOME }
+        else if (hadSession) { hadSession = false; settingsOpen = false; history = emptyList(); destination = PatientDestination.HOME }
     }
     // Pedido de abrir a Vaga Relâmpago de uma oferta: do toque na notificação ou de um botão "Ver oportunidade" (Início e Avisos). Se a
     // oferta é de um dependente, passa a agir por ele (espera a lista de vínculos chegar); se é do paciente, volta a agir por si e escolhe
@@ -322,16 +338,14 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                 // Já agindo por ele, a troca não relê nada: a oferta nova (a da notificação) só aparece relendo a lista dele.
                 val already = patient.actingFor == dependentId && destination == requestDestination
                 family.onActFor(dependentId)
-                settingsOpen = false
-                destination = requestDestination
+                navigate(requestDestination.name)
                 if (already) { if (requestDestination == PatientDestination.FLASH) onRefresh() else onLoadAppointments() }
                 finish()
             }
             FlashOpen.OPEN_OWN -> {
                 family.onActFor(null)
                 onSelectUnit(target)
-                settingsOpen = false
-                destination = requestDestination
+                navigate(requestDestination.name)
                 finish()
             }
         }
@@ -339,13 +353,13 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     // Toque na notificação de comunicado: abre a aba Avisos.
     LaunchedEffect(openNotices, patient.session?.token) {
         if (!openNotices) return@LaunchedEffect
-        if (patient.session != null) { settingsOpen = false; destination = PatientDestination.NOTICES }
+        if (patient.session != null) { navigate(PatientDestination.NOTICES.name) }
         onNoticesOpened()
     }
     // Push de pedido de família decidido: abre a aba Família.
     LaunchedEffect(openFamily, patient.session?.token) {
         if (!openFamily) return@LaunchedEffect
-        if (patient.session != null) { settingsOpen = false; destination = PatientDestination.FAMILY }
+        if (patient.session != null) { navigate(PatientDestination.FAMILY.name) }
         onFamilyOpened()
     }
     // Situação do Google (só com o client ID no build): relida a cada abertura das Configurações.
@@ -422,7 +436,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     }
     // O servidor exigiu nova senha (403 password-change-required): leva à troca em vez de deixar o app preso.
     LaunchedEffect(patient.passwordChangeRequired) {
-        if (patient.passwordChangeRequired) { settingsOpen = false; destination = PatientDestination.PASSWORD }
+        if (patient.passwordChangeRequired) { navigate(PatientDestination.PASSWORD.name) }
     }
     LaunchedEffect(destination, patient.session?.token, view.selectedUnitId) {
         if (destination == PatientDestination.APPOINTMENTS && patient.session != null && view.selectedUnitId != null) onLoadAppointments()
@@ -434,9 +448,15 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         notificationDecisionOffer(patient, notificationOfferId, notificationUnitId, notificationDependentId, System.currentTimeMillis())
     else null
     BackHandler(enabled = settingsOpen || destination != PatientDestination.HOME) {
-        if (settingsOpen) settingsOpen = false else destination = PatientDestination.HOME
+        back()
     }
     NoraTheme(settings.appearance) {
+    if (searchOpen && patient.session != null) {
+        PatientSearchDialog(onDismiss = { searchOpen = false }, onOpen = { page ->
+            searchOpen = false
+            navigate(page)
+        })
+    }
     if (pendingNotificationOffer != null && notificationAccept != null) {
         AlertDialog(onDismissRequest = onNotificationDecisionHandled,
             title = { Text(if (notificationAccept) "Aceitar oportunidade?" else "Recusar oportunidade?") },
@@ -456,7 +476,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         mainDestinations.forEach { item ->
                             NavigationBarItem(
                                 selected = !settingsOpen && destination == item,
-                                onClick = { settingsOpen = false; destination = item },
+                                onClick = { navigate(item.name) },
                                 icon = {
                                     BadgedBox(badge = {
                                         if (item == PatientDestination.NOTICES && unseenNotices > 0) {
@@ -496,8 +516,18 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                     verticalArrangement = Arrangement.spacedBy(if (settings.comfortableSpacing) 20.dp else 12.dp),
                 ) {
                     if (patient.session != null) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { settingsOpen = false; destination = PatientDestination.JOURNEY },
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            if (settingsOpen || destination != PatientDestination.HOME) {
+                                IconButton(onClick = { back() }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                                }
+                            } else {
+                                IconButton(onClick = { searchOpen = true }) {
+                                    Icon(Icons.Default.Search, contentDescription = "Pesquisar")
+                                }
+                            }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { navigate(PatientDestination.JOURNEY.name) },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                                 ScoreTrophy(if (scoreSummary.answeredUnits > 0) bandColor(scoreSummary.band) else MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(Modifier.width(4.dp))
@@ -508,44 +538,38 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         }
                     }
                     if (settingsOpen) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { settingsOpen = false }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar ao início")
-                            }
-                            Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        if (patient.session == null) IconButton(onClick = { back() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
                         }
+                        Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         SettingsScreen(settings, onSettingsChange, patient, onAddressChange, google, onChangePassword = {
-                            settingsOpen = false
-                            destination = PatientDestination.PASSWORD
+                            navigate(PatientDestination.PASSWORD.name)
                         }, onLogout = {
                             settingsOpen = false
                             destination = PatientDestination.HOME
                             onLogout()
                         })
                     } else {
-                        if (destination in listOf(PatientDestination.APPOINTMENTS, PatientDestination.UNITS,
-                                PatientDestination.BOOKING, PatientDestination.FLASH, PatientDestination.PASSWORD)) {
-                            TextButton(onClick = { destination = PatientDestination.HOME }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Voltar ao início")
+                        if (patient.session == null && destination != PatientDestination.HOME && destination != PatientDestination.REGISTER) {
+                            IconButton(onClick = { back() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
                             }
                         }
                         // As telas que agem por alguém dizem sempre por quem (faixa) e usam a visão dessa pessoa.
                         if (patient.session != null && destination in actingDestinations) ActingBanner(patient, family.onActFor)
                         when (destination) {
                         PatientDestination.HOME -> HomeScreen(settings.showGuidance,
-                            onOpenSettings = { settingsOpen = true }, onNavigate = { destination = it },
+                            onOpenSettings = { navigate("SETTINGS") }, onNavigate = { navigate(it.name) },
                             patient = view, onAddressChange = onAddressChange, onLogin = onLogin,
                             onRefresh = onRefresh, onLoadUnits = onLoadUnits, onLeaveQueue = onCancelQueueEntry,
                             onConfirmPresence = onConfirmPresence,
                             // O Início mostra as ofertas da visão em tela: agindo por um dependente, as dele.
                             onOpenOffer = { unitId -> offerRequest = unitId to patient.actingFor },
                             onOpenDependentOffer = { dependentId, unitId -> offerRequest = unitId to dependentId },
-                            onOpenProfile = { destination = PatientDestination.PROFILE },
+                            onOpenProfile = { navigate(PatientDestination.PROFILE.name) },
                             onRequestPasswordReset = onRequestPasswordReset,
                             onConfirmPasswordReset = onConfirmPasswordReset, google = google)
-                        PatientDestination.JOURNEY -> JourneyScreen(view, onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
+                        PatientDestination.JOURNEY -> JourneyScreen(view, onOpenAppointments = { navigate(PatientDestination.APPOINTMENTS.name) },
                             onRefreshAttendance = onLoadAttendance, onLeaveQueue = onCancelQueueEntry, onLoadRecords = community.onLoadRecords)
                         PatientDestination.NOTICES -> NoticesScreen(patient,
                             onOpenOffer = { unitId -> offerRequest = unitId to null },
@@ -553,20 +577,20 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             onMarkRead = community.onMarkAnnouncementRead, onReload = community.onLoadAnnouncements, onLoadUnits = onLoadUnits)
                         PatientDestination.FAMILY -> FamilyScreen(patient, family, onRegistrationUnits)
                         PatientDestination.PROFILE -> ProfileScreen(patient,
-                            onOpenSettings = { settingsOpen = true }, onChangePassword = { destination = PatientDestination.PASSWORD },
+                            onOpenSettings = { navigate("SETTINGS") }, onChangePassword = { navigate(PatientDestination.PASSWORD.name) },
                             onLogout = {
                                 destination = PatientDestination.HOME
                                 onLogout()
                             }, email = email)
                         PatientDestination.APPOINTMENTS -> AppointmentsScreen(view, onSelectUnit, onLoadUnits, onLoadAppointments, onCancelAppointment,
-                            onConfirmPresence, onBook = { destination = PatientDestination.BOOKING })
+                            onConfirmPresence, onBook = { navigate(PatientDestination.BOOKING.name) })
                         PatientDestination.UNITS -> UnitsScreen(patient, ownUnitsNotice, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onCheckUnlink, onUnlinkUnit, onLoadAbout)
                         PatientDestination.BOOKING -> BookingScreen(view, onSelectUnit, onLoadUnits, onOpenBooking, onLoadAvailability, onBookSlot,
-                            onOpenAppointments = { destination = PatientDestination.APPOINTMENTS },
+                            onOpenAppointments = { navigate(PatientDestination.APPOINTMENTS.name) },
                             actingName = patient.actingLink()?.let(::dependentDisplayName))
                         PatientDestination.FLASH -> FlashScreen(view, onLoadUnits, onSelectUnit, onRefresh, onRespondUnit)
                         PatientDestination.PASSWORD -> ChangePasswordScreen(patient.passwordChangeRequired, onChangePassword)
-                        PatientDestination.REGISTER -> RegisterScreen(onBack = { destination = PatientDestination.HOME }, onLoadUnits = onRegistrationUnits, onStart = onStartRegistration, onSend = onSendRegistrationCode, onConfirm = onConfirmRegistration)
+                        PatientDestination.REGISTER -> RegisterScreen(onBack = { back() }, onLoadUnits = onRegistrationUnits, onStart = onStartRegistration, onSend = onSendRegistrationCode, onConfirm = onConfirmRegistration)
                         }
                     }
                     Text(

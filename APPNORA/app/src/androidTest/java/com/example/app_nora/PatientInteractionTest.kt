@@ -111,7 +111,7 @@ class PatientInteractionTest {
         compose.runOnIdle { assertEquals(true, answer) }
         compose.onNodeWithText("Recusar oportunidade").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(false, answer) }
-        compose.onNodeWithText("Voltar ao início").performClick()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Configurações").performScrollTo().performClick()
         compose.onNodeWithText("Sair da conta").performScrollTo().assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(true, logout) }
@@ -181,7 +181,21 @@ class PatientInteractionTest {
         compose.onNodeWithText("Voltar").performClick()
         compose.runOnIdle { assertEquals(null, cancelled) }
         compose.onNodeWithText("Cancelar consulta").performScrollTo().performClick()
-        compose.onNodeWithText("Confirmar cancelamento").performClick()
+        compose.onNodeWithText("Confirmar").performClick()
         compose.runOnIdle { assertEquals(appointment.id, cancelled) }
     }
+    @Test fun searchOpensResultAndBackReturnsToPreviousPage() {
+        compose.setContent { NoraPatientContent(UserSettings(), {}, connected()) }
+        compose.onNodeWithContentDescription("Pesquisar").performClick()
+        compose.onNodeWithText("O que você procura?").performTextInput("agendar")
+        compose.onAllNodesWithText("Pesquisar").onLast().performClick()
+        compose.onNodeWithText("Agendar consulta").assertExists()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Pesquisar").assertExists()
+        compose.onNodeWithText("Família").performClick()
+        compose.onNodeWithText("Perfil").performClick()
+        compose.onNodeWithContentDescription("Voltar").performScrollTo().performClick()
+        compose.onNodeWithText("Gerencie vínculos com dependentes.").assertExists()
+    }
+
 }
