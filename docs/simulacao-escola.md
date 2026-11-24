@@ -74,20 +74,29 @@ O `--add-readme` existe porque o GitHub não cria release num repositório vazio
 Entre com a conta `municipal` (criada pelo `--provision` do `implantar-neon.ps1`):
 
 1. Cadastre a UBS da simulação, por exemplo "UBS Escola", com endereço e coordenadas da escola.
-2. Confira as especialidades da rede: **Clínica Geral**, **Pediatria** e **Odontologia**.
+2. Se for preparar a UBS pela tela, confira as especialidades **Clínica Geral**, **Pediatria** e **Odontologia**. O script da próxima etapa já cuida do catálogo da rede.
 3. Dê à conta OBS acesso à "UBS Escola". Se cada aluno for ter sua própria conta, crie as contas OBS aqui e dê o acesso também.
 
 ### 4. Preparar a UBS no OBS (você, como administrador)
 
 1. Em cada computador da escola, baixe o `OBS-NORA.zip` pelo link acima, clique com o botão direito → **Extrair tudo** e abra o `OBS-NORA.exe` (no aviso do Windows: **Mais informações → Executar assim mesmo**). O Painel Municipal é opcional: só para mostrar na tela.
 2. Entre com a conta de administrador. Em **Informações da UBS → Computadores**, ative este computador e gere um código para o outro.
-3. Em **Informações da UBS**:
+3. Para montar o catálogo completo, abra o PowerShell 7 na raiz da branch da simulação, com a API pronta e a conta de administrador já vinculada à UBS:
+
+   ```powershell
+   pwsh -File scripts\cadastrar-medicos-simulacao.ps1 -Ubs 'UBS Escola'
+   ```
+
+   O script pede os e-mails e as senhas da Secretaria e do administrador do OBS. Ele prepara **20 especialidades**, **40 profissionais fictícios** (dois por especialidade, sem número de conselho) e **20 consultórios** (um por especialidade). A grade padrão tem faixas de segunda a sexta, das 08h às 12h para o primeiro profissional e das 13h às 17h para o segundo, com consultas de 20 minutos.
+
+   Se precisar ajustar toda a grade pela tela, acrescente `-SemGrade` ao comando. Se interromper a execução com a grade padrão, repita o mesmo comando para completar os dias ausentes. Grades personalizadas são preservadas.
+
+4. Em **Informações da UBS**, preencha ou confira:
    - **Atendimento ao público:** horário do dia da simulação.
-   - **Profissionais:** um por especialidade (nomes fictícios, por exemplo "Dra. Ana – Clínica Geral").
-   - **Consultórios:** "Consultório 1", "2" e "3".
-   - **Grade:** no dia da simulação, de **pelo menos 3 horas depois do fim da apresentação** até o fim da tarde, com atendimentos de 20 minutos. Assim o botão "Confirmar presença" aparece (ele só existe de 48 h até 2 h antes da consulta) e há horário livre para as Vagas Relâmpago (que fecham quando faltam menos de 10 min).
+   - **Profissionais e consultórios:** confira o catálogo criado pelo script. Se fizer pela tela, cadastre pelo menos um profissional fictício e um consultório por especialidade usada no roteiro.
+   - **Grade:** deixe horários livres que comecem **pelo menos 3 horas depois do fim da apresentação**. Ajuste as faixas no OBS se a grade padrão não cobrir esse período. Assim o botão **Confirmar presença** aparece durante o exercício, pois fica disponível de 48 h a 2 h antes da consulta. A Vaga Relâmpago fecha quando faltam menos de 10 min.
    - **Aprovação das vagas reaproveitadas:** ligada, para o aluno mostrar o "Aprovar e ofertar".
-4. Faça um ensaio completo com o seu celular (cadastro, criar conta, agendar, cancelar, Vaga Relâmpago) e depois desative esse paciente de teste.
+5. Faça um ensaio completo com o seu celular (cadastro, criar conta, agendar, cancelar, Vaga Relâmpago) e depois desative esse paciente de teste.
 
 ### 5. Instalar o app no celular do funcionário
 
@@ -98,6 +107,8 @@ Mande o link (ou o QR code) **na véspera**, para ninguém perder tempo na apres
 3. Se o Play Protect avisar, toque em **Mais detalhes → Instalar mesmo assim**.
 4. Abra o NORA e aceite as **notificações** (é por elas que a Vaga Relâmpago avisa).
 5. **Não crie a conta ainda:** a conta só pode ser criada depois que a recepção (OBS) cadastrar a pessoa, durante a simulação.
+
+Na simulação, a recepção registra o nome, o CPF fictício válido e o e-mail do paciente no OBS. Depois, o paciente toca em **Criar conta** no app, informa o mesmo CPF, escolhe a UBS, cria uma senha e confirma o código de seis dígitos enviado ao e-mail cadastrado pela recepção. O **CPF** vincula a conta ao cadastro da UBS. O e-mail recebe o código de confirmação.
 
 ### 6. No dia, antes de começar
 
@@ -126,7 +137,7 @@ Mande o link (ou o QR code) **na véspera**, para ninguém perder tempo na apres
 Os dados não ficam no seu computador, e sim no banco Neon. O que você criar em casa aparece na escola sem copiar nada:
 
 - **Pelo PowerShell (em casa):** a conta da Secretaria (`municipal`) e a do administrador do OBS, com `--provision` (o `scripts\implantar-neon.ps1` já oferece).
-- **Pelas telas (em casa):** a UBS, as especialidades e as contas extras no Painel Municipal; profissionais, consultórios, grade e aprovação das vagas no OBS. Não existe comando de PowerShell para isso (o `--demo-bootstrap` só serve para o banco local de testes).
+- **Pelas telas (em casa):** a UBS e as contas extras no Painel Municipal, além dos horários de atendimento e da aprovação das vagas no OBS. Use o script do passo 4 para preparar especialidades, profissionais, consultórios e grade, ou cadastre esses itens pelas telas.
 - **Entre uma vez em casa com cada conta.** Se o sistema pedir a troca da senha provisória, troque lá, para não perder tempo diante dos funcionários.
 - **Na escola, use a conta de administrador do OBS:** ela entra em qualquer computador. A atendente só entra em computador ativado, e a ativação é por máquina (Informações da UBS → Computadores, cerca de 1 minuto cada).
 - **Os pacientes continuam sendo cadastrados na hora**, porque o app só cria a conta depois do cadastro pela recepção.

@@ -61,3 +61,9 @@ O usuário sabe se a entrega pelo GitHub Releases funciona, tem um roteiro de pr
 - Chat paralelo nesta pasta publicou `OBS-NORA.zip` e `Painel-Municipal.zip` no release (P-063 para apagá-los depois).
 - Feito: imagem dos 3 QR Codes (lidos de volta, 3/3 corretos), passo a passo em `Claude-PLANS/Projeto-NORA/passo-a-passo-final-simulacao.md`, downloads dos 3 arquivos conferidos (HTTP 200).
 - Não feito: ligar a API (P-049: exige a senha do Neon e a conta do Render do NORA, fora do alcance da IA).
+
+## Rodada 3 (24/11/2026) — Cadastro de médicos
+
+- O script `scripts/cadastrar-medicos-simulacao.ps1` monta o catálogo completo com 20 especialidades, 40 médicos fictícios sem número de conselho, 20 consultórios e 200 faixas semanais. O guia da simulação e a parte 2.3 do roteiro em `Mateus-Projects` trazem o comando e orientam a conferência do horário da apresentação no OBS.
+- A seleção da UBS passou a consumir a lista devolvida pela API. A nova execução completa os dias ausentes da grade padrão e preserva grades personalizadas. Os nomes usados no cronograma continuam correspondendo aos do catálogo.
+- A validação isolada e os itens restantes da seção 9 do handoff estão no [registro de validação do cadastro](2026-11-24-validacao-cadastro-medicos.md).

@@ -14,7 +14,7 @@
     4. cria os médicos (dois por especialidade) e um consultório por especialidade;
     5. cria a grade: o 1º médico de cada especialidade atende de manhã e o 2º à tarde, de segunda a sexta.
 
-  Pode ser rodado de novo: o que já existe é mantido e só o que falta é criado. Um médico que já tem grade não ganha outra.
+  Pode ser rodado de novo. O script completa os dias ausentes da grade padrão e preserva as grades personalizadas.
   As senhas são pedidas com a entrada oculta e não são gravadas em lugar nenhum.
 
   Os nomes dos médicos são inventados e não têm registro de conselho (CRM), para não coincidir com médicos reais.
@@ -66,7 +66,7 @@ $catalogo = [ordered]@{
     'Oncologia'                   = @('Dra. Gabriela Dantas', 'Dr. Augusto Freitas')
     'Geriatria'                   = @('Dr. Antônio Valente', 'Dra. Rosana Batista')
 }
-$turnos = @(@{ Inicio = '08:00'; Fim = '12:00'; Nome = 'manhã' }, @{ Inicio = '13:00'; Fim = '17:00'; Nome = 'tarde' })
+$turnos = @(@{ Inicio = '08:00'; Fim = '12:00' }, @{ Inicio = '13:00'; Fim = '17:00' })
 
 $total = 5; $script:passo = 0
 function Write-Step([string] $texto) { $script:passo++; Write-Host ("[{0}/{1}] {2}" -f $script:passo, $total, $texto) -ForegroundColor Cyan }
@@ -148,10 +148,11 @@ try {
     $tokenObs = Connect-Nora 'obs' $EmailObs (Read-Secret 'NORA_SENHA_OBS' 'Senha do administrador do OBS (não aparece)')
     $unidades = Invoke-Nora GET '/api/obs/units' -Token $tokenObs
     Assert-Status $unidades 200 'ler as UBS da conta do OBS'
-    $opcoes = @($unidades.Body.units)
-    if ($Ubs) { $opcoes = @($opcoes | Where-Object { (Get-Key $_.name).Contains((Get-Key $Ubs)) }) }
+    $opcoes = @($unidades.Body ?? @())
+    $nomeBuscado = Get-Key $Ubs
+    if ($nomeBuscado) { $opcoes = @($opcoes | Where-Object { (Get-Key $_.name).Contains($nomeBuscado) }) }
     if ($opcoes.Count -eq 0) { throw 'A conta do OBS não tem acesso a nenhuma UBS com esse nome. No Painel Municipal, dê acesso à UBS da simulação para essa conta.' }
-    if ($opcoes.Count -gt 1) { throw "A conta do OBS tem acesso a mais de uma UBS: $(($opcoes | ForEach-Object name) -join '; '). Rode de novo com -Ubs ""<parte do nome>""." }
+    if ($opcoes.Count -gt 1) { throw "A conta do OBS tem acesso a mais de uma UBS: $($opcoes.name -join '; '). Rode de novo com -Ubs ""<parte do nome>""." }
     $unidade = $opcoes[0]; $base = "/api/obs/units/$($unidade.id)"
     Write-Done "UBS escolhida: $($unidade.name)."
 
@@ -187,6 +188,10 @@ try {
     if ($SemGrade) {
         Write-Note 'Pulada (-SemGrade). Atenção: com médicos cadastrados, o OBS só marca consulta em horário da grade.'
     } else {
+        $atual = Invoke-Nora GET "$base/schedule" -Token $tokenObs
+        Assert-Status $atual 200 'ler a grade da UBS'
+        $gradePorMedico = ($atual.Body.schedule | Group-Object -Property professionalId -AsHashTable -AsString) ?? @{}
+        $diasUteis = 1..5
         $gradesNovas = 0; $medicosComGrade = 0; $indice = 0
         foreach ($nome in $catalogo.Keys) {
             $indice++
@@ -195,12 +200,22 @@ try {
             $sala = $salaPorNome[(Get-Key "Consultório $nome")]
             for ($m = 0; $m -lt 2; $m++) {
                 $medico = $porNome[(Get-Key $catalogo[$nome][$m])]
-                $atual = Invoke-Nora GET "$base/schedule?professionalId=$($medico.id)" -Token $tokenObs
-                Assert-Status $atual 200 "ler a grade de $($medico.fullName)"
-                if (@($atual.Body.schedule).Count -gt 0) { $medicosComGrade++; continue }
-                foreach ($dia in 1..5) {
+                $turno = $turnos[$m]
+                $faixasExistentes = $gradePorMedico[$medico.id]
+                $diasCadastrados = @($faixasExistentes | Where-Object {
+                    $_.weekday -in $diasUteis -and $_.startTime -eq $turno.Inicio -and $_.endTime -eq $turno.Fim -and
+                    $_.slotMinutes -eq $Minutos -and $_.roomId -eq $sala.id -and $_.specialtyId -eq $especialidade.id -and
+                    -not $_.validFrom -and -not $_.validUntil
+                } | ForEach-Object { $_.weekday })
+                # Completa só a grade padrão. Uma faixa diferente indica uma grade que já foi personalizada.
+                if ($faixasExistentes.Count -ne $diasCadastrados.Count -or $diasCadastrados.Count -eq $diasUteis.Count) {
+                    $medicosComGrade++
+                    continue
+                }
+                foreach ($dia in $diasUteis) {
+                    if ($dia -in $diasCadastrados) { continue }
                     $grade = Invoke-Nora POST "$base/schedule" @{
-                        professionalId = $medico.id; weekday = $dia; startTime = $turnos[$m].Inicio; endTime = $turnos[$m].Fim
+                        professionalId = $medico.id; weekday = $dia; startTime = $turno.Inicio; endTime = $turno.Fim
                         slotMinutes = $Minutos; roomId = $sala.id; specialtyId = $especialidade.id
                     } $tokenObs
                     Assert-Status $grade 201 "criar a grade de $($medico.fullName)"
