@@ -43,21 +43,46 @@ if (args.Contains("--queue-return-only")) return await QueueReturnChecks.RunAsyn
 if (args.Contains("--closing-only")) return await ClosingChecks.RunAsync(directory.FullName);
 
 var configurationSuite = new Suite("configuração");
+await configurationSuite.Check("URL do Neon preserva credenciais codificadas e valida o certificado", async () =>
+{
+    const string uri = "postgresql://usuario%40teste:segredo%3B%40%3A@ep-teste.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    var parse = typeof(DatabaseHelper).GetMethod("ParseConnectionString", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+    var builder = (Npgsql.NpgsqlConnectionStringBuilder)parse.Invoke(null, [uri, "teste"])!;
+    Require(builder.Host == "ep-teste.aws.neon.tech" && builder.Database == "neondb" && builder.Port == 5432
+        && builder.Username == "usuario@teste" && builder.Password == "segredo;@:"
+        && builder.SslMode == Npgsql.SslMode.VerifyFull && builder.ChannelBinding == Npgsql.ChannelBinding.Require,
+        "A URL não foi convertida corretamente.");
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Nora"] = uri }).Build();
+    await using var database = new DatabaseHelper(settings);
+    Require(database.IsConfigured, "A URL não configurou a fonte de dados.");
+});
+await configurationSuite.Check("URL PostgreSQL conecta ao banco descartável", async () =>
+{
+    var raw = Environment.GetEnvironmentVariable("NORA_TEST_CONNECTION");
+    if (string.IsNullOrWhiteSpace(raw)) { Console.WriteLine("SKIP conexão URI: banco descartável ausente."); return; }
+    var current = new Npgsql.NpgsqlConnectionStringBuilder(raw);
+    var uri = $"postgresql://{Uri.EscapeDataString(current.Username!)}:fixture@{current.Host}:{current.Port}/{Uri.EscapeDataString(current.Database!)}?sslmode=disable";
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Nora"] = uri }).Build();
+    await using var database = new DatabaseHelper(settings);
+    await using var connection = await database.OpenAsync();
+    await using var query = database.Command(connection, "SELECT 1");
+    Require(Convert.ToInt32(await query.ExecuteScalarAsync()) == 1, "A URL não abriu uma conexão válida.");
+});
 await configurationSuite.Check("Configuração PostgreSQL inválida orienta o formato e protege a senha no diagnóstico", async () =>
 {
     const string fakeSecret = "fixture-only-secret-326";
     var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
     {
-        ["ConnectionStrings:Nora"] = $"postgresql://fixture:{fakeSecret}@db.example.test/nora?sslmode=require"
+        ["ConnectionStrings:Nora"] = $"postgresql://fixture:{fakeSecret}@db.example.test/nora?option-invalida=1"
     }).Build();
     try
     {
         await using var database = new DatabaseHelper(settings);
-        throw new InvalidDataException("A URI foi aceita no lugar do formato Npgsql.");
+        throw new InvalidDataException("A opção desconhecida foi aceita.");
     }
     catch (InvalidOperationException error)
     {
-        Require(error.Message.Contains("ConnectionStrings__Nora") && error.Message.Contains("SSL Mode=VerifyFull"), "Diagnóstico sem orientação de configuração.");
+        Require(error.Message.Contains("ConnectionStrings__Nora"), "Diagnóstico sem orientação de configuração.");
         Require(!error.ToString().Contains(fakeSecret, StringComparison.Ordinal), "O diagnóstico incluiu o segredo.");
     }
 });
