@@ -13,7 +13,7 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
     /// <summary>
     /// Cria uma conta. Paciente exige CPF válido. Contas de equipe (<c>obs</c> e <c>municipal</c>) não têm CPF (P-053): entram só por e-mail e senha, então o CPF de <paramref name="request"/> é ignorado e nada dele é gravado.
     /// </summary>
-    public Task<PatientInfo> ProvisionAsync(string scope, string role, CreatePatientRequest request, CancellationToken ct = default)
+    public Task<PatientInfo> ProvisionAsync(string scope, string role, CreatePatientRequest request, CancellationToken ct = default, string? municipalityName = null)
     {
         if (!((scope == "obs" && role is "administrator" or "attendant") || (scope == "municipal" && role == "manager") || (scope == "patient" && role == "patient"))) throw new ApiInputException();
         var staff = scope != "patient";
@@ -24,12 +24,32 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
             throw new ApiInputException();
         var normalized = new CreatePatientRequest(fullName, cpf, email, request.Password, NormalizePhone(request.Phone), NormalizeAddress(request.Address));
         var account = new Account(new(Guid.Empty, fullName, role, scope), cpf, email, "");
-        return accounts.CreateAsync(scope, role, normalized, passwords.HashPassword(account, request.Password), ct);
+        return accounts.CreateAsync(scope, role, normalized, passwords.HashPassword(account, request.Password), ct, municipalityName);
     }
 
     /// <summary>Conta de equipe sem CPF (o cadastro inicial pelo terminal e as contas de teste): nome, e-mail e senha.</summary>
     public Task<PatientInfo> ProvisionStaffAsync(string scope, string role, string fullName, string email, string password, CancellationToken ct = default) =>
         scope == "patient" ? throw new ApiInputException() : ProvisionAsync(scope, role, new(fullName, "", email, password), ct);
+
+    /// <summary>
+    /// Redefine a senha de uma conta de equipe (<c>municipal</c> ou <c>obs</c>) pelo terminal, para quem perdeu o acesso. A senha nova é provisória (troca obrigatória no próximo login) e as sessões antigas caem.
+    /// Paciente não passa por aqui: tem a própria recuperação por e-mail. Conta inexistente, inativa ou de outro escopo → <see cref="ApiNotFoundException"/>, sem alterar nada.
+    /// </summary>
+    public async Task ResetStaffPasswordAsync(string scope, string email, string newPassword, CancellationToken ct = default)
+    {
+        email = email?.Trim().ToLowerInvariant() ?? "";
+        if (scope is not ("municipal" or "obs") || email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email
+            || newPassword is null || newPassword.Length is < 8 or > 256) throw new ApiInputException();
+        var hash = passwords.HashPassword(new Account(new(Guid.Empty, "", scope == "municipal" ? "manager" : "administrator", scope), "", email, ""), newPassword);
+        if (!await accounts.ResetStaffPasswordAsync(scope, email, hash, time.GetUtcNow(), ct)) throw new ApiNotFoundException();
+    }
+
+    public Task<PatientInfo> ProvisionMunicipalAsync(string municipalityName, string fullName, string email, string password, CancellationToken ct = default)
+    {
+        municipalityName = municipalityName.Trim();
+        if (municipalityName.Length is < 2 or > 160) throw new ApiInputException();
+        return ProvisionAsync("municipal", "manager", new(fullName, "", email, password), ct, municipalityName);
+    }
 
     internal static string? NormalizePhone(string? value)
     {

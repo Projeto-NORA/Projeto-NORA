@@ -473,7 +473,7 @@ internal static class ReviewChecks
             Require(plan.Any(line => line.Contains("waiting_list_events_status_time_idx")), "O plano da espera média não usa o índice (status, occurred_at):\n" + string.Join("\n", plan));
         });
 
-        await Check("Rehash de senha no login não sobrescreve um hash trocado no meio do caminho (WHERE password_hash = hash lido); sem concorrência o rehash acontece", async () =>
+        await Check("Rehash no login preserva a troca concorrente, recusa a senha antiga e aceita uma atualização concorrente da mesma senha", async () =>
         {
             var hasher = new RehashingHasher();
             await using var h = await Harness.StartAsync(connectionString, services: services => services.Replace(ServiceDescriptor.Singleton<IPasswordHasher<Account>>(hasher)));
@@ -495,8 +495,17 @@ internal static class ReviewChecks
                 using var update = new NpgsqlCommand($"UPDATE {h.Schema}.accounts SET password_hash=$1 WHERE cpf=$2", connection);
                 update.Parameters.AddWithValue(concurrent); update.Parameters.AddWithValue(Cpf(2)); update.ExecuteNonQuery();
             };
-            using (var raced = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(2), password = Password })) Expect(raced, 200);
+            using (var raced = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(2), password = Password })) Expect(raced, 401);
             Require(await Hash(2) == concurrent, "O rehash do login sobrescreveu o hash trocado no meio do caminho.");
+            var samePassword = hasher.Create(Password);
+            hasher.Hook = () =>
+            {
+                using var connection = new NpgsqlConnection(connectionString); connection.Open();
+                using var update = new NpgsqlCommand($"UPDATE {h.Schema}.accounts SET password_hash=$1 WHERE cpf=$2", connection);
+                update.Parameters.AddWithValue(samePassword); update.Parameters.AddWithValue(Cpf(1)); update.ExecuteNonQuery();
+            };
+            using (var raced = await h.Anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "patient", identifier = Cpf(1), password = Password })) Expect(raced, 200);
+            Require(await Hash(1) == samePassword, "O login concorrente sobrescreveu o hash recém-atualizado.");
             hasher.ForceRehash = false;
         });
 

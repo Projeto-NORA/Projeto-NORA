@@ -23,12 +23,12 @@ public sealed class AccountDao(DatabaseHelper database)
         return await reader.ReadAsync(ct) ? ReadAccount(reader) : null;
     }, ct);
 
-    public Task<PatientInfo> CreateAsync(string scope, string role, CreatePatientRequest request, string passwordHash, CancellationToken ct) => database.UseAsync(async connection =>
+    public Task<PatientInfo> CreateAsync(string scope, string role, CreatePatientRequest request, string passwordHash, CancellationToken ct, string? municipalityName = null) => database.UseAsync(async connection =>
     {
         var id = Guid.NewGuid();
         await using var command = database.Command(connection,
-            "INSERT INTO nora.accounts(id,full_name,cpf,email,password_hash,scope,role,phone,cep,street,address_number,complement,neighborhood,city,state,ibge) VALUES($1,$2,NULLIF($3,''),$4,$5,$6,$7,NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),NULLIF($15,''),NULLIF($16,'')) RETURNING created_at",
-            id, request.FullName, request.Cpf, request.Email, passwordHash, scope, role, request.Phone ?? "", request.Address?.Cep ?? "", request.Address?.Street ?? "", request.Address?.Number ?? "", request.Address?.Complement ?? "", request.Address?.Neighborhood ?? "", request.Address?.City ?? "", request.Address?.State ?? "", request.Address?.Ibge ?? "");
+            "INSERT INTO nora.accounts(id,full_name,cpf,email,password_hash,scope,role,phone,cep,street,address_number,complement,neighborhood,city,state,ibge,municipality_name) VALUES($1,$2,NULLIF($3,''),$4,$5,$6,$7,NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),NULLIF($15,''),NULLIF($16,''),NULLIF($17,'')) RETURNING created_at",
+            id, request.FullName, request.Cpf, request.Email, passwordHash, scope, role, request.Phone ?? "", request.Address?.Cep ?? "", request.Address?.Street ?? "", request.Address?.Number ?? "", request.Address?.Complement ?? "", request.Address?.Neighborhood ?? "", request.Address?.City ?? "", request.Address?.State ?? "", request.Address?.Ibge ?? "", municipalityName ?? "");
         await using var reader = await command.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
         return new PatientInfo(id, request.FullName, request.Cpf, request.Email, request.Phone, CreatedAt: reader.GetFieldValue<DateTimeOffset>(0), Address: request.Address);
@@ -64,6 +64,22 @@ public sealed class AccountDao(DatabaseHelper database)
         await using var transaction = await connection.BeginTransactionAsync(ct);
         if (await database.ExecuteAsync(connection, "UPDATE nora.accounts SET password_hash=$3,must_change_password=false WHERE id=$1 AND is_active AND password_hash=$2", ct, id, expectedHash, newHash) != 1) return false;
         await database.ExecuteAsync(connection, "UPDATE nora.sessions SET revoked_at=$3,presence_seen_at=NULL WHERE account_id=$1 AND revoked_at IS NULL AND token_hash<>$2", ct, id, currentTokenHash, now);
+        await transaction.CommitAsync(ct);
+        return true;
+    }, ct);
+
+    /// <summary>
+    /// Redefinição feita pelo terminal da equipe técnica (<c>--reset-password</c>): troca o hash de uma conta de equipe ativa, exige nova troca no próximo login, revoga todas as sessões
+    /// e registra o evento sem autor (o histórico mostra "Sistema"). Retorna falso se a conta não existe, está inativa ou é de outro escopo; nada é alterado nesse caso.
+    /// </summary>
+    public Task<bool> ResetStaffPasswordAsync(string scope, string email, string newHash, DateTimeOffset now, CancellationToken ct) => database.UseAsync(async connection =>
+    {
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await using var update = database.Command(connection,
+            "UPDATE nora.accounts SET password_hash=$3,must_change_password=true WHERE scope=$1 AND email=$2 AND is_active RETURNING id", scope, email, newHash);
+        if (await update.ExecuteScalarAsync(ct) is not Guid id) return false;
+        await database.ExecuteAsync(connection, "UPDATE nora.sessions SET revoked_at=$2,presence_seen_at=NULL WHERE account_id=$1 AND revoked_at IS NULL", ct, id, now);
+        await database.ExecuteAsync(connection, "INSERT INTO nora.staff_account_events(account_id,actor_id,action) VALUES($1,NULL,'password_reset')", ct, id);
         await transaction.CommitAsync(ct);
         return true;
     }, ct);

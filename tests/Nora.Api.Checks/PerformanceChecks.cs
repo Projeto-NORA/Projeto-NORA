@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
 using System.Net.Http.Json;
 using Npgsql;
 using Nora.Api.DAOs;
@@ -8,7 +7,7 @@ using static RoundFixture;
 
 /// <summary>
 /// Medição e regressão da otimização de 2026-11-17 (P1: passe ocioso do distribuidor da Vaga Relâmpago; P2: leitura com <c>FOR SHARE</c> na concessão e no vínculo). Roda com <c>--performance-only</c>
-/// e imprime linhas <c>MEDIDA</c> (contagem de comandos SQL do Npgsql, transações do banco central e tempo) para o antes/depois de <c>docs/desempenho.md</c>.
+/// e imprime linhas <c>MEDIDA</c> com comandos SQL do Npgsql e tempo para o antes/depois de <c>docs/desempenho.md</c>.
 /// </summary>
 internal static class PerformanceChecks
 {
@@ -36,12 +35,16 @@ internal static class PerformanceChecks
         await suite.Check("P1: passe ocioso (UBS sem vaga, oferta nem proposta) não abre transação na central, não bloqueia vínculos e gasta poucos comandos", async () =>
         {
             for (var warm = 0; warm < 20; warm++) await dispatcher.AdvanceAsync(u1, default);
-            var before = await f.Scalar<long>("SELECT txid_current()");
-            var (commands, milliseconds) = await CountAsync(async () => { for (var pass = 0; pass < IdlePasses; pass++) await dispatcher.AdvanceAsync(u1, default); });
-            var after = await f.Scalar<long>("SELECT txid_current()");
-            Console.WriteLine($"MEDIDA P1 passe ocioso: {IdlePasses} passes, {commands} comandos SQL ({commands / (double)IdlePasses:F1} por passe), {milliseconds:F0} ms ({milliseconds / IdlePasses:F2} ms por passe), transações com XID na central: {after - before - 1}");
-            Ensure(after - before - 1 == 0, $"Passe ocioso consumiu {after - before - 1} XIDs da central (esperado 0: nada de FOR SHARE nem escrita).");
-            Ensure(commands <= IdlePasses * 4, $"Passe ocioso gastou {commands / (double)IdlePasses:F1} comandos (esperado até 4).");
+            var central = new NpgsqlConnectionStringBuilder(f.ConnectionString).Database!;
+            var probe = await CountAsync(central, async () => { await f.Scalar<int>("SELECT 1"); });
+            Ensure(probe.CentralCommands == 1, "A medição precisa identificar um comando de controle no banco central.");
+            var (commands, centralCommands, milliseconds) = await CountAsync(central, async () =>
+            {
+                for (var pass = 0; pass < IdlePasses; pass++) await dispatcher.AdvanceAsync(u1, default);
+            });
+            Console.WriteLine($"MEDIDA P1 passe ocioso: {IdlePasses} passes, {commands} comandos SQL ({commands / (double)IdlePasses:F1} por passe), {milliseconds:F0} ms ({milliseconds / IdlePasses:F2} ms por passe), comandos na central: {centralCommands}");
+            Ensure(centralCommands == 0, $"Passe ocioso abriu {centralCommands} comandos na central (esperado 0).");
+            Ensure(commands > 0 && commands <= IdlePasses * 4, $"Passe ocioso registrou {commands / (double)IdlePasses:F1} comandos por passe (esperado mais de zero e até 4).");
         });
 
         await suite.Check("P1: com trabalho a fazer o passe roda inteiro (vaga aberta recebe oferta; oferta vencida volta a fila; proposta fecha no prazo)", async () =>
@@ -127,18 +130,27 @@ internal static class PerformanceChecks
         return await task;
     }
 
-    /// <summary>Conta os comandos SQL do Npgsql (histograma <c>db.client.operation.duration</c>) e o tempo gasto por <paramref name="action"/>.</summary>
-    private static async Task<(long Commands, double Milliseconds)> CountAsync(Func<Task> action)
+    /// <summary>Conta comandos emitidos pela ação. Transações de autovacuum e de serviços paralelos não entram na medição.</summary>
+    private static async Task<(long Commands, long CentralCommands, double Milliseconds)> CountAsync(string central, Func<Task> action)
     {
         long commands = 0;
-        using var listener = new MeterListener();
-        listener.InstrumentPublished = (instrument, meterListener) => { if (instrument.Meter.Name == "Npgsql" && instrument.Name == "db.client.operation.duration") meterListener.EnableMeasurementEvents(instrument); };
-        listener.SetMeasurementEventCallback<double>((instrument, _, _, _) => { if (instrument.Name == "db.client.operation.duration") Interlocked.Increment(ref commands); });
-        listener.Start();
+        long centralCommands = 0;
+        using var testActivity = new Activity("Medir execução da Vaga Relâmpago").SetIdFormat(ActivityIdFormat.W3C).Start();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Npgsql",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId != testActivity.TraceId || activity.GetTagItem("db.namespace") is not string database) return;
+                Interlocked.Increment(ref commands);
+                if (database == central) Interlocked.Increment(ref centralCommands);
+            }
+        };
+        ActivitySource.AddActivityListener(listener);
         var watch = Stopwatch.StartNew();
         await action();
         watch.Stop();
-        listener.Dispose();
-        return (Interlocked.Read(ref commands), watch.Elapsed.TotalMilliseconds);
+        return (Interlocked.Read(ref commands), Interlocked.Read(ref centralCommands), watch.Elapsed.TotalMilliseconds);
     }
 }

@@ -3,8 +3,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nora.Api;
+using Nora.Api.Database;
 
 var checks = 0;
 var failures = 0;
@@ -27,6 +29,8 @@ if (args.Contains("--family-gaps-only")) return await FamilyChecks.RunGapsAsync(
 if (args.Contains("--google-push-only")) return await GooglePushChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 // Rodada final: computadores do OBS, chamar próximo, atendimento ao público, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail.
 if (args.Contains("--devices-only")) return await ObsDeviceChecks.RunAsync(directory.FullName);
+if (args.Contains("--retention-only")) return await RetentionChecks.RunAsync();
+if (args.Contains("--password-recovery-only")) return await PasswordRecoveryChecks.RunAsync();
 if (args.Contains("--call-next-only")) return await CallNextChecks.RunAsync(directory.FullName);
 if (args.Contains("--slot-approval-only")) return await SlotApprovalChecks.RunAsync(directory.FullName);
 if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsync(directory.FullName);
@@ -37,6 +41,27 @@ if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(direc
 if (args.Contains("--queue-return-only")) return await QueueReturnChecks.RunAsync(directory.FullName);
 // Fechamento das pendências de 2026-11-17: score em pontos, prioridade da Vaga Relâmpago, equipe sem CPF e P3/P4/P5.
 if (args.Contains("--closing-only")) return await ClosingChecks.RunAsync(directory.FullName);
+
+var configurationSuite = new Suite("configuração");
+await configurationSuite.Check("Configuração PostgreSQL inválida orienta o formato e protege a senha no diagnóstico", async () =>
+{
+    const string fakeSecret = "fixture-only-secret-326";
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:Nora"] = $"postgresql://fixture:{fakeSecret}@db.example.test/nora?sslmode=require"
+    }).Build();
+    try
+    {
+        await using var database = new DatabaseHelper(settings);
+        throw new InvalidDataException("A URI foi aceita no lugar do formato Npgsql.");
+    }
+    catch (InvalidOperationException error)
+    {
+        Require(error.Message.Contains("ConnectionStrings__Nora") && error.Message.Contains("SSL Mode=VerifyFull"), "Diagnóstico sem orientação de configuração.");
+        Require(!error.ToString().Contains(fakeSecret, StringComparison.Ordinal), "O diagnóstico incluiu o segredo.");
+    }
+});
+var configurationFailures = configurationSuite.Report();
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -264,7 +289,9 @@ var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
 var queueReturnFailures = await QueueReturnChecks.RunAsync(directory.FullName);
 var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
 var closingFailures = await ClosingChecks.RunAsync(directory.FullName);
-return closingFailures + queueReturnFailures + performanceFailures + deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var retentionFailures = await RetentionChecks.RunAsync();
+var recoveryFailures = await PasswordRecoveryChecks.RunAsync();
+return closingFailures + queueReturnFailures + performanceFailures + deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures + retentionFailures + recoveryFailures + configurationFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

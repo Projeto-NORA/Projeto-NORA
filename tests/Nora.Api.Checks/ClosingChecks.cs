@@ -36,6 +36,16 @@ internal static class ClosingChecks
     private static async Task RunMainAsync(Suite suite, RoundFixture f)
     {
         var u1 = f.Unit1; var u2 = f.Unit2;
+        await suite.Check("Provisionamento municipal registra município e funcionário", async () =>
+        {
+            var service = f.Service<AccountService>();
+            await service.ProvisionMunicipalAsync(" São José dos Campos ", "Funcionária Exemplo", "municipio.provision@example.test", Password);
+            Ensure(await f.Scalar<string>("SELECT municipality_name FROM nora.accounts WHERE email='municipio.provision@example.test'") == "São José dos Campos", "Município deve ser gravado sem espaços externos.");
+            Ensure(await f.Scalar<string>("SELECT full_name FROM nora.accounts WHERE email='municipio.provision@example.test'") == "Funcionária Exemplo", "O nome do funcionário deve ser preservado.");
+            try { await service.ProvisionMunicipalAsync(" ", "Funcionário", "invalido.provision@example.test", Password); throw new InvalidOperationException("Município vazio foi aceito."); }
+            catch (ApiInputException) { }
+            Ensure(await f.Scalar<long>("SELECT count(*) FROM nora.accounts WHERE email='invalido.provision@example.test'") == 0, "Entrada inválida não deve criar conta.");
+        });
         var cardiology = await f.SpecialtyAsync("Cardiologia"); var pediatrics = await f.SpecialtyAsync("Pediatria");
         var ana = await f.ProfessionalAsync(u1, "Dra. Ana Souza", cardiology); var room = await f.RoomAsync(u1, "Sala 1");
         await f.TemplateAsync(u1, ana, 3, "08:00", "10:00", 30, room, cardiology);
@@ -330,10 +340,10 @@ internal static class ClosingChecks
         });
 
         // ---- P5 ----
-        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada; a versão esperada é 17 e a lista de um CPF usa o índice", async () =>
+        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada; a lista de um CPF usa o índice", async () =>
         {
-            Ensure(UnitSchema.ExpectedVersion == 17, $"ExpectedVersion deveria ser 17, é {UnitSchema.ExpectedVersion}.");
-            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 17, "O banco da UBS criada pela API está na versão 17.");
+            Ensure(UnitSchema.ExpectedVersion >= 17, $"A versão corrente precisa incluir a migração 017. Encontrada: {UnitSchema.ExpectedVersion}.");
+            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == UnitSchema.ExpectedVersion, "A UBS criada pela API deve estar na versão atual.");
             Ensure(await f.UnitScalar<long>(u1, "SELECT count(*) FROM pg_indexes WHERE schemaname='nora_unit' AND indexname IN ('waiting_list_cpf_idx','waiting_list_entered_idx')") == 2, "Os dois índices existem.");
             await using var unit = await f.Router.OpenAsync(u1);
             await using var transaction = await unit.BeginTransactionAsync();
@@ -348,7 +358,7 @@ internal static class ClosingChecks
             Ensure((await Plan("SELECT id FROM nora_unit.waiting_list WHERE status IN ('completed','cancelled') ORDER BY entered_at DESC,id DESC LIMIT 100")).Contains("waiting_list_entered_idx", StringComparison.Ordinal), "A página de histórico usa o índice por data de entrada.");
         });
 
-        await suite.Check("P5: um banco de UBS na versão 16 sobe para a 17 com a migração (índices criados, dados intactos)", async () =>
+        await suite.Check("P5: um banco de UBS na versão 16 migra até a versão atual, cria os índices e preserva os dados", async () =>
         {
             var legacy = await f.CreateLegacyUnitAsync(16);
             // O roteador recusa banco desatualizado (503), então a conferência usa uma conexão direta ao banco da UBS.
@@ -362,9 +372,9 @@ internal static class ClosingChecks
             }
             Ensure(await State() == (16, 0), "Pré-condição: versão 16, sem os índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (17, 2), "Depois da migração: versão 17 e os dois índices.");
+            Ensure(await State() == (UnitSchema.ExpectedVersion, 2), "A UBS deve chegar à versão atual com os dois índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (17, 2), "Migrar de novo é inofensivo.");
+            Ensure(await State() == (UnitSchema.ExpectedVersion, 2), "Migrar de novo é inofensivo.");
         });
 
         // ---- Medidas de P4 e P5 (antes/depois de docs/desempenho.md) ----

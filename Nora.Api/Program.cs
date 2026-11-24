@@ -5,7 +5,7 @@ using Nora.Api.Services;
 
 await using var app=NoraApiHost.Create(new WebApplicationOptions
 {
-    Args=args.Where(value => value is not ("--migrate" or "--provision" or "--migrate-all-units") && !value.StartsWith("--migrate-unit=", StringComparison.Ordinal)).ToArray(),
+    Args=args.Where(value => value is not ("--migrate" or "--provision" or "--reset-password" or "--migrate-all-units") && !value.StartsWith("--migrate-unit=", StringComparison.Ordinal)).ToArray(),
     ContentRootPath=AppContext.BaseDirectory
 });
 var unitMigrations = args.Where(value => value.StartsWith("--migrate-unit=", StringComparison.Ordinal)).ToArray();
@@ -48,19 +48,45 @@ if(args.Contains("--provision",StringComparer.Ordinal))
     if(Console.IsInputRedirected) throw new InvalidOperationException("Provisionamento exige terminal interativo privado.");
     Console.Write("Escopo (obs/municipal): "); var scope=Console.ReadLine()??"";
     if(scope is not("obs" or "municipal")) throw new ApiInputException();
-    Console.Write("Nome completo: "); var name=Console.ReadLine()??"";
-    Console.Write("E-mail: "); var email=Console.ReadLine()??"";
-    Console.Write("Senha (entrada oculta): "); var password="";
-    while(true)
-    {
-        var key=Console.ReadKey(true);
-        if(key.Key==ConsoleKey.Enter) break;
-        if(key.Key==ConsoleKey.Backspace) {if(password.Length>0) password=password[..^1];continue;}
-        if(!char.IsControl(key.KeyChar)) password+=key.KeyChar;
-    }
-    Console.WriteLine();
-    await app.Services.GetRequiredService<AccountService>().ProvisionStaffAsync(scope,scope=="obs"?"administrator":"manager",name,email,password);
+    var municipalityName = "";
+    if (scope == "municipal") { Console.Write("Nome do município: "); municipalityName = Console.ReadLine() ?? ""; }
+    Console.Write(scope == "municipal" ? "Nome completo do funcionário: " : "Nome completo: "); var name=Console.ReadLine()??"";
+    Console.Write(scope == "municipal" ? "E-mail do funcionário: " : "E-mail: "); var email=Console.ReadLine()??"";
+    var password = ReadHidden(scope == "municipal" ? "Senha do funcionário (entrada oculta): " : "Senha (entrada oculta): ");
+    var accounts = app.Services.GetRequiredService<AccountService>();
+    if (scope == "municipal") await accounts.ProvisionMunicipalAsync(municipalityName, name, email, password);
+    else await accounts.ProvisionStaffAsync(scope, "administrator", name, email, password);
     Console.WriteLine("Conta criada. Pacientes são cadastrados pelo OBS.");
     return;
 }
+if (args.Contains("--reset-password", StringComparer.Ordinal))
+{
+    // Para a equipe técnica quando alguém perde o acesso: a senha fica só como hash no banco e não dá para lê-la, só para trocá-la.
+    if (Console.IsInputRedirected) throw new InvalidOperationException("A redefinição de senha exige terminal interativo privado.");
+    Console.Write("Escopo da conta (municipal/obs): "); var resetScope = Console.ReadLine() ?? "";
+    Console.Write("E-mail da conta: "); var resetEmail = Console.ReadLine() ?? "";
+    var first = ReadHidden("Senha nova provisória (entrada oculta, mínimo de 8 caracteres): ");
+    var second = ReadHidden("Repita a senha nova: ");
+    if (first != second) { Console.Error.WriteLine("As senhas não conferem. Nada foi alterado."); Environment.ExitCode = 1; return; }
+    try { await app.Services.GetRequiredService<AccountService>().ResetStaffPasswordAsync(resetScope, resetEmail, first); }
+    catch (ApiNotFoundException) { Console.Error.WriteLine("Conta não encontrada, inativa ou de outro escopo. Nada foi alterado."); Environment.ExitCode = 1; return; }
+    catch (ApiInputException) { Console.Error.WriteLine("Dados inválidos: informe municipal ou obs, um e-mail válido e uma senha de 8 a 256 caracteres. Nada foi alterado."); Environment.ExitCode = 1; return; }
+    Console.WriteLine("Senha redefinida. As sessões abertas da conta foram encerradas e a troca da senha será exigida no próximo login.");
+    return;
+}
 await app.RunAsync();
+
+static string ReadHidden(string prompt)
+{
+    Console.Write(prompt);
+    var value = "";
+    while (true)
+    {
+        var key = Console.ReadKey(true);
+        if (key.Key == ConsoleKey.Enter) break;
+        if (key.Key == ConsoleKey.Backspace) { if (value.Length > 0) value = value[..^1]; continue; }
+        if (!char.IsControl(key.KeyChar)) value += key.KeyChar;
+    }
+    Console.WriteLine();
+    return value;
+}

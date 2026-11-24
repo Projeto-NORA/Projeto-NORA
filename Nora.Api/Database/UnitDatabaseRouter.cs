@@ -83,9 +83,8 @@ public sealed partial class UnitDatabaseRouter : IAsyncDisposable
 
     private string Build(Guid unitId, string raw, bool isExplicit)
     {
-        var builder = new NpgsqlConnectionStringBuilder(raw);
-        builder.IncludeErrorDetail = false;
-        builder.LogParameters = false;
+        var setting = isExplicit ? $"Nora__UnitDatabases__{unitId:N}" : "ConnectionStrings__Nora";
+        var builder = DatabaseHelper.ParseConnectionString(raw, setting);
         if (isExplicit) builder.MaxPoolSize = Math.Min(builder.MaxPoolSize, ExplicitMaxPoolSize);
         else
         {

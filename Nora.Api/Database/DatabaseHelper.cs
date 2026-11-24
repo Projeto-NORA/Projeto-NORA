@@ -15,8 +15,21 @@ public sealed class DatabaseHelper : IAsyncDisposable
         var connection = configuration.GetConnectionString("Nora");
         if (!string.IsNullOrWhiteSpace(connection))
         {
-            var safe = new NpgsqlConnectionStringBuilder(connection) { IncludeErrorDetail = false, LogParameters = false };
+            var safe = ParseConnectionString(connection, "ConnectionStrings__Nora");
             _source = NpgsqlDataSource.Create(safe.ConnectionString);
+        }
+    }
+
+    internal static NpgsqlConnectionStringBuilder ParseConnectionString(string value, string setting)
+    {
+        try
+        {
+            return new NpgsqlConnectionStringBuilder(value) { IncludeErrorDetail = false, LogParameters = false };
+        }
+        catch (Exception error) when (error is ArgumentException or FormatException)
+        {
+            // O erro do driver pode conter a chave mal interpretada, inclusive uma URI inteira com senha.
+            throw new InvalidOperationException($"Configuração {setting} inválida. Use o formato Npgsql Host=...;Database=...;Username=...;Password=...;SSL Mode=VerifyFull.");
         }
     }
 
