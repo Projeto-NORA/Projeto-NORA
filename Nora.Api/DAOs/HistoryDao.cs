@@ -69,7 +69,7 @@ public sealed class HistoryDao(DatabaseHelper database)
                  FROM nora.unit_access_events e LEFT JOIN nora.accounts actor ON actor.id=e.actor_id LEFT JOIN nora.health_units u ON u.id=e.unit_id
                  WHERE {Filter(2)}{unitFilter} ORDER BY e.occurred_at DESC, e.id DESC LIMIT $7)
               UNION ALL
-              (SELECT e.occurred_at, CASE e.action WHEN 'created' THEN 'staff-created' WHEN 'deactivated' THEN 'staff-deactivated' WHEN 'reactivated' THEN 'staff-reactivated' ELSE 'staff-password-reset' END, actor.full_name, NULL::uuid, NULL, account.full_name, 3::smallint, e.id
+              (SELECT e.occurred_at, CASE e.action WHEN 'created' THEN 'staff-created' WHEN 'deactivated' THEN 'staff-deactivated' WHEN 'reactivated' THEN 'staff-reactivated' ELSE 'staff-password-reset' END, actor.full_name, NULL::uuid, NULL, COALESCE(account.full_name, 'Conta OBS excluída'), 3::smallint, e.id
                  FROM nora.staff_account_events e LEFT JOIN nora.accounts actor ON actor.id=e.actor_id LEFT JOIN nora.accounts account ON account.id=e.account_id
                  WHERE {Filter(3)} AND $3::uuid IS NULL ORDER BY e.occurred_at DESC, e.id DESC LIMIT $7)
               UNION ALL

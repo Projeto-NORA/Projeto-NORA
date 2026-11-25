@@ -131,6 +131,7 @@ class ActingInteractionTest {
         compose.onNodeWithText("Cancelamentos pelo aplicativo: 2").performScrollTo().assertExists()
         // Pontos e prioridade falam da Maria: a descrição do score leva o nome dela e a regra cita o direito dela.
         compose.onNodeWithContentDescription("Score de Maria Souza: 670 de 1000 pontos, faixa Bom").performScrollTo().assertExists()
+        compose.onNodeWithText("Como funciona o score?").performScrollTo().performClick()
         compose.onNodeWithText("O score não muda a prioridade clínica nem o direito de Maria Souza ao atendimento.", substring = true)
             .performScrollTo().assertExists()
     }

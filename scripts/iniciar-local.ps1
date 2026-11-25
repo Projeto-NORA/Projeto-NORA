@@ -43,11 +43,9 @@ try {
     & dotnet $noraApi --migrate-all-units
     if ($LASTEXITCODE -ne 0) { throw 'Falha na migração dos bancos das UBS. Não iniciar a API antes de investigar.' }
     if ($ProvisionAccounts) {
-        Write-Host 'Cadastre primeiro OBS (obs), depois Municipal (municipal). Use o nome completo aprovado. O paciente será cadastrado pela interface OBS.'
-        for ($noraAccountIndex = 0; $noraAccountIndex -lt 2; $noraAccountIndex++) {
-            & dotnet $noraApi --provision
-            if ($LASTEXITCODE -ne 0) { throw 'Falha no provisionamento. Contas já existentes foram preservadas.' }
-        }
+        Write-Host 'Cadastre a conta OBS (administrador). Use o nome completo aprovado. A conta municipal é criada fora do terminal.'
+        & dotnet $noraApi --provision
+        if ($LASTEXITCODE -ne 0) { throw 'Falha no provisionamento. Contas já existentes foram preservadas.' }
     }
     Write-Host 'API local em http://127.0.0.1:5080. No emulador Android debug, use http://10.0.2.2:5080. Ctrl+C encerra.'
     & dotnet $noraApi

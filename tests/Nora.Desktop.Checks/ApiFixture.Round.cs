@@ -41,6 +41,8 @@ internal static partial class Program
         public bool LastKeepSignedInRequested { get; private set; }
         /// <summary>Com o OBS de atendente, o login sem computador ativado responde 403 device-required (exigência ligada, como no servidor).</summary>
         public bool RequireDeviceForAttendants { get; set; }
+        /// <summary>Recurso dos computadores ligado no servidor (<c>Nora:ObsDevices:Enabled</c>). Desligado, como no padrão, o OBS de desktop mantém a sessão sem computador.</summary>
+        public bool ObsComputersEnabled { get; set; }
         /// <summary>A expiração devolvida pelo login "manter conectado" (30 dias) e a do login comum (1 hora na fixture).</summary>
         public DateTimeOffset? LastLoginExpiresAt { get; private set; }
         /// <summary>Todas as leituras de computadores e do atendimento falham (500) sem derrubar o resto da UBS.</summary>
@@ -79,12 +81,13 @@ internal static partial class Program
         {
             var device = Scope == "obs" && !IgnoreDeviceOnLogin ? DeviceFromHeader(request) : null;
             var keepRequested = body.TryGetProperty("keepSignedIn", out var keepValue) && keepValue.ValueKind == JsonValueKind.True;
+            var desktop = body.TryGetProperty("desktopSession", out var desktopValue) && desktopValue.ValueKind == JsonValueKind.True;
             LastKeepSignedInRequested = keepRequested;
             if (Scope == "obs" && ObsRole == "attendant" && RequireDeviceForAttendants && device is null) return Problem(HttpStatusCode.Forbidden, "device-required");
             sessionDeviceId = device?.Id;
             if (device is not null) device.LastLoginAt = DateTimeOffset.UtcNow;
-            var keep = keepRequested && device is not null;
-            LastLoginExpiresAt = DateTimeOffset.UtcNow.Add(keep ? TimeSpan.FromDays(30) : TimeSpan.FromHours(1));
+            var keep = keepRequested && (device is not null || desktop && (Scope == "municipal" || !ObsComputersEnabled));
+            LastLoginExpiresAt = DateTimeOffset.UtcNow.Add(keep ? TimeSpan.FromDays(30) : TimeSpan.FromHours(desktop ? 24 : 1));
             return Reply(new LoginSession("fixture-token", LastLoginExpiresAt.Value, new(AccountId, accountName, Scope == "obs" ? ObsRole : "manager", Scope, MustChangePassword), keep, device is null ? null : Summary(device)));
         }
 

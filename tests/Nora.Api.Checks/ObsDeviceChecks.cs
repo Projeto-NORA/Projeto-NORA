@@ -169,8 +169,13 @@ internal static partial class ObsDeviceChecks
             var patient = await f.LoginAsync(f.NewClient(), "patient", Cpf(17), device, keepSignedIn: true);
             Ensure(!patient.GetProperty("keepSignedIn").GetBoolean() && patient.GetProperty("device").ValueKind == JsonValueKind.Null && patient.GetProperty("expiresAt").GetDateTimeOffset() == T0.AddHours(8), "O paciente ignora o computador e a opção.");
             Ensure(patient.TryGetProperty("user", out _) && patient.TryGetProperty("token", out _), "Os campos de sempre continuam na resposta.");
-            ObsDeviceOptions Options(string? days) => new(new ConfigurationBuilder().AddInMemoryCollection(days is null ? [] : new Dictionary<string, string?> { ["Nora:ObsDevices:KeepSignedInDays"] = days }).Build());
-            Ensure(Options(null).KeepSignedInDays == 30 && Options("7").KeepSignedInDays == 7 && Options("90").KeepSignedInDays == 90 && Options(null).RequireForAttendants, "Padrões do KeepSignedInDays e da exigência.");
+            ObsDeviceOptions Options(string? days, string? enabled = null) => new(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Nora:ObsDevices:KeepSignedInDays"] = days, ["Nora:ObsDevices:Enabled"] = enabled, ["Nora:ObsDevices:RequireForAttendants"] = enabled is null ? "true" : null
+            }.Where(pair => pair.Value is not null)).Build());
+            Ensure(Options(null).KeepSignedInDays == 30 && Options("7").KeepSignedInDays == 7 && Options("90").KeepSignedInDays == 90, "Padrão do KeepSignedInDays.");
+            // Desde 24/11/2026 os computadores vêm desligados, e desligados não exigem nada, mesmo com a exigência configurada.
+            Ensure(!Options(null).Enabled && !Options(null).RequireForAttendants && Options(null, "true") is { Enabled: true, RequireForAttendants: true }, "Padrões do recurso e da exigência.");
             foreach (var invalid in new[] { "0", "91", "x", "-1", "" + 1.5 })
             {
                 try { Options(invalid); throw new InvalidOperationException($"KeepSignedInDays '{invalid}' foi aceito."); }
@@ -388,6 +393,7 @@ internal static partial class ObsDeviceChecks
                 using var list = await first.GetAsync($"/api/obs/units/{limits.Unit1}/devices"); Expect(list, 200);
             });
         }
+        await CheckDesktopAccessAsync(suite, connection);
         return suite.Report() == 0 ? 0 : 1;
     }
 }

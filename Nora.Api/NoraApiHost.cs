@@ -75,6 +75,8 @@ public static class NoraApiHost
         builder.Services.AddSingleton<AlertService>();
         builder.Services.AddSingleton<AccountService>();
         builder.Services.AddSingleton<AuthService>();
+        builder.Services.AddSingleton<StaffProfileDao>();
+        builder.Services.AddSingleton<StaffProfileService>();
         builder.Services.AddSingleton<PasswordResetService>();
         builder.Services.AddSingleton<WorkflowService>();
         // Fase 3 — comunicação e jornada
@@ -108,6 +110,9 @@ public static class NoraApiHost
         builder.Services.AddHostedService<OfferExpirationWorker>();
         builder.Services.AddHostedService<UnitLightningWorker>();
         builder.Services.AddHostedService<UnitSchemaCheckService>();
+        builder.Services.AddSingleton<RetentionDao>();
+        builder.Services.AddSingleton<RetentionService>();
+        builder.Services.AddHostedService<RetentionWorker>();
         builder.Services.AddRateLimiter(options=>
         {
             options.RejectionStatusCode=429;

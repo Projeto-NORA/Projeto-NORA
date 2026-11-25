@@ -11,9 +11,14 @@ public sealed record UserInfo(Guid Id, string FullName, string Role, string Scop
     public static string? MaskCpf(string? cpf) => cpf is { Length: 11 } ? $"***.{cpf[3..6]}.{cpf[6..9]}-**" : null;
 }
 public sealed record Account(UserInfo User, string Cpf, string Email, string PasswordHash);
-public sealed record LoginRequest(string Scope, string Identifier, string Password, bool? KeepSignedIn = null);
-/// <summary>KeepSignedIn e Device ficam no fim: KeepSignedIn é o que foi realmente aplicado (só vale com computador ativado); Device só aparece no login do OBS com computador reconhecido.</summary>
+public sealed record LoginRequest(string Scope, string Identifier, string Password, bool? KeepSignedIn = null,
+    bool? DesktopSession = null, string? DeviceName = null, Guid? UnitId = null);
+/// <summary>KeepSignedIn indica a duração realmente aplicada. Device confirma a identidade do computador autenticado pelo OBS.</summary>
 public sealed record LoginResponse(string Token, DateTimeOffset ExpiresAt, UserInfo User, bool KeepSignedIn = false, ObsDeviceRef? Device = null);
+public sealed record LoginUnitOption(Guid Id, string Name);
+public sealed record DesktopLoginResult(LoginResponse? Session, IReadOnlyList<LoginUnitOption>? Units = null);
+public sealed record StaffSelfProfile(string FullName, string Email, string Role, string Scope, string? MunicipalityName, IReadOnlyList<LoginUnitOption> Units);
+public sealed record ProfileNameRequest(string? FullName);
 public sealed record AddressInfo(string Cep, string Street, string? Number, string? Complement, string? Neighborhood, string City, string State, string? Ibge = null);
 public sealed record CreatePatientRequest(string FullName, string Cpf, string Email, string Password, string? Phone = null, AddressInfo? Address = null);
 public sealed record PatientInfo(Guid Id, string FullName, string Cpf, string Email, string? Phone = null, bool IsOnline = false, bool IsActive = true, DateTimeOffset? CreatedAt = null, AddressInfo? Address = null);

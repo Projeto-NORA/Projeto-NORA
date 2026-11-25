@@ -26,7 +26,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions(),
     onRegistrationUnits: suspend () -> List<RegistrationUnit> = { emptyList() }, initialCatalog: List<RegistrationUnit>? = null) {
-    ScreenTitle("Família", "Gerencie vínculos com dependentes.")
+    var filter by rememberSaveable { mutableStateOf(FamilyFilter.ALL) }
+    ScreenTitle("Família", "Gerencie vínculos com dependentes.", action = {
+        if (patient.session != null) NoraFilters(if (filter == FamilyFilter.ALL) 0 else 1, onClear = { filter = FamilyFilter.ALL }) {
+            FilterChoices("Pedidos e vínculos", FamilyFilter.entries, filter, { it.label }) { filter = it }
+        }
+    })
     if (patient.session == null) {
         SectionCard("Entre na sua conta", "Modo Família") { MutedText("Entre na sua conta para pedir o vínculo com um dependente.") }
         return
@@ -49,7 +54,9 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
                 MutedText(patient.family.error ?: if (patient.family.loading) "Carregando seus pedidos…" else "Os pedidos ainda não foram consultados.")
             }
             groups.active.isEmpty() && groups.history.isEmpty() -> MutedText("Você ainda não pediu o vínculo com nenhum dependente.")
-            groups.active.isEmpty() -> MutedText("Nenhum pedido ativo. O histórico está abaixo.")
+            filter == FamilyFilter.ACTIVE && groups.active.isEmpty() -> MutedText("Nenhum pedido ou vínculo em andamento.")
+            filter == FamilyFilter.HISTORY && groups.history.isEmpty() -> MutedText("Nenhum pedido ou vínculo no histórico.")
+            filter == FamilyFilter.ALL && groups.active.isEmpty() -> MutedText("Nenhum pedido ativo. O histórico está abaixo.")
         }
         if (links != null && patient.family.error != null) MutedText(patient.family.error)
         if (patient.family.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -57,12 +64,15 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
             Text(if (patient.family.loading) "Atualizando…" else "Atualizar pedidos")
         }
     }
-    groups.active.forEach { link ->
-        key(link.id) { LinkCard(link, patient, onAct = actions.onActFor, onCancel = { cancelling = link }, onEnd = { ending = link }) }
+    if (filter != FamilyFilter.HISTORY) {
+        groups.active.forEach { link ->
+            key(link.id) { LinkCard(link, patient, onAct = actions.onActFor, onCancel = { cancelling = link }, onEnd = { ending = link }) }
+        }
     }
-    if (groups.history.isNotEmpty()) {
-        HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
-        if (historyOpen) groups.history.forEach { link -> key(link.id) { LinkCard(link, patient, {}, {}, {}) } }
+    if (filter != FamilyFilter.ACTIVE && groups.history.isNotEmpty()) {
+        if (filter == FamilyFilter.ALL) HistoryToggle(groups.history.size, historyOpen) { historyOpen = !historyOpen }
+        if (historyOpen || filter == FamilyFilter.HISTORY)
+            groups.history.forEach { link -> key(link.id) { LinkCard(link, patient, {}, {}, {}) } }
     }
     MutedText("A UBS confere os documentos antes de liberar os dados.")
 
@@ -80,6 +90,10 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
             confirmButton = { TextButton(onClick = { ending = null; actions.onEnd(link.id) }) { Text("Encerrar vínculo", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { ending = null }) { Text("Manter vínculo") } })
     }
+}
+
+private enum class FamilyFilter(val label: String) {
+    ALL("Todos"), ACTIVE("Ativos e pendentes"), HISTORY("Histórico")
 }
 
 @Composable

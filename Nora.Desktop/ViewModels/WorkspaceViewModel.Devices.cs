@@ -32,8 +32,8 @@ public sealed partial class WorkspaceViewModel
 
     // ---- Tela de entrada ----
 
-    /// <summary>Este aplicativo guarda a ativação do computador (só o OBS; a Secretaria nunca carrega o armazenamento).</summary>
-    public bool HasDeviceSupport => devices is not null && IsOperational;
+    /// <summary>Este aplicativo identifica e ativa o computador: só o OBS e só com o recurso ligado no armazenamento (desligado por padrão desde 24/11/2026, quando o login passou a valer sozinho).</summary>
+    public bool HasDeviceSupport => devices is { ComputersEnabled: true } && IsOperational;
     /// <summary>Há ativação neste computador: conferida pela API ou guardada e ainda não conferida (a API estava fora do ar na abertura; a conferência vem no login).</summary>
     public bool DeviceActivated => currentDevice is not null || (deviceUnverified && storedDevice is not null);
     public string DeviceStateLabel => currentDevice is { } device ? $"Computador ativado: {device.Display}"
@@ -57,7 +57,7 @@ public sealed partial class WorkspaceViewModel
     private void NotifyDevice() { foreach (var name in DeviceNames) Notify(name); }
 
     /// <summary>Abertura do OBS: confere este computador na API e, se há sessão guardada, a restaura sem pedir a senha. Cada passo concluído fica marcado; falha de conexão mantém os arquivos.</summary>
-    public Task OpenAsync() => HasDeviceSupport ? RunAsync(OpenCoreAsync) : Task.CompletedTask;
+    public Task OpenAsync() => desktopAccess ? RunAsync(RestoreDesktopAccessAsync) : HasDeviceSupport ? RunAsync(OpenCoreAsync) : Task.CompletedTask;
 
     private async Task OpenCoreAsync()
     {
@@ -192,7 +192,7 @@ public sealed partial class WorkspaceViewModel
     /// </summary>
     private async Task ApplyLoginDeviceAsync(LoginSession session, bool sentCredential)
     {
-        if (devices is null || !IsOperational) return;
+        if (devices is null || !HasDeviceSupport) return;
         if (session.Device is { } device) { currentDevice = device; deviceUnverified = false; }
         else if (sentCredential)
         {
@@ -254,7 +254,7 @@ public sealed partial class WorkspaceViewModel
     // ---- Seção Computadores (Configurações da UBS) ----
 
     /// <summary>Só o administrador vê e opera a seção; a atendente nem a enxerga.</summary>
-    public bool ShowDevicesSection => IsAuthenticated && IsOperational && IsAdministrator;
+    public bool ShowDevicesSection => IsAuthenticated && HasDeviceSupport && IsAdministrator;
     public bool CanManageDevices => CanEditCatalog;
     public bool ShowActivateThisComputer => devices is not null && !DeviceActivated;
     public string DeviceDraftName { get => deviceDraftName; set { deviceDraftName = value ?? ""; deviceNameError = ""; Notify(); Notify(nameof(DeviceNameError)); NotifyDevice(); } }

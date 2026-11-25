@@ -110,16 +110,17 @@ internal static partial class Program
                         Require(search.ActualHeight is >= 42 and <= 46, $"Pesquisa tem altura {search.ActualHeight:F0}, incompatível com filtros de 42px.");
                         var inputBorder = Descendants<Border>(search).FirstOrDefault(border => border.CornerRadius.TopLeft > 0);
                         Require(inputBorder is not null && inputBorder.CornerRadius.TopLeft <= 8, "Pesquisa não possui o arredondamento discreto dos inputs.");
-                        var presence = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Filtrar presença na UBS");
+                        var presence = Combo(content, "Filtrar presença na UBS");
                         presence.SelectedValue = "Online";
                         Layout(window, size.Width, size.Height);
                         Require(list.Items.Count == 10 && list.Items.Cast<UnitPatientRecord>().All(patient => patient.IsOnline), "Filtro nativo online não atualizou a listagem.");
                         presence.SelectedValue = "Todos";
-                        var sort = Descendants<ComboBox>(content).Single(combo => AutomationProperties.GetName(combo) == "Ordenar cadastro da UBS");
+                        var sort = Combo(content, "Ordenar cadastro da UBS");
                         sort.SelectedValue = "Nome A–Z";
                         Layout(window, size.Width, size.Height);
                         Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.FullName).SequenceEqual(vm.ObsRegistry.OrderBy(patient => patient.FullName, StringComparer.CurrentCultureIgnoreCase).Select(patient => patient.FullName)), "Ordenação nativa não atualizou a listagem.");
                         sort.SelectedValue = "Mais recentes";
+                        ((System.Windows.Controls.Primitives.Popup)window.FindName("FiltersPopup")).IsOpen = false;
                         SavePreview(Layout(window, size.Width, size.Height), Path.Combine(previewRoot, $"obs-patients-{mode.ToString().ToLowerInvariant()}-{size.Width:0}x{size.Height:0}.png"));
                     }
                 }
@@ -133,7 +134,7 @@ internal static partial class Program
                 Require(account.TranslatePoint(new Point(0, 0), root).Y > root.ActualHeight / 2, "Conta não está na parte inferior da navegação.");
                 InvokeButton(account);
                 var menu = account.ContextMenu!;
-                Require(menu.IsOpen && menu.Items.Count == 2, "Conta não abriu menu com duas ações.");
+                Require(menu.IsOpen && menu.Items.Count == 3, "A conta deve mostrar Configurações, Dados do perfil e Sair.");
                 menu.UpdateLayout();
                 SavePreview(menu, Path.Combine(previewRoot, "obs-account-menu-light.png"));
                 menu.IsOpen = false;

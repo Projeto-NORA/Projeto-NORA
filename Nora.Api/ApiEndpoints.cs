@@ -17,7 +17,16 @@ internal static partial class ApiEndpoints
         });
         app.MapPost("/api/auth/login",async (LoginRequest request,HttpContext context,AuthService auth,CancellationToken ct) =>
         {
-            var response=await auth.LoginAsync(request,ct,ObsDeviceCredentials.FromRequest(context.Request));
+            var device = ObsDeviceCredentials.FromRequest(context.Request);
+            if (request.DesktopSession == true)
+            {
+                var desktop = await auth.LoginDesktopAsync(request, ct, device);
+                if (desktop.Units is { } units)
+                    return ApiProblems.Create(context, StatusCodes.Status409Conflict, "device-unit-selection-required",
+                        new Dictionary<string, object?> { ["units"] = units });
+                return desktop.Session is { } session ? Results.Ok(session) : Results.Unauthorized();
+            }
+            var response=await auth.LoginAsync(request,ct,device);
             return response is null ? Results.Unauthorized() : Results.Ok(response);
         }).RequireRateLimiting("login");
         app.MapPost("/api/auth/password-reset/request", async (PasswordResetStartRequest request,
@@ -57,6 +66,11 @@ internal static partial class ApiEndpoints
             await service.ChangePasswordAsync(Session(context),request,ct);
             return Results.NoContent();
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.PasswordChange));
+        var profile = app.MapGroup("/api/auth/profile").AddEndpointFilter(new SessionFilter(null));
+        profile.MapGet("", async (HttpContext context, StaffProfileService service, CancellationToken ct) =>
+            Results.Ok(await service.GetAsync(Session(context), ct)));
+        profile.MapPatch("", async (ProfileNameRequest request, HttpContext context, StaffProfileService service, CancellationToken ct) =>
+            Results.Ok(await service.ChangeNameAsync(Session(context), request, ct)));
         var obs=app.MapGroup("/api").AddEndpointFilter(new SessionFilter("obs"));
         obs.MapGet("/obs/units", async (HttpContext context, HealthUnitService service, CancellationToken ct) => Results.Ok(await service.ListForStaffAsync(Session(context), ct)));
         obs.MapGet("/obs/units/{unitId:guid}/registry", async (Guid unitId, HttpContext context, UnitAccessService access, UnitRegistryReadService registry, CancellationToken ct) =>
@@ -245,6 +259,7 @@ internal static partial class ApiEndpoints
         app.MapRoundEndpoints(); // Rodada final — computadores do OBS, chamar próximo, atendimento ao público e aprovação das vagas (ApiEndpoints.Round.cs)
         app.MapIdentityEndpoints(); // P-042 — Entrar com Google e push (ApiEndpoints.Identity.cs)
         app.MapPhotoEndpoints(); // Foto de perfil de qualquer conta (ApiEndpoints.Photo.cs)
+        app.MapRetentionEndpoints();
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
     }

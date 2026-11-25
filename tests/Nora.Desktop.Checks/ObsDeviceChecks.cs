@@ -33,6 +33,8 @@ internal static partial class Program
         return window;
     }
 
+    /// <summary>Armazenamento com o recurso dos computadores ligado: o OBS entrega o padrão desligado, e estes testes cobrem o recurso guardado para o futuro.</summary>
+    private static ObsDeviceStore ComputerStore(string folder) => new(folder, computersEnabled: true);
     private static StoredDevice StoredFor(ApiFixture.FixtureDevice device) => new("https://fixture.invalid/", device.Id, device.Secret!);
 
     private static void RunObsDeviceChecks(string storageRoot, string[] args)
@@ -41,7 +43,7 @@ internal static partial class Program
         Check("Computador do OBS: o armazenamento usa o DPAPI do usuário, não grava o segredo em texto e descarta arquivo corrompido com aviso", () =>
         {
             var folder = Path.Combine(storageRoot, "device-store");
-            var store = new ObsDeviceStore(folder);
+            var store = ComputerStore(folder);
             var secret = new string('B', 64);
             var device = new StoredDevice("https://fixture.invalid/", Guid.NewGuid(), secret);
             Require(store.SaveDevice(device) && store.SaveSession(new StoredSession("https://fixture.invalid/", "token-da-sessao-12345", DateTimeOffset.UtcNow.AddDays(30))), "A gravação deveria funcionar.");
@@ -58,7 +60,7 @@ internal static partial class Program
         Check("Computador do OBS: falha de E/S ao ler o device.dat (arquivo em uso) não apaga a ativação nem a sessão: avisa, mantém o arquivo e a leitura seguinte funciona; só dado inválido é descartado", () =>
         {
             var folder = Path.Combine(storageRoot, "device-store-locked");
-            var store = new ObsDeviceStore(folder);
+            var store = ComputerStore(folder);
             var device = new StoredDevice("https://fixture.invalid/", Guid.NewGuid(), new string('C', 64));
             Require(store.SaveDevice(device) && store.SaveSession(new StoredSession("https://fixture.invalid/", "token-da-sessao-12345", DateTimeOffset.UtcNow.AddDays(30))), "A gravação deveria funcionar.");
             using (new FileStream(store.DevicePath, FileMode.Open, FileAccess.Read, FileShare.None))
@@ -76,7 +78,7 @@ internal static partial class Program
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Arquivo em uso", "Centro");
             var device = fixture.AddDevice(unit.Id, "Recepção 10");
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-in-use"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-in-use"));
             store.SaveDevice(StoredFor(device)); store.SaveSession(new StoredSession("https://fixture.invalid/", "fixture-token", DateTimeOffset.UtcNow.AddDays(5)));
             ShellWindow window;
             FileStream hold = new(store.DevicePath, FileMode.Open, FileAccess.Read, FileShare.None);
@@ -111,7 +113,7 @@ internal static partial class Program
             try { Task.Run(() => api.CurrentDeviceAsync()).GetAwaiter().GetResult(); }
             catch (NoraApiException error) { Require(error.Code == "device-revoked" && fixture.DeviceHeaders.Count == before + 1 && fixture.DeviceHeaders[^1] is null, "A conferência em outro endereço deveria ir sem o cabeçalho."); }
             // Secretaria: mesmo com a ativação guardada no disco, o perfil municipal nunca carrega o armazenamento nem envia o cabeçalho.
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-municipal"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-municipal"));
             store.SaveDevice(StoredFor(device));
             using var municipalFixture = new ApiFixture { UseWorkspaceIdentity = true };
             municipalFixture.AddUnit("UBS Municipal", "Centro");
@@ -130,7 +132,7 @@ internal static partial class Program
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Sessão", "Centro");
             var device = fixture.AddDevice(unit.Id, "Recepção 1");
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-session"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-session"));
             store.SaveDevice(StoredFor(device));
             var first = OpenOperationalWithDevices(fixture, storageRoot, "device-session-1", store, Appearance.Light);
             try
@@ -168,7 +170,7 @@ internal static partial class Program
             pending.Code = "ABCD-2345"; pending.CodeExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15);
             var expired = fixture.AddDevice(unit.Id, "Sala 3", "pending");
             expired.Code = "ZZZZ-9999"; expired.CodeExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-activation"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-activation"));
             var window = OpenOperationalWithDevices(fixture, storageRoot, "device-activation", store, Appearance.Light);
             try
             {
@@ -199,7 +201,7 @@ internal static partial class Program
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Revogação", "Centro");
             var device = fixture.AddDevice(unit.Id, "Recepção 1");
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-revoked"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-revoked"));
             store.SaveDevice(StoredFor(device));
             var window = OpenOperationalWithDevices(fixture, storageRoot, "device-revoked", store, Appearance.Light);
             try
@@ -219,7 +221,7 @@ internal static partial class Program
             using var staleFixture = new ApiFixture { UseWorkspaceIdentity = true };
             var staleUnit = staleFixture.AddUnit("UBS Revogação 2", "Centro");
             var stale = staleFixture.AddDevice(staleUnit.Id, "Recepção 9");
-            var staleStore = new ObsDeviceStore(Path.Combine(storageRoot, "device-stale"));
+            var staleStore = ComputerStore(Path.Combine(storageRoot, "device-stale"));
             staleStore.SaveDevice(StoredFor(stale));
             staleFixture.RevokeDevice(stale);
             var direct = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(staleFixture), staleStore);
@@ -234,7 +236,7 @@ internal static partial class Program
             using var attendantFixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant", RequireDeviceForAttendants = true };
             var attendantUnit = attendantFixture.AddUnit("UBS Atendente", "Centro");
             var attendantDevice = attendantFixture.AddDevice(attendantUnit.Id, "Recepção 4");
-            var attendantStore = new ObsDeviceStore(Path.Combine(storageRoot, "device-attendant"));
+            var attendantStore = ComputerStore(Path.Combine(storageRoot, "device-attendant"));
             var withoutDevice = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(attendantFixture), attendantStore);
             try
             {
@@ -260,7 +262,7 @@ internal static partial class Program
             using var attendantFixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant", RequireDeviceForAttendants = true };
             var unit = attendantFixture.AddUnit("UBS Código novo", "Centro");
             var device = attendantFixture.AddDevice(unit.Id, "Recepção 6");
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-required-revoked"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-required-revoked"));
             store.SaveDevice(StoredFor(device));
             var window = OpenOperationalWithDevices(attendantFixture, storageRoot, "device-required-revoked", store, Appearance.Light);
             try
@@ -276,7 +278,7 @@ internal static partial class Program
             finally { CloseWindow(window); }
             // 2. Com a ativação ainda válida, o 403 device-required (conta sem acesso à UBS dele) não mexe no estado.
             var kept = attendantFixture.AddDevice(unit.Id, "Recepção 7");
-            var keptStore = new ObsDeviceStore(Path.Combine(storageRoot, "device-required-kept")); keptStore.SaveDevice(StoredFor(kept));
+            var keptStore = ComputerStore(Path.Combine(storageRoot, "device-required-kept")); keptStore.SaveDevice(StoredFor(kept));
             var keptVm = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(attendantFixture), keptStore);
             try
             {
@@ -290,7 +292,7 @@ internal static partial class Program
             using var downFixture = new ApiFixture { UseWorkspaceIdentity = true };
             var downUnit = downFixture.AddUnit("UBS API fora", "Centro");
             var downDevice = downFixture.AddDevice(downUnit.Id, "Recepção 8");
-            var downStore = new ObsDeviceStore(Path.Combine(storageRoot, "device-api-down")); downStore.SaveDevice(StoredFor(downDevice));
+            var downStore = ComputerStore(Path.Combine(storageRoot, "device-api-down")); downStore.SaveDevice(StoredFor(downDevice));
             downFixture.FailDeviceCurrent = true;
             var downWindow = OpenOperationalWithDevices(downFixture, storageRoot, "device-api-down", downStore, Appearance.Light);
             try
@@ -309,7 +311,7 @@ internal static partial class Program
             using var relaxedFixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant", IgnoreDeviceOnLogin = true };
             var relaxedUnit = relaxedFixture.AddUnit("UBS Sem acesso", "Centro");
             var relaxedDevice = relaxedFixture.AddDevice(relaxedUnit.Id, "Recepção 9");
-            var relaxedStore = new ObsDeviceStore(Path.Combine(storageRoot, "device-relaxed")); relaxedStore.SaveDevice(StoredFor(relaxedDevice));
+            var relaxedStore = ComputerStore(Path.Combine(storageRoot, "device-relaxed")); relaxedStore.SaveDevice(StoredFor(relaxedDevice));
             var relaxed = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(relaxedFixture), relaxedStore);
             try
             {
@@ -324,7 +326,7 @@ internal static partial class Program
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Computadores", "Centro");
-            var store = new ObsDeviceStore(Path.Combine(storageRoot, "device-section"));
+            var store = ComputerStore(Path.Combine(storageRoot, "device-section"));
             var window = OpenOperationalWithDevices(fixture, storageRoot, "device-section", store, Appearance.Light);
             var asked = new List<(string Title, string Text)>(); Confirmation.Handler = (_, title, text) => { asked.Add((title, text)); return true; };
             try
@@ -388,7 +390,7 @@ internal static partial class Program
             using var copyFixture = new ApiFixture { UseWorkspaceIdentity = true };
             copyFixture.AddUnit("UBS Copiar", "Centro");
             var clipboard = new ClipboardFixture();
-            var copyVm = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(copyFixture), new ObsDeviceStore(Path.Combine(storageRoot, "device-copy")), clipboard);
+            var copyVm = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(copyFixture), ComputerStore(Path.Combine(storageRoot, "device-copy")), clipboard);
             try
             {
                 copyVm.Endpoint = "https://fixture.invalid"; copyVm.Identifier = "fixture@example.invalid"; Pump(copyVm.LoginAsync("isolated-test-password"));
@@ -458,7 +460,7 @@ internal static partial class Program
             var identifier = Environment.GetEnvironmentVariable("NORA_E2E_IDENTIFIER") ?? throw new InvalidOperationException("Falta identificador E2E.");
             var password = Environment.GetEnvironmentVariable("NORA_E2E_PASSWORD") ?? throw new InvalidOperationException("Falta senha E2E.");
             var suffix = Guid.NewGuid().ToString("N")[..8];
-            var adminStore = new ObsDeviceStore(Path.Combine(storageRoot, "e2e-device-admin")); var attendantStore = new ObsDeviceStore(Path.Combine(storageRoot, "e2e-device-attendant"));
+            var adminStore = ComputerStore(Path.Combine(storageRoot, "e2e-device-admin")); var attendantStore = ComputerStore(Path.Combine(storageRoot, "e2e-device-attendant"));
             var admin = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "e2e-admin-prefs"), devices: adminStore);
             var attendant = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "e2e-attendant-prefs"), devices: attendantStore);
             try

@@ -73,3 +73,9 @@ Pacientes, Fila, Vagas e a listagem legada operacional usam o mesmo template de 
 Inputs Windows têm raio de 5 px, menor que os botões/cards. Tooltips têm borda de 6 px e fundo azul claro na aparência Clara, com equivalente legível na Escura. Substituem explicações permanentes da tela e identificam ações pelo mouse. A conta NORA fica no canto inferior da sidebar e abre somente Configurações e Sair da conta; as três barras alternam a sidebar.
 
 As janelas OBS e Municipal preservam a moldura nativa e solicitam cantos pequenos ao DWM no Windows 11 quando restauradas. Maximizada/tela cheia solicita cantos retos. O raio final é definido pelo compositor Windows, não por recorte do conteúdo WPF. Conferência de preferência DWM e render do conteúdo são evidências distintas de captura da moldura na tela.
+
+## Legibilidade e ícones do NORA Municipal
+
+Os cartões do Municipal usam fundo e borda para delimitar o conteúdo. A sombra do estilo compartilhado fica desativada nesse perfil porque o efeito do WPF aplicado ao cartão inteiro também desativa o ClearType de seus textos. Assim, rótulos, títulos e controles dos cartões podem usar a renderização de texto do Windows da mesma forma que a barra lateral.
+
+O menu lateral apresenta três desenhos vetoriais na cor dos rótulos de cada tema. Unidades usa o desenho de uma UBS, Especialidades usa um estetoscópio e Relatórios e metas usa uma folha com gráfico de barras.

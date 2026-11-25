@@ -303,8 +303,8 @@ internal static partial class Program
         Descendants<PasswordBox>(content).Single(input => AutomationProperties.GetName(input) == "Senha de acesso").Password = password;
         InvokeButton(FindActionButton(content, "Entrar")); PumpUntil(() => !window.ViewModel.Workspace.IsBusy);
     }
-    private static TextBox Input(FrameworkElement content, string name) => Descendants<TextBox>(content).Single(input => AutomationProperties.GetName(input) == name);
-    private static Button FindActionButton(FrameworkElement content, string name) => Descendants<Button>(content).Single(button => button.IsVisible && (button.Content?.ToString() == name || AutomationProperties.GetName(button) == name));
+    private static TextBox Input(FrameworkElement content, string name) => PageField<TextBox>(content, input => AutomationProperties.GetName(input) == name);
+    private static Button FindActionButton(FrameworkElement content, string name) => PageField<Button>(content, button => button.IsVisible && (button.Content?.ToString() == name || AutomationProperties.GetName(button) == name));
     private static string SyntheticCpf()
     {
         var digits = Random.Shared.NextInt64(100000000, 999999999).ToString();

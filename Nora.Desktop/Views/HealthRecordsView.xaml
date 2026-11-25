@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.HealthRecordsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.HealthRecordsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
   <!-- Aba "Exames e vacinas" da ficha do paciente (OBS). Nada é apagado: a correção é a anulação, com motivo. O paciente só visualiza no aplicativo. -->
   <UserControl.Resources>
     <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
@@ -68,8 +68,8 @@
         <TextBlock Text="{Binding ExamsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding ExamsState, Converter={StaticResource TextVisibility}}" />
         <TextBlock Text="Exame selecionado: marcar como realizado (informe a data) ou cancelar" Style="{StaticResource FieldLabel}" Margin="0,12,0,0" />
         <WrapPanel Margin="0,4,0,0">
-          <TextBox Text="{Binding ExamDoneDate, UpdateSourceTrigger=PropertyChanged}" MinWidth="130" MaxLength="10" Margin="0,6,10,10" ToolTip="Data de realização, dd/mm/aaaa" AutomationProperties.Name="Data de realização do exame" />
-          <Button Content="Marcar como realizado" Click="OnExamDone" IsEnabled="{Binding CanMarkExamDone}" Margin="0,0,8,8" ToolTipService.ShowOnDisabled="True" ToolTip="Só um exame solicitado, selecionado na lista." />
+          <TextBox Text="{Binding ExamDoneDate, UpdateSourceTrigger=PropertyChanged}" MinWidth="130" MaxLength="10" Margin="0,6,10,10" ToolTip="Data de realização, dd/mm/aaaa" AutomationProperties.Name="Data de realização do exame"  enter:EnterNavigation.Group="HealthRecordsView.done"/>
+          <Button Content="Marcar como realizado" Click="OnExamDone" IsEnabled="{Binding CanMarkExamDone}" Margin="0,0,8,8" ToolTipService.ShowOnDisabled="True" ToolTip="Só um exame solicitado, selecionado na lista."  enter:EnterNavigation.Group="HealthRecordsView.done"/>
           <Button Content="Cancelar exame" Click="OnExamCancel" IsEnabled="{Binding CanCancelExam}" Margin="0,0,8,8" ToolTipService.ShowOnDisabled="True" ToolTip="Só um exame solicitado, selecionado na lista. Pede confirmação." />
         </WrapPanel>
         <TextBlock Text="{Binding ExamDoneError}" Style="{StaticResource FieldError}" Margin="0,-4,0,10" Visibility="{Binding ExamDoneError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
@@ -77,12 +77,12 @@
           <StackPanel IsEnabled="{Binding CanRegister}">
             <TextBlock Text="Registrar exame solicitado" FontWeight="SemiBold" Margin="0,0,0,8" />
             <TextBlock Text="Nome do exame" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding ExamName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome do exame" />
+            <TextBox Text="{Binding ExamName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome do exame"  enter:EnterNavigation.Group="HealthRecordsView.exam"/>
             <TextBlock Text="{Binding ExamNameError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding ExamNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding ExamNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação do exame" />
+            <TextBox Text="{Binding ExamNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação do exame"  enter:EnterNavigation.Group="HealthRecordsView.exam"/>
             <TextBlock Text="{Binding ExamNoteError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding ExamNoteError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Registrar exame" Click="OnCreateExam" IsEnabled="{Binding CanCreateExam}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o exame informado."/>
+            <Button Content="Registrar exame" Click="OnCreateExam" IsEnabled="{Binding CanCreateExam}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o exame informado." enter:EnterNavigation.Group="HealthRecordsView.exam"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -118,25 +118,25 @@
           <StackPanel IsEnabled="{Binding CanRegister}">
             <TextBlock Text="Registrar vacina aplicada" FontWeight="SemiBold" Margin="0,0,0,8" />
             <TextBlock Text="Nome da vacina" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding VaccineName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome da vacina" />
+            <TextBox Text="{Binding VaccineName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome da vacina"  enter:EnterNavigation.Group="HealthRecordsView.vaccine"/>
             <TextBlock Text="{Binding VaccineNameError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding VaccineNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock Text="Dose" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{x:Static vm:HealthRecordsViewModel.DoseOptions}" DisplayMemberPath="Label" SelectedItem="{Binding VaccineDoseChoice}" AutomationProperties.Name="Dose da vacina" />
+                <ComboBox ItemsSource="{x:Static vm:HealthRecordsViewModel.DoseOptions}" DisplayMemberPath="Label" SelectedItem="{Binding VaccineDoseChoice}" AutomationProperties.Name="Dose da vacina"  enter:EnterNavigation.Group="HealthRecordsView.vaccine"/>
                 <TextBlock Text="{Binding VaccineDoseError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding VaccineDoseError, Converter={StaticResource TextVisibility}}" />
               </StackPanel>
               <StackPanel Grid.Column="2">
                 <TextBlock Text="Data de aplicação (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" />
-                <TextBox Text="{Binding VaccineDate, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" AutomationProperties.Name="Data de aplicação da vacina" />
+                <TextBox Text="{Binding VaccineDate, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" AutomationProperties.Name="Data de aplicação da vacina"  enter:EnterNavigation.Group="HealthRecordsView.vaccine"/>
                 <TextBlock Text="{Binding VaccineDateError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding VaccineDateError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
             </Grid>
             <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding VaccineNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação da vacina" />
+            <TextBox Text="{Binding VaccineNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação da vacina"  enter:EnterNavigation.Group="HealthRecordsView.vaccine"/>
             <TextBlock Text="{Binding VaccineNoteError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding VaccineNoteError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Registrar vacina" Click="OnCreateVaccine" IsEnabled="{Binding CanCreateVaccine}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava a vacina informada."/>
+            <Button Content="Registrar vacina" Click="OnCreateVaccine" IsEnabled="{Binding CanCreateVaccine}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava a vacina informada." enter:EnterNavigation.Group="HealthRecordsView.vaccine"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -149,9 +149,9 @@
         <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,10" Text="Anular tira o registro errado da lista sem apagar; o motivo fica gravado e o paciente não o vê." />
         <TextBlock Text="{Binding SelectedRecordLabel}" FontWeight="SemiBold" Margin="0,0,0,6" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Text="Motivo da anulação (3 a 280 caracteres)" Style="{StaticResource FieldLabel}" />
-        <TextBox Text="{Binding VoidReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" IsEnabled="{Binding CanRegister}" AutomationProperties.Name="Motivo da anulação" />
+        <TextBox Text="{Binding VoidReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" IsEnabled="{Binding CanRegister}" AutomationProperties.Name="Motivo da anulação"  enter:EnterNavigation.Group="HealthRecordsView.void"/>
         <TextBlock Text="{Binding VoidReasonError}" Style="{StaticResource FieldError}" Margin="0,-6,0,10" Visibility="{Binding VoidReasonError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-        <Button Content="Anular registro selecionado" Click="OnVoid" IsEnabled="{Binding CanVoid}" HorizontalAlignment="Left" ToolTipService.ShowOnDisabled="True" ToolTip="Selecione um exame ou uma vacina que não esteja anulado. Pede confirmação." />
+        <Button Content="Anular registro selecionado" Click="OnVoid" IsEnabled="{Binding CanVoid}" HorizontalAlignment="Left" ToolTipService.ShowOnDisabled="True" ToolTip="Selecione um exame ou uma vacina que não esteja anulado. Pede confirmação."  enter:EnterNavigation.Group="HealthRecordsView.void"/>
       </StackPanel>
     </Border>
   </StackPanel>

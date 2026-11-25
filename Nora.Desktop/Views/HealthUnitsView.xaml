@@ -1,25 +1,26 @@
-<UserControl x:Class="Nora.Desktop.Views.HealthUnitsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.HealthUnitsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <StackPanel>
     <Border x:Name="UnitForm" Style="{StaticResource Card}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="2" Margin="0,0,0,22" ToolTip="Cadastre uma unidade ou edite os dados da UBS selecionada."><StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="{Binding UnitDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" ToolTip="Informe coordenadas verificadas em graus decimais; valores negativos indicam sul e oeste." />
-      <TextBlock Text="Nome da UBS" /><TextBox Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da UBS" Margin="0,5,0,12" />
+      <TextBlock Text="{Binding UnitDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" />
+      <TextBlock Text="Nome da UBS" /><TextBox Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
       <TextBlock Text="{Binding UnitNameError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitNameError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Região" /><TextBox Text="{Binding UnitRegion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Região da UBS" Margin="0,5,0,12" />
+      <TextBlock Text="Região" /><TextBox Text="{Binding UnitRegion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Região da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
       <TextBlock Text="{Binding UnitRegionError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitRegionError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Endereço" /><TextBox Text="{Binding UnitAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da UBS" Margin="0,5,0,12" />
+      <TextBlock Text="Endereço" /><TextBox Text="{Binding UnitAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
       <TextBlock Text="{Binding UnitAddressError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitAddressError, Converter={StaticResource TextVisibility}}" />
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
-        <StackPanel Margin="0,0,8,0"><TextBlock Text="Latitude" /><TextBox Text="{Binding UnitLatitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Latitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLatitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLatitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
-        <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Longitude" /><TextBox Text="{Binding UnitLongitude, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Longitude da UBS" Margin="0,5,0,12" /><TextBlock Text="{Binding UnitLongitudeError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitLongitudeError, Converter={StaticResource TextVisibility}}" /></StackPanel>
-      </Grid>
-      <TextBlock Text="{Binding UnitCoordinateWarning}" Style="{StaticResource FieldWarning}" Visibility="{Binding UnitCoordinateWarning, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-      <Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Grava os dados da UBS."/>
+      <TextBlock Text="A localização será buscada pelo endereço. Dados: Photon e © colaboradores do OpenStreetMap." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+      <Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Grava os dados da UBS."  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
+      <ItemsControl ItemsSource="{Binding UnitSaveSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do cadastro da UBS" />
     </StackPanel></Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
         <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar unidades" ToolTip="Atualizar unidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Unidades cadastradas" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></DockPanel>
-        <TextBlock Text="Buscar unidades" FontWeight="SemiBold" Margin="0,0,0,6" ToolTip="Pesquise por nome, região ou endereço. A seleção permanece ao filtrar." />
-        <Grid Margin="0,0,0,12"><TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS" Padding="38,10,10,10" /><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentTextBrush}" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0" /></Grid>
+        <views:PageFilterGroup Label="Unidades cadastradas" FilterKey="units">
+          <StackPanel>
+            <TextBlock Text="Buscar unidades" FontWeight="SemiBold" Margin="0,0,0,6" ToolTip="Pesquise por nome, região ou endereço. A seleção permanece ao filtrar." />
+            <Grid Margin="0,0,0,12"><TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS" Padding="38,10,10,10"  enter:EnterNavigation.Group="HealthUnitsView.search"/><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentTextBrush}" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0" /></Grid>
+          </StackPanel>
+        </views:PageFilterGroup>
         <ListBox ItemsSource="{Binding FilteredUnits}" SelectedItem="{Binding SelectedUnit}" MaxHeight="260" AutomationProperties.Name="UBS cadastradas">
           <ListBox.ItemTemplate>
             <DataTemplate>

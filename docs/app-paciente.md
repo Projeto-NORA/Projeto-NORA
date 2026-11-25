@@ -37,6 +37,12 @@ A [galeria da revisão visual](galeria/app-paciente-revisao-2026-11-22/index.htm
 
 O crédito de autoria aparece ao final do conteúdo das telas do aplicativo, inclusive Configurações.
 
+## Cabeçalhos e filtros
+
+Consultas, Unidades, Avisos, Jornada (registros de saúde), Família e Vaga Relâmpago agrupam busca, estado ou ordenação em **Filtros** no topo, conforme os dados de cada tela. Na seleção de horários da agenda, o mesmo botão permite procurar profissionais. A unidade e a pessoa atendida continuam como seletores de contexto. Os controles usam contraste reforçado e resposta visual ao toque e ao apontador.
+
+O APK de distribuição usa o endereço público do serviço embutido. Um build Debug sem `NORA_API_URL` permite configurar o ambiente local para desenvolvimento.
+
 ## Estado atual — 2026-11-16
 
 Esta seção descreve o APPNORA como está no código depois da Fase 3 do app (agendamento, confirmação de presença, comunicados, exames e vacinas, Família e e-mail da conta). Onde as seções seguintes divergirem, vale esta.

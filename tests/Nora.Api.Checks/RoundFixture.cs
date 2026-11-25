@@ -94,7 +94,9 @@ internal sealed class RoundFixture : IAsyncDisposable
         var app = NoraApiHost.Create(new()
         {
             Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", small, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:Maintenance:Enabled", "false", "--Nora:UnitDatabases:MaxPoolSize", "2",
-                "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-round-registration-key-32-bytes", "--Nora:ForwardedHeaders:KnownProxies:0", "127.0.0.1", .. (extraArgs ?? [])],
+                "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-round-registration-key-32-bytes", "--Nora:ForwardedHeaders:KnownProxies:0", "127.0.0.1",
+                // As verificações da rodada final cobrem os computadores do OBS, guardados e desligados no servidor por padrão. Quem testa o padrão passa "false" em extraArgs.
+                "--Nora:ObsDevices:Enabled", "true", .. (extraArgs ?? [])],
             EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name, ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
         }, services =>
         {

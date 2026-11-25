@@ -5,6 +5,8 @@ using Nora.Api.Services;
 
 namespace Nora.Api.DAOs;
 
+internal sealed record ObsDeviceEnrollment(ObsDeviceRef Device, bool CanSignIn);
+
 /// <summary>
 /// SQL dos computadores do OBS (banco central). Os métodos que recebem a conexão rodam na transação do chamador (o executor de acesso da UBS ou a ativação por código), que
 /// já segura a conta e a sessão; nada aqui confere permissão. Tempo sempre pelo relógio informado, nunca pelo do banco.
@@ -27,6 +29,32 @@ public sealed class ObsDeviceDao(DatabaseHelper database)
     public Task<ObsDeviceRef?> FindActiveAsync(DeviceCredential credential, CancellationToken ct) => database.UseAsync(connection => FindActiveAsync(database, connection, credential, false, ct), ct);
 
     internal Task<ObsDeviceRef?> FindActiveAsync(NpgsqlConnection connection, DeviceCredential credential, CancellationToken ct) => FindActiveAsync(database, connection, credential, false, ct);
+
+    internal async Task<ObsDeviceEnrollment?> FindEnrollmentAsync(NpgsqlConnection connection, DeviceCredential credential, CancellationToken ct)
+    {
+        await using var query = database.Command(connection,
+            "SELECT d.id,d.name,d.unit_id,u.name,COALESCE(d.status='active' AND d.secret_hash=$2,false) " +
+            "FROM nora.obs_devices d JOIN nora.health_units u ON u.id=d.unit_id WHERE d.id=$1 FOR NO KEY UPDATE OF d",
+            credential.Id, ObsDeviceCredentials.HashSecret(credential.Secret));
+        await using var reader = await query.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct)
+            ? new(new(reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetString(3)), reader.GetBoolean(4))
+            : null;
+    }
+
+    /// <summary>Lista apenas unidades concedidas. Ao preparar um login, segura a concessão enquanto o computador e a sessão são gravados.</summary>
+    internal static async Task<List<LoginUnitOption>> ListAuthorizedUnitsAsync(DatabaseHelper database, NpgsqlConnection connection,
+        Guid accountId, Guid? unitId, bool lockRows, CancellationToken ct)
+    {
+        await using var command = database.Command(connection,
+            "SELECT u.id,u.name FROM nora.staff_units s JOIN nora.health_units u ON u.id=s.unit_id " +
+            "WHERE s.account_id=$1 AND ($2::uuid IS NULL OR s.unit_id=$2) ORDER BY u.name,u.id" + (lockRows ? " FOR SHARE OF s" : ""),
+            accountId, (object?)unitId ?? DBNull.Value);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        var units = new List<LoginUnitOption>();
+        while (await reader.ReadAsync(ct)) units.Add(new(reader.GetGuid(0), reader.GetString(1)));
+        return units;
+    }
 
     private static object[] Values(Guid? first, DateTimeOffset now, DeviceCredential? current, params object[] extra)
     {

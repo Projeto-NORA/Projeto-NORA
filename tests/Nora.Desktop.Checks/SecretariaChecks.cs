@@ -29,7 +29,7 @@ internal static partial class Program
         Layout(window, width, height); Settle(vm);
         return Layout(window, width, height);
     }
-    private static ComboBox Combo(FrameworkElement content, string name) => Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == name);
+    private static ComboBox Combo(FrameworkElement content, string name) => PageField<ComboBox>(content, box => AutomationProperties.GetName(box) == name);
     private static DataGrid GridNamed(FrameworkElement content, string name) => Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == name);
     private static PasswordBox Secret(FrameworkElement content, string name) => Descendants<PasswordBox>(content).Single(box => box.IsVisible && AutomationProperties.GetName(box) == name);
     private static void Click(ShellWindow window, FrameworkElement content, string label, double width = 1280, double height = 900)
@@ -193,8 +193,10 @@ internal static partial class Program
                 foreach (var route in new[] { "units", "specialties", "indicators", "slots", "reports", "capacity" })
                 {
                     content = Show(window, route);
-                    Require(Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS deveria aparecer em " + route);
-                    Require(!Descendants<ComboBox>(content).Any(box => box.Items.Count == 1 && box.Items[0] is string), "Combo 'Indisponível' ainda aparece em " + route);
+                    Require(!Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS continua no corpo de " + route);
+                    var fields = Descendants<ComboBox>(OpenPageFilters(window)).ToArray();
+                    Require(fields.Any(box => AutomationProperties.GetName(box) is "Filtrar por UBS" or "Filtrar resumo por UBS"), "O filtro de UBS está ausente do painel de " + route);
+                    Require(!fields.Any(box => box.Items.Count == 1 && box.Items[0] is string), "Combo 'Indisponível' ainda aparece em " + route);
                 }
                 foreach (var route in new[] { "alerts", "communication", "network" })
                 {
@@ -283,7 +285,7 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
-        Check("Secretaria: formulário de UBS mostra mensagem por campo e apenas avisa sobre coordenadas trocadas, fora do Brasil ou (0, 0)", () =>
+        Check("Secretaria: formulário de UBS valida nome, região e endereço sem exibir coordenadas", () =>
         {
             using var fixture = new ApiFixture();
             var window = OpenMunicipal(fixture, storageRoot, "sec-unit-form", Appearance.Light);
@@ -295,7 +297,8 @@ internal static partial class Program
                 Require(vm.MessageKind == MessageKind.Error && fixture.Count("POST", "/api/municipal/units") == 0, "Formulário vazio deveria ser barrado antes da API.");
                 Require(vm.UnitNameError.Contains("nome da UBS") && vm.UnitRegionError.Contains("região") && vm.UnitAddressError.Contains("endereço") && vm.UnitLatitudeError.Contains("Latitude") && vm.UnitLongitudeError.Contains("Longitude"), "Faltou mensagem em algum campo.");
                 content = Layout(window, 1280, 1500);
-                Require(VisibleTexts(content).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 5, "As mensagens por campo não aparecem na tela.");
+                Require(VisibleTexts(content).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 3, "As mensagens dos campos exibidos não aparecem na tela.");
+                Require(!Descendants<TextBox>(content).Any(box => box.IsVisible && (AutomationProperties.GetName(box) == "Latitude da UBS" || AutomationProperties.GetName(box) == "Longitude da UBS")), "O formulário ainda mostra coordenadas manuais.");
                 vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua A, 1";
                 (string Latitude, string Longitude, string Fragment)[] warnings = [("-46,63", "-23,55", "trocadas"), ("0", "0", "oceano"), ("48,85", "2,35", "fora do Brasil"), ("-23,55", "-46,63", "")];
                 foreach (var (latitude, longitude, fragment) in warnings)

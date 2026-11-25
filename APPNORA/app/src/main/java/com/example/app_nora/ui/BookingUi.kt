@@ -96,7 +96,14 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     onLoadAvailability: (String, Int) -> Unit, onBook: (AvailableSlot) -> Unit, onOpenAppointments: () -> Unit,
     initialSpecialtyId: String? = null, actingName: String? = null) {
     val clock = LocalClockMillis.current
-    ScreenTitle("Agendar consulta", "UBS, especialidade e horário.")
+    var professionalQuery by remember(patient.selectedUnitId, patient.actingFor) { mutableStateOf("") }
+    ScreenTitle("Agendar consulta", "UBS, especialidade e horário.", action = {
+        if (patient.session != null && patient.lastBooked == null) NoraFilters(
+            if (professionalQuery.isBlank()) 0 else 1, onClear = { professionalQuery = "" }
+        ) {
+            FilterSearch(professionalQuery, { professionalQuery = it }, "Profissional nos horários livres")
+        }
+    })
     BookingRules(actingName)
     if (patient.session == null) {
         SectionCard("Entre na sua conta", "Agendamento") { MutedText("Entre na sua conta para ver os horários livres das suas UBS.") }
@@ -196,7 +203,11 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     if (result != null && days(result, now).isNotEmpty()) {
         val all = days(result, now)
         val shown = shownDay(all, chosenDay)
-        val professionals = remember(shown) { groupByProfessional(shown.slots) }
+        val professionals = remember(shown, professionalQuery) {
+            val query = professionalQuery.normalizedSearchText()
+            groupByProfessional(if (query.isEmpty()) shown.slots else shown.slots.filter { it.professionalName.normalizedSearchText().contains(query) })
+        }
+        if (professionals.isEmpty()) MutedText("Nenhum horário desse dia corresponde ao filtro de profissional.")
         professionals.forEach { professional ->
             key(shown.dayStart, professional.professionalId) {
                 ProfessionalCard(professional, unit.name, !patient.busy) { confirming = it }

@@ -8,8 +8,9 @@ using Nora.Desktop.Models;
 
 namespace Nora.Desktop.Services;
 
-public sealed class NoraApiException(string message, bool unauthorized = false, string? code = null, int status = 0) : Exception(message)
+public sealed class NoraApiException(string message, bool unauthorized = false, string? code = null, int status = 0, StaffUnitOption[]? units = null) : Exception(message)
 {
+    public StaffUnitOption[]? Units { get; } = units;
     public bool Unauthorized { get; } = unauthorized;
     /// <summary>Código fixo do problem+json (somente valores conhecidos); permite à tela reagir a casos específicos, como a troca obrigatória de senha.</summary>
     public string? Code { get; } = code;
@@ -57,11 +58,13 @@ public sealed class NoraApiClient : IDisposable
     }
     /// <summary>A requisição seguinte leva o cabeçalho do computador (há credencial e o endereço configurado é o dela).</summary>
     public bool SendsDeviceCredential => deviceHeader is not null && endpoint is not null && string.Equals(deviceEndpoint, endpoint.AbsoluteUri, StringComparison.Ordinal);
-    public async Task<LoginSession> LoginAsync(string scope, string identifier, string password, bool keepSignedIn = false)
+    public async Task<LoginSession> LoginAsync(string scope, string identifier, string password, bool keepSignedIn = false, bool desktopSession = false, Guid? unitId = null)
     {
         ClearSession();
         // "Manter conectado" só existe no OBS; o corpo dos demais perfis continua exatamente o de antes.
-        object body = scope == "obs" && keepSignedIn ? new { scope, identifier, password, keepSignedIn } : new { scope, identifier, password };
+        object body = desktopSession
+            ? new { scope, identifier, password, keepSignedIn, desktopSession, unitId, deviceName = Environment.MachineName }
+            : scope == "obs" && keepSignedIn ? new { scope, identifier, password, keepSignedIn } : new { scope, identifier, password };
         var session = await SendAsync<LoginSession>(HttpMethod.Post, "api/auth/login", body, false);
         if (disposed) throw new NoraApiException("O aplicativo foi fechado. Abra-o para entrar novamente.");
         if (string.IsNullOrWhiteSpace(session.Token) || session.ExpiresAt <= DateTimeOffset.UtcNow || session.User == null || session.User.Scope != scope)
@@ -76,6 +79,16 @@ public sealed class NoraApiClient : IDisposable
         token = savedToken;
     }
     public Task<AccountUser> MeAsync() => SendAsync<AccountUser>(HttpMethod.Get, "api/auth/me");
+    public Task<StaffSelfProfile> ReadProfileAsync() => SendAsync<StaffSelfProfile>(HttpMethod.Get, "api/auth/profile");
+    public Task<StaffSelfProfile> SaveProfileNameAsync(string fullName) => SendAsync<StaffSelfProfile>(HttpMethod.Patch, "api/auth/profile", new { fullName });
+    public Task<RetentionOverview> RetentionAsync(Guid? unitId, CancellationToken cancellation) =>
+        SendAsync<RetentionOverview>(HttpMethod.Get, RetentionPath(unitId), cancellation: cancellation);
+    public Task<RetentionPolicy> SaveRetentionAsync(Guid? unitId, int? days) =>
+        SendAsync<RetentionPolicy>(HttpMethod.Put, RetentionPath(unitId), new { days, confirmed = true });
+    public Task<object> ScheduleDeletionAsync(Guid? unitId, Guid item, int? days) =>
+        SendAsync<object>(HttpMethod.Put, $"{RetentionPath(unitId)}/{item}", new { days, confirmed = true });
+    private static string RetentionPath(Guid? unitId) =>
+        unitId is { } id ? $"api/obs/units/{id}/retention" : "api/municipal/retention";
 
     // Computadores do OBS: a ativação e a conferência são públicas (só o cabeçalho do computador); a gestão é do administrador da UBS.
     public Task<DeviceSummary> CurrentDeviceAsync(CancellationToken cancellation = default) => SendAsync<DeviceSummary>(HttpMethod.Get, "api/obs/devices/current", authenticated: false, cancellation: cancellation);
@@ -276,7 +289,7 @@ public sealed class NoraApiClient : IDisposable
             {
                 var unauthorized = response.StatusCode == HttpStatusCode.Unauthorized;
                 if (unauthorized) ClearSession();
-                var code = await ReadErrorCodeAsync(response);
+                var (code, _) = await ReadProblemAsync(response);
                 if (code is null && response.StatusCode == HttpStatusCode.RequestEntityTooLarge) code = "photo-too-large";
                 throw new NoraApiException(ErrorMessage(method, path, response.StatusCode, code, true), unauthorized, code, (int)response.StatusCode);
             }
@@ -309,8 +322,8 @@ public sealed class NoraApiClient : IDisposable
                 // Só o 401 de uma requisição com sessão diz que a sessão acabou; o de uma requisição sem sessão (conferência do computador, senha errada no login) não pode derrubar a que acabou de abrir.
                 if (unauthorized && authenticated) ClearSession();
                 // Nunca exibe corpo arbitrário do servidor: a mensagem sai do status, do code conhecido e do contexto da operação.
-                var code = await ReadErrorCodeAsync(response);
-                throw new NoraApiException(ErrorMessage(method, path, response.StatusCode, code, authenticated), unauthorized, code, (int)response.StatusCode);
+                var (code, units) = await ReadProblemAsync(response);
+                throw new NoraApiException(ErrorMessage(method, path, response.StatusCode, code, authenticated), unauthorized, code, (int)response.StatusCode, units);
             }
             if (response.StatusCode == HttpStatusCode.NoContent && typeof(T) == typeof(object)) return (T)new object();
             // Só JSON é aceito como sucesso: HTML de proxy ou texto simples com status 200 vira erro tratado.
@@ -327,7 +340,7 @@ public sealed class NoraApiClient : IDisposable
 
     private static bool IsJson(string? mediaType) => mediaType is not null && (mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
 
-    private static async Task<string?> ReadErrorCodeAsync(HttpResponseMessage response)
+    private static async Task<(string? Code, StaffUnitOption[]? Units)> ReadProblemAsync(HttpResponseMessage response)
     {
         try
         {
@@ -338,10 +351,16 @@ public sealed class NoraApiClient : IDisposable
             while (total < buffer.Length && (read = await stream.ReadAsync(buffer.AsMemory(total))) > 0) total += read;
             using var document = JsonDocument.Parse(buffer.AsMemory(0, total));
             if (document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("code", out var code)
-                && code.ValueKind == JsonValueKind.String && code.GetString() is { } value && ErrorCodes.Contains(value)) return value;
+                && code.ValueKind == JsonValueKind.String && code.GetString() is { } value)
+            {
+                if (value == "device-unit-selection-required" && document.RootElement.TryGetProperty("units", out var units))
+                    return (value, units.Deserialize<StaffUnitOption[]>(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                if (ErrorCodes.Contains(value) || value is "device-no-authorized-units" or "device-unit-mismatch" or "device-credential-required" or "retention-item-unavailable")
+                    return (value, null);
+            }
         }
         catch (Exception error) when (error is JsonException or IOException or HttpRequestException or ObjectDisposedException or InvalidOperationException or NotSupportedException) { }
-        return null;
+        return (null, null);
     }
 
     private static string ErrorMessage(HttpMethod method, string path, HttpStatusCode status, string? code, bool authenticated)
@@ -361,6 +380,11 @@ public sealed class NoraApiClient : IDisposable
         {
             "unauthorized" => authenticated ? "Sua sessão terminou. Entre novamente." : "E-mail ou senha não conferem.",
             "device-required" => "Este computador não está ativado para a sua UBS. Peça ao administrador da UBS para ativá-lo.",
+            "device-unit-selection-required" => "Escolha a unidade para entrar.",
+            "device-no-authorized-units" => "Sua conta ainda não tem acesso a uma unidade. Procure a Secretaria.",
+            "retention-item-unavailable" => "Atualize a lista. O cadastro pode ter sido reativado, removido ou vinculado.",
+            "device-unit-mismatch" => "Este computador ou unidade não está liberado para a sua conta. Procure a gestão.",
+            "device-credential-required" => "Não foi possível identificar a instalação do OBS.",
             "invalid-activation-code" => "Código inválido, vencido ou já usado. Peça um novo código ao administrador da UBS.",
             "device-already-active" => "Este computador já está ativado. Revogue-o antes de ativá-lo para outra UBS.",
             "device-revoked" => "Este computador foi desativado pelo administrador da UBS ou a ativação não vale mais.",

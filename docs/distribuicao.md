@@ -1,6 +1,6 @@
 # Distribuição dos aplicativos (OBS, Painel Municipal e app do paciente)
 
-Como gerar os três aplicativos, entregar às pessoas do piloto e o que cada uma faz para abrir. A API precisa estar no ar com HTTPS antes (ver [hospedagem.md](hospedagem.md)). Os aplicativos não guardam o endereço da API dentro deles: cada pessoa digita o endereço na primeira entrada.
+Como gerar os três aplicativos e entregá-los aos participantes do piloto. A API precisa estar no ar em HTTPS e com as migrações aplicadas antes da distribuição. OBS, Painel e APK empacotado usam o serviço `https://nora-api-kw8x.onrender.com` por padrão. Veja o [guia de hospedagem](hospedagem.md).
 
 | Aplicativo | Quem usa | Arquivo enviado | Onde roda |
 | --- | --- | --- | --- |
@@ -26,20 +26,17 @@ Para o APK de release assinado, veja a seção 6 (`-Release`). O script mostra c
 
 ## 2. Enviar
 
-O melhor caminho é uma pasta do Google Drive ou do OneDrive com o link compartilhado só com os participantes. E-mail costuma bloquear `.exe` e `.apk`. O WhatsApp aceita, mas o arquivo grande demora.
+Para a simulação na escola, em que os funcionários baixam o app sozinhos, o caminho escolhido é o GitHub Releases num repositório **público só de instaladores** (o repositório do código é privado e o release dele não abre para quem não tem acesso): veja [simulacao-escola.md](simulacao-escola.md). Para enviar a poucas pessoas conhecidas, serve também uma pasta do Google Drive ou do OneDrive com o link compartilhado só com os participantes. E-mail costuma bloquear `.exe` e `.apk`. O WhatsApp aceita, mas o arquivo grande demora.
 
-Junto com o link, mande três informações: o endereço da API (`https://<sua-api>.onrender.com`), o usuário e a senha provisória de cada pessoa da equipe. Para pacientes, mande só o endereço. A senha nunca vai no mesmo grupo que o link.
+Junto com o link, oriente cada pessoa da equipe a usar o e-mail cadastrado. Envie a senha provisória individualmente.
 
 ## 3. Abrir no Windows (OBS e Painel Municipal)
 
 1. **Abrir:** clique com o botão direito no `.zip` → **Extrair tudo** e abra o `.exe` da pasta extraída.
 2. **Aviso do Windows:** como o executável não tem assinatura digital paga, aparece "O Windows protegeu o computador". Clique em **Mais informações** → **Executar assim mesmo**. Isso é esperado num protótipo.
-3. **Primeira entrada:** em **Endereço da API**, digite `https://<sua-api>.onrender.com`, depois o e-mail e a senha provisória (a equipe entra só por e-mail, não por CPF). O sistema pede para trocar a senha no primeiro acesso.
-4. **Só no OBS — computador ativado:**
-   - O **administrador** da UBS entra em qualquer computador.
-   - A **atendente** só entra num computador ativado: o administrador ativa em Informações da UBS → Computadores, ou gera um código `XXXX-XXXX` que a atendente digita em "Código de ativação".
-   - Depois de ativado, a opção "Manter conectado neste computador" fica disponível.
-5. **Dica para não digitar o endereço:** quem preferir pode definir a variável de ambiente do Windows `NORA_API_URL` com o endereço. O campo já vem preenchido.
+3. Entre com o **e-mail** e a **senha** fornecidos. Se a senha for provisória, o sistema pede a troca no primeiro acesso.
+4. No OBS, o login válido ativa o computador para a unidade autorizada. Se houver várias unidades disponíveis, o primeiro acesso pede a escolha.
+5. A sessão padrão vale por 24 horas com o programa aberto. Marque **Manter conectado por 30 dias** para continuar conectado ao reabrir. Use **Sair da conta** no menu inferior esquerdo para encerrar a sessão.
 
 As preferências ficam em `%LOCALAPPDATA%\NORA\`. Apagar essa pasta volta o aplicativo ao estado inicial, inclusive a ativação do computador.
 
@@ -48,7 +45,7 @@ As preferências ficam em `%LOCALAPPDATA%\NORA\`. Apagar essa pasta volta o apli
 1. Baixe o `NORA-paciente.apk` pelo link e toque no arquivo.
 2. O Android pede para permitir **instalar apps desconhecidos** a partir do aplicativo usado para abrir o arquivo (Drive, Arquivos ou o navegador): **Configurações** → permitir.
 3. O Play Protect pode avisar que o app não é conhecido. Toque em **Mais detalhes** → **Instalar mesmo assim**.
-4. **Ao abrir:** no **Endereço do serviço NORA**, digite `https://<sua-api>.onrender.com`. O app só aceita HTTPS.
+4. Abra o NORA e entre com o CPF ou e-mail e a senha da conta. O endereço do serviço já vem configurado.
 5. **Criar conta:** em **Criar conta** a pessoa informa nome, CPF e senha, escolhe a UBS e confirma o código de 6 dígitos que chega no e-mail.
    - O CPF e o e-mail precisam ter sido cadastrados antes pela UBS, no OBS.
 6. **Permissões:**

@@ -13,7 +13,7 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
     /// <summary>
     /// Cria uma conta. Paciente exige CPF válido. Contas de equipe (<c>obs</c> e <c>municipal</c>) não têm CPF (P-053): entram só por e-mail e senha, então o CPF de <paramref name="request"/> é ignorado e nada dele é gravado.
     /// </summary>
-    public Task<PatientInfo> ProvisionAsync(string scope, string role, CreatePatientRequest request, CancellationToken ct = default)
+    public Task<PatientInfo> ProvisionAsync(string scope, string role, CreatePatientRequest request, CancellationToken ct = default, string? municipalityName = null)
     {
         if (!((scope == "obs" && role is "administrator" or "attendant") || (scope == "municipal" && role == "manager") || (scope == "patient" && role == "patient"))) throw new ApiInputException();
         var staff = scope != "patient";
@@ -24,7 +24,7 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
             throw new ApiInputException();
         var normalized = new CreatePatientRequest(fullName, cpf, email, request.Password, NormalizePhone(request.Phone), NormalizeAddress(request.Address));
         var account = new Account(new(Guid.Empty, fullName, role, scope), cpf, email, "");
-        return accounts.CreateAsync(scope, role, normalized, passwords.HashPassword(account, request.Password), ct);
+        return accounts.CreateAsync(scope, role, normalized, passwords.HashPassword(account, request.Password), ct, municipalityName);
     }
 
     /// <summary>Conta de equipe sem CPF (o cadastro inicial pelo terminal e as contas de teste): nome, e-mail e senha.</summary>

@@ -15,6 +15,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 {
     private readonly DesktopProfile profile;
     private readonly NoraApiClient api;
+    private readonly IHealthUnitGeocoder unitGeocoder;
     // Uma operação por vez: ação do usuário, ciclo automático e carga de seção entram em fila em vez de se descartarem.
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly DispatcherTimer refreshTimer;
@@ -54,12 +55,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(PageTitle), nameof(PageSubtitle)
     ];
 
-    /// <param name="devices">Armazenamento do computador do OBS (ativação e sessão guardada). Nulo na Secretaria e nos testes que não usam computador: nada é lido nem gravado.</param>
-    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null)
+    /// <param name="devices">Armazenamento local da sessão no Windows e da identificação do computador do OBS.</param>
+    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null, IHealthUnitGeocoder? unitGeocoder = null)
     {
         this.profile = profile;
         this.api = api ?? new();
-        this.devices = profile.IsMunicipal ? null : devices;
+        this.unitGeocoder = unitGeocoder ?? new HealthUnitGeocoder();
+        this.devices = devices;
+        if (profile.IsMunicipal) this.api.SetDeviceCredential(null, null);
         this.clipboard = clipboard ?? new WindowsClipboardService();
         OpeningSteps.CollectionChanged += (_, _) => Notify(nameof(HasOpeningSteps));
         EnsureOpeningDays();
@@ -84,7 +87,17 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     }
 
     public string Endpoint { get => endpoint; set { endpoint = value; Notify(); } }
-    public string Identifier { get => identifier; set { identifier = value; Notify(); } }
+    public string Identifier
+    {
+        get => identifier;
+        set
+        {
+            if (identifier == value) return;
+            identifier = value;
+            if (NeedsLoginUnit) SetLoginUnits([]);
+            Notify();
+        }
+    }
     /// <summary>Há trabalho em andamento: ação do usuário, ciclo automático ou carga de seção.</summary>
     public bool IsBusy => userBusy || backgroundOperations > 0;
     /// <summary>A barra de progresso acompanha ação pedida pelo usuário e a consulta disparada por filtro; a atualização automática é silenciosa.</summary>
@@ -245,9 +258,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(Identifier) || string.IsNullOrWhiteSpace(password)) throw new NoraApiException("Informe seu e-mail e sua senha.");
         if (!BrazilianDataValidator.IsLoginEmail(Identifier)) throw new NoraApiException("Informe um e-mail válido para entrar (nome@dominio.com).");
+        if (desktopAccess) { await LoginDesktopAsync(password); return; }
         api.Configure(Endpoint);
         // A credencial do computador (só no OBS) vai no login e em toda requisição, mas apenas ao mesmo endereço de API para o qual foi ativada.
-        if (devices is not null && ReadStoredDevice() is not null) ApplyDeviceCredential();
+        if (HasDeviceSupport && ReadStoredDevice() is not null) ApplyDeviceCredential();
         var sentCredential = api.SendsDeviceCredential;
         LoginSession session;
         try { session = await api.LoginAsync(profile.Id, Identifier.Trim(), password, keepSignedIn && sentCredential); }

@@ -262,8 +262,10 @@ internal static partial class Program
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes cadastrados"), "Total de pacientes cadastrados não apareceu na Visão geral.");
                         // A Visão geral tem apenas o seletor de UBS; os demais filtros ficam em Indicadores.
-                        var unitFilter = Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Filtrar por UBS");
+                        var filters = OpenPageFilters(window);
+                        var unitFilter = Descendants<ComboBox>(filters).Single(box => AutomationProperties.GetName(box) == "Filtrar por UBS");
                         Require(unitFilter.IsEnabled, "O filtro de UBS da Visão geral deveria estar habilitado.");
+                        ((System.Windows.Controls.Primitives.Popup)window.FindName("FiltersPopup")).IsOpen = false;
                     }
                     else
                     {
@@ -278,7 +280,7 @@ internal static partial class Program
                     window.ViewModel.Navigate("slots");
                     var slotsContent = Layout(window, 980, 640);
                     Require(Descendants<TextBlock>(slotsContent).Any(text => text.Text == "Ofertas criadas") && Descendants<TextBlock>(slotsContent).Any(text => text.Text == "5"), "Contagens de ofertas não aparecem na tela.");
-                    var period = Descendants<ComboBox>(slotsContent).Single(box => AutomationProperties.GetName(box) == "Período das vagas");
+                    var period = Combo(slotsContent, "Período das vagas");
                     Require(period.IsEnabled, "Filtro de período não habilitado.");
                     period.SelectedValue = 7;
                     Layout(window, 980, 640);
@@ -390,7 +392,7 @@ internal static partial class Program
         var account = Descendants<Button>((FrameworkElement)window.Content).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
         InvokeButton(account);
         var menu = account.ContextMenu ?? throw new InvalidOperationException("Menu da conta ausente.");
-        Require(menu.IsOpen && menu.Items.Count == 2, "Conta não abriu exatamente Configurações e Sair.");
+        Require(menu.IsOpen && menu.Items.Count == 3, "Conta não abriu Configurações, Dados do perfil e Sair.");
         var item = menu.Items.Cast<MenuItem>().Single(item => item.Header?.ToString() == header);
         Require(item.IsEnabled && item.Command?.CanExecute(item.CommandParameter) == true, "Ação do menu indisponível: " + header);
         var peer = new System.Windows.Automation.Peers.MenuItemAutomationPeer(item);

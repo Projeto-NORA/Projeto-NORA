@@ -3,8 +3,10 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nora.Api;
+using Nora.Api.Database;
 
 var checks = 0;
 var failures = 0;
@@ -40,6 +42,54 @@ if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(direc
 if (args.Contains("--closing-only")) return await ClosingChecks.RunAsync(directory.FullName);
 // Foto de perfil de qualquer conta (/api/auth/photo).
 if (args.Contains("--photo-only")) return await PhotoChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
+if (args.Contains("--retention-only")) return await RetentionChecks.RunAsync();
+if (args.Contains("--password-recovery-only")) return await PasswordRecoveryChecks.RunAsync();
+
+var configurationSuite = new Suite("configuração");
+await configurationSuite.Check("URL do Neon preserva credenciais codificadas e valida o certificado", async () =>
+{
+    const string uri = "postgresql://usuario%40teste:segredo%3B%40%3A@ep-teste.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    var parse = typeof(DatabaseHelper).GetMethod("ParseConnectionString", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+    var builder = (Npgsql.NpgsqlConnectionStringBuilder)parse.Invoke(null, [uri, "teste"])!;
+    Require(builder.Host == "ep-teste.aws.neon.tech" && builder.Database == "neondb" && builder.Port == 5432
+        && builder.Username == "usuario@teste" && builder.Password == "segredo;@:"
+        && builder.SslMode == Npgsql.SslMode.VerifyFull && builder.ChannelBinding == Npgsql.ChannelBinding.Require,
+        "A URL não foi convertida corretamente.");
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Nora"] = uri }).Build();
+    await using var database = new DatabaseHelper(settings);
+    Require(database.IsConfigured, "A URL não configurou a fonte de dados.");
+});
+await configurationSuite.Check("URL PostgreSQL conecta ao banco descartável", async () =>
+{
+    var raw = Environment.GetEnvironmentVariable("NORA_TEST_CONNECTION");
+    if (string.IsNullOrWhiteSpace(raw)) { Console.WriteLine("SKIP conexão URI: banco descartável ausente."); return; }
+    var current = new Npgsql.NpgsqlConnectionStringBuilder(raw);
+    var uri = $"postgresql://{Uri.EscapeDataString(current.Username!)}:fixture@{current.Host}:{current.Port}/{Uri.EscapeDataString(current.Database!)}?sslmode=disable";
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Nora"] = uri }).Build();
+    await using var database = new DatabaseHelper(settings);
+    await using var connection = await database.OpenAsync();
+    await using var query = database.Command(connection, "SELECT 1");
+    Require(Convert.ToInt32(await query.ExecuteScalarAsync()) == 1, "A URL não abriu uma conexão válida.");
+});
+await configurationSuite.Check("Configuração PostgreSQL inválida orienta o formato e protege a senha no diagnóstico", async () =>
+{
+    const string fakeSecret = "fixture-only-secret-326";
+    var settings = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:Nora"] = $"postgresql://fixture:{fakeSecret}@db.example.test/nora?option-invalida=1"
+    }).Build();
+    try
+    {
+        await using var database = new DatabaseHelper(settings);
+        throw new InvalidDataException("A opção desconhecida foi aceita.");
+    }
+    catch (InvalidOperationException error)
+    {
+        Require(error.Message.Contains("ConnectionStrings__Nora"), "Diagnóstico sem orientação de configuração.");
+        Require(!error.ToString().Contains(fakeSecret, StringComparison.Ordinal), "O diagnóstico incluiu o segredo.");
+    }
+});
+var configurationFailures = configurationSuite.Report();
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -276,7 +326,9 @@ var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
 var closingFailures = await ClosingChecks.RunAsync(directory.FullName);
 var photoFailures = await PhotoChecks.RunAsync(directory.FullName);
 var alphabeticalFailures = await AlphabeticalChecks.RunAsync(directory.FullName);
-return alphabeticalFailures + photoFailures + closingFailures + performanceFailures + deviceFailures + lightningFailures + profileFailures + crossUnitFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var retentionFailures = await RetentionChecks.RunAsync();
+var recoveryFailures = await PasswordRecoveryChecks.RunAsync();
+return configurationFailures + retentionFailures + recoveryFailures + alphabeticalFailures + photoFailures + closingFailures + performanceFailures + deviceFailures + lightningFailures + profileFailures + crossUnitFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

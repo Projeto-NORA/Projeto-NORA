@@ -6,6 +6,9 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
@@ -13,10 +16,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.app_nora.api.*
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
 
+@OptIn(ExperimentalTestApi::class)
 class PatientPresenceServiceTest {
+    @get:Rule val compose = createEmptyComposeRule()
+
     @Test fun connectionSurvivesBackgroundAndEndsWhenTaskIsRemoved() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
@@ -30,7 +37,7 @@ class PatientPresenceServiceTest {
         val offline = AtomicInteger()
         val user = PatientUser("presence-fixture", "Paciente sintético")
         val api = object : PatientApi {
-            override suspend fun login(identifier: String, password: String) = PatientSession("fixture-token", "2026-10-11T23:00:00Z", user)
+            override suspend fun login(identifier: String, password: String) = PatientSession("fixture-token", "2099-01-01T00:00:00Z", user)
             override suspend fun logout(token: String) = Unit
             override suspend fun presence(token: String, online: Boolean) {
                 if (online) onlineCount.incrementAndGet() else offline.incrementAndGet()
@@ -46,7 +53,8 @@ class PatientPresenceServiceTest {
         val launch = Intent(context, MainActivity::class.java)
         ActivityScenario.launch<MainActivity>(launch).use { scenario ->
             try {
-                instrumentation.waitForIdleSync()
+                // Espera o login real montar antes de iniciar a conexão do controlador de teste.
+                compose.waitUntilAtLeastOneExists(hasText("Acessar minha conta"), 15_000)
                 scenario.onActivity { activity ->
                     originalActivity = activity
                     originalViewModel = ViewModelProvider(activity)[PatientViewModel::class.java]
@@ -94,7 +102,7 @@ class PatientPresenceServiceTest {
         fun iso(offsetMillis: Long) = format.format(System.currentTimeMillis() + offsetMillis)
         val status = java.util.concurrent.atomic.AtomicReference("pending")
         val api = object : PatientApi {
-            override suspend fun login(identifier: String, password: String) = PatientSession("lightning-token", "2026-10-11T23:00:00Z", user)
+            override suspend fun login(identifier: String, password: String) = PatientSession("lightning-token", "2099-01-01T00:00:00Z", user)
             override suspend fun units(token: String) = listOf(unit)
             override suspend fun appointments(token: String, unitId: String) = emptyList<PatientAppointment>()
             override suspend fun unitOffers(token: String, unitId: String) = listOf(
@@ -106,7 +114,7 @@ class PatientPresenceServiceTest {
         val title = "Vaga Relâmpago · Cardiologia"
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             try {
-                instrumentation.waitForIdleSync()
+                compose.waitUntilAtLeastOneExists(hasText("Acessar minha conta"), 15_000)
                 scenario.onActivity { activity ->
                     controller.changeAddress("https://nora.example.test")
                     runBlocking { controller.login("fixture@example.test", "fixture-only-password") }

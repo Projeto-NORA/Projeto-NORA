@@ -10,7 +10,7 @@ using Nora.Desktop.Views;
 
 namespace Nora.Desktop.Checks;
 
-/// <summary>Troca de senha em Configurações, troca obrigatória da senha provisória, limpeza no logout e os três temas das telas novas.</summary>
+/// <summary>Troca de senha em Dados do perfil, troca obrigatória da senha provisória, limpeza no logout e os três temas.</summary>
 internal static partial class Program
 {
     private static ShellWindow OpenProfile(DesktopProfile profile, ApiFixture fixture, string storageRoot, string name, Appearance? mode = null)
@@ -20,7 +20,7 @@ internal static partial class Program
     {
         var previewRoot = PreviewRoot(args);
         foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
-        Check($"{profile.Name}: trocar senha em Configurações valida localmente, mostra a senha atual errada no campo e informa o sucesso", () =>
+        Check($"{profile.Name}: Dados do perfil mostra e-mail, permite editar nome e valida a troca de senha", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Senha"); fixture.AddRegistry(unit.Id, "Ana Souza");
@@ -28,32 +28,44 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                window.ViewModel.Navigate("settings");
-                var content = Layout(window, 1280, 1400);
+                var profileWindow = new StaffProfileWindow(vm) { Owner = window, WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -10000, Top = -10000, ShowActivated = false };
+                profileWindow.Show();
+                try
+                {
+                profileWindow.UpdateLayout();
+                var content = (FrameworkElement)profileWindow.Content;
+                var email = (TextBox)profileWindow.FindName("Email");
+                Require(email.IsReadOnly && email.Text == "equipe@example.test", "Dados do perfil não exibiu o e-mail protegido.");
+                ((TextBox)profileWindow.FindName("FullName")).Text = "Equipe Renomeada";
+                InvokeButton(Descendants<Button>(content).Single(button => Equals(button.Content, "Salvar nome")));
+                Require(vm.AccountName == "Equipe Renomeada", "Alterar nome não atualizou o menu da conta.");
                 var current = Secret(content, "Senha atual"); var next = Secret(content, "Nova senha"); var confirm = Secret(content, "Confirmar nova senha");
-                Require(!Descendants<Button>(content).Any(button => button.Content?.ToString() == "Alterar senha" && !button.IsEnabled), "O controle desabilitado 'Alterar senha' ainda existe.");
+                void SavePassword() { InvokeButton(Descendants<Button>(content).Single(button => Equals(button.Content, "Salvar nova senha"))); Settle(vm); }
                 // Validação local: nada é enviado.
                 current.Password = "isolated-test-password"; next.Password = "nova-senha-123"; confirm.Password = "outra-coisa-123";
-                Click(window, content, "Salvar nova senha", 1280, 1400);
-                Require(fixture.Count("POST", "/api/auth/password") == 0 && vm.ConfirmPasswordError.Contains("confirmação") && HasText(Layout(window, 1280, 1400), vm.ConfirmPasswordError), "Confirmação diferente deveria ser barrada junto ao campo.");
-                next.Password = "curta"; confirm.Password = "curta"; Click(window, content, "Salvar nova senha", 1280, 1400);
+                SavePassword();
+                Require(fixture.Count("POST", "/api/auth/password") == 0 && vm.ConfirmPasswordError.Contains("confirmação") && HasText(content, vm.ConfirmPasswordError), "Confirmação diferente deveria ser barrada junto ao campo.");
+                next.Password = "curta"; confirm.Password = "curta"; SavePassword();
                 Require(fixture.Count("POST", "/api/auth/password") == 0 && vm.NewPasswordError.Contains("8 a 256"), "Senha curta deveria ser barrada.");
-                next.Password = "isolated-test-password"; confirm.Password = "isolated-test-password"; Click(window, content, "Salvar nova senha", 1280, 1400);
+                next.Password = "isolated-test-password"; confirm.Password = "isolated-test-password"; SavePassword();
                 Require(fixture.Count("POST", "/api/auth/password") == 0 && vm.NewPasswordError.Contains("diferente da atual"), "Nova igual à atual deveria ser barrada.");
                 // Senha atual errada: 400 invalid-current-password no campo, sessão mantida.
                 current.Password = "senha-errada-123"; next.Password = "nova-senha-123"; confirm.Password = "nova-senha-123";
-                Click(window, content, "Salvar nova senha", 1280, 1400);
-                Require(fixture.Count("POST", "/api/auth/password") == 1 && vm.CurrentPasswordError == "A senha atual não confere." && HasText(Layout(window, 1280, 1400), "A senha atual não confere.") && vm.IsAuthenticated && !vm.HasMessage, "A senha atual errada deveria aparecer no campo, sem encerrar a sessão.");
+                SavePassword();
+                Require(fixture.Count("POST", "/api/auth/password") == 1 && vm.CurrentPasswordError == "A senha atual não confere." && HasText(content, "A senha atual não confere.") && vm.IsAuthenticated && !vm.HasMessage, "A senha atual errada deveria aparecer no campo, sem encerrar a sessão.");
                 Require(current.Password.Length == 0, "O campo da senha atual errada deveria ser limpo.");
                 next.Clear(); confirm.Clear();
-                SaveScrolled(window, Path.Combine(previewRoot, $"{profile.Id}-settings-password-error-light.png"));
+                SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-profile-password-error-light.png"));
                 next.Password = "nova-senha-123"; confirm.Password = "nova-senha-123";
                 // Sucesso.
-                current.Password = "isolated-test-password"; Click(window, content, "Salvar nova senha", 1280, 1400);
+                current.Password = "isolated-test-password"; SavePassword();
                 Require(fixture.PasswordChanges.Single() == ("isolated-test-password", "nova-senha-123") && vm.MessageKind == MessageKind.Success && vm.Message.Contains("outras sessões") && vm.IsAuthenticated, "A troca de senha não foi concluída com o aviso das outras sessões: " + vm.Message);
                 Require(Descendants<PasswordBox>(content).All(box => box.Password.Length == 0) && vm.CurrentPasswordError == "" && vm.NewPasswordError == "" && vm.ConfirmPasswordError == "", "Os campos e erros deveriam ser limpos depois da troca.");
                 Require(!VisibleTexts(content).Any(text => text.Contains("nova-senha-123")), "A senha apareceu em texto.");
-                SaveScrolled(window, Path.Combine(previewRoot, $"{profile.Id}-settings-password-ok-light.png"));
+                SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-profile-password-ok-light.png"));
+                }
+                finally { profileWindow.Close(); }
             }
             finally { CloseWindow(window); }
         });

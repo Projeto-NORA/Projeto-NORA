@@ -9,7 +9,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Alertas da UBS" ToolTip="Fila alta, espera longa, faltas, ocupação da grade e metas fora dos limites da rede.">
       <StackPanel>
         <TextBlock Text="O que passou do limite" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <ItemsControl ItemsSource="{Binding UnitAlerts}" AutomationProperties.Name="Alertas da UBS ativa">
+        <views:PageFilterGroup Label="Alertas da unidade" SearchFields="Title,Specialty,Value" ItemsTarget="{Binding ElementName=AlertsFilterList}" />
+        <ItemsControl x:Name="AlertsFilterList" ItemsSource="{Binding UnitAlerts}" AutomationProperties.Name="Alertas da UBS ativa">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <Border Background="{DynamicResource WarningSurfaceBrush}" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,10" AutomationProperties.Name="{Binding AutomationLabel}">

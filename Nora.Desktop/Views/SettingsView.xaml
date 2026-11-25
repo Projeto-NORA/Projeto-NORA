@@ -1,51 +1,57 @@
-<UserControl x:Class="Nora.Desktop.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+<UserControl x:Class="Nora.Desktop.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" SizeChanged="OnLayoutSizeChanged">
   <UserControl.Resources>
-    <Style x:Key="AppearanceCard" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-      <Setter Property="Padding" Value="16" />
-      <Setter Property="BorderThickness" Value="2" />
-      <Setter Property="AutomationProperties.HelpText" Value="Opção de aparência não selecionada" />
-      <Style.Triggers>
-        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
-          <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
-          <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
-          <Setter Property="AutomationProperties.HelpText" Value="Opção de aparência selecionada" />
-        </DataTrigger>
-      </Style.Triggers>
-    </Style>
-    <Style x:Key="ShortcutKey" TargetType="Border">
-      <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" />
+    <Style x:Key="AppearanceOption" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="9,5" />
-      <Setter Property="MinWidth" Value="72" />
-      <Setter Property="Margin" Value="0,0,12,0" />
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="RadioButton">
+          <Border x:Name="Tile" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="2" CornerRadius="10" Padding="10,14">
+            <ContentPresenter HorizontalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Tile" Property="Background" Value="{DynamicResource SurfaceAltBrush}" /></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" /><Setter TargetName="Tile" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" /><Setter TargetName="Tile" Property="BorderThickness" Value="3" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
     </Style>
-    <Style x:Key="ShortcutRow" TargetType="Border">
-      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="11" />
-      <Setter Property="Padding" Value="12" />
-      <Setter Property="Margin" Value="0,0,10,10" />
+    <Style x:Key="PreferenceSwitch" TargetType="ToggleButton">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="MinHeight" Value="46" />
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="PreferenceRow" Background="Transparent" CornerRadius="8" Padding="6" BorderThickness="2" BorderBrush="Transparent">
+            <DockPanel>
+              <Border x:Name="Track" Width="46" Height="26" Margin="0,0,12,0" BorderBrush="{DynamicResource SecondaryBrush}" BorderThickness="1" CornerRadius="13" Background="{DynamicResource SurfaceAltBrush}" VerticalAlignment="Center">
+                <Ellipse x:Name="Thumb" Width="16" Height="16" Margin="4" Fill="{DynamicResource SecondaryBrush}" HorizontalAlignment="Left" />
+              </Border>
+              <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+            </DockPanel>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PreferenceRow" Property="Background" Value="{DynamicResource SurfaceAltBrush}" /></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource BrandTextBrush}" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="PreferenceRow" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="PreferenceRow" Property="Opacity" Value="0.6" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="SettingsHeading" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+      <Setter Property="Margin" Value="0,0,0,5" />
     </Style>
   </UserControl.Resources>
   <StackPanel>
-    <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="22" Padding="28" Margin="0,0,0,28">
-      <Grid>
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-        <Ellipse Width="132" Height="132" Fill="#16FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-75,-62,0" IsHitTestVisible="False" />
-        <StackPanel>
-          <TextBlock Text="SUA EXPERIÊNCIA NORA" FontSize="11" FontWeight="SemiBold" Foreground="#D9FFFFFF" />
-          <TextBlock Text="Configurações" Foreground="{DynamicResource BrandTextBrush}" FontSize="30" FontWeight="SemiBold" Margin="0,9,0,7" />
-          <TextBlock Text="Personalize aparência, espaço e navegação do seu aplicativo." Foreground="#E6FFFFFF" FontSize="14" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        </StackPanel>
-        <Border Grid.Column="1" Width="52" Height="52" CornerRadius="16" Background="#22FFFFFF" BorderBrush="#55FFFFFF" BorderThickness="1" VerticalAlignment="Center"><TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="25" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-      </Grid>
-    </Border>
     <!-- Foto de perfil: o mesmo menu do avatar da barra lateral ("Alterar foto" / "Remover foto"). -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" AutomationProperties.Name="Foto de perfil" Visibility="{Binding Workspace.IsAuthenticated, Converter={StaticResource BoolVisibility}}">
+    <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16" AutomationProperties.Name="Foto de perfil" Visibility="{Binding Workspace.IsAuthenticated, Converter={StaticResource BoolVisibility}}">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <Button x:Name="SettingsAvatar" Style="{StaticResource AvatarButton}" Click="OnPhotoMenu" ToolTip="Clique para alterar ou remover a foto." AutomationProperties.Name="Alterar foto de perfil"><views:AccountAvatar DataContext="{Binding Workspace}" Size="64" /></Button>
@@ -53,142 +59,72 @@
         <Button Grid.Column="2" Content="Alterar foto / Remover foto" Click="OnPhotoMenu" VerticalAlignment="Center" ToolTip="JPG, PNG ou WebP; a imagem é reduzida para 512 px e enviada em JPEG." />
       </Grid>
     </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-      <StackPanel>
-        <TextBlock Text="Perfil e unidade" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Dados que identificam a pessoa conectada e sua unidade de saúde." />
-        <TextBlock Text="Dados que identificam a pessoa conectada e sua unidade de saúde." Style="{StaticResource Muted}" Margin="0,8,0,18" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-          <StackPanel Margin="0,0,10,0"><TextBlock Text="Nome da conta" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.AccountName}" /></Border></StackPanel>
-          <StackPanel Grid.Column="1" Margin="10,0,0,0"><TextBlock Text="{Binding Workspace.UnitLabelTitle}" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.UnitLabel}" /></Border></StackPanel>
-          <StackPanel Grid.Row="1" Margin="0,14,10,0"><TextBlock Text="Perfil da conta" FontWeight="SemiBold" FontSize="12" /><Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,6,0,0"><TextBlock Text="{Binding Workspace.AccountRoleLabel}" /></Border></StackPanel>
-        </Grid>
-        <Border Background="{DynamicResource BrandSoftBrush}" CornerRadius="10" Padding="14" Margin="0,18,0,0"><StackPanel><TextBlock Text="Alterações de nome, e-mail e localidade" FontWeight="SemiBold" /><TextBlock Text="Nome, e-mail e localidade ainda não podem ser alterados. A senha pode ser alterada abaixo." Style="{StaticResource Muted}" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
-        <WrapPanel Margin="0,14,0,0"><Button Content="Alterar nome e localidade" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /><Button Content="Alterar e-mail" IsEnabled="False" ToolTip="Indisponível: a API ainda não tem rota para esta alteração." ToolTipService.ShowOnDisabled="True" Margin="0,0,8,8" /></WrapPanel>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition x:Name="ShortcutColumn" /></Grid.ColumnDefinitions>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <StackPanel x:Name="PreferencesColumn" Margin="0,0,10,0">
+        <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
+          <StackPanel>
+            <TextBlock Style="{StaticResource SettingsHeading}" Text="◐  Aparência" />
+            <TextBlock Style="{StaticResource Muted}" Text="Escolha como o NORA aparece no seu computador." Margin="0,0,0,12" />
+            <UniformGrid Columns="3">
+              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="0,0,5,0" IsChecked="{Binding LightSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Light" AutomationProperties.Name="Aparência clara">
+                <StackPanel><TextBlock Text="☀" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource WarningBrush}" /><TextBlock Text="Claro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo claro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+              </RadioButton>
+              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="3,0" IsChecked="{Binding DarkSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Dark" AutomationProperties.Name="Aparência escura">
+                <StackPanel><TextBlock Text="☾" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Escuro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo escuro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+              </RadioButton>
+              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="5,0,0,0" IsChecked="{Binding SystemSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="System" AutomationProperties.Name="Aparência do sistema">
+                <StackPanel><TextBlock Text="◐" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Sistema" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Segue o Windows" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+              </RadioButton>
+            </UniformGrid>
+          </StackPanel>
+        </Border>
+        <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
+          <StackPanel>
+            <TextBlock Style="{StaticResource SettingsHeading}" Text="☷  Preferências da interface" Margin="0,0,0,10" />
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ShowSidebarTips}" AutomationProperties.Name="Mostrar dicas na barra lateral"><StackPanel><TextBlock Text="Mostrar dicas na barra lateral" FontWeight="SemiBold" /><TextBlock Text="Mostra ajuda ao passar o mouse no menu." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ConfirmClose}" AutomationProperties.Name="Confirmar antes de fechar o aplicativo"><StackPanel><TextBlock Text="Confirmar antes de fechar o aplicativo" FontWeight="SemiBold" /><TextBlock Text="Pede confirmação antes de fechar a janela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding SaveNavigation}" AutomationProperties.Name="Retomar a última tela ao abrir"><StackPanel><TextBlock Text="Retomar a última tela ao abrir" FontWeight="SemiBold" /><TextBlock Text="Volta à seção que estava aberta." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding Animations}" AutomationProperties.Name="Usar animações suaves ao navegar"><StackPanel><TextBlock Text="Usar animações suaves ao navegar" FontWeight="SemiBold" /><TextBlock Text="Aplica uma transição ao trocar de tela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding RememberSidebar}" AutomationProperties.Name="Lembrar a largura da barra lateral"><StackPanel><TextBlock Text="Lembrar a largura da barra lateral" FontWeight="SemiBold" /><TextBlock Text="Restaura a largura escolhida neste computador." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding FullScreen}" AutomationProperties.Name="Usar tela cheia"><StackPanel><TextBlock Text="Usar tela cheia" FontWeight="SemiBold" /><TextBlock Text="Ocupa toda a área do monitor." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          </StackPanel>
+        </Border>
+        <views:RetentionSettingsView DataContext="{Binding Workspace}" />
       </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" x:Name="PasswordCard">
-      <StackPanel>
-        <TextBlock Text="Alterar senha" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Ao trocar a senha, as outras sessões desta conta são encerradas; esta continua aberta." />
-        <TextBlock Text="Informe a senha atual e escolha uma nova. As outras sessões serão encerradas." Style="{StaticResource Muted}" Margin="0,8,0,18" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <TextBlock Text="Entre na conta para alterar a senha." Style="{StaticResource Muted}" Visibility="{Binding Workspace.IsSignedOut, Converter={StaticResource BoolVisibility}}" />
-        <views:ChangePasswordView DataContext="{Binding Workspace}" Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}" />
-      </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-      <StackPanel>
-        <TextBlock Text="Conexão" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Endereço da API para o próximo login." />
-        <TextBlock Text="Endereço da API para o próximo login." Style="{StaticResource Muted}" Margin="0,8,0,16" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <TextBox Text="{Binding Workspace.Endpoint, UpdateSourceTrigger=PropertyChanged}" Padding="10" MinHeight="42" Background="{DynamicResource SurfaceAltBrush}" Foreground="{DynamicResource TextBrush}" BorderBrush="{DynamicResource BorderBrush}" AutomationProperties.Name="Endereço da API em Configurações" />
-        <TextBlock Text="{Binding Workspace.ConnectionLabel}" Style="{StaticResource Muted}" Margin="0,12,0,0" />
-      </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-      <StackPanel>
-        <TextBlock Text="Aparência" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" ToolTip="Escolha como você prefere ver a NORA." />
-        <TextBlock Text="Escolha como você prefere ver a NORA." Style="{StaticResource Muted}" Margin="0,8,0,22" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <UniformGrid Columns="3" Margin="-6,0">
-          <Button Style="{StaticResource AppearanceCard}" Margin="6,0" Command="{Binding AppearanceCommand}" CommandParameter="Light" ToolTip="Usa o tema claro." Tag="{Binding LightSelected}" AutomationProperties.Name="Aparência clara">
-            <StackPanel>
-              <Border Background="#F4F7FB" BorderBrush="#D5E0EC" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="22" />
-                    <ColumnDefinition />
-                  </Grid.ColumnDefinitions>
-                  <Border Background="#E6F0FA" CornerRadius="4" Margin="0,0,6,0" />
-                  <StackPanel Grid.Column="1">
-                    <Border Background="White" CornerRadius="4" Height="18" Margin="0,0,0,6" />
-                    <Border Background="White" CornerRadius="4" Height="30" />
-                  </StackPanel>
-                </Grid>
-              </Border>
-              <TextBlock Text="Clara" FontWeight="SemiBold" FontSize="15" />
-              <TextBlock Text="Fundo claro e superfícies suaves." Style="{StaticResource Muted}" Margin="0,6,0,0" />
-              <TextBlock Text="Selecionada ✓" Foreground="{DynamicResource BrandBrush}" FontSize="12" Margin="0,10,0,0" Visibility="{Binding LightSelected, Converter={StaticResource BoolVisibility}}" />
-            </StackPanel>
-          </Button>
-          <Button Style="{StaticResource AppearanceCard}" Margin="6,0" Command="{Binding AppearanceCommand}" CommandParameter="Dark" ToolTip="Usa o tema escuro." Tag="{Binding DarkSelected}" AutomationProperties.Name="Aparência escura">
-            <StackPanel>
-              <Border Background="#071B33" BorderBrush="#274966" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" Padding="10">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="22" />
-                    <ColumnDefinition />
-                  </Grid.ColumnDefinitions>
-                  <Border Background="#123A5D" CornerRadius="4" Margin="0,0,6,0" />
-                  <StackPanel Grid.Column="1">
-                    <Border Background="#0C2744" CornerRadius="4" Height="18" Margin="0,0,0,6" />
-                    <Border Background="#0C2744" CornerRadius="4" Height="30" />
-                  </StackPanel>
-                </Grid>
-              </Border>
-              <TextBlock Text="Escura" FontWeight="SemiBold" FontSize="15" />
-              <TextBlock Text="Menos luz, com contraste confortável." Style="{StaticResource Muted}" Margin="0,6,0,0" />
-              <TextBlock Text="Selecionada ✓" Foreground="{DynamicResource BrandBrush}" FontSize="12" Margin="0,10,0,0" Visibility="{Binding DarkSelected, Converter={StaticResource BoolVisibility}}" />
-            </StackPanel>
-          </Button>
-          <Button Style="{StaticResource AppearanceCard}" Margin="6,0" Command="{Binding AppearanceCommand}" CommandParameter="System" ToolTip="Segue o tema do Windows." Tag="{Binding SystemSelected}" AutomationProperties.Name="Aparência do sistema">
-            <StackPanel>
-              <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Height="86" CornerRadius="8" Margin="0,0,0,16" ClipToBounds="True">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition />
-                    <ColumnDefinition />
-                  </Grid.ColumnDefinitions>
-                  <Border Background="#F4F7FB" />
-                  <Border Grid.Column="1" Background="#071B33" />
-                  <TextBlock Grid.ColumnSpan="2" Text="" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="#1479CE" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                </Grid>
-              </Border>
-              <TextBlock Text="Sistema" FontWeight="SemiBold" FontSize="15" />
-              <TextBlock Text="Acompanha a aparência do Windows." Style="{StaticResource Muted}" Margin="0,6,0,0" />
-              <TextBlock Text="Selecionada ✓" Foreground="{DynamicResource BrandBrush}" FontSize="12" Margin="0,10,0,0" Visibility="{Binding SystemSelected, Converter={StaticResource BoolVisibility}}" />
-            </StackPanel>
-          </Button>
-        </UniformGrid>
-      </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-      <StackPanel>
-        <TextBlock Text="Preferências da interface" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Ajustes aplicados imediatamente neste aplicativo e computador." />
-        <TextBlock Text="Ajustes aplicados imediatamente a este aplicativo, sem afetar outros computadores." Style="{StaticResource Muted}" Margin="0,7,0,12" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <CheckBox IsChecked="{Binding ShowSidebarTips}" Content="Mostrar dicas na barra lateral" ToolTip="Mostra uma dica ao passar o mouse nos itens do menu."/>
-        <CheckBox IsChecked="{Binding ConfirmClose}" Content="Confirmar antes de fechar o aplicativo" ToolTip="Pergunta antes de fechar o aplicativo."/>
-        <CheckBox IsChecked="{Binding SaveNavigation}" Content="Retomar a última tela ao abrir" ToolTip="Reabre a última tela usada."/>
-        <CheckBox IsChecked="{Binding Animations}" Content="Usar animações suaves ao navegar" ToolTip="Liga as animações ao trocar de tela."/>
-        <CheckBox IsChecked="{Binding RememberSidebar}" Content="Lembrar a largura escolhida para a barra lateral" ToolTip="Guarda a largura da barra lateral."/>
-        <CheckBox IsChecked="{Binding FullScreen}" Content="Usar tela cheia" ToolTip="Abre a janela em tela cheia."/>
-        <TextBlock Text="As preferências de tela e navegação são independentes entre OBS e Municipal." Style="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
-      </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24">
-      <StackPanel>
-        <TextBlock Text="Atalhos de teclado" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Atalhos disponíveis em qualquer tela; a edição ainda não está disponível." />
-        <TextBlock Text="Disponíveis em qualquer tela. A edição dos atalhos ficará para uma próxima etapa." Style="{StaticResource Muted}" Margin="0,8,0,18" Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}" />
-        <UniformGrid Columns="2" Margin="0,0,-10,-10">
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + 1" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Visão geral" FontWeight="SemiBold" /><TextBlock Text="Abre o Painel da UBS" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + ," FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Configurações" FontWeight="SemiBold" /><TextBlock Text="Abre suas preferências" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + B" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Barra lateral" FontWeight="SemiBold" /><TextBlock Text="Ajusta a navegação" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Ctrl + Shift + T" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Aparência" FontWeight="SemiBold" /><TextBlock Text="Alterna o tema visual" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="F11" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Tela cheia" FontWeight="SemiBold" /><TextBlock Text="Entra ou sai do modo amplo" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Esc" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Sair da tela cheia" FontWeight="SemiBold" /><TextBlock Text="Volta ao tamanho anterior" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-          <Border Style="{StaticResource ShortcutRow}"><StackPanel Orientation="Horizontal"><Border Style="{StaticResource ShortcutKey}"><TextBlock Text="Alt + F4" FontFamily="Consolas" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center" /></Border><StackPanel VerticalAlignment="Center"><TextBlock Text="Fechar aplicativo" FontWeight="SemiBold" /><TextBlock Text="Respeita sua confirmação" Style="{StaticResource Muted}" FontSize="11" /></StackPanel></StackPanel></Border>
-        </UniformGrid>
-      </StackPanel>
-    </Border>
-    <Border Style="{StaticResource Card}">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
+      <Border x:Name="ShortcutCard" Grid.Column="1" Style="{StaticResource Card}" Padding="18" Margin="10,0,0,16" VerticalAlignment="Top">
         <StackPanel>
-          <TextBlock Text="Um novo começo" Style="{StaticResource SectionTitle}" />
-          <TextBlock Text="Restaure aparência e preferências apenas deste aplicativo." Style="{StaticResource Muted}" Margin="0,6,0,0" />
+          <TextBlock Style="{StaticResource SettingsHeading}" Text="⌨  Avançado: teclas de atalho" />
+          <TextBlock Style="{StaticResource Muted}" Text="Clique numa combinação editável e pressione o novo atalho." Margin="0,0,0,10" />
+          <TextBlock x:Name="ShortcutFeedback" Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,5" Visibility="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource TextVisibility}}" />
+          <Grid Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions><TextBlock Text="Ação" FontWeight="SemiBold" /><TextBlock Text="Atalho" Grid.Column="1" FontWeight="SemiBold" /></Grid>
+          <ItemsControl ItemsSource="{Binding ShortcutRows}">
+            <ItemsControl.ItemTemplate><DataTemplate>
+              <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="{Binding Combination}" AutomationProperties.Name="{Binding Label}" Padding="8,5" MinHeight="34" Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}" Click="OnCaptureShortcut" PreviewKeyDown="OnShortcutKeyDown" LostKeyboardFocus="OnShortcutFocusLost" />
+                <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="8,5" MinHeight="34"
+                        Visibility="{Binding Editable, Converter={StaticResource InverseBoolVisibility}}">
+                  <TextBlock Text="{Binding Combination}" Foreground="{DynamicResource SecondaryBrush}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+              </Grid>
+            </DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
-        <Button Grid.Column="1" Content="Restaurar padrões" Command="{Binding RestoreCommand}" Margin="20,0,0,0" VerticalAlignment="Center" ToolTip="Volta todas as preferências ao padrão."/>
-      </Grid>
+      </Border>
+    </Grid>
+    <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,12">
+      <StackPanel>
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Restaurar padrões" Click="OnRequestRestore" Margin="12,0,0,0" VerticalAlignment="Center" />
+          <StackPanel><TextBlock Style="{StaticResource SettingsHeading}" Text="↶  Restaurar preferências padrão" /><TextBlock Style="{StaticResource Muted}" Text="Volta a aparência, as preferências de interface e os atalhos aos padrões." /></StackPanel>
+        </DockPanel>
+        <StackPanel x:Name="RestoreConfirmation" Visibility="Collapsed" Margin="0,12,0,0">
+          <TextBlock Text="Restaurar as preferências deste aplicativo?" AutomationProperties.LiveSetting="Polite" />
+          <WrapPanel Margin="0,8,0,0"><Button Content="Confirmar restauração" x:Name="ConfirmRestore" Command="{Binding RestoreCommand}" Click="OnCancelRestore" Style="{StaticResource PrimaryButton}" Margin="0,0,8,4" /><Button Content="Cancelar" Click="OnCancelRestore" Margin="0,0,0,4" /></WrapPanel>
+        </StackPanel>
+      </StackPanel>
     </Border>
   </StackPanel>
 </UserControl>

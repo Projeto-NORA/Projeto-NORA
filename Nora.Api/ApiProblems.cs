@@ -2,7 +2,10 @@ namespace Nora.Api;
 
 internal static class ApiProblems
 {
-    public static Task WriteAsync(HttpContext context, int status, string? customCode = null)
+    public static Task WriteAsync(HttpContext context, int status, string? customCode = null) =>
+        Create(context, status, customCode).ExecuteAsync(context);
+
+    internal static IResult Create(HttpContext context, int status, string? customCode = null, IDictionary<string, object?>? extra = null)
     {
         var (code, title, detail) = customCode switch
         {
@@ -10,6 +13,11 @@ internal static class ApiProblems
             _ when FamilyProblems.TryGet(customCode, out var familyProblem) => familyProblem,
             _ when RoundProblems.TryGet(customCode, out var roundProblem) => roundProblem,
             _ when PhotoProblems.TryGet(customCode, out var photoProblem) => photoProblem,
+            "device-credential-required" => ("device-credential-required", "Computador sem identificação", "Abra o OBS novamente para preparar o acesso neste computador."),
+            "device-unit-selection-required" => ("device-unit-selection-required", "Escolha a unidade", "Selecione a unidade que você vai usar neste computador."),
+            "device-unit-mismatch" => ("device-unit-mismatch", "Unidade indisponível neste computador", "Confira se a conta tem acesso à unidade deste computador."),
+            "device-no-authorized-units" => ("device-no-authorized-units", "Conta sem unidade", "Peça à Secretaria acesso à unidade antes de entrar no OBS."),
+            "retention-item-unavailable" => ("retention-item-unavailable", "Cadastro indisponível", "Atualize a lista. O cadastro pode ter sido reativado, removido ou vinculado."),
             "invalid-current-password" => ("invalid-current-password", "Senha atual incorreta", "A senha atual informada não confere."),
             "password-change-required" => ("password-change-required", "Troca de senha obrigatória", "Defina uma nova senha antes de continuar."),
             "unit-database-outdated" => ("unit-database-outdated", "Banco da UBS desatualizado", "O banco desta unidade ainda não recebeu a versão atual do schema. A equipe técnica precisa executar a migração das UBS."),
@@ -19,13 +27,15 @@ internal static class ApiProblems
             _ => DefaultFor(status)
         };
         context.Response.Headers.CacheControl = "no-store";
+        var extensions = extra is null ? new Dictionary<string, object?>() : new Dictionary<string, object?>(extra);
+        extensions["code"] = code;
+        extensions["traceId"] = context.TraceIdentifier;
         return Results.Problem(
             statusCode: status,
             type: $"urn:nora:problem:{code}",
             title: title,
             detail: detail,
-            extensions: new Dictionary<string, object?> { ["code"] = code, ["traceId"] = context.TraceIdentifier }
-        ).ExecuteAsync(context);
+            extensions: extensions);
     }
 
     private static (string Code, string Title, string Detail) DefaultFor(int status) => status switch

@@ -6,6 +6,10 @@ Os três aplicativos oferecem Clara, Escura e Sistema. Sistema é o padrão inic
 
 ## Desktops
 
+Nos formulários do OBS e do Painel Municipal, Enter avança pelos campos disponíveis e, ao chegar ao último, aciona a ação principal do formulário. Controles desabilitados e campos somente de leitura são ignorados; em caixas de seleção abertas, Enter confirma a escolha primeiro. Em textos de várias linhas, Enter continua inserindo uma quebra de linha. Filtros que atualizam automaticamente não precisam de botão de envio.
+
+Os perfis de inicialização do Visual Studio dos dois desktops definem `NORA_API_URL` como `https://nora-api-kw8x.onrender.com`. Assim, ao iniciar por esses perfis, os aplicativos usam o serviço hospedado e os dados desse ambiente; para desenvolvimento isolado, ajuste a variável do perfil para o endereço da API local.
+
 OBS e Municipal salvam arquivos independentes em `%LOCALAPPDATA%/NORA/obs/preferences.json` e `%LOCALAPPDATA%/NORA/municipal/preferences.json`. O serviço lê/normaliza tema e rota, recupera padrões quando o JSON é inválido e informa o erro na barra inferior. A leitura preserva o arquivo corrompido; uma alteração posterior de preferência substitui o conteúdo pelo estado atual. A gravação usa arquivo temporário e substituição do destino. Se falhar, a interface informa que a mudança vale apenas para a sessão.
 
 As preferências controlam dicas na sidebar, confirmação de fechamento, restauração da navegação, animação ao trocar tela, lembrança da largura da sidebar e tela cheia. Desativar a restauração de navegação faz a próxima abertura iniciar na Home. No OBS são restauradas Home, Configurações, Pacientes, Fila, Vaga Relâmpago, Configurações da UBS, Família e Comunicados; Agenda, Indicadores e Alertas reabrem na Home. Desativar a lembrança da sidebar faz a próxima abertura usar a largura padrão. Restaurar padrões mantém Configurações aberta na sessão atual e salva Home para a próxima abertura.
@@ -18,13 +22,20 @@ Tela cheia cobre os limites do monitor e remove a borda da janela. Ao sair, rest
 | --- | --- |
 | Ctrl + 1 | Visão geral |
 | Ctrl + , | Configurações |
-| Ctrl + B | Recolher/expandir sidebar |
+| Ctrl + F | Pesquisar texto e itens carregados na tela |
+| Ctrl + B | Alternar entre as larguras compacta e normal da barra lateral |
 | Ctrl + Shift + T | Ciclar Clara, Escura e Sistema |
 | F11 | Entrar/sair de tela cheia |
-| Esc | Sair de tela cheia |
+| Esc | Fechar pesquisa ou sair da tela cheia |
 | Alt + F4 | Fechar, respeitando confirmação |
 
-Os atalhos são exibidos em cartões com a combinação destacada e a ação explicada; permanecem fixos nesta etapa, sem editor de atalhos. Não foram anunciados comandos de pesquisa, atualização ou ações clínicas sem implementação correspondente.
+Os atalhos editáveis ficam ao lado de Aparência e Preferências da interface. Clique na combinação e pressione a nova tecla. O NORA rejeita combinações que conflitam com outras ações. Em janelas estreitas, a seção passa para baixo das preferências. Restaurar padrões pede confirmação e restaura também as combinações alteradas.
+
+Ctrl+F abre a busca no topo da janela, com destaque do resultado atual. Enter avança, Shift+Enter volta e Esc fecha. A pesquisa percorre os dados já carregados na tela atual, respeitando os filtros e as permissões da sessão.
+
+No canto inferior esquerdo, o menu da conta abre **Dados do perfil**, **Configurações** e **Sair da conta**. Dados do perfil mostra e-mail, função e município ou unidades. O nome completo e a senha podem ser alterados ali.
+
+Em **Exclusão de itens desativados**, o gestor municipal administra contas OBS elegíveis. O administrador do OBS administra consultórios da unidade ativa. **Nunca excluir sozinho** começa marcado. Com confirmação, é possível definir um prazo automático para o escopo, agendar um cadastro elegível ou cancelar seu agendamento. A API protege contas com histórico de uso e consultórios referenciados.
 
 ## Android
 
@@ -34,7 +45,7 @@ Na entrada, Configurações pode ser aberta pelo diálogo do ícone de ajuda; ap
 
 Mostrar orientações controla o card de personalização da Home; espaçamento confortável alterna intervalos entre cards. Os avisos são notificações locais do ciclo do serviço de conexão; push por servidor está em P-042. Sobre mostra versão/estado da conta; sair é habilitado para sessão conectada. Restaurar padrões pede confirmação e não encerra a conta.
 
-Endpoint é salvo em SharedPreferences `nora_connection` após login válido. HTTPS é obrigatório em Release; Debug permite HTTP 10.0.2.2 para emulador. Trocar endereço exige sair da conta. Token e identidade ficam somente em memória e não entram em backup/preferências. Desktop permite endereço HTTPS ou HTTP loopback, informado na tela ou por NORA_API_URL. Reabrir os três clientes exige novo login (CPF ou e-mail no app do paciente; e-mail nos dois desktops, que recusam CPF).
+As distribuições do Android e dos desktops chegam com o endereço HTTPS do serviço embutido. No Android de desenvolvimento sem URL embutida, o endereço é editável e salvo em `nora_connection` após login válido. Esse build permite HTTP para o emulador em `10.0.2.2`. O app do paciente mantém a sessão em memória e reabre no login por CPF ou e-mail. Nos desktops, a equipe entra com e-mail e senha, com sessão de 24 horas. Marcar **Manter conectado por 30 dias** protege a sessão pelo DPAPI do Windows e permite restaurá-la ao reabrir até o vencimento.
 
 Home e Configurações têm rolagens independentes. Abrir Configurações volta ao topo, e o retorno preserva a rolagem da Home; a interação foi confirmada pelos testes instrumentados no Pixel_4. O conteúdo fica centralizado e limitado a 640 dp em telas amplas; a conferência visual de tela larga, fonte ampliada e reabertura estável continua em P-003.
 
@@ -61,8 +72,9 @@ A API não tem tela de preferências: tudo vem da configuração do processo (`a
 | `Nora:Registration:HashKey` | nenhum | chave HMAC do cadastro do paciente, com ao menos 32 bytes |
 | `Nora:EmailChange:HashKey` | `Nora:Registration:HashKey` e depois `Nora:PasswordReset:HashKey` | chave HMAC do código de troca do e-mail da conta; vale a primeira das três com ao menos 32 bytes, e nenhuma faz as rotas que geram código responderem 503 |
 | `Nora:Alerts:HighQueue`, `LongWaitDays`, `MissedRate`, `WindowDays`, `Occupancy`, `OccupancyDays` | 20, 30, 0,20, 30, 0,95 e 7 | limites dos alertas; valor fora da faixa não derruba a subida, mas faz as rotas de alertas do OBS e da Secretaria falharem até ser corrigido |
-| `Nora:ObsDevices:RequireForAttendants` | `true` | a atendente só entra no OBS em computador ativado pelo administrador da UBS; com `false` (implantação gradual) a ativação e o "manter conectado" funcionam, mas a atendente também entra sem computador (o administrador entra sempre) |
-| `Nora:ObsDevices:KeepSignedInDays` | `30` | validade, em dias (1 a 90), da sessão do OBS com "manter conectado" (só em computador ativado, sem renovação automática); valor inválido impede a inicialização |
+| `Nora:ObsDevices:Enabled` | `false` | liga o recurso dos computadores do OBS. Desde 24/11/2026 o padrão é desligado: o login do OBS vale sozinho (e-mail, senha e UBS com permissão), nenhum computador é registrado nem exigido, o cabeçalho `X-Nora-Device` de um OBS antigo é ignorado e "manter conectado" vale 30 dias como no Painel. O código dos computadores continua guardado para ligar no futuro |
+| `Nora:ObsDevices:RequireForAttendants` | `true` | só vale com `Enabled=true`: exige computador ativado em sessões antigas de atendente. O cliente OBS ativa o computador ao entrar com acesso à unidade |
+| `Nora:ObsDevices:KeepSignedInDays` | `30` | configura o prazo do contrato antigo de sessão do OBS. Os clientes WPF atuais têm prazos fixos de 24 horas e 30 dias |
 | `Nora:Maintenance:Enabled` | `true` | liga a limpeza periódica (sessões vencidas ou revogadas há mais de 30 dias, desafios de cadastro e de recuperação de senha e códigos de ativação de computadores do OBS vencidos há mais de 1 dia) e a reconciliação das sugestões de e-mail que sobraram na caixa de saída das UBS |
 | `Nora:Maintenance:IntervalHours` | `6` | intervalo da limpeza, de 1 a 168 horas; o primeiro passe roda um minuto após a subida, e valor inválido impede a inicialização |
 | `Nora:UnitLightningWorker:Enabled` | `true` | verificação de 15 s que expira e redistribui as ofertas de Vaga Relâmpago das UBS |
@@ -81,7 +93,7 @@ A API não tem tela de preferências: tudo vem da configuração do processo (`a
 
 ### Computadores do OBS — como implantar (P-014)
 
-A exigência vem **ligada** (`Nora:ObsDevices:RequireForAttendants=true`): depois do deploy as sessões de atendente que não estão ligadas a um computador deixam de valer (401) e a atendente não entra sem um (403 `device-required`). Roteiro: (1) `Nora.Api --migrate` (central até a 022) e `Nora.Api --migrate-all-units` (UBS até a 017); (2) o administrador da UBS entra normalmente, em qualquer computador, e ativa o computador da recepção em Configurações da UBS → Computadores ("Ativar este computador") ou gera um código para outro computador; (3) a atendente abre o OBS no computador ativado e entra com a própria senha (com "Manter conectado" a sessão dura 30 dias). Para uma implantação gradual, suba com `Nora__ObsDevices__RequireForAttendants=false`, ative os computadores e só então volte ao padrão. O segredo do computador nunca vai ao servidor depois da ativação (só o hash) e não está em nenhum arquivo do repositório; o código de ativação vale 15 minutos e uma única vez.
+Antes de distribuir os clientes novos, aplique as migrações centrais até a 024 e das UBS até a 018, conforme o [guia de hospedagem](hospedagem.md). No OBS atual, um login válido com acesso à unidade ativa a instalação. Com várias unidades autorizadas, o primeiro acesso pede uma escolha. O administrador pode consultar e revogar computadores em **Informações da UBS → Computadores**. O cliente protege a identificação da instalação pelo DPAPI. A API recebe a credencial por HTTPS para verificá-la e guarda apenas o hash do segredo.
 
 ### Entrar com Google e push — como ligar (P-042)
 

@@ -85,6 +85,9 @@ internal static partial class Program
             // the same UI context so real asynchronous HTTP continuations stay on STA.
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(application.Dispatcher));
             using var themes = new ThemeService(application);
+            themes.Apply(Appearance.Light);
+            CheckEnterNavigation();
+            CheckHealthUnitGeocoding();
             Check("Temas claro e escuro expõem as mesmas chaves", () =>
             {
                 var light = new ResourceDictionary { Source = new Uri("/Nora.Desktop;component/Themes/LightTheme.xaml", UriKind.Relative) };
@@ -182,6 +185,8 @@ internal static partial class Program
                 Require(vm.SystemSelected && vm.SidebarExpanded && vm.ConfirmClose && themes.Mode == Appearance.System && loaded.Appearance == Appearance.System && loaded.LastPage == "home", "Restauração não atualizou todas as camadas.");
             });
             RunInterfaceChecks(application, root, args);
+            RunPageFilterChecks(root);
+            RunDesktopAccessChecks(root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);
             RunRoundEndToEndChecks(root, args);
@@ -200,7 +205,7 @@ internal static partial class Program
         if (checkFilter != null && !name.Contains(checkFilter, StringComparison.OrdinalIgnoreCase)) return;
         checks++;
         try { action(); Console.WriteLine($"PASS {name}"); }
-        catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}: {error.Message}"); }
+        catch (Exception error) { failures++; Console.WriteLine($"FAIL {name}: {error.Message}"); if (Environment.GetEnvironmentVariable("NORA_CHECK_TRACE") == "1") Console.WriteLine(error.ToString()); }
     }
 
     private static void Require(bool valid, string message)

@@ -1,8 +1,6 @@
 package com.example.app_nora.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,16 +20,17 @@ enum class JourneySection(val label: String) { APPOINTMENTS("Consultas"), EXAMS(
 fun JourneyScreen(patient: PatientState, onOpenAppointments: () -> Unit, onRefreshAttendance: () -> Unit,
     onLoadRecords: () -> Unit = {}, initialSection: JourneySection = JourneySection.APPOINTMENTS) {
     val link = patient.actingLink()
-    ScreenTitle(if (link == null) "Sua Jornada" else "Jornada de ${dependentDisplayName(link)}", if (link == null) "Seus cuidados em um só lugar." else "De ${dependentDisplayName(link)}.")
-    AttendanceCard(patient, onRefreshAttendance)
     var section by rememberSaveable { mutableStateOf(initialSection) }
-    SectionCard("Consultas, exames e vacinas", "Registrados pela equipe das UBS") {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            JourneySection.entries.forEach { item ->
-                FilterChip(selected = section == item, onClick = { section = item }, label = { Text(item.label, maxLines = 1) },
-                    modifier = Modifier.weight(1f))
+    ScreenTitle(if (link == null) "Sua Jornada" else "Jornada de ${dependentDisplayName(link)}",
+        if (link == null) "Seus cuidados em um só lugar." else "De ${dependentDisplayName(link)}.", action = {
+            if (patient.session != null) NoraFilters(
+                if (section == initialSection) 0 else 1, onClear = { section = initialSection }
+            ) {
+                FilterChoices("Tipo de registro", JourneySection.entries, section, { it.label }) { section = it }
             }
-        }
+        })
+    AttendanceCard(patient, onRefreshAttendance)
+    SectionCard(section.label, "Registrados pela equipe das UBS") {
         when (section) {
             JourneySection.APPOINTMENTS -> {
                 MutedText("Futuras e anteriores, em Consultas.")

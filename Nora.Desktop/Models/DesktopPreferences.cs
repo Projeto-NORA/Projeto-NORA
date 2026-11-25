@@ -14,6 +14,7 @@ public sealed class DesktopPreferences
     public double SidebarWidth { get; set; } = 264;
     public bool FullScreen { get; set; }
     public string LastPage { get; set; } = "home";
+    public Dictionary<string, string> Shortcuts { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed record DesktopProfile(string Id, string Name, bool IsMunicipal)

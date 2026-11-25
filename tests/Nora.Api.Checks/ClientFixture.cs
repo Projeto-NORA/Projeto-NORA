@@ -37,7 +37,9 @@ internal static class ClientFixture
         if (File.Exists(stop)) File.Delete(stop);
         await using var app = NoraApiHost.Create(new()
         {
-            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:LegacyGlobalWorkflow:Enabled", registrationTest ? "false" : "true", "--AllowedHosts", "localhost;127.0.0.1;10.0.2.2", "--Logging:LogLevel:Default", "Warning"],
+            Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", connection, "--Nora:Schema", schema, "--Nora:LegacyGlobalWorkflow:Enabled", registrationTest ? "false" : "true", "--AllowedHosts", "localhost;127.0.0.1;10.0.2.2", "--Logging:LogLevel:Default", "Warning",
+                // O E2E dos clientes cobre os computadores do OBS, guardados e desligados no padrão do servidor (24/11/2026); aqui o recurso é ligado de propósito.
+                "--Nora:ObsDevices:Enabled", "true"],
             EnvironmentName = "Development",
             ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name,
             ContentRootPath = Path.Combine(root, "Nora.Api")

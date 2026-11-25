@@ -6,7 +6,7 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-public sealed class ShellViewModel : ObservableObject
+public sealed partial class ShellViewModel : ObservableObject
 {
     private DesktopPreferences preferences;
     private readonly PreferencesService storage;
@@ -25,8 +25,8 @@ public sealed class ShellViewModel : ObservableObject
     public string Status { get => status; private set { status = value; Notify(); } }
     public bool HasPreferenceError => storage.Error != null;
     public string Page { get => page; private set { page = value; MarkSelectedNavigation(); Notify(); Notify(nameof(IsHome)); Notify(nameof(IsSettings)); Notify(nameof(PageLabel)); Notify(nameof(SectionSummary)); } }
-    public bool IsHome => Page != "settings" && !ShowPasswordRequired;
-    public bool IsSettings => Page == "settings" && !ShowPasswordRequired;
+    public bool IsHome => Page != "settings" && !ShowPasswordRequired && !ShowCompactAccess;
+    public bool IsSettings => Page == "settings" && !ShowPasswordRequired && !ShowCompactAccess;
     /// <summary>Senha provisória: a janela mostra só a definição da nova senha (e Sair), sem menu nem dados.</summary>
     public bool ShowPasswordRequired => Workspace.MustChangePassword;
     public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : RouteTitle(Route);
@@ -273,6 +273,7 @@ public sealed class ShellViewModel : ObservableObject
         foreach (var name in new[] { nameof(ShowSidebarTips), nameof(ConfirmClose), nameof(SaveNavigation), nameof(Animations), nameof(RememberSidebar), nameof(FullScreen), nameof(SidebarExpanded), nameof(SidebarWidth), nameof(SidebarColumnWidth), nameof(Appearance), nameof(LightSelected), nameof(DarkSelected), nameof(SystemSelected) }) Notify(name);
         // The restored persisted navigation starts at home on the next launch; settings stays visible now.
         Persist();
+        Notify(nameof(ShortcutRows));
         if (storage.Error == null) Status = "Preferências padrão restauradas neste aplicativo.";
     }
     private void Changed([System.Runtime.CompilerServices.CallerMemberName] string? name = null) { Notify(name); Persist(); }

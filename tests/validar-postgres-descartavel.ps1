@@ -1,12 +1,15 @@
 param(
     [string] $PostgreSqlBin = 'C:\Program Files\PostgreSQL\18\bin',
     [ValidateRange(1024, 65535)] [int] $Port = 55439,
-    [switch] $IncludeUnitDatabases
+    [switch] $IncludeUnitDatabases,
+    [string] $ChecksDll
 )
 
 $ErrorActionPreference = 'Stop'
 $noraRoot = Split-Path -Parent $PSScriptRoot
-$noraCheckDll = Join-Path $noraRoot '.build\Nora.Api.Checks\bin\Release\net10.0\Nora.Api.Checks.dll'
+$noraCheckDll = if ($ChecksDll) { (Resolve-Path -LiteralPath $ChecksDll).Path } else {
+    Join-Path $noraRoot '.build\Nora.Api.Checks\bin\Release\net10.0\Nora.Api.Checks.dll'
+}
 if (-not (Test-Path -LiteralPath $noraCheckDll)) { throw 'Compile NORA.slnx em Release antes de validar.' }
 $noraInit = Join-Path $PostgreSqlBin 'initdb.exe'
 $noraCtl = Join-Path $PostgreSqlBin 'pg_ctl.exe'

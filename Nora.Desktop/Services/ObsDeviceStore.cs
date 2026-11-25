@@ -24,6 +24,10 @@ public interface IObsDeviceStore
     StoredSession? ReadSession();
     bool SaveSession(StoredSession session);
     void DeleteSession();
+    /// <summary>O OBS identifica e ativa o computador (recurso guardado e desligado por padrão). Desligado, o armazenamento serve só para a sessão "manter conectado".</summary>
+    bool ComputersEnabled => false;
+    StoredDevice? ReadEnrollment(string endpoint) => ReadDevice();
+    bool SaveEnrollment(StoredDevice device) => SaveDevice(device);
 }
 
 /// <summary>
@@ -37,7 +41,14 @@ public sealed class ObsDeviceStore : IObsDeviceStore
     private readonly string folder;
     private string? warning;
 
-    public ObsDeviceStore(string? folder = null) => this.folder = folder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NORA", "OBS");
+    /// <param name="computersEnabled">Liga a identificação e a ativação do computador do OBS (padrão desligado, decisão de 24/11/2026). Desligado, só a sessão guardada é usada.</param>
+    public ObsDeviceStore(string? folder = null, bool computersEnabled = false)
+    {
+        this.folder = folder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NORA", "OBS");
+        ComputersEnabled = computersEnabled;
+    }
+
+    public bool ComputersEnabled { get; }
 
     public string DevicePath => Path.Combine(folder, "device.dat");
     public string SessionPath => Path.Combine(folder, "session.dat");
@@ -62,16 +73,30 @@ public sealed class ObsDeviceStore : IObsDeviceStore
     public bool SaveSession(StoredSession session) => Write(SessionPath, SessionEntropy, session, "Não foi possível guardar a sessão neste computador; ela vale só até fechar o aplicativo.");
     public void DeleteSession() => Delete(SessionPath);
 
+    public StoredDevice? ReadEnrollment(string endpoint)
+    {
+        var device = Read<StoredDevice>(EnrollmentPath(endpoint), DeviceEntropy, "Não foi possível restaurar a identificação deste OBS.",
+            item => item.DeviceId != Guid.Empty && item.Secret?.Length == 64 && item.Endpoint == endpoint, out var unavailable);
+        DeviceReadUnavailable = unavailable;
+        return device;
+    }
+
+    public bool SaveEnrollment(StoredDevice device) =>
+        Write(EnrollmentPath(device.Endpoint), DeviceEntropy, device, "Não foi possível guardar a identificação deste OBS.", overwrite: false);
+
+    private string EnrollmentPath(string endpoint) =>
+        Path.Combine(folder, "installation-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(endpoint))) + ".dat");
+
     private T? Read<T>(string path, byte[] entropy, string unreadable, Func<T, bool> valid, out bool unavailable) where T : class
     {
         unavailable = false;
-        if (!File.Exists(path)) return null;
         try
         {
             var plain = ProtectedData.Unprotect(File.ReadAllBytes(path), entropy, DataProtectionScope.CurrentUser);
             var value = JsonSerializer.Deserialize<T>(plain);
             if (value is not null && valid(value)) return value;
         }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { return null; }
         // Falha de E/S não prova que o arquivo está ruim: mantém o arquivo, avisa e deixa a leitura ser repetida.
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -90,15 +115,15 @@ public sealed class ObsDeviceStore : IObsDeviceStore
         return null;
     }
 
-    private bool Write<T>(string path, byte[] entropy, T value, string failure)
+    private bool Write<T>(string path, byte[] entropy, T value, string failure, bool overwrite = true)
     {
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             Directory.CreateDirectory(folder);
             var protectedBytes = ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), entropy, DataProtectionScope.CurrentUser);
-            var temporary = path + ".tmp";
             File.WriteAllBytes(temporary, protectedBytes);
-            File.Move(temporary, path, overwrite: true);
+            File.Move(temporary, path, overwrite);
             return true;
         }
         catch (Exception error) when (error is CryptographicException or IOException or UnauthorizedAccessException or NotSupportedException)
@@ -107,6 +132,7 @@ public sealed class ObsDeviceStore : IObsDeviceStore
             System.Diagnostics.Trace.TraceWarning("NORA: falha ao gravar {0}: {1}", Path.GetFileName(path), error.GetType().Name);
             return false;
         }
+        finally { Delete(temporary); }
     }
 
     private void Delete(string path)

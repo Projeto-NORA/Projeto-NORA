@@ -114,7 +114,9 @@ internal static partial class FamilyChecks
             var app = NoraApiHost.Create(new()
             {
                 Args = ["--urls", "http://127.0.0.1:0", "--ConnectionStrings:Nora", small, "--Nora:Schema", schema, "--Nora:UnitLightningWorker:Enabled", "false", "--Nora:Maintenance:Enabled", "false", "--Nora:UnitDatabases:MaxPoolSize", "2",
-                    "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-family-registration-key-32-bytes", .. (extraArgs ?? Array.Empty<string>())],
+                    "--Logging:LogLevel:Default", "Warning", "--Logging:LogLevel:Nora.Api.Services.UnitDatabaseProvisioner", "None", "--Nora:Registration:HashKey", "synthetic-family-registration-key-32-bytes",
+                    // Estas suítes entram como atendente em computador ativado; o recurso vem desligado no padrão do servidor (24/11/2026) e aqui é ligado de propósito.
+                    "--Nora:ObsDevices:Enabled", "true", .. (extraArgs ?? Array.Empty<string>())],
                 EnvironmentName = "Development", ApplicationName = typeof(NoraApiHost).Assembly.GetName().Name, ContentRootPath = Path.Combine(directory!.FullName, "Nora.Api")
             }, services =>
             {

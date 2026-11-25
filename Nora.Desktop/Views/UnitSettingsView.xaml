@@ -1,4 +1,4 @@
-<UserControl x:Class="Nora.Desktop.Views.UnitSettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.UnitSettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
   <!-- Configurações da UBS (OBS): profissionais, consultórios, grade semanal e bloqueios. Todos consultam; só o administrador da UBS grava. -->
   <UserControl.Resources>
     <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
@@ -36,10 +36,10 @@
                   <TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center" />
                   <CheckBox Grid.Column="1" Content="Fechado" IsChecked="{Binding IsClosed}" VerticalAlignment="Center" ToolTip="Marque para dia sem atendimento ao público." />
                   <StackPanel Grid.Column="2" Orientation="Horizontal" Visibility="{Binding HasIntervals, Converter={StaticResource BoolVisibility}}">
-                    <TextBlock Text="Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Abre, primeiro intervalo, HH:mm" />
-                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,18,0" Text="{Binding Closes1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Fecha, primeiro intervalo, HH:mm" />
-                    <TextBlock Text="e Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Abre, segundo intervalo, HH:mm, opcional" />
-                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0" Text="{Binding Closes2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Fecha, segundo intervalo, HH:mm, opcional" />
+                    <TextBlock Text="Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Abre, primeiro intervalo, HH:mm"  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
+                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,18,0" Text="{Binding Closes1, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, primeiro intervalo (HH:mm)" AutomationProperties.HelpText="Fecha, primeiro intervalo, HH:mm"  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
+                    <TextBlock Text="e Abre" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0,0,10,0" Text="{Binding Opens2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Abre, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Abre, segundo intervalo, HH:mm, opcional"  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
+                    <TextBlock Text="Fecha" VerticalAlignment="Center" Margin="0,0,6,0" /><TextBox Width="62" MaxLength="5" Margin="0" Text="{Binding Closes2, UpdateSourceTrigger=PropertyChanged}" ToolTip="Fecha, segundo intervalo (HH:mm, opcional)" AutomationProperties.HelpText="Fecha, segundo intervalo, HH:mm, opcional"  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
                   </StackPanel>
                 </Grid>
                 <TextBlock Text="{Binding Error}" Style="{StaticResource FieldError}" Margin="236,2,0,4" Visibility="{Binding Error, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
@@ -48,14 +48,14 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock Text="Serviços oferecidos" Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
-        <TextBox Text="{Binding UnitServices, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditProfile}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="96" MaxHeight="200" AutomationProperties.Name="Serviços oferecidos pela UBS" ToolTip="Texto livre, até 1.000 caracteres; quebras de linha são permitidas." />
+        <TextBox Text="{Binding UnitServices, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditProfile}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="96" MaxHeight="200" AutomationProperties.Name="Serviços oferecidos pela UBS" ToolTip="Texto livre, até 1.000 caracteres; quebras de linha são permitidas."  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
         <DockPanel Margin="0,-6,0,8"><TextBlock DockPanel.Dock="Right" Text="{Binding ServicesCounter}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.Name="Contador de caracteres dos serviços" />
           <TextBlock Text="{Binding ServicesError}" Style="{StaticResource FieldError}" Margin="0" Visibility="{Binding ServicesError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" /></DockPanel>
         <TextBlock Text="Especialidades com horário na grade" Style="{StaticResource FieldLabel}" />
         <TextBlock Text="{Binding ProfileSpecialtiesText}" Margin="0,4,0,0" TextWrapping="Wrap" AutomationProperties.Name="Especialidades com horário na grade" />
         <TextBlock Text="{Binding ProfileSpecialtiesHint}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,12" />
         <TextBlock Text="{Binding ProfileUpdatedLabel}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding ProfileUpdatedLabel, Converter={StaticResource TextVisibility}}" />
-        <Button Content="Salvar atendimento ao público" Click="OnSaveProfile" IsEnabled="{Binding CanSaveProfile}" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava horários e serviços de uma vez." ToolTipService.ShowOnDisabled="True" />
+        <Button Content="Salvar atendimento ao público" Click="OnSaveProfile" IsEnabled="{Binding CanSaveProfile}" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava horários e serviços de uma vez." ToolTipService.ShowOnDisabled="True"  enter:EnterNavigation.Group="UnitSettingsView.profile"/>
         <ItemsControl ItemsSource="{Binding ProfileSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do salvamento" />
       </StackPanel>
     </Border>
@@ -85,11 +85,11 @@
           <StackPanel IsEnabled="{Binding CanManageDevices}" MaxWidth="520" HorizontalAlignment="Left">
             <TextBlock Text="Novo computador" FontWeight="SemiBold" Margin="0,0,0,10" />
             <TextBlock Text="Nome do computador" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding DeviceDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="60" AutomationProperties.Name="Nome do computador" ToolTip="Por exemplo, Recepção 1. De 1 a 60 caracteres." />
+            <TextBox Text="{Binding DeviceDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="60" AutomationProperties.Name="Nome do computador" ToolTip="Por exemplo, Recepção 1. De 1 a 60 caracteres."  enter:EnterNavigation.Group="UnitSettingsView.device"/>
             <TextBlock Text="{Binding DeviceNameError}" Style="{StaticResource FieldError}" Visibility="{Binding DeviceNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             <WrapPanel>
-              <Button Content="Ativar este computador" Click="OnActivateThisComputer" IsEnabled="{Binding CanActivateThisComputer}" Style="{StaticResource ObsPrimaryButton}" Margin="0,0,8,8" Visibility="{Binding ShowActivateThisComputer, Converter={StaticResource BoolVisibility}}" ToolTip="Ativa este computador para a UBS ativa e guarda a ativação só aqui." ToolTipService.ShowOnDisabled="True" />
-              <Button Content="Gerar código para outro computador" Click="OnCreateDeviceCode" IsEnabled="{Binding CanCreateDeviceCode}" Margin="0,0,8,8" ToolTip="Gera um código de 15 minutos, de uso único, para digitar na tela de entrada do outro computador." ToolTipService.ShowOnDisabled="True" />
+              <Button Content="Ativar este computador" Click="OnActivateThisComputer" IsEnabled="{Binding CanActivateThisComputer}" Style="{StaticResource ObsPrimaryButton}" Margin="0,0,8,8" Visibility="{Binding ShowActivateThisComputer, Converter={StaticResource BoolVisibility}}" ToolTip="Ativa este computador para a UBS ativa e guarda a ativação só aqui." ToolTipService.ShowOnDisabled="True"  enter:EnterNavigation.Group="UnitSettingsView.device"/>
+              <Button Content="Gerar código para outro computador" Click="OnCreateDeviceCode" IsEnabled="{Binding CanCreateDeviceCode}" Margin="0,0,8,8" ToolTip="Gera um código de 15 minutos, de uso único, para digitar na tela de entrada do outro computador." ToolTipService.ShowOnDisabled="True" enter:EnterNavigation.Group="UnitSettingsView.device" />
             </WrapPanel>
           </StackPanel>
         </Border>
@@ -109,7 +109,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="professionals" AutomationProperties.Name="Profissionais" ToolTip="Gerencie profissionais e suas especialidades. O conselho não é conferido pelo sistema; desativar não cancela consultas já marcadas.">
       <StackPanel>
         <TextBlock Text="Profissionais" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Profissionais" SearchFields="FullName,SpecialtiesDisplay,CouncilDisplay,StatusDisplay" ItemsTarget="{Binding ElementName=ProfessionalsFilterList}" />
+        <DataGrid x:Name="ProfessionalsFilterList" ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding FullName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Especialidades" Binding="{Binding SpecialtiesDisplay}" Width="1.4*" MinWidth="160" ElementStyle="{StaticResource CellText}" />
@@ -127,14 +128,14 @@
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="640" HorizontalAlignment="Left">
             <TextBlock Text="{Binding ProfessionalDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
             <TextBlock Text="Nome completo" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding ProfessionalName, UpdateSourceTrigger=PropertyChanged}" MaxLength="160" AutomationProperties.Name="Nome do profissional" />
+            <TextBox Text="{Binding ProfessionalName, UpdateSourceTrigger=PropertyChanged}" MaxLength="160" AutomationProperties.Name="Nome do profissional"  enter:EnterNavigation.Group="UnitSettingsView.professional"/>
             <TextBlock Text="{Binding ProfessionalNameError}" Style="{StaticResource FieldError}" Visibility="{Binding ProfessionalNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="Conselho profissional (opcional: sigla, número e UF juntos)" Style="{StaticResource FieldLabel}" />
             <Grid Margin="0,6,0,12">
               <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
-              <TextBox Text="{Binding CouncilAcronym, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" Margin="0,0,8,0" AutomationProperties.Name="Sigla do conselho" ToolTip="Sigla, por exemplo CRM" />
-              <TextBox Grid.Column="1" Text="{Binding CouncilNumber, UpdateSourceTrigger=PropertyChanged}" MaxLength="20" Margin="0,0,8,0" AutomationProperties.Name="Número do conselho" ToolTip="Número do registro" />
-              <TextBox Grid.Column="2" Text="{Binding CouncilState, UpdateSourceTrigger=PropertyChanged}" MaxLength="2" CharacterCasing="Upper" Margin="0" AutomationProperties.Name="UF do conselho" ToolTip="UF do registro" />
+              <TextBox Text="{Binding CouncilAcronym, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" Margin="0,0,8,0" AutomationProperties.Name="Sigla do conselho" ToolTip="Sigla, por exemplo CRM"  enter:EnterNavigation.Group="UnitSettingsView.professional"/>
+              <TextBox Grid.Column="1" Text="{Binding CouncilNumber, UpdateSourceTrigger=PropertyChanged}" MaxLength="20" Margin="0,0,8,0" AutomationProperties.Name="Número do conselho" ToolTip="Número do registro"  enter:EnterNavigation.Group="UnitSettingsView.professional"/>
+              <TextBox Grid.Column="2" Text="{Binding CouncilState, UpdateSourceTrigger=PropertyChanged}" MaxLength="2" CharacterCasing="Upper" Margin="0" AutomationProperties.Name="UF do conselho" ToolTip="UF do registro"  enter:EnterNavigation.Group="UnitSettingsView.professional"/>
             </Grid>
             <TextBlock Text="{Binding CouncilError}" Style="{StaticResource FieldError}" Visibility="{Binding CouncilError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="Especialidades (da lista da rede)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
@@ -144,7 +145,7 @@
             </ItemsControl>
             <TextBlock Text="Sem especialidades ativas. Peça à Secretaria para cadastrá-las." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding NoSpecialtyChoices, Converter={StaticResource BoolVisibility}}" />
             <TextBlock Text="{Binding ProfessionalSpecialtyError}" Style="{StaticResource FieldError}" Margin="0,0,0,8" Visibility="{Binding ProfessionalSpecialtyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Salvar profissional" Click="OnSaveProfessional" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o profissional."/>
+            <Button Content="Salvar profissional" Click="OnSaveProfessional" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o profissional." enter:EnterNavigation.Group="UnitSettingsView.professional"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -154,7 +155,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="rooms" AutomationProperties.Name="Consultórios" ToolTip="Consultórios desativados deixam de oferecer horários, mas a grade permanece cadastrada.">
       <StackPanel>
         <TextBlock Text="Consultórios" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Consultórios" SearchFields="Name,StatusDisplay" ItemsTarget="{Binding ElementName=RoomsFilterList}" />
+        <DataGrid x:Name="RoomsFilterList" ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="130" />
@@ -170,9 +172,9 @@
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="420" HorizontalAlignment="Left">
             <TextBlock Text="{Binding RoomDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
             <TextBlock Text="Nome do consultório" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding RoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="Nome do consultório" />
+            <TextBox Text="{Binding RoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="Nome do consultório"  enter:EnterNavigation.Group="UnitSettingsView.room"/>
             <TextBlock Text="{Binding RoomNameError}" Style="{StaticResource FieldError}" Visibility="{Binding RoomNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button ToolTip="Grava o consultório." Content="Salvar consultório" Click="OnSaveRoom" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o consultório." Content="Salvar consultório" Click="OnSaveRoom" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left"  enter:EnterNavigation.Group="UnitSettingsView.room"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -182,7 +184,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="schedule" AutomationProperties.Name="Grade semanal" ToolTip="A grade define atendimentos por dia, profissional, especialidade e consultório. Horários sobrepostos não são aceitos.">
       <StackPanel>
         <TextBlock Text="Grade semanal de horários" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Grade semanal" SearchFields="WeekdayDisplay,ProfessionalName,RoomName,SpecialtyName" ItemsTarget="{Binding ElementName=ScheduleFilterList}" />
+        <DataGrid x:Name="ScheduleFilterList" ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Dia" Binding="{Binding WeekdayDisplay}" SortMemberPath="Weekday" Width="130" />
             <DataGridTextColumn Header="Horário" Binding="{Binding RangeDisplay}" Width="110" />
@@ -204,24 +207,24 @@
             <TextBlock Text="{Binding ScheduleDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
             <WrapPanel>
               <StackPanel Width="240" Margin="0,0,12,0"><TextBlock Text="Profissional" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding ActiveProfessionalOptions}" SelectedItem="{Binding ScheduleProfessional}" DisplayMemberPath="FullName" AutomationProperties.Name="Profissional da grade" /></StackPanel>
+                <ComboBox ItemsSource="{Binding ActiveProfessionalOptions}" SelectedItem="{Binding ScheduleProfessional}" DisplayMemberPath="FullName" AutomationProperties.Name="Profissional da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
               <StackPanel Width="220" Margin="0,0,12,0"><TextBlock Text="Especialidade do atendimento" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding ScheduleSpecialtyOptions}" SelectedItem="{Binding ScheduleSpecialty}" DisplayMemberPath="Name" AutomationProperties.Name="Especialidade da grade" /></StackPanel>
+                <ComboBox ItemsSource="{Binding ScheduleSpecialtyOptions}" SelectedItem="{Binding ScheduleSpecialty}" DisplayMemberPath="Name" AutomationProperties.Name="Especialidade da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
               <StackPanel Width="200" Margin="0,0,12,0"><TextBlock Text="Consultório" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding ActiveRoomOptions}" SelectedItem="{Binding ScheduleRoom}" DisplayMemberPath="Name" AutomationProperties.Name="Consultório da grade" /></StackPanel>
+                <ComboBox ItemsSource="{Binding ActiveRoomOptions}" SelectedItem="{Binding ScheduleRoom}" DisplayMemberPath="Name" AutomationProperties.Name="Consultório da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
               <StackPanel Width="180" Margin="0,0,12,0"><TextBlock Text="Dia da semana" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.WeekdayOptions}" DisplayMemberPath="Label" SelectedValuePath="Day" SelectedValue="{Binding ScheduleWeekday}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Dia da semana da grade" /></StackPanel>
-              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleStart, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da grade" /></StackPanel>
-              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleEnd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da grade" /></StackPanel>
-              <StackPanel Width="140" Margin="0,0,12,0"><TextBlock Text="Duração (minutos)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleSlotMinutes, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Duração do atendimento da grade" ToolTip="De 5 a 240 minutos" /></StackPanel>
-              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência de (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidFrom, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite" /></StackPanel>
-              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidUntil, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite" /></StackPanel>
+                <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.WeekdayOptions}" DisplayMemberPath="Label" SelectedValuePath="Day" SelectedValue="{Binding ScheduleWeekday}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Dia da semana da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
+              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleStart, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
+              <StackPanel Width="110" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleEnd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da grade"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
+              <StackPanel Width="140" Margin="0,0,12,0"><TextBlock Text="Duração (minutos)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleSlotMinutes, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Duração do atendimento da grade" ToolTip="De 5 a 240 minutos"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
+              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência de (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidFrom, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Início da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
+              <StackPanel Width="160" Margin="0,0,12,0"><TextBlock Text="Vigência até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding ScheduleValidUntil, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fim da vigência da grade" ToolTip="dd/mm/aaaa; em branco = sem limite"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/></StackPanel>
             </WrapPanel>
             <Border BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,12" Visibility="{Binding ScheduleOverlapError, Converter={StaticResource TextVisibility}}" AutomationProperties.Name="Aviso de sobreposição na grade">
               <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Top" /><TextBlock Grid.Column="1" Text="{Binding ScheduleOverlapError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></Grid>
             </Border>
             <TextBlock Text="{Binding ScheduleError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding ScheduleError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button ToolTip="Grava o horário na grade." Content="Salvar horário na grade" Click="OnSaveSchedule" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o horário na grade." Content="Salvar horário na grade" Click="OnSaveSchedule" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left"  enter:EnterNavigation.Group="UnitSettingsView.schedule"/>
           </StackPanel>
         </Border>
       </StackPanel>
@@ -231,7 +234,8 @@
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="blocks" AutomationProperties.Name="Bloqueios" ToolTip="Bloqueios retiram horários livres de um profissional ou da UBS inteira no período informado.">
       <StackPanel>
         <TextBlock Text="Bloqueios (folgas e feriados)" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <DataGrid ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
+        <views:PageFilterGroup Label="Bloqueios" SearchFields="ScopeDisplay,Reason" ItemsTarget="{Binding ElementName=BlocksFilterList}" />
+        <DataGrid x:Name="BlocksFilterList" ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Vale para" Binding="{Binding ScopeDisplay}" Width="*" MinWidth="140" ElementStyle="{StaticResource CellText}" />
             <DataGridTextColumn Header="Período" Binding="{Binding PeriodDisplay}" SortMemberPath="StartsAt" Width="1.2*" MinWidth="200" ElementStyle="{StaticResource CellText}" />
@@ -247,19 +251,19 @@
             <TextBlock Text="Novo bloqueio" FontWeight="SemiBold" Margin="0,0,0,10" />
             <WrapPanel>
               <StackPanel Width="240" Margin="0,0,12,0"><TextBlock Text="Vale para" Style="{StaticResource FieldLabel}" />
-                <ComboBox ItemsSource="{Binding BlockScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding BlockScope}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Quem o bloqueio atinge" /></StackPanel>
-              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="De (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockFromText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data inicial do bloqueio" /></StackPanel>
-              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="Até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockToText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data final do bloqueio" ToolTip="Em branco, o bloqueio vale só para o dia inicial." /></StackPanel>
+                <ComboBox ItemsSource="{Binding BlockScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding BlockScope}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Quem o bloqueio atinge"  enter:EnterNavigation.Group="UnitSettingsView.block"/></StackPanel>
+              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="De (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockFromText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data inicial do bloqueio"  enter:EnterNavigation.Group="UnitSettingsView.block"/></StackPanel>
+              <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="Até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockToText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data final do bloqueio" ToolTip="Em branco, o bloqueio vale só para o dia inicial."  enter:EnterNavigation.Group="UnitSettingsView.block"/></StackPanel>
             </WrapPanel>
             <CheckBox ToolTip="Bloqueia o dia todo, sem escolher horário." Content="Dia inteiro (feriado ou folga)" IsChecked="{Binding BlockFullDay}" Margin="0,0,0,12" AutomationProperties.Name="Bloquear dias inteiros" />
             <WrapPanel IsEnabled="{Binding BlockTimesEnabled}">
-              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockStartTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário inicial do bloqueio" /></StackPanel>
-              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockEndTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário final do bloqueio" /></StackPanel>
+              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockStartTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário inicial do bloqueio"  enter:EnterNavigation.Group="UnitSettingsView.block"/></StackPanel>
+              <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockEndTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário final do bloqueio"  enter:EnterNavigation.Group="UnitSettingsView.block"/></StackPanel>
             </WrapPanel>
             <TextBlock Text="Motivo" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding BlockReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Motivo do bloqueio" />
+            <TextBox Text="{Binding BlockReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Motivo do bloqueio"  enter:EnterNavigation.Group="UnitSettingsView.block"/>
             <TextBlock Text="{Binding BlockError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding BlockError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button ToolTip="Grava o bloqueio de agenda." Content="Criar bloqueio" Click="OnSaveBlock" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o bloqueio de agenda." Content="Criar bloqueio" Click="OnSaveBlock" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left"  enter:EnterNavigation.Group="UnitSettingsView.block"/>
           </StackPanel>
         </Border>
       </StackPanel>

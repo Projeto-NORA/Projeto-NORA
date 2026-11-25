@@ -10,7 +10,7 @@ using Nora.Desktop.ViewModels;
 
 namespace Nora.Desktop.Views;
 
-/// <summary>Moldura das seções da Secretaria. Cada seção com dados reais é um UserControl próprio; aqui ficam só os títulos e os avisos das seções ainda sem dados.</summary>
+/// <summary>Seleciona o conteúdo da seção atual da Secretaria.</summary>
 public partial class MunicipalView : UserControl
 {
     private WorkspaceViewModel? workspace;

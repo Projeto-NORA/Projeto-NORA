@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -44,12 +46,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.app_nora.BuildConfig
 import com.example.app_nora.preferences.*
 import com.example.app_nora.api.*
@@ -211,6 +213,13 @@ private val mainDestinations = listOf(
     PatientDestination.PROFILE,
 )
 
+private val returnHomeDestinations = setOf(
+    PatientDestination.APPOINTMENTS, PatientDestination.UNITS, PatientDestination.BOOKING,
+    PatientDestination.FLASH, PatientDestination.PASSWORD,
+)
+
+private val configurableServiceAddress = BuildConfig.NORA_API_URL.isBlank()
+
 @Composable
 private fun PatientNavigationIcon(destination: PatientDestination) {
     val color = LocalContentColor.current
@@ -267,6 +276,43 @@ private fun PatientNavigationIcon(destination: PatientDestination) {
             PatientDestination.PROFILE -> {
                 drawCircle(color, radius = 3.5f * unit, center = point(12f, 7.5f), style = line)
                 drawArc(color, 180f, 180f, false, point(4f, 12f), Size(16f * unit, 10f * unit), style = line)
+            }
+            PatientDestination.APPOINTMENTS -> {
+                drawRoundRect(color, point(3f, 5f), Size(18f * unit, 15f * unit),
+                    androidx.compose.ui.geometry.CornerRadius(2f * unit), style = line)
+                drawLine(color, point(7f, 3f), point(7f, 8f), 2f * unit, line.cap)
+                drawLine(color, point(17f, 3f), point(17f, 8f), 2f * unit, line.cap)
+                drawLine(color, point(3f, 10f), point(21f, 10f), 2f * unit, line.cap)
+                val check = Path().apply {
+                    moveTo(8f * unit, 14.5f * unit)
+                    lineTo(11f * unit, 17f * unit)
+                    lineTo(16f * unit, 13f * unit)
+                }
+                drawPath(check, color, style = line)
+            }
+            PatientDestination.UNITS -> {
+                val pin = Path().apply {
+                    moveTo(12f * unit, 21f * unit)
+                    cubicTo(9f * unit, 17f * unit, 5f * unit, 14f * unit, 5f * unit, 10f * unit)
+                    cubicTo(5f * unit, 1f * unit, 19f * unit, 1f * unit, 19f * unit, 10f * unit)
+                    cubicTo(19f * unit, 14f * unit, 15f * unit, 17f * unit, 12f * unit, 21f * unit)
+                    close()
+                }
+                drawPath(pin, color, style = line)
+                drawLine(color, point(9f, 10f), point(15f, 10f), 2f * unit, line.cap)
+                drawLine(color, point(12f, 7f), point(12f, 13f), 2f * unit, line.cap)
+            }
+            PatientDestination.FLASH -> {
+                val bolt = Path().apply {
+                    moveTo(13f * unit, 2f * unit)
+                    lineTo(5f * unit, 13f * unit)
+                    lineTo(11f * unit, 13f * unit)
+                    lineTo(10f * unit, 22f * unit)
+                    lineTo(19f * unit, 10f * unit)
+                    lineTo(13f * unit, 10f * unit)
+                    close()
+                }
+                drawPath(bolt, color, style = line)
             }
             else -> drawCircle(color, radius = 2f * unit, center = point(12f, 12f), style = line)
         }
@@ -498,7 +544,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                                         }
                                     }) { Hint(item.hint) { PatientNavigationIcon(item) } }
                                 },
-                                label = { Text(item.title, maxLines = 1) },
+                                label = { Text(item.title, maxLines = 2, fontWeight = FontWeight.SemiBold) },
                                 colors = NavigationBarItemDefaults.colors(
                                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -526,8 +572,8 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                 Column(
                     Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight()
                         .verticalScroll(if (settingsOpen) settingsScroll else pageScroll)
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (settings.comfortableSpacing) 20.dp else 12.dp),
+                        .padding(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (settings.comfortableSpacing) 16.dp else 10.dp),
                 ) {
                     if (patient.session != null && !settingsOpen && destination == PatientDestination.HOME) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -779,7 +825,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
         }
     }
 
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .7f)) {
+    if (configurableServiceAddress) Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .7f)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             // O texto cede espaço (quebra em linhas) e o botão nunca quebra a palavra, mesmo com fonte ampliada.
@@ -790,7 +836,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             }
         }
     }
-    if (connectionSettingsOpen) SectionCard("Conexão da UBS", "Use o endereço fornecido pela unidade") {
+    if (configurableServiceAddress && connectionSettingsOpen) SectionCard("Conexão da UBS", "Use o endereço fornecido pela unidade") {
         OutlinedTextField(value = patient.address, onValueChange = onAddressChange,
             label = { Text("Endereço do serviço NORA") }, placeholder = { Text("https://...") },
             singleLine = true, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
@@ -1174,18 +1220,18 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         }
         Text("Acesso rápido", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QuickActionCard("Consultas", "Futuras e anteriores", "▣", Modifier.weight(1f)) {
+            QuickActionCard("Consultas", "Futuras e anteriores", PatientDestination.APPOINTMENTS, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.APPOINTMENTS)
             }
-            QuickActionCard("UBS próximas", "Unidades e serviços", "⌖", Modifier.weight(1f)) {
+            QuickActionCard("UBS próximas", "Unidades e serviços", PatientDestination.UNITS, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.UNITS)
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            QuickActionCard("Sua Jornada", "Cuidados e histórico", "↗", Modifier.weight(1f)) {
+            QuickActionCard("Sua Jornada", "Cuidados e histórico", PatientDestination.JOURNEY, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.JOURNEY)
             }
-            QuickActionCard("Vaga Relâmpago", "Oportunidades", "⚡", Modifier.weight(1f)) {
+            QuickActionCard("Vaga Relâmpago", "Oportunidades", PatientDestination.FLASH, Modifier.weight(1f)) {
                 onNavigate(PatientDestination.FLASH)
             }
         }
@@ -1232,7 +1278,30 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
     onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit,
     onLoadAbout: (String) -> Unit) {
-    ScreenTitle("Unidades de saúde", "Suas UBS, horários e mapa.")
+    var unitQuery by remember { mutableStateOf("") }
+    var sort by rememberSaveable { mutableStateOf(UnitSort.ORIGINAL) }
+    val visibleUnits = remember(patient.units, unitQuery, sort) {
+        val query = unitQuery.normalizedSearchText()
+        val linkedUnits = patient.units.orEmpty()
+        val units = if (query.isEmpty()) linkedUnits else linkedUnits.filter { candidate ->
+            candidate.name.normalizedSearchText().contains(query) || candidate.region.normalizedSearchText().contains(query) ||
+                candidate.address.normalizedSearchText().contains(query)
+        }
+        when (sort) {
+            UnitSort.ORIGINAL -> units.sortedAlphabetically { it.name }
+            UnitSort.NAME_ASC, UnitSort.NAME_DESC -> {
+                val sorted = units.map { it to it.name.normalizedSearchText() }.sortedBy { it.second }.map { it.first }
+                if (sort == UnitSort.NAME_ASC) sorted else sorted.reversed()
+            }
+        }
+    }
+    val filterCount = listOf(unitQuery.isNotBlank(), sort != UnitSort.ORIGINAL).count { it }
+    ScreenTitle("Unidades de saúde", "Suas UBS, horários e mapa.", action = {
+        if (patient.session != null) NoraFilters(filterCount, onClear = { unitQuery = ""; sort = UnitSort.ORIGINAL }) {
+            FilterSearch(unitQuery, { unitQuery = it }, "Nome, região ou endereço")
+            FilterChoices("Ordenar unidades", UnitSort.entries, sort, { it.label }) { sort = it }
+        }
+    })
     if (ownUnitsNotice) ActionMessage("Agora você está vendo as suas UBS")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
@@ -1266,11 +1335,12 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
             patient.units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro.")
             else -> {
                 Box {
-                    OutlinedButton(onClick = { expanded = true }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { expanded = true }, enabled = !patient.busy && visibleUnits.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()) {
                         Text(selected?.name ?: "Selecionar UBS")
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        patient.units.sortedAlphabetically { it.name }.forEach { unit ->
+                        visibleUnits.forEach { unit ->
                             DropdownMenuItem(text = { Text(unit.name) }, onClick = {
                                 expanded = false
                                 onSelectUnit(unit.id)
@@ -1278,6 +1348,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
                         }
                     }
                 }
+                if (visibleUnits.isEmpty()) MutedText("Nenhuma UBS corresponde aos filtros.")
                 selected?.let { MutedText("${it.region} · ${it.address}") }
             }
         }
@@ -1348,11 +1419,19 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
     }
 }
 
+private enum class UnitSort(val label: String) {
+    ORIGINAL("Ordem original"), NAME_ASC("Nome A–Z"), NAME_DESC("Nome Z–A")
+}
+
 @Composable
-internal fun ScreenTitle(@Suppress("UNUSED_PARAMETER") title: String, subtitle: String) {
-    // O título fica no cabeçalho (NoraTopBar); aqui só a frase curta da tela.
-    if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+internal fun ScreenTitle(@Suppress("UNUSED_PARAMETER") title: String, subtitle: String, action: (@Composable () -> Unit)? = null) {
+    // O título fica no cabeçalho (NoraTopBar); aqui só a frase curta da tela e, quando há, o botão de filtros.
+    if (subtitle.isBlank() && action == null) return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        Text(if (subtitle.isNotBlank()) subtitle else "", style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        action?.invoke()
+    }
 }
 
 /** Botão do score no cabeçalho: troféu na cor da faixa e os pontos; leva à Jornada. */
@@ -1369,27 +1448,28 @@ private fun ScoreButton(scoreSummary: AttendanceSummary, onClick: () -> Unit) {
 
 
 @Composable
-private fun QuickActionCard(title: String, subtitle: String, glyph: String, modifier: Modifier = Modifier,
+private fun QuickActionCard(title: String, subtitle: String, destination: PatientDestination, modifier: Modifier = Modifier,
     onClick: () -> Unit) {
     val shape = RoundedCornerShape(22.dp)
     val colors = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
     Card(onClick = onClick, modifier = modifier.heightIn(min = 108.dp),
         shape = RoundedCornerShape(22.dp),
+        interactionSource = interaction,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 3.dp)) {
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(
-            colors.surface,
+            if (hovered) colors.primaryContainer else colors.surface,
             lerp(colors.surface, colors.primaryContainer, .22f),
             lerp(colors.surface, colors.tertiaryContainer, .18f)),
             start = Offset.Zero, end = Offset(520f, 600f)), shape).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                Text(glyph, Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold)
+            Surface(shape = RoundedCornerShape(14.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
+                Box(Modifier.padding(8.dp)) { PatientNavigationIcon(destination) }
             }
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1493,7 +1573,7 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
     SectionCard("Sobre o app", "NORA · Saúde digital") {
         Text("Versão ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
         MutedText(patient.session?.user?.fullName ?: "Nenhuma conta conectada neste dispositivo.")
-        if (patient.session == null) OutlinedTextField(patient.address, onAddressChange,
+        if (configurableServiceAddress && patient.session == null) OutlinedTextField(patient.address, onAddressChange,
             label = { Text("Endereço do serviço NORA") }, singleLine = true,
             enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
         if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}")

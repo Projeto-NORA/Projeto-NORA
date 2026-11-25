@@ -1,14 +1,6 @@
 <UserControl x:Class="Nora.Desktop.Views.MunicipalLightningHeroView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Border Style="{StaticResource Card}" BorderBrush="{DynamicResource WarningBrush}" Margin="0,0,0,20" ClipToBounds="True" ToolTip="Acompanhe as vagas e ofertas da rede. Os números seguem o período de criação da vaga e a UBS escolhida.">
-    <Grid>
-      <Path Data="M 54,0 L 12,75 L 45,75 L 25,145 L 102,55 L 63,55 L 88,0 Z" Fill="{DynamicResource WarningBrush}" Opacity="0.12" Stretch="Uniform" Width="150" Height="175" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,-25,44,-25" IsHitTestVisible="False" />
-      <DockPanel LastChildFill="True">
-        <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Content="Atualizar vagas" Command="{Binding RefreshCommand}" VerticalAlignment="Top" AutomationProperties.Name="Atualizar vagas da rede" ToolTip="Atualizar vagas da rede" />
-        <StackPanel>
-          <TextBlock Text="ACOMPANHAMENTO DA REDE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource WarningBrush}" Margin="0,0,0,8" />
-          <StackPanel Orientation="Horizontal"><TextBlock Text="⚡" FontSize="25" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Center" /><TextBlock Text="Vaga Relâmpago" Style="{StaticResource PageTitle}" VerticalAlignment="Center" /></StackPanel>
-        </StackPanel>
-      </DockPanel>
-    </Grid>
-  </Border>
+  <DockPanel Margin="0,0,0,12" LastChildFill="True">
+    <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Content="Atualizar vagas" Command="{Binding RefreshCommand}" Margin="12,0,0,0" AutomationProperties.Name="Atualizar vagas da rede" ToolTip="Atualizar vagas da rede" />
+    <TextBlock Text="Os totais seguem a data de criação da vaga e a UBS escolhida em Filtros." TextWrapping="Wrap" VerticalAlignment="Center" />
+  </DockPanel>
 </UserControl>
