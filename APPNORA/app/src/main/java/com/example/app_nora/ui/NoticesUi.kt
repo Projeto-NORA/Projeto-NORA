@@ -30,13 +30,13 @@ fun NoticesScreen(patient: PatientState, onOpenOffer: (String) -> Unit, onOpenDe
         val reading = patient.loadingUnits || patient.busy
         SectionCard("Suas UBS", "Oportunidades da unidade") {
             MutedText(if (reading) "Carregando suas UBS…"
-            else "Não foi possível carregar suas UBS. As Vagas Relâmpago dependem delas; os comunicados abaixo não.")
+            else "Não foi possível carregar suas UBS; as vagas não aparecem.")
             if (!reading) OutlinedButton(onClick = onLoadUnits, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
         }
     } else if (open.isEmpty() && openDependents.isEmpty()) {
         SectionCard(if (allLoaded) "Nenhuma oferta pendente" else "Consultando suas UBS", "Oportunidades da unidade") {
             MutedText(if (allLoaded) "Não há Vagas Relâmpago aguardando resposta."
-            else "As ofertas das suas UBS são consultadas a cada 30 segundos enquanto a conexão do NORA estiver ativa.")
+            else "Vagas conferidas a cada 30 s.")
         }
     }
     open.forEach { ref ->
@@ -68,7 +68,7 @@ internal fun AnnouncementsSection(state: AnnouncementsState, onMarkRead: (String
         when {
             state.error != null && !state.loaded -> MutedText(state.error)
             !state.loaded -> MutedText(if (state.loading) "Consultando os comunicados…" else "Os comunicados ainda não foram consultados.")
-            visible.isEmpty() -> MutedText("Nenhum comunicado da rede no momento. Quando a Secretaria publicar um, ele aparece aqui.")
+            visible.isEmpty() -> MutedText("Nenhum comunicado no momento.")
         }
         if (state.error != null && state.loaded) MutedText(state.error)
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())

@@ -20,12 +20,10 @@ internal class FamilyFakeApi : PatientApi {
 
     // Próprio paciente
     val ownAppointments = mutableMapOf<String, List<PatientAppointment>>()
-    val ownQueue = mutableMapOf<String, List<UnitQueueEntry>>()
     val ownOffers = mutableMapOf<String, List<UnitOffer>>()
 
     // Dependentes (por id do vínculo)
     val depAppointments = mutableMapOf<String, List<PatientAppointment>>()
-    val depQueue = mutableMapOf<String, List<UnitQueueEntry>>()
     val depOffers = mutableMapOf<String, List<UnitOffer>>()
     val depRecords = mutableMapOf<String, UnitRecords>()
     val depAttendance = mutableMapOf<String, UnitAttendance>()
@@ -96,11 +94,9 @@ internal class FamilyFakeApi : PatientApi {
 
     // ---- próprio
     override suspend fun appointments(token: String, unitId: String): List<PatientAppointment> { calls += "own.appointments $unitId"; return ownAppointments[unitId].orEmpty() }
-    override suspend fun unitQueue(token: String, unitId: String): List<UnitQueueEntry> { calls += "own.queue $unitId"; return ownQueue[unitId].orEmpty() }
     override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> { calls += "own.offers $unitId"; return ownOffers[unitId].orEmpty() }
     override suspend fun cancelAppointment(token: String, unitId: String, id: String) { calls += "own.cancelAppointment $unitId $id" }
     override suspend fun confirmPresence(token: String, unitId: String, id: String): PatientAppointment { calls += "own.confirm $unitId $id"; error("não esperado") }
-    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) { calls += "own.cancelQueue $unitId $entryId" }
     override suspend fun attendance(token: String, unitId: String): UnitAttendance { calls += "own.attendance $unitId"; return UnitAttendance(1, 0, 0, 0.0, 1.0, 12) }
     override suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long): List<AvailableSlot> {
         calls += "own.availability $unitId $specialtyId"; return ownSlots
@@ -137,9 +133,6 @@ internal class FamilyFakeApi : PatientApi {
     override suspend fun dependentAppointments(token: String, dependentId: String, unitId: String): List<PatientAppointment> {
         calls += "dep.appointments $dependentId $unitId"; depGate(); return depAppointments[dependentId].orEmpty()
     }
-    override suspend fun dependentQueue(token: String, dependentId: String, unitId: String): List<UnitQueueEntry> {
-        calls += "dep.queue $dependentId $unitId"; depGate(); return depQueue[dependentId].orEmpty()
-    }
     override suspend fun dependentUnitOffers(token: String, dependentId: String, unitId: String): List<UnitOffer> {
         calls += "dep.offers $dependentId $unitId"; depGate(); return depOffers[dependentId].orEmpty()
     }
@@ -149,9 +142,6 @@ internal class FamilyFakeApi : PatientApi {
     override suspend fun dependentConfirmPresence(token: String, dependentId: String, unitId: String, id: String): PatientAppointment {
         calls += "dep.confirm $dependentId $unitId $id"; depGate()
         return depAppointments[dependentId].orEmpty().first { it.id == id }.copy(confirmedAt = "2026-11-17T09:30:00Z")
-    }
-    override suspend fun dependentCancelQueueEntry(token: String, dependentId: String, unitId: String, entryId: Long) {
-        calls += "dep.cancelQueue $dependentId $unitId $entryId"; depGate()
     }
     override suspend fun dependentAttendance(token: String, dependentId: String, unitId: String): UnitAttendance {
         calls += "dep.attendance $dependentId $unitId"; depGate(); return depAttendance[dependentId] ?: UnitAttendance(0, 0, 0, 0.0, null, 12)

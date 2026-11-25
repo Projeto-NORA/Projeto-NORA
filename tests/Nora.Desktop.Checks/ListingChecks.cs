@@ -31,7 +31,6 @@ internal static partial class Program
                     ("home", "Resumo do dia", "Agenda"),
                     ("agenda", "Agenda", "Resumo do dia"),
                     ("patients", "Pacientes", "Agenda"),
-                    ("queue", "Fila", "Pacientes aguardando"),
                     ("slots", "Vaga Relâmpago", "Fila"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
                     ("alerts", "Central de alertas", "Indicadores da UBS"),
@@ -60,7 +59,6 @@ internal static partial class Program
                     ("agenda", "Agenda", false),
                     ("indicators", "Indicadores da UBS", false),
                     ("alerts", "Central de alertas", false),
-                    ("queue", "Fila da unidade", false),
                     ("patients", "Pacientes da unidade", false),
                     ("slots", "Vagas Relâmpago", false),
                     ("unit-settings", "Informações da UBS", false)
@@ -129,7 +127,7 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                foreach (var (route, name) in new[] { ("queue", "Fila por especialidade da UBS"), ("slots", "Vagas da UBS") })
+                foreach (var (route, name) in new[] { ("slots", "Vagas da UBS") })
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 980, 640);
@@ -156,7 +154,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
-                foreach (var (route, name, cell) in new[] { ("queue", "Fila por especialidade da UBS", "Ana Souza"), ("slots", "Vagas da UBS", "Dra. Teste") })
+                foreach (var (route, name, cell) in new[] { ("slots", "Vagas da UBS", "Dra. Teste") })
                 {
                     window.ViewModel.SetAppearance(mode); window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 980, 640);

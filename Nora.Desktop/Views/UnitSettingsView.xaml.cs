@@ -13,12 +13,6 @@ public partial class UnitSettingsView : UserControl
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadCatalogAsync(); }
 
     private async void OnSaveProfile(object sender, RoutedEventArgs e) { if (Workspace is { CanSaveProfile: true } vm) await vm.SaveProfileAsync(); }
-    private async void OnToggleSlotApproval(object sender, RoutedEventArgs e)
-    {
-        if (Workspace is not { CanToggleSlotApproval: true } vm) return;
-        if (!Confirmation.Ask(Window.GetWindow(this), "Aprovação das vagas", vm.SlotApprovalConfirmationText)) return;
-        await vm.ToggleSlotApprovalAsync();
-    }
     private async void OnRefreshDevices(object sender, RoutedEventArgs e) { if (Workspace is { } vm) await vm.LoadDevicesAsync(); }
     private async void OnActivateThisComputer(object sender, RoutedEventArgs e) { if (Workspace is { CanActivateThisComputer: true } vm) await vm.ActivateThisComputerAsync(); }
     private async void OnCreateDeviceCode(object sender, RoutedEventArgs e) { if (Workspace is { CanCreateDeviceCode: true } vm) await vm.CreateDeviceCodeAsync(); }

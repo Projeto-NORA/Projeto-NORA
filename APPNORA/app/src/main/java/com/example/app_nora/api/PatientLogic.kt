@@ -88,24 +88,13 @@ fun groupOffers(offers: List<UnitOffer>, now: Long): OfferGroups {
     return OfferGroups(pending, history)
 }
 
-data class QueueGroups(val active: List<UnitQueueEntry>, val history: List<UnitQueueEntry>)
-
-/** Ativas (aguardando ou com oferta enviada), da entrada mais antiga para a mais nova; histórico do mais novo ao mais antigo. */
-fun groupQueue(entries: List<UnitQueueEntry>): QueueGroups {
-    val active = entries.filter { it.status == "waiting" || it.status == "offered" }
-        .sortedWith(compareBy<UnitQueueEntry>({ it.enteredAtMillis == null }, { it.enteredAtMillis ?: 0L }, { it.id }))
-    val history = entries.filter { it.status != "waiting" && it.status != "offered" }
-        .sortedWith(compareBy<UnitQueueEntry>({ it.enteredAtMillis == null }, { -(it.enteredAtMillis ?: 0L) }, { -it.id }))
-    return QueueGroups(active, history)
-}
-
 // ---- Dados por UBS -------------------------------------------------------------------------------
 
 /**
  * O que já foi lido de uma UBS; `null` em cada campo significa "ainda não consultado".
  * `attendanceFailed` é verdadeiro quando a última leitura da participação falhou (distingue "sem resposta" de "zero").
  */
-data class UnitSnapshot(val queue: List<UnitQueueEntry>? = null, val offers: List<UnitOffer>? = null,
+data class UnitSnapshot(val offers: List<UnitOffer>? = null,
     val appointments: List<PatientAppointment>? = null, val attendance: UnitAttendance? = null,
     val attendanceFailed: Boolean = false,
     /** Exames e vacinas da UBS (Jornada); `recordsFailed` quando a última leitura falhou ou a UBS não veio na resposta. */
@@ -272,8 +261,6 @@ fun statusLabel(value: String): String = when (value) {
     "completed" -> "Concluída"
     "missed" -> "Falta registrada"
     "cancelled" -> "Cancelada"
-    "waiting" -> "Aguardando"
-    "offered" -> "Oferta enviada"
     "pending" -> "Aguardando sua resposta"
     "accepted" -> "Aceita"
     "declined" -> "Recusada"

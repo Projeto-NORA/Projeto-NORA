@@ -43,7 +43,8 @@ internal static partial class ApiEndpoints
         patient.MapPost(d + "/appointments/{id:guid}/cancel", async (Guid dependentId, Guid unitId, Guid id, CancelAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(await access.ExecuteGuardianAsync(session, dependentId, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf, session.User.Id), ct));
+            var changed = await access.ExecuteGuardianAsync(session, dependentId, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf, session.User.Id), ct);
+            return Results.Ok(changed);
         }).AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Write));
         patient.MapPost(d + "/appointments/{id:guid}/confirm", async (Guid dependentId, Guid unitId, Guid id, HttpContext context, UnitAccessService access, SchedulingDao dao, CancellationToken ct) =>
         {
@@ -53,16 +54,11 @@ internal static partial class ApiEndpoints
         patient.MapGet(d + "/availability", async (Guid dependentId, Guid unitId, DateTimeOffset from, DateTimeOffset to, Guid? specialtyId, Guid? professionalId, HttpContext context, UnitAccessService access, SchedulingService service, CancellationToken ct) =>
             Results.Ok(new { slots = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, _ => service.AvailabilityAsync(unitId, from, to, specialtyId, professionalId, ct), ct) }))
             .AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
-        patient.MapGet(d + "/waiting-list", async (Guid dependentId, Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(new { entries = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct) }))
+        // Fila manual removida (2026-11-24): leitura sempre vazia; sair da fila → 410 manual-queue-removed.
+        patient.MapGet(d + "/waiting-list", async (Guid dependentId, Guid unitId, HttpContext context, UnitAccessService access, CancellationToken ct) =>
+            Results.Ok(new { entries = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, _ => Task.FromResult(Array.Empty<object>()), ct) }))
             .AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Read));
-        patient.MapPost(d + "/waiting-list/{id:long}/cancel", async (Guid dependentId, Guid unitId, long id, CancelUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            await access.ExecuteGuardianAsync(session, dependentId, unitId, async cpf => { await waiting.CancelByPatientAsync(unitId, session.User.Id, cpf, id, request.Confirmed, ct, session.User.Id); return true; }, ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.NoContent();
-        }).AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Write));
+        patient.MapPost(d + "/waiting-list/{id:long}/cancel", ManualQueueRemoved);
         // Só leitura: quem redistribui as ofertas são as ações e o worker periódico.
         patient.MapGet(d + "/lightning-offers", async (Guid dependentId, Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
             Results.Ok(new { offers = await access.ExecuteGuardianAsync(Session(context), dependentId, unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct) }))
@@ -71,7 +67,7 @@ internal static partial class ApiEndpoints
         {
             var session = Session(context);
             var result = await access.ExecuteGuardianNetworkAsync(session, dependentId, unitId, cpfLock => lightning.RespondAsync(unitId, session.User.Id, cpfLock.Cpf, id, request.Accept, ct, session.User.Id, (start, end) => crossUnit.EnsureFreeAsync(cpfLock, unitId, start, end, ct)), ct);
-            if (!result.Accepted) await lightningService.TryAdvanceAsync(unitId, ct);
+            await lightningService.TryAdvanceAsync(unitId, ct); // recusa: próximo candidato; aceite: o horário antigo vira vaga (cascata)
             return Results.Ok(result);
         }).AddEndpointFilter(new FamilyRateLimitFilter(FamilyRateLimiter.Write));
         patient.MapGet(d + "/health-records", async (Guid dependentId, Guid unitId, bool? includeVoided, HttpContext context, UnitAccessService access, HealthRecordDao records, CancellationToken ct) =>

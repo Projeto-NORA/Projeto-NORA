@@ -73,14 +73,6 @@ class PatientLogicTest {
         assertEquals(listOf("history-new", "history-old", "never"), groups.history.map { it.id })
     }
 
-    @Test fun queuePartitionKeepsActiveFirstOldestAndHistoryNewestFirst() {
-        fun entry(id: Long, secondsAgo: Long, status: String) = UnitQueueEntry(id, "Esp", iso(-secondsAgo), status)
-        val groups = groupQueue(listOf(entry(1, 100, "completed"), entry(2, 50, "waiting"), entry(3, 900, "offered"),
-            entry(4, 10, "cancelled"), entry(5, 5000, "completed")))
-        assertEquals(listOf(3L, 2L), groups.active.map { it.id })
-        assertEquals(listOf(4L, 1L, 5L), groups.history.map { it.id })
-    }
-
     @Test fun nextAppointmentIsTheNearestFutureScheduledOrCalledAcrossLoadedUnits() {
         val a = unit("a"); val b = unit("b"); val c = unit("c")
         val data = mapOf(
@@ -122,7 +114,7 @@ class PatientLogicTest {
     }
 
     @Test fun everyStatusHasATranslationAndRawValuesNeverLeak() {
-        val all = listOf("scheduled", "called", "completed", "missed", "cancelled", "waiting", "offered", "pending",
+        val all = listOf("scheduled", "called", "completed", "missed", "cancelled", "pending",
             "accepted", "declined", "expired", "open", "closed")
         for (status in all) {
             assertNotEquals(status, statusLabel(status))

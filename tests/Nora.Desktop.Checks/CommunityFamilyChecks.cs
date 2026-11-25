@@ -102,7 +102,7 @@ internal static partial class Program
                 InvokeButton(ButtonIn(content, "Desativar nesta UBS")); PumpUntil(() => asked.Count == 1 && !vm.IsBusy);
                 Require(fixture.Count("POST", "/registry/deactivation-preview") == 1 && fixture.Count("PATCH", "/registry/active") == 0 && fixture.Requests.All(request => !request.Contains(ana.Cpf, StringComparison.Ordinal)), "A confirmação deveria vir depois de uma só prévia (com o CPF no corpo) e antes de qualquer alteração.");
                 var text = asked[0].Text;
-                Require(asked[0].Title == "Confirmar situação na UBS" && text.Contains("2 consultas futuras serão canceladas") && text.Contains("não pesam no score do paciente") && text.Contains("1 entrada ativa na fila será encerrada") && text.Contains("Ana Souza"), "A confirmação deveria dizer 2 consultas futuras, que não pesam no score e a fila: " + text);
+                Require(asked[0].Title == "Confirmar situação na UBS" && text.Contains("2 consultas futuras serão canceladas") && text.Contains("não pesam no score do paciente") && text.Contains("Ana Souza"), "A confirmação deveria dizer 2 consultas futuras e que não pesam no score: " + text);
                 Require(vm.ObsRegistry.Single(item => item.Cpf == ana.Cpf).IsActive && fixture.AppointmentsOf(unit.Id).Count(item => item.Status == "cancelled") == 1, "Recusar a confirmação não deveria desativar nem cancelar.");
                 answer = true; asked.Clear(); InvokeButton(ButtonIn(content, "Desativar nesta UBS")); PumpUntil(() => asked.Count == 1 && !vm.IsBusy); Settle(vm);
                 Require(fixture.Count("POST", "/registry/deactivation-preview") == 2 && fixture.Count("PATCH", "/registry/active") == 1 && !vm.ObsRegistry.Single(item => item.Cpf == ana.Cpf).IsActive, "Confirmar deveria desativar o cadastro.");
@@ -114,14 +114,14 @@ internal static partial class Program
                 // Sem consultas futuras: a frase muda e o aviso de score não aparece.
                 asked.Clear(); vm.SelectedObsRegistry = vm.ObsRegistry.Single(item => item.Cpf == bia.Cpf); content = Layout(window, 1280, 1400); answer = false;
                 InvokeButton(ButtonIn(content, "Desativar nesta UBS")); PumpUntil(() => asked.Count == 1 && !vm.IsBusy);
-                Require(asked[0].Text.Contains("não tem consultas futuras") && !asked[0].Text.Contains("pesam") && asked[0].Text.Contains("Ele não tem entrada ativa na fila"), "Sem consultas nem fila a confirmação deveria dizer isso: " + asked[0].Text);
+                Require(asked[0].Text.Contains("não tem consultas futuras") && !asked[0].Text.Contains("pesam"), "Sem consultas futuras a confirmação deveria dizer isso, sem falar de score: " + asked[0].Text);
                 // Prévia indisponível: nada de confirmação e nada de alteração.
                 fixture.FailDeactivationPreview = true; asked.Clear(); var patches = fixture.Count("PATCH", "/registry/active");
                 InvokeButton(ButtonIn(content, "Desativar nesta UBS")); PumpUntil(() => !vm.IsBusy); Settle(vm);
                 Require(asked.Count == 0 && fixture.Count("PATCH", "/registry/active") == patches && vm.MessageKind == MessageKind.Error && vm.ObsRegistry.Single(item => item.Cpf == bia.Cpf).IsActive, "Sem a prévia a desativação não deveria ser confirmada nem feita: " + vm.Message);
                 fixture.FailDeactivationPreview = false;
                 // Aparência da confirmação: o texto cabe em uma linha de aviso legível (a caixa é a do Windows; conferimos o texto).
-                Require(DeactivationTextLines(WorkspaceViewModel.DeactivationConfirmationText("Ana Souza", new(1, 0))).Contains("1 consulta futura será cancelada, e o horário volta a ficar livre."), "O singular deveria ser 1 consulta futura será cancelada.");
+                Require(DeactivationTextLines(WorkspaceViewModel.DeactivationConfirmationText("Ana Souza", new(1, 0))).Contains("1 consulta futura será cancelada, e o horário pode ser oferecido a outros pacientes como vaga relâmpago."), "O singular deveria ser 1 consulta futura será cancelada.");
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });

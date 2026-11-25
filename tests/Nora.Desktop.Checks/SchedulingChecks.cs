@@ -236,11 +236,11 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
                 Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
-                Require(vm.UsesFreeTextBooking && !vm.UsesCatalogBooking && Input(content, "Especialidade da consulta").IsVisible && FindActionButton(content, "Agendar").IsVisible, "Sem profissional ativo o texto livre deveria aparecer.");
+                Require(vm.UsesFreeTextBooking && !vm.UsesCatalogBooking && Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Especialidade da consulta").IsVisible && FindActionButton(content, "Agendar").IsVisible, "Sem profissional ativo o texto livre deveria aparecer.");
                 Require(Descendants<ComboBox>(content).All(box => AutomationProperties.GetName(box) != "Especialidade da consulta pelo catálogo" || !box.IsVisible), "O catálogo não deveria aparecer sem profissional ativo.");
                 var cardio = fixture.AddSpecialty("Cardiologia"); fixture.AddProfessional(unit.Id, "Dra. Nova", [cardio.Id]);
                 vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
-                Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && !Descendants<TextBox>(content).Any(box => AutomationProperties.GetName(box) == "Especialidade da consulta" && box.IsVisible), "Com profissional ativo só o catálogo deveria valer.");
+                Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && !Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) == "Especialidade da consulta" && box.IsVisible), "Com profissional ativo só o catálogo deveria valer.");
                 fixture.FailCatalogUnits.Add(unit.Id); vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
                 Require(vm.BookingCatalogUnavailable && !vm.CanBook && vm.HasActiveObsUnit && vm.ObsRegistry.Count == 1 && FullTexts(content).Any(text => text.Contains("indisponível", StringComparison.Ordinal)), "A falha do catálogo deveria explicar e manter a UBS aberta.");
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); Pump(vm.CreateAppointmentAsync());

@@ -8,7 +8,7 @@ namespace Nora.Desktop.ViewModels;
 [Flags]
 public enum UnitScope
 {
-    None = 0, Registry = 1, Queue = 2, Slots = 4, Today = 8, Agenda = 16,
+    None = 0, Registry = 1, Slots = 4, Today = 8, Agenda = 16,
     /// <summary>Últimos 30 dias e série de 7 dias do Painel; nunca faz parte do ciclo de 20 s fora da regra dos 5 minutos.</summary>
     PanelMetrics = 32,
     /// <summary>Indicadores com o filtro de período da aba Indicadores.</summary>
@@ -23,11 +23,11 @@ public enum UnitScope
     Alerts = 1024,
     /// <summary>Pedidos de família pendentes e vínculos aprovados da UBS (aba Família); só ela os lê.</summary>
     Family = 2048,
-    /// <summary>Atendimento ao público (horário e serviços) e estado da aprovação das vagas; lido nas Configurações, nas Vagas e na troca de UBS.</summary>
+    /// <summary>Atendimento ao público (horário e serviços); lido nas Configurações, nas Vagas e na troca de UBS.</summary>
     Profile = 4096,
     /// <summary>Computadores do OBS da UBS (só o administrador lê); aba Configurações.</summary>
     Devices = 8192,
-    Everything = Registry | Queue | Slots | Today | ActiveRooms
+    Everything = Registry | Slots | Today | ActiveRooms
 }
 
 /// <summary>Leitura que pode falhar sem impedir o resto da UBS (rotas novas, base sem a migração mais nova); sessão encerrada e troca de senha continuam subindo como erro.</summary>
@@ -39,7 +39,6 @@ public sealed partial class WorkspaceViewModel
     private sealed class UnitSnapshot
     {
         public UnitPatientRecord[]? Registry { get; init; }
-        public WaitingListPage? Queue { get; init; }
         public LightningSlotPage? Slots { get; init; }
         public AppointmentInfo[]? Today { get; init; }
         public DateTime TodayDate { get; init; }
@@ -76,9 +75,8 @@ public sealed partial class WorkspaceViewModel
     {
         "home" => UnitScope.Everything,
         "patients" => UnitScope.Registry,
-        "queue" => UnitScope.Queue,
         "slots" => UnitScope.Slots | UnitScope.Profile,
-        "agenda" => UnitScope.Agenda,
+        "agenda" => UnitScope.Agenda | UnitScope.Catalog,
         "indicators" => UnitScope.Metrics,
         "alerts" => UnitScope.Alerts,
         "unit-settings" => UnitScope.Catalog | UnitScope.Setup | UnitScope.Profile | UnitScope.Devices,
@@ -92,7 +90,6 @@ public sealed partial class WorkspaceViewModel
         var monthKey = (selectedAgendaDate.Year, selectedAgendaDate.Month);
         var (gridStart, gridEnd) = AgendaMonthRange(selectedAgendaDate);
         var registry = scope.HasFlag(UnitScope.Registry) ? api.ObsRegistryAsync(unit.Id) : null;
-        var queue = scope.HasFlag(UnitScope.Queue) ? api.UnitWaitingListAsync(unit.Id) : null;
         var slots = scope.HasFlag(UnitScope.Slots) ? api.UnitLightningSlotsAsync(unit.Id) : null;
         var todayList = scope.HasFlag(UnitScope.Today) ? api.AppointmentsAsync(unit.Id, new DateTimeOffset(today), new DateTimeOffset(today.AddDays(1))) : null;
         // Uma única requisição cobre o mês inteiro do calendário; dia, semana e marcações saem dela.
@@ -131,11 +128,10 @@ public sealed partial class WorkspaceViewModel
         // Atendimento ao público (todos da equipe leem) e computadores (só o administrador): leituras tolerantes, uma falha não derruba a UBS.
         var profileRead = scope.HasFlag(UnitScope.Profile) ? ReadTolerantAsync(() => api.UnitProfileAsync(unit.Id)) : null;
         var devicesRead = scope.HasFlag(UnitScope.Devices) && IsAdministrator ? ReadTolerantAsync(() => api.ObsDevicesAsync(unit.Id)) : null;
-        await Task.WhenAll(new Task?[] { registry, queue, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved, profileRead, devicesRead }.OfType<Task>());
+        await Task.WhenAll(new Task?[] { registry, slots, todayList, month, metricsRead, panelRead, specialties, professionals, rooms, schedule, blocks, activeRooms, capacity, alerts, familyPending, familyApproved, profileRead, devicesRead }.OfType<Task>());
         return new UnitSnapshot
         {
             Registry = registry is null ? null : await registry,
-            Queue = queue is null ? null : await queue,
             Slots = slots is null ? null : await slots,
             Today = todayList is null ? null : await todayList,
             TodayDate = today,
@@ -173,7 +169,7 @@ public sealed partial class WorkspaceViewModel
     private void ApplyUnitData(UnitSnapshot data)
     {
         if (data.Registry is { } registry) ApplyRegistry(registry);
-        if (data.Queue is { } queue) ApplyQueue(queue);
+
         if (data.Slots is { } slots) ApplySlots(slots);
         if (data.Profile is { } unitProfileRead) ApplyProfile(unitProfileRead);
         if (data.Devices is { } deviceRead) ApplyDevices(deviceRead);
@@ -187,76 +183,19 @@ public sealed partial class WorkspaceViewModel
         if (data.Capacity is { } capacity) ApplyPanelCapacity(capacity);
         if (data.Alerts is { } alerts) ApplyUnitAlerts(alerts, data.AlertsAt);
         if (data.FamilyPending is not null || data.FamilyApproved is not null) ApplyFamily(data.FamilyPending, data.FamilyApproved);
-        if (CallNextOpen) RebuildCallNextOptions(); else NotifyCallNext();
+
         NotifyUnitCounts();
     }
 
     private void ApplyRegistry(UnitPatientRecord[] records)
     {
-        var selectedCpf = SelectedObsRegistry?.Cpf; var correctedEmail = CorrectedObsEmail; var waitingCpf = WaitingPatient?.Cpf; var appointmentCpf = AppointmentPatient?.Cpf;
+        var selectedCpf = SelectedObsRegistry?.Cpf; var correctedEmail = CorrectedObsEmail; var appointmentCpf = AppointmentPatient?.Cpf;
         if (!Replace(ObsRegistry, records)) return;
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
         SelectedObsRegistry = selectedCpf is null ? null : ObsRegistry.FirstOrDefault(p => p.Cpf == selectedCpf);
         if (SelectedObsRegistry is not null) CorrectedObsEmail = correctedEmail;
-        WaitingPatient = waitingCpf is null ? null : ObsRegistry.FirstOrDefault(p => p.Cpf == waitingCpf);
+
         AppointmentPatient = appointmentCpf is null ? null : ObsRegistry.FirstOrDefault(p => p.Cpf == appointmentCpf);
-    }
-
-    /// <summary>Leitura da primeira página da fila (o ciclo de 20 s e as ações): junta com o histórico já carregado em vez de recomeçá-lo.</summary>
-    private void ApplyQueue(WaitingListPage page)
-    {
-        var merged = queuePager.ApplyPage(page.Items, page.HistoryCursor, out var restarted);
-        queueHistoryNotice = restarted ? HistoryRestartedNotice : "";
-        ShowQueueList(merged);
-    }
-
-    /// <param name="appended">Verdadeiro quando a lista só ganhou itens no fim (Carregar mais histórico): nada é recriado e a rolagem da tabela fica onde estava.</param>
-    private void ShowQueueList(IReadOnlyList<UnitWaitingEntry> entries, bool appended = false)
-    {
-        var selectedId = SelectedWaitingEntry?.Id;
-        var wasLoaded = unitQueueLoaded;
-        var decorated = DecorateQueue(entries, DateTimeOffset.Now);
-        var changed = appended ? Grow(UnitWaitingList, decorated) : Replace(UnitWaitingList, decorated);
-        unitQueueLoaded = true;
-        if (changed) SelectedWaitingEntry = selectedId is null ? null : UnitWaitingList.FirstOrDefault(entry => entry.Id == selectedId);
-        if (changed || !wasLoaded) Notify(nameof(HasNoFilteredWaitingEntries));
-        Notify(nameof(CanLoadMoreQueueHistory)); Notify(nameof(QueueHistoryState));
-    }
-
-    private void ApplySlots(LightningSlotPage page)
-    {
-        var merged = slotsPager.ApplyPage(page.Items, page.HistoryCursor, out var restarted);
-        slotsHistoryNotice = restarted ? HistoryRestartedNotice : "";
-        ShowSlotList(merged);
-    }
-
-    private void ShowSlotList(IReadOnlyList<UnitLightningSlot> slots, bool appended = false)
-    {
-        if (appended) Grow(UnitLightningSlots, slots); else Replace(UnitLightningSlots, slots);
-        unitSlotsLoaded = true; ReselectSlot(); RefreshAwaitingSlots();
-        Notify(nameof(CanLoadMoreSlotsHistory)); Notify(nameof(SlotsHistoryState));
-    }
-
-    /// <summary>
-    /// Posição = a ordem de oferta que a API devolve (<c>offerOrder</c>: mais pontos primeiro, empate pela entrada na fila). Sem ela (API antiga) o cliente calcula a mesma ordem
-    /// com os pontos que vierem, ou só pela entrada. Espera = tempo desde a entrada.
-    /// </summary>
-    private static UnitWaitingEntry[] DecorateQueue(IReadOnlyList<UnitWaitingEntry> entries, DateTimeOffset now)
-    {
-        var next = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var positions = new Dictionary<long, int>();
-        foreach (var entry in entries.Where(entry => entry.IsActive).OrderByDescending(entry => entry.Points ?? 0).ThenBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id))
-        {
-            var key = entry.Specialty.Trim();
-            positions[entry.Id] = next[key] = next.GetValueOrDefault(key) + 1;
-        }
-        var result = new UnitWaitingEntry[entries.Count];
-        for (var index = 0; index < entries.Count; index++)
-        {
-            var entry = entries[index];
-            result[index] = entry.IsActive ? entry with { Position = entry.OfferOrder ?? positions.GetValueOrDefault(entry.Id), WaitDisplay = FormatWait(now - entry.EnteredAt) } : entry;
-        }
-        return result;
     }
 
     private static string FormatWait(TimeSpan elapsed)
@@ -269,8 +208,8 @@ public sealed partial class WorkspaceViewModel
 
     private void NotifyUnitCounts()
     {
-        Notify(nameof(PatientTotalCount)); Notify(nameof(QueueWaitingCount)); Notify(nameof(SlotOpenCount));
-        Notify(nameof(HasNoWaitingEntries)); Notify(nameof(HasNoUnitSlots));
+        Notify(nameof(PatientTotalCount)); Notify(nameof(OffersRunningCount)); Notify(nameof(SlotOpenCount));
+        Notify(nameof(HasNoUnitSlots));
     }
 
     /// <summary>

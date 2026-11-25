@@ -32,10 +32,10 @@ class ActingInteractionTest {
     private val ownOffer = offer("own-offer", "Cardiologia")
     private val mariaOffer = offer("maria-offer", "Pediatria")
 
-    private fun base(dependent: UnitSnapshot = UnitSnapshot(queue = emptyList(), offers = listOf(mariaOffer), appointments = emptyList())) =
+    private fun base(dependent: UnitSnapshot = UnitSnapshot(offers = listOf(mariaOffer), appointments = emptyList())) =
         PatientState(address = "https://nora.example.test", session = PatientSession("test-token", "2099-01-01T00:00:00Z",
             PatientUser("test-user", "Paciente de teste")), units = listOf(own), selectedUnitId = own.id,
-            unitData = mapOf(own.id to UnitSnapshot(queue = emptyList(), offers = listOf(ownOffer), appointments = emptyList())),
+            unitData = mapOf(own.id to UnitSnapshot(offers = listOf(ownOffer), appointments = emptyList())),
             family = FamilyState(links = listOf(maria)), dependentData = mapOf(maria.id to dependent))
 
     /** Estado da tela; o controlador recusa trocar "agindo por" e UBS com uma ação em andamento, e a tela de teste faz o mesmo. */
@@ -61,7 +61,7 @@ class ActingInteractionTest {
         compose.onNodeWithText("Comunicados da rede e oportunidades para você.").assertExists()
         compose.onNodeWithText("Pediatria").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(busy = false) }
-        compose.onNodeWithText("Aceitar oportunidade").performScrollTo().assertExists()
+        compose.onNodeWithText("Aceitar e antecipar").performScrollTo().assertExists()
         compose.onNodeWithText("Cardiologia").assertExists()
         compose.runOnIdle { assertNull(state.actingFor) }
     }
@@ -70,9 +70,9 @@ class ActingInteractionTest {
         content(base().copy(busy = true, dependentOffers = listOf(DependentOffers(maria.id, maria.unitId, maria.unitName, "Maria Souza",
             listOf(mariaOffer)))))
         compose.onNodeWithText("Ver oportunidade de Maria Souza").performScrollTo().performClick()
-        compose.onNodeWithText("Aceitar oportunidade").assertDoesNotExist()
+        compose.onNodeWithText("Aceitar e antecipar").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(busy = false) }
-        compose.onNodeWithText("Aceitar oportunidade").performScrollTo().assertExists()
+        compose.onNodeWithText("Aceitar e antecipar").performScrollTo().assertExists()
         compose.onNodeWithText("Pediatria").assertExists()
         compose.runOnIdle { assertEquals(maria.id, state.actingFor) }
     }
@@ -83,7 +83,7 @@ class ActingInteractionTest {
         var flash by mutableStateOf<Pair<String?, String?>>(null to null)
         content(base().copy(actingFor = maria.id), onRefresh = { refreshes++ }, flash = { flash }, onFlashOpened = { opened++; flash = null to null })
         compose.onNode(hasText("Oportunidades") and hasClickAction()).performScrollTo().performClick()
-        compose.onNodeWithText("Oportunidades compatíveis enviadas pela unidade.").assertExists()
+        compose.onNodeWithText("Antecipe sua consulta quando abrir uma vaga.").assertExists()
         val before = compose.runOnIdle { refreshes }
         // A notificação de uma oferta nova de Maria chega com a tela de Maria já aberta.
         compose.runOnIdle { flash = maria.unitId to maria.id }
@@ -122,7 +122,7 @@ class ActingInteractionTest {
     }
 
     @Test fun journeyIndexSpeaksAboutTheDependentWhenActingForHer() {
-        content(base(UnitSnapshot(queue = emptyList(), offers = emptyList(), appointments = emptyList(),
+        content(base(UnitSnapshot(offers = emptyList(), appointments = emptyList(),
             attendance = UnitAttendance(3, 1, 2, 0.5, 0.67, 12))).copy(actingFor = maria.id))
         compose.onNode(hasText("Jornada") and hasClickAction()).performClick()
         compose.onNodeWithText("Comparecimento de Maria Souza nos últimos 12 meses").performScrollTo().assertExists()

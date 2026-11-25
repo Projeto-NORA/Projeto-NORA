@@ -130,7 +130,7 @@ internal static class WorkflowChecks
                 var path = $"/api/obs/units/{unitId}/registry";
                 using var unauthenticated = await anonymous.GetAsync(path); Expect(unauthenticated, 401);
                 using var denied = await obs.GetAsync(path); Expect(denied, 403);
-                using var deniedQueue = await obs.GetAsync($"/api/obs/units/{unitId}/waiting-list"); Expect(deniedQueue, 403);
+                using var deniedSlots = await obs.GetAsync($"/api/obs/units/{unitId}/lightning-slots"); Expect(deniedSlots, 403);
                 using var wrongScope = await municipal.GetAsync(path); Expect(wrongScope, 403);
                 using var grant = await municipal.PutAsync($"/api/municipal/staff/{obsId}/units/{unitId}", null); Expect(grant, 204);
                 var data = new { cpf = "52998224725", fullName = "Cadastro UBS Sintético", email = "registered@example.test", phone = "+55 (48) 99999-0028", address = new { cep = "01001-000", street = "Praça da Sé", number = "10", complement = (string?)null, neighborhood = "Sé", city = "São Paulo", state = "SP", ibge = "3550308" } };
@@ -168,21 +168,12 @@ internal static class WorkflowChecks
                 var appointment = new { cpf = "52998224725", specialty = "Clínica Geral", professional = "Profissional Sintético", startsAt = start, endsAt = end };
                 using var createdAppointment = await obs.PostAsJsonAsync(schedulePath, appointment); Expect(createdAppointment, 201);
                 using var appointmentBody = await Json(createdAppointment); var appointmentId = appointmentBody.RootElement.GetProperty("id").GetGuid();
+                // A fila manual foi removida (2026-11-24): incluir, listar e cancelar respondem 410 manual-queue-removed para quem tem a concessão.
                 var waitingPath = $"/api/obs/units/{unitId}/waiting-list";
-                using var firstWaiting = await obs.PostAsJsonAsync(waitingPath, new { cpf = "52998224725", specialty = "Cardiologia" }); Expect(firstWaiting, 201);
-                using var firstWaitingBody = await Json(firstWaiting); var waitingId = firstWaitingBody.RootElement.GetProperty("id").GetInt64();
-                using (var duplicateWaiting = await obs.PostAsJsonAsync(waitingPath, new { cpf = "52998224725", specialty = "cardiologia" })) Expect(duplicateWaiting, 409);
-                using (var missingPatient = await obs.PostAsJsonAsync(waitingPath, new { cpf = Cpf(1), specialty = "Cardiologia" })) Expect(missingPatient, 404);
+                using (var removedAdd = await obs.PostAsJsonAsync(waitingPath, new { cpf = "52998224725", specialty = "Cardiologia" })) Expect(removedAdd, 410);
+                using (var removedList = await obs.GetAsync(waitingPath)) Expect(removedList, 410);
+                using (var removedCancel = await obs.PostAsJsonAsync($"{waitingPath}/1/cancel", new { confirmed = true })) Expect(removedCancel, 410);
                 await app.Services.GetRequiredService<UnitPatientRegistryDao>().CreateAsync(unitId, obsId, new UnitPatientRecord(Cpf(9), "Segundo paciente", "queue2@example.test"));
-                using var nextWaiting = await obs.PostAsJsonAsync(waitingPath, new { cpf = Cpf(9), specialty = "Cardiologia" }); Expect(nextWaiting, 201);
-                using var nextBody = await Json(nextWaiting); var nextId = nextBody.RootElement.GetProperty("id").GetInt64();
-                using (var withoutConfirm = await obs.PostAsJsonAsync($"{waitingPath}/{waitingId}/cancel", new { confirmed = false })) Expect(withoutConfirm, 400);
-                using (var waitingList = await obs.GetAsync(waitingPath))
-                { Expect(waitingList, 200); using var listBody = await Json(waitingList); var entries = listBody.RootElement.GetProperty("items").EnumerateArray().ToArray(); Require(entries.Length == 2 && entries[0].GetProperty("id").GetInt64() == waitingId && entries[1].GetProperty("id").GetInt64() == nextId && entries[0].GetProperty("status").GetString() == "waiting", "Ordem de entrada ou confirmação não foram preservadas."); }
-                using (var confirmedCancel = await obs.PostAsJsonAsync($"{waitingPath}/{waitingId}/cancel", new { confirmed = true })) Expect(confirmedCancel, 204);
-                await using (var unitDb = await app.Services.GetRequiredService<UnitDatabaseRouter>().OpenAsync(unitId))
-                await using (var waitingAudit = new Npgsql.NpgsqlCommand("SELECT count(*) FROM nora_unit.waiting_list_events WHERE entry_id=$1 AND actor_id=$2", unitDb))
-                { waitingAudit.Parameters.AddWithValue(waitingId); waitingAudit.Parameters.AddWithValue(obsId); Require((long)(await waitingAudit.ExecuteScalarAsync())! == 2, "Fila não registrou inclusão e cancelamento com autor."); }
                 var managementSchedule = $"/api/municipal/units/{unitId}/appointments?from={Uri.EscapeDataString(start.AddDays(-1).ToString("O"))}&to={Uri.EscapeDataString(end.AddDays(1).ToString("O"))}";
                 using (var deniedManagement = await obs.GetAsync(managementSchedule)) Expect(deniedManagement, 403);
                 using (var management = await municipal.GetAsync(managementSchedule))
@@ -249,7 +240,7 @@ internal static class WorkflowChecks
                 using var revoke = await revocation; Expect(revoke, 204);
                 using var after = await obs.GetAsync(path); Expect(after, 403);
                 using var scheduleAfterRevoke = await obs.PostAsJsonAsync(schedulePath, appointment); Expect(scheduleAfterRevoke, 403);
-                using var waitingAfterRevoke = await obs.GetAsync(waitingPath); Expect(waitingAfterRevoke, 403);
+                using var waitingAfterRevoke = await obs.GetAsync($"/api/obs/units/{unitId}/lightning-slots"); Expect(waitingAfterRevoke, 403);
             });
             else Console.WriteLine("SKIP cadastro HTTP da UBS: configure NORA_TEST_UNIT_C_CONNECTION descartável.");
             await Check("Cadastro pelo OBS persiste e paciente não cadastra terceiros", async () =>
@@ -313,11 +304,13 @@ internal static class WorkflowChecks
                     Require(await audit.ExecuteScalarAsync() is Guid patientActor && patientActor == firstId, "Cancelamento do paciente não registrou autoria.");
                     await using (var linkSecond = database.Command(await database.OpenAsync(), "INSERT INTO nora.patient_units(patient_id,unit_id) VALUES($1,$2)", secondId, unitId))
                     { await using var ownedConnection = linkSecond.Connection!; await linkSecond.ExecuteNonQueryAsync(); }
-                    var waiting = new UnitWaitingListDao(app.Services.GetRequiredService<UnitDatabaseRouter>(), clock);
-                    var firstDermEntry = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(1), "Dermatologia"), default);
-                    var earlierEligible = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Cardiologia"), default);
-                    var laterEligible = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(1), "Cardiologia"), default);
+                    // Vaga Relâmpago automática (2026-11-24): candidato = quem tem consulta marcada posterior na mesma especialidade. O Cpf(2) tem a Cardiologia mais distante (e não tem cancelamento),
+                    // então vem antes do Cpf(1); na Dermatologia também.
                     var slotStart = clock.GetUtcNow().AddDays(5);
+                    var laterCpf2 = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest(Cpf(2), "Cardiologia", "Profissional futuro dois", slotStart.AddDays(3), slotStart.AddDays(3).AddMinutes(30)), default);
+                    var laterCpf1 = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest(Cpf(1), "Cardiologia", "Profissional futuro um", slotStart.AddDays(2), slotStart.AddDays(2).AddMinutes(30)), default);
+                    var dermCpf1 = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest(Cpf(1), "Dermatologia", "Dermatologista futuro um", slotStart.AddDays(9), slotStart.AddDays(9).AddMinutes(30)), default);
+                    await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest(Cpf(2), "Dermatologia", "Dermatologista futuro dois", slotStart.AddDays(10), slotStart.AddDays(10).AddMinutes(30)), default);
                     var cancelledSource = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest("52998224725", "Cardiologia", "Profissional da vaga", slotStart, slotStart.AddMinutes(30)), default);
                     await schedule.ChangeStatusAsync(unitId, actor, cancelledSource.Id, new AppointmentStatusRequest("cancelled", true), default);
                     using var obsIdentity = await obs.GetAsync("/api/auth/me"); using var obsIdentityBody = await Json(obsIdentity); var staffId = obsIdentityBody.RootElement.GetProperty("id").GetGuid();
@@ -326,18 +319,21 @@ internal static class WorkflowChecks
                     using var slotBody = await Json(slotResponse); var slotId = slotBody.RootElement.GetProperty("id").GetGuid();
                     var dispatchClock = new CheckClock(); var dispatcher = new UnitLightningDispatcher(database, app.Services.GetRequiredService<UnitDatabaseRouter>(), dispatchClock);
                     await dispatcher.AdvanceAsync(unitId, default);
-                    await using (var offerQuery = new Npgsql.NpgsqlCommand("SELECT entry_id,expires_at FROM nora_unit.lightning_offers WHERE slot_id=$1 AND status='pending'", unitDb))
+                    // A oferta pode já ter sido feita pelo passe da própria rota (relógio da API); o prazo é de 10 minutos a partir de quando foi feita.
+                    await using (var offerQuery = new Npgsql.NpgsqlCommand("SELECT cpf,appointment_id FROM nora_unit.lightning_offers WHERE slot_id=$1 AND status='pending'", unitDb))
                     {
                         offerQuery.Parameters.AddWithValue(slotId); await using var offerReader = await offerQuery.ExecuteReaderAsync();
-                        Require(await offerReader.ReadAsync() && offerReader.GetInt64(0) == earlierEligible.Id && offerReader.GetFieldValue<DateTimeOffset>(1) == dispatchClock.GetUtcNow().AddMinutes(10), "Vaga ignorou especialidade, vínculo, ordem ou prazo.");
+                        Require(await offerReader.ReadAsync() && offerReader.GetString(0) == Cpf(2) && offerReader.GetGuid(1) == laterCpf2.Id, "Vaga ignorou especialidade, vínculo, ordem ou a consulta a antecipar.");
                     }
-                    dispatchClock.Advance(TimeSpan.FromMinutes(10)); await dispatcher.AdvanceAsync(unitId, default);
+                    await using (var expireNow = new Npgsql.NpgsqlCommand("UPDATE nora_unit.lightning_offers SET expires_at=$2 WHERE slot_id=$1 AND status='pending'", unitDb))
+                    { expireNow.Parameters.AddWithValue(slotId); expireNow.Parameters.AddWithValue(dispatchClock.GetUtcNow()); await expireNow.ExecuteNonQueryAsync(); }
+                    await dispatcher.AdvanceAsync(unitId, default);
                     Guid nextOffer;
-                    await using (var nextQuery = new Npgsql.NpgsqlCommand("SELECT id,entry_id FROM nora_unit.lightning_offers WHERE slot_id=$1 AND status='pending'", unitDb))
-                    { nextQuery.Parameters.AddWithValue(slotId); await using var nextReader = await nextQuery.ExecuteReaderAsync(); Require(await nextReader.ReadAsync() && nextReader.GetInt64(1) == laterEligible.Id, "Expiração não avançou ao próximo paciente elegível."); nextOffer = nextReader.GetGuid(0); }
+                    await using (var nextQuery = new Npgsql.NpgsqlCommand("SELECT id,cpf FROM nora_unit.lightning_offers WHERE slot_id=$1 AND status='pending'", unitDb))
+                    { nextQuery.Parameters.AddWithValue(slotId); await using var nextReader = await nextQuery.ExecuteReaderAsync(); Require(await nextReader.ReadAsync() && nextReader.GetString(1) == Cpf(1), "Expiração não avançou ao próximo paciente elegível."); nextOffer = nextReader.GetGuid(0); }
                     var offersPath = $"/api/patient/units/{unitId}/lightning-offers";
                     using (var ownOffers = await patient.GetAsync(offersPath))
-                    { Expect(ownOffers, 200); using var offersBody = await Json(ownOffers); Require(offersBody.RootElement.GetProperty("offers").EnumerateArray().Any(o => o.GetProperty("id").GetGuid() == nextOffer), "Paciente não recebeu sua oferta."); }
+                    { Expect(ownOffers, 200); using var offersBody = await Json(ownOffers); Require(offersBody.RootElement.GetProperty("offers").EnumerateArray().Any(o => o.GetProperty("id").GetGuid() == nextOffer && o.GetProperty("replacesAppointmentId").GetGuid() == laterCpf1.Id), "Paciente não recebeu sua oferta com a consulta a antecipar."); }
                     using (var wrongPatient = await secondPatient.PostAsJsonAsync($"{offersPath}/{nextOffer}/respond", new { accept = true })) Expect(wrongPatient, 404);
                     var acceptances = await Task.WhenAll(patient.PostAsJsonAsync($"{offersPath}/{nextOffer}/respond", new { accept = true }), patient.PostAsJsonAsync($"{offersPath}/{nextOffer}/respond", new { accept = true }));
                     Guid acceptedId;
@@ -350,26 +346,30 @@ internal static class WorkflowChecks
                     finally { foreach (var acceptanceResponse in acceptances) acceptanceResponse.Dispose(); }
                     var patientSchedule = await schedule.ListAsync(unitId, slotStart.AddHours(-1), slotStart.AddHours(1), Cpf(1), default);
                     Require(patientSchedule.Count == 1 && patientSchedule[0].Id == acceptedId && patientSchedule[0].Status == "scheduled", "Aceite não criou a consulta do paciente correto.");
-                    var secondDerm = await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Dermatologia"), default);
+                    Require((await schedule.ListAsync(unitId, slotStart.AddDays(2).AddHours(-1), slotStart.AddDays(2).AddHours(1), Cpf(1), default)).Single().Status == "cancelled", "O aceite deveria cancelar a consulta antecipada.");
+                    // Cascata: o horário antigo do Cpf(1) virou vaga e foi oferecido ao Cpf(2) (consulta ainda mais distante). Ele recusa para liberar a próxima oferta.
+                    Guid cascadeOffer;
+                    await using (var cascade = new Npgsql.NpgsqlCommand("SELECT o.id FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE s.appointment_id=$1 AND s.origin='rescheduled' AND o.status='pending' AND o.cpf=$2", unitDb))
+                    { cascade.Parameters.AddWithValue(laterCpf1.Id); cascade.Parameters.AddWithValue(Cpf(2)); cascadeOffer = await cascade.ExecuteScalarAsync() is Guid found ? found : throw new InvalidOperationException("O horário liberado pela antecipação não virou vaga oferecida ao próximo."); }
+                    using (var declineCascade = await secondPatient.PostAsJsonAsync($"{offersPath}/{cascadeOffer}/respond", new { accept = false })) Expect(declineCascade, 200);
                     var dermStart = clock.GetUtcNow().AddDays(7);
                     var dermSource = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest("52998224725", "Dermatologia", "Profissional da recusa", dermStart, dermStart.AddMinutes(30)), default);
                     await schedule.ChangeStatusAsync(unitId, actor, dermSource.Id, new AppointmentStatusRequest("cancelled", true), default);
                     using var dermSlot = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/lightning-slots", new { appointmentId = dermSource.Id, confirmed = true }); Expect(dermSlot, 201);
                     Guid firstDermOffer;
-                    // Prioridade por pontos: o Cpf(1) cancelou a própria consulta com pouca antecedência e não tem nenhuma concluída (0 ponto); o Cpf(2) não tem histórico (1000). A vaga vai primeiro ao Cpf(2), mesmo o Cpf(1) tendo entrado antes.
                     using (var firstDerm = await secondPatient.GetAsync(offersPath))
                     { Expect(firstDerm, 200); using var firstDermBody = await Json(firstDerm); firstDermOffer = firstDermBody.RootElement.GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("specialty").GetString() == "Dermatologia" && o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                     using (var decline = await secondPatient.PostAsJsonAsync($"{offersPath}/{firstDermOffer}/respond", new { accept = false })) Expect(decline, 200);
                     Guid secondDermOffer;
                     using (var secondDermList = await patient.GetAsync(offersPath))
                     { Expect(secondDermList, 200); using var secondDermBody = await Json(secondDermList); secondDermOffer = secondDermBody.RootElement.GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("specialty").GetString() == "Dermatologia" && o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
-                    using (var cancelWaiting = await obs.PostAsJsonAsync($"/api/obs/units/{unitId}/waiting-list/{firstDermEntry.Id}/cancel", new { confirmed = true })) Expect(cancelWaiting, 204);
+                    // A consulta que seria antecipada foi cancelada pela equipe: a oferta não vale mais (409 e cancelada).
+                    await schedule.ChangeStatusAsync(unitId, actor, dermCpf1.Id, new AppointmentStatusRequest("cancelled", true), default);
                     using (var staleOffer = await patient.PostAsJsonAsync($"{offersPath}/{secondDermOffer}/respond", new { accept = true })) Expect(staleOffer, 409);
-                    // R-030: o vencimento da 1ª oferta devolveu o Cpf(2) à fila na mesma posição; ele continua com a mesma entrada (uma nova inclusão seria 409) e a próxima vaga vai a ela.
-                    await using (var stillWaiting = new Npgsql.NpgsqlCommand("SELECT status FROM nora_unit.waiting_list WHERE id=$1", unitDb))
-                    { stillWaiting.Parameters.AddWithValue(earlierEligible.Id); Require(await stillWaiting.ExecuteScalarAsync() as string == "waiting", "Quem deixou a oferta vencer deveria ter voltado à fila (waiting)."); }
-                    try { await waiting.AddAsync(unitId, actor, new AddUnitWaitingEntryRequest(Cpf(2), "Cardiologia"), default); throw new InvalidOperationException("Quem voltou à fila não pode ser incluído de novo."); }
-                    catch (Nora.Api.Services.ApiConflictException) { }
+                    await using (var staleStatus = new Npgsql.NpgsqlCommand("SELECT status FROM nora_unit.lightning_offers WHERE id=$1", unitDb))
+                    { staleStatus.Parameters.AddWithValue(secondDermOffer); Require(await staleStatus.ExecuteScalarAsync() as string == "cancelled", "Oferta sem a consulta a antecipar deveria ficar cancelada."); }
+                    await using (var stillScheduled = new Npgsql.NpgsqlCommand("SELECT status FROM nora_unit.appointments WHERE id=$1", unitDb))
+                    { stillScheduled.Parameters.AddWithValue(laterCpf2.Id); Require(await stillScheduled.ExecuteScalarAsync() as string == "scheduled", "Quem deixou a oferta vencer ou recusou continua com a consulta marcada."); }
                     var workerStart = clock.GetUtcNow().AddDays(6);
                     var workerSource = await schedule.CreateAsync(unitId, actor, new CreateAppointmentRequest("52998224725", "Cardiologia", "Profissional do prazo", workerStart, workerStart.AddMinutes(30)), default);
                     await schedule.ChangeStatusAsync(unitId, actor, workerSource.Id, new AppointmentStatusRequest("cancelled", true), default);
@@ -393,7 +393,7 @@ internal static class WorkflowChecks
                         using (var oldOverview = await patient.GetAsync("/api/patient/overview")) Expect(oldOverview, 403);
                         using var networkSummary = await municipal.GetAsync($"/api/municipal/summary?unitId={unitId}"); Expect(networkSummary, 200);
                         using var networkBody = await Json(networkSummary); var network = networkBody.RootElement;
-                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 2 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes (R-030: quem recusou ou deixou vencer continua na fila, então o Cpf(2) soma aos que já aguardavam; o Cpf(1) aceitou a Cardiologia e cancelou a Dermatologia): " + network);
+                        Require(network.GetProperty("patients").GetInt64() == 4 && network.GetProperty("waitingPatients").GetInt64() == 0 && network.GetProperty("acceptedOffers").GetInt64() == 1, "Resumo não refletiu os dados da UBS sem duplicação de pacientes (sem fila manual, ninguém aguarda; o Cpf(1) aceitou a Cardiologia): " + network);
                     }
                     finally { app.Configuration["Nora:LegacyGlobalWorkflow:Enabled"] = "true"; }
                     using (var revoke = await municipal.DeleteAsync($"/api/municipal/staff/{staffId}/units/{unitId}")) Expect(revoke, 204);
@@ -404,7 +404,7 @@ internal static class WorkflowChecks
                 Expect(list, 200);
                 using var json = await Json(list);
                 Require(json.RootElement.GetArrayLength() == 2, "Pacientes não persistidos.");
-                Require(json.RootElement[0].GetProperty("id").GetGuid() == secondId, "Listagem não começa pelo cadastro mais recente.");
+                Require(json.RootElement[0].GetProperty("id").GetGuid() == firstId && json.RootElement[1].GetProperty("id").GetGuid() == secondId, "Listagem não está em ordem alfabética (Paciente de teste 1, depois 2).");
                 Require(json.RootElement.EnumerateArray().All(p => p.GetProperty("createdAt").GetDateTimeOffset().Offset == TimeSpan.Zero), "Cadastro sem data UTC persistida.");
                 Require(json.RootElement.EnumerateArray().All(p => p.GetProperty("isActive").GetBoolean()), "Cadastro anterior não preservado como ativo.");
             });
@@ -789,7 +789,8 @@ internal static class WorkflowChecks
                 var preserved = await schedule.CreateAsync(units[0], actorId, new CreateAppointmentRequest(Cpf(8), "Clínica", "Profissional preservado", starts, starts.AddMinutes(30)), default);
                 var source = await schedule.CreateAsync(units[0], actorId, new CreateAppointmentRequest(Cpf(11), "Cardiologia", "Profissional da vaga", starts.AddHours(1), starts.AddHours(1.5)), default);
                 await schedule.ChangeStatusAsync(units[0], actorId, source.Id, new AppointmentStatusRequest("cancelled", true), default);
-                using (var queued = await obs.PostAsJsonAsync($"/api/obs/units/{units[0]}/waiting-list", new { cpf = Cpf(8), specialty = "Cardiologia" })) Expect(queued, 201);
+                // Cpf(8) tem consulta de Cardiologia posterior à vaga: recebe a oferta automática, que a desativação cancela.
+                await schedule.CreateAsync(units[0], actorId, new CreateAppointmentRequest(Cpf(8), "Cardiologia", "Profissional futuro", starts.AddDays(2), starts.AddDays(2).AddMinutes(30)), default);
                 using (var opened = await obs.PostAsJsonAsync($"/api/obs/units/{units[0]}/lightning-slots", new { appointmentId = source.Id, confirmed = true })) Expect(opened, 201);
                 var statusPath = $"/api/obs/units/{units[0]}/registry/active";
                 using (var noConfirmation = await obs.PatchAsJsonAsync(statusPath, new { cpf = Cpf(8), isActive = false, confirmed = false })) Expect(noConfirmation, 400);
@@ -813,7 +814,7 @@ internal static class WorkflowChecks
                 using (var blocked = await registered.GetAsync($"/api/patient/units/{units[0]}/appointments?from={dateFrom}&to={dateTo}")) Expect(blocked, 403);
                 using (var allowed = await registered.GetAsync($"/api/patient/units/{units[1]}/appointments?from={dateFrom}&to={dateTo}")) Expect(allowed, 200);
                 await using (var local = await app.Services.GetRequiredService<UnitDatabaseRouter>().OpenAsync(units[0]))
-                await using (var check = new Npgsql.NpgsqlCommand("SELECT (SELECT count(*) FROM nora_unit.waiting_list WHERE cpf=$1 AND status='cancelled'),(SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='cancelled'),(SELECT count(*) FROM nora_unit.appointments a WHERE a.id=$2 AND a.status='cancelled' AND (SELECT count(*) FROM nora_unit.appointment_events e WHERE e.appointment_id=a.id AND e.status='cancelled' AND e.source='staff' AND e.actor_id=$3)=1),(SELECT count(*) FROM nora_unit.patient_registry_events WHERE cpf=$1 AND actor_id=$3 AND action='deactivated')", local))
+                await using (var check = new Npgsql.NpgsqlCommand("SELECT 1,(SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='cancelled'),(SELECT count(*) FROM nora_unit.appointments a WHERE a.id=$2 AND a.status='cancelled' AND (SELECT count(*) FROM nora_unit.appointment_events e WHERE e.appointment_id=a.id AND e.status='cancelled' AND e.source='staff' AND e.actor_id=$3)=1),(SELECT count(*) FROM nora_unit.patient_registry_events WHERE cpf=$1 AND actor_id=$3 AND action='deactivated')", local))
                 {
                     check.Parameters.AddWithValue(Cpf(8)); check.Parameters.AddWithValue(preserved.Id); check.Parameters.AddWithValue(actorId); await using var result = await check.ExecuteReaderAsync();
                     Require(await result.ReadAsync() && result.GetInt64(0) == 1 && result.GetInt64(1) == 1 && result.GetInt64(2) == 1 && result.GetInt64(3) == 1, "Desativação local (decisão de 2026-11-16) não cancelou a consulta futura como cancelamento da unidade (origem staff) ou não cancelou/auditou pendências.");
@@ -822,7 +823,9 @@ internal static class WorkflowChecks
                 using (var restoredUnits = await registered.GetAsync("/api/patient/units"))
                 { Expect(restoredUnits, 200); using var restoredBody = await Json(restoredUnits); Require(restoredBody.RootElement.GetProperty("units").GetArrayLength() == 2, "Reativação não restaurou o acesso à UBS."); }
                 using (var restoredQueue = await registered.GetAsync($"/api/patient/units/{units[0]}/waiting-list"))
-                { Expect(restoredQueue, 200); using var queueBody = await Json(restoredQueue); Require(queueBody.RootElement.GetProperty("entries").EnumerateArray().Single().GetProperty("status").GetString() == "cancelled", "Reativação restaurou entrada cancelada."); }
+                { Expect(restoredQueue, 200); using var queueBody = await Json(restoredQueue); Require(queueBody.RootElement.GetProperty("entries").GetArrayLength() == 0, "A fila do app é sempre vazia desde 2026-11-24."); }
+                using (var restoredOffers = await registered.GetAsync($"/api/patient/units/{units[0]}/lightning-offers"))
+                { Expect(restoredOffers, 200); using var offersBody = await Json(restoredOffers); Require(!offersBody.RootElement.GetProperty("offers").EnumerateArray().Any(o => o.GetProperty("status").GetString() == "pending"), "Reativação restaurou oferta cancelada."); }
                 using (var anonymousLink = await anonymous.PostAsJsonAsync("/api/patient/units/link", new { unitIds = new[] { units[2] } })) Expect(anonymousLink, 401);
                 using (var invalidLink = await registered.PostAsJsonAsync("/api/patient/units/link", new { unitIds = new[] { Guid.NewGuid() } })) Expect(invalidLink, 400);
                 await registry.CreateAsync(units[2], actorId, new UnitPatientRecord(Cpf(8), "Paciente de cadastro", "third@example.test"));

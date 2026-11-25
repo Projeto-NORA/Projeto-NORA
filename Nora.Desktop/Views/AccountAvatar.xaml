@@ -1,0 +1,10 @@
+<UserControl x:Class="Nora.Desktop.Views.AccountAvatar" x:Name="Root" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Avatar circular: foto da conta quando existe; senão, as iniciais. -->
+  <Grid Width="{Binding Size, ElementName=Root}" Height="{Binding Size, ElementName=Root}">
+    <Ellipse Fill="{DynamicResource BrandBrush}" />
+    <TextBlock Text="{Binding AccountInitials}" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" FontSize="{Binding InitialsSize, ElementName=Root}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    <Ellipse Visibility="{Binding HasAccountPhoto, Converter={StaticResource BoolVisibility}}">
+      <Ellipse.Fill><ImageBrush ImageSource="{Binding AccountPhoto}" Stretch="UniformToFill" /></Ellipse.Fill>
+    </Ellipse>
+  </Grid>
+</UserControl>

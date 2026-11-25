@@ -173,8 +173,8 @@ internal static partial class Program
                     {
                         var dialog = window.OwnedWindows.Cast<Window>().Single();
                         dialog.UpdateLayout();
-                        var panel = (StackPanel)dialog.Content;
-                        var actions = (FrameworkElement)panel.Children[^1];
+                        var panel = (FrameworkElement)((Border)dialog.Content).Child; // diálogo padrão da marca
+                        var actions = (FrameworkElement)Descendants<Button>(dialog).Single(button => button.Content?.ToString() == "Fechar").Parent;
                         var bottom = actions.TranslatePoint(new Point(0, actions.ActualHeight), panel).Y;
                         if (bottom > panel.ActualHeight + 1)
                             layoutError = $"Diálogo corta os botões: limite {bottom:F0}, disponível {panel.ActualHeight:F0}.";

@@ -11,7 +11,7 @@ internal static partial class Program
 {
     /// <summary>
     /// Rodada final de 2026-11-16 na fixture, exatamente como o contrato da API: computadores do OBS (ativação, código, revogação, cabeçalho X-Nora-Device, "manter conectado"),
-    /// atendimento ao público, aprovação das vagas, "Chamar próximo" e os cartões novos do resumo da Secretaria.
+    /// atendimento ao público e os cartões novos do resumo da Secretaria.
     /// </summary>
     private sealed partial class ApiFixture
     {
@@ -43,7 +43,6 @@ internal static partial class Program
         public bool RequireDeviceForAttendants { get; set; }
         /// <summary>A expiração devolvida pelo login "manter conectado" (30 dias) e a do login comum (1 hora na fixture).</summary>
         public DateTimeOffset? LastLoginExpiresAt { get; private set; }
-        public (long Awaiting, long Approved, long Timeout, long Discarded)? ApprovalCounters { get; set; }
         /// <summary>Todas as leituras de computadores e do atendimento falham (500) sem derrubar o resto da UBS.</summary>
         public bool FailDevices { get; set; }
         /// <summary>A conferência do computador (GET /devices/current) responde 500, como uma API instável na abertura do OBS.</summary>
@@ -51,17 +50,6 @@ internal static partial class Program
         /// <summary>O login ignora o cabeçalho do computador (device nulo), como no servidor com a exigência desligada para uma atendente sem acesso à UBS dele; o computador continua ativo.</summary>
         public bool IgnoreDeviceOnLogin { get; set; }
         public bool FailProfile { get; set; }
-        public bool FailNextInQueue { get; set; }
-        public bool FailAvailabilityForCallNext { get; set; }
-        /// <summary>A próxima aprovação responde este código 409 (por exemplo, o horário ocupado no meio do caminho) e a vaga fecha.</summary>
-        public string? NextApprovalConflict { get; set; }
-        /// <summary>CPFs que o servidor considera inelegíveis para a oferta (sem conta, cadastro inativo, oferta pendente ou consulta no horário).</summary>
-        public HashSet<string> IneligibleCpfs { get; } = [];
-        /// <summary>CPF → início do horário em que ele já tem consulta na UBS: a prévia COM horário (startsAt) o pula, como o servidor faz; sem horário a prévia o inclui.</summary>
-        public Dictionary<string, DateTimeOffset> BusyAtStart { get; } = [];
-        /// <summary>Query string de cada GET .../waiting-list/next recebido (para conferir que o horário escolhido é enviado).</summary>
-        public List<string> NextInQueueQueries { get; } = [];
-        public List<JsonElement> CallNextBodies { get; } = [];
         public List<JsonElement> ProfileBodies { get; } = [];
         public UnitProfile? ProfileOf(Guid unitId) => profiles.GetValueOrDefault(unitId);
 
@@ -172,7 +160,7 @@ internal static partial class Program
                     return Reply(new { device = ToApi(device) });
                 }
 
-                // ---- Atendimento ao público e aprovação das vagas ----
+                // ---- Atendimento ao público ----
                 case ["profile"] when method == HttpMethod.Get:
                     return FailProfile ? Problem(HttpStatusCode.InternalServerError, "internal-error") : Reply(ProfileFor(unitId));
                 case ["profile"] when method == HttpMethod.Put:
@@ -198,67 +186,9 @@ internal static partial class Program
                     profiles[unitId] = before with { Informed = true, OpeningHours = [.. hours.OrderBy(item => item.Weekday).ThenBy(item => item.Opens, StringComparer.Ordinal)], Services = string.IsNullOrEmpty(services) ? null : services, UpdatedAt = DateTimeOffset.UtcNow };
                     return Reply(profiles[unitId]);
                 }
-                case ["slot-approval"] when method == HttpMethod.Put:
-                {
-                    if (AdministratorOnly() is { } forbidden) return forbidden;
-                    if (!(body.TryGetProperty("confirmed", out var confirmed) && confirmed.ValueKind == JsonValueKind.True) || !body.TryGetProperty("enabled", out var enabled)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    var before = ProfileFor(unitId); var on = enabled.GetBoolean();
-                    profiles[unitId] = before with { SlotApprovalRequired = on, SlotApprovalSince = on ? before.SlotApprovalSince ?? DateTimeOffset.UtcNow : null };
-                    return Reply(new SlotApprovalState(on, profiles[unitId].SlotApprovalSince, "Operador Fixture"));
-                }
-                case ["lightning-slots", var slotText, "approve" or "discard"] when method == HttpMethod.Post:
-                {
-                    var index = state.Slots.FindIndex(item => item.Id == Guid.Parse(slotText)); if (index < 0) return Problem(HttpStatusCode.NotFound, "not-found");
-                    if (!(body.TryGetProperty("confirmed", out var confirmed) && confirmed.ValueKind == JsonValueKind.True)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    var slot = state.Slots[index]; var approve = rest[2] == "approve";
-                    if (!slot.IsAwaitingApproval) return Problem(HttpStatusCode.Conflict, "conflict");
-                    if (!approve) { state.Slots[index] = slot with { Status = "closed", ClosedReason = "discarded", DecidedAt = DateTimeOffset.UtcNow, DecidedByName = "Operador Fixture", ApprovalDeadline = null }; return Reply(state.Slots[index]); }
-                    if (slot.ApprovalDeadline is { } deadline && deadline <= DateTimeOffset.UtcNow)
-                    { state.Slots[index] = slot with { Status = "closed", ClosedReason = "approval-timeout", ApprovalDeadline = null }; return Problem(HttpStatusCode.Conflict, "approval-expired"); }
-                    if (NextApprovalConflict is { } conflict)
-                    {
-                        NextApprovalConflict = null;
-                        state.Slots[index] = slot with { Status = "closed", ClosedReason = "conflict", ApprovalDeadline = null };
-                        return Problem(HttpStatusCode.Conflict, conflict);
-                    }
-                    state.Slots[index] = slot with { Status = "open", ApprovalDeadline = null, DecidedAt = DateTimeOffset.UtcNow, DecidedByName = "Operador Fixture" };
-                    return Reply(state.Slots[index]);
-                }
-
-                // ---- Chamar próximo ----
-                case ["waiting-list", "next"] when method == HttpMethod.Get:
-                {
-                    if (FailNextInQueue) return Problem(HttpStatusCode.InternalServerError, "internal-error");
-                    if (!Guid.TryParse(query["specialtyId"], out var specialtyId) || Specialties.FirstOrDefault(item => item.Id == specialtyId && item.IsActive) is not { } specialty) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    NextInQueueQueries.Add(string.Join("&", query.AllKeys.Where(key => key is not null).Select(key => $"{key}={query[key]}")));
-                    DateTimeOffset? at = DateTimeOffset.TryParse(query["startsAt"], out var parsedAt) ? parsedAt : null;
-                    return Reply(new { next = FirstEligible(state, specialty.Name, at) is { } entry ? new NextInQueue(entry.Id, entry.PatientName, entry.EnteredAt) : null });
-                }
-                case ["waiting-list", "call-next"] when method == HttpMethod.Post:
-                {
-                    CallNextBodies.Add(body.Clone());
-                    if (!(body.TryGetProperty("confirmed", out var confirmed) && confirmed.ValueKind == JsonValueKind.True)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    if (!Guid.TryParse(Text(body, "specialtyId"), out var specialtyId) || Specialties.FirstOrDefault(item => item.Id == specialtyId && item.IsActive) is not { } specialty
-                        || !Guid.TryParse(Text(body, "professionalId"), out var professionalId) || !body.TryGetProperty("startsAt", out var startsValue) || !startsValue.TryGetDateTimeOffset(out var startsAt)) return Problem(HttpStatusCode.BadRequest, "invalid-input");
-                    if (startsAt < DateTimeOffset.UtcNow.AddMinutes(10)) return Problem(HttpStatusCode.Conflict, "call-next-too-late");
-                    var free = sched.Slots.FirstOrDefault(item => item.SpecialtyId == specialtyId && item.ProfessionalId == professionalId && item.StartsAt == startsAt);
-                    if (free is null) return Problem(HttpStatusCode.Conflict, "slot-unavailable");
-                    if (FirstEligible(state, specialty.Name, startsAt) is not { } entry) return Problem(HttpStatusCode.Conflict, "queue-empty");
-                    sched.Slots.Remove(free);
-                    var slot = new UnitLightningSlot(Guid.NewGuid(), null, specialty.Name, free.ProfessionalName, free.StartsAt, free.EndsAt, "offered", DateTimeOffset.UtcNow, "call-next");
-                    state.Slots.Add(slot);
-                    ReplaceWaiting(unitId, entry.Id, current => current with { Status = "offered" });
-                    var offer = new UnitSlotOffer(Guid.NewGuid(), entry.PatientName, "pending", DateTimeOffset.UtcNow.AddMinutes(10));
-                    Offers[slot.Id] = [offer];
-                    return Created(new { slot, offer = new CallNextOffer(offer.Id, offer.PatientName, offer.ExpiresAt) });
-                }
             }
             return null;
         }
-
-        private UnitWaitingEntry? FirstEligible(UnitState state, string specialtyName, DateTimeOffset? startsAt = null) => state.Waiting
-            .Where(entry => entry.Status == "waiting" && !IneligibleCpfs.Contains(entry.Cpf) && !(startsAt is { } at && BusyAtStart.TryGetValue(entry.Cpf, out var busy) && busy == at) && string.Equals(entry.Specialty.Trim(), specialtyName.Trim(), StringComparison.CurrentCultureIgnoreCase))
-            .OrderBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id).FirstOrDefault();
 
         /// <summary>Atendimento da UBS: o salvo ou, sem nada gravado, "não informado"; as especialidades vêm da grade da fixture (ativas e com grade).</summary>
         private UnitProfile ProfileFor(Guid unitId)
@@ -267,13 +197,6 @@ internal static partial class Program
             var specialties = Specialties.Where(item => item.IsActive && specialtyIds.Contains(item.Id)).OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).Select(item => new ProfileSpecialty(item.Id, item.Name)).ToArray();
             var saved = profiles.GetValueOrDefault(unitId) ?? new UnitProfile(unitId, false, [], null, [], null);
             return saved with { Specialties = specialties };
-        }
-
-        public UnitLightningSlot AddAwaitingSlot(Guid unitId, string specialty, string professional, DateTimeOffset startsAt, string patientName = "Maria Souza", DateTimeOffset? deadline = null, string cancelledBy = "patient")
-        {
-            var slot = new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), specialty, professional, startsAt, startsAt.AddMinutes(30), "awaiting_approval", DateTimeOffset.UtcNow, "cancellation",
-                deadline ?? startsAt.AddHours(-1), null, null, null, new SlotSource(Guid.NewGuid(), patientName, startsAt, startsAt.AddMinutes(30), DateTimeOffset.UtcNow.AddMinutes(-20), cancelledBy));
-            return AddSlot(unitId, slot);
         }
     }
 }

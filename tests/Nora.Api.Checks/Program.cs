@@ -27,16 +27,19 @@ if (args.Contains("--family-gaps-only")) return await FamilyChecks.RunGapsAsync(
 if (args.Contains("--google-push-only")) return await GooglePushChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 // Rodada final: computadores do OBS, chamar próximo, atendimento ao público, conflito entre UBS, aprovação das vagas e caixa de saída do e-mail.
 if (args.Contains("--devices-only")) return await ObsDeviceChecks.RunAsync(directory.FullName);
-if (args.Contains("--call-next-only")) return await CallNextChecks.RunAsync(directory.FullName);
-if (args.Contains("--slot-approval-only")) return await SlotApprovalChecks.RunAsync(directory.FullName);
+// Vaga Relâmpago automática (2026-11-24): substitui as suítes do chamar próximo, da aprovação das vagas e da volta à fila (caminho manual removido).
+if (args.Contains("--lightning-only")) return await LightningAutoChecks.RunAsync(directory.FullName);
 if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsync(directory.FullName);
 if (args.Contains("--cross-unit-only")) return await CrossUnitChecks.RunAsync(directory.FullName);
 if (args.Contains("--email-outbox-only")) return await EmailOutboxChecks.RunAsync(directory.FullName);
 if (args.Contains("--performance-only")) return await PerformanceChecks.RunAsync(directory.FullName);
+if (args.Contains("--alphabetical-only")) return await AlphabeticalChecks.RunAsync(directory.FullName);
+if (args.Contains("--platform-only")) return await PlatformChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
-if (args.Contains("--queue-return-only")) return await QueueReturnChecks.RunAsync(directory.FullName);
 // Fechamento das pendências de 2026-11-17: score em pontos, prioridade da Vaga Relâmpago, equipe sem CPF e P3/P4/P5.
 if (args.Contains("--closing-only")) return await ClosingChecks.RunAsync(directory.FullName);
+// Foto de perfil de qualquer conta (/api/auth/photo).
+if (args.Contains("--photo-only")) return await PhotoChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 
 foreach (var environment in new[] { "Development", "Production" })
 {
@@ -109,18 +112,27 @@ foreach (var environment in new[] { "Development", "Production" })
             Require(Math.Abs(Nora.Api.Services.AttendanceScore.Compute(2, 0, 4.02)!.Value - 2 / 6.02) < 1e-12, "Score com peso fracionário incorreto.");
             return Task.CompletedTask;
         });
-        await Check("Score em pontos: round(score × 1000) meio para cima, sem histórico = 1000 e faixas nas bordas (299/300, 599/600, 799/800)", () =>
+        await Check("Score por eventos (2026-11-24): começa em 700, recompensas maiores que as perdas, sequência, Vaga Relâmpago, faixas de cancelamento, metade após 90 dias e limite 0–1000", () =>
         {
-            Require(Nora.Api.Services.AttendanceScore.Points(null) == 1000 && Nora.Api.Services.AttendanceScore.Band(1000) == "excellent", "Sem histórico: 1000 pontos, excelente.");
-            Require(Nora.Api.Services.AttendanceScore.Points(0.0) == 0 && Nora.Api.Services.AttendanceScore.Points(1.0) == 1000, "Extremos 0 e 1000.");
-            Require(Nora.Api.Services.AttendanceScore.Points(0.2995) == 300 && Nora.Api.Services.AttendanceScore.Points(0.29949) == 299 && Nora.Api.Services.AttendanceScore.Points(0.0005) == 1 && Nora.Api.Services.AttendanceScore.Points(0.00049) == 0, "Arredondamento: meio para cima.");
-            Require(Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(299, 701, 0)) == 299 && Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(3, 7, 0)) == 300, "Razão exata em 299 e 300.");
-            Require(Nora.Api.Services.AttendanceScore.Points(201, 199, 0) == 503 && Nora.Api.Services.AttendanceScore.Points(203, 197, 0) == 508, "Empate exato de meio ponto (502,5 e 507,5) arredonda para cima, sem perder a razão exata no double.");
-            Require(Nora.Api.Services.AttendanceScore.Points(201, 199, 0) == Nora.Api.Services.AttendanceScore.Points(Nora.Api.Services.AttendanceScore.Compute(201, 199, 0)) && Nora.Api.Services.AttendanceScore.Points(0, 0, 0) == 1000 && Nora.Api.Services.AttendanceScore.Points(0, 0, 0.5) == 0 && Nora.Api.Services.AttendanceScore.Points(2, 0, 4.02) == 332, "Points(inteiros) e Points(score) concordam; sem histórico 1000; só cancelamento pesado 0.");
-            (int Points, string Band)[] cases = [(0, "low"), (299, "low"), (300, "regular"), (599, "regular"), (600, "good"), (799, "good"), (800, "excellent"), (1000, "excellent")];
-            foreach (var (points, band) in cases) Require(Nora.Api.Services.AttendanceScore.Band(points) == band, $"{points} pontos deveria ser {band}.");
-            var previous = -1;
-            for (var points = 0; points <= 1000; points++) { var rank = Array.IndexOf(new[] { "low", "regular", "good", "excellent" }, Nora.Api.Services.AttendanceScore.Band(points)); Require(rank >= previous, "A faixa nunca desce quando os pontos sobem."); previous = rank; }
+            var now = new DateTimeOffset(2026, 11, 24, 12, 0, 0, TimeSpan.Zero);
+            static Nora.Api.Services.AttendanceScore.Event Attend(DateTimeOffset at, bool lightning = false) => new(at, Nora.Api.Services.AttendanceScore.EventKind.Attended, Lightning: lightning);
+            static Nora.Api.Services.AttendanceScore.Event Miss(DateTimeOffset at) => new(at, Nora.Api.Services.AttendanceScore.EventKind.Missed);
+            static Nora.Api.Services.AttendanceScore.Event Cancel(DateTimeOffset at, double hours) => new(at, Nora.Api.Services.AttendanceScore.EventKind.PatientCancellation, TimeSpan.FromHours(hours));
+            int Score(params Nora.Api.Services.AttendanceScore.Event[] events) => Nora.Api.Services.AttendanceScore.Compute(events, now);
+            var d = now.AddDays(-10);
+            Require(Score() == 700, "Sem histórico: 700.");
+            Require(Score(Cancel(d, 0.5), Cancel(d.AddHours(1), 0.2)) == 620, "Dois cancelamentos em cima da hora: 620.");
+            Require(Score(Attend(d), Attend(d.AddDays(1)), Attend(d.AddDays(2))) == 910, "Três comparecimentos: 60 + 70 + 80.");
+            Require(Score(Attend(d), Attend(d.AddDays(1)), Attend(d.AddDays(2)), Attend(d.AddDays(3)), Attend(d.AddDays(4)), Attend(d.AddDays(5))) == 1000, "Limite de 1000.");
+            Require(Score(Attend(d, lightning: true)) == 780, "Vaga Relâmpago aceita e comparecida: +20.");
+            Require(Score(Attend(d), Miss(d.AddDays(1)), Attend(d.AddDays(2))) == 760, "A falta zera a sequência: 700 + 60 − 60 + 60.");
+            Require(Score(Miss(now.AddDays(-100))) == 670 && Score(Miss(now.AddDays(-89))) == 640, "Penalidade com mais de 90 dias conta pela metade.");
+            Require(Score(Enumerable.Range(0, 20).Select(i => Miss(d.AddHours(i))).ToArray()) == 0, "Limite de 0.");
+            (double Hours, int Penalty)[] cases = [(-1, 40), (0, 40), (0.99, 40), (1, 30), (5.99, 30), (6, 20), (23.99, 20), (24, 10), (47.99, 10), (48, 0), (500, 0)];
+            foreach (var (hours, penalty) in cases) Require(Nora.Api.Services.AttendanceScore.CancellationPenalty(TimeSpan.FromHours(hours)) == penalty, $"Perda errada para {hours} h.");
+            Require(Score(Miss(d), Miss(d.AddDays(1)), Attend(d.AddDays(2)), Attend(d.AddDays(3))) == Score(Miss(d.AddDays(1)), Attend(d.AddDays(3)), Miss(d), Attend(d.AddDays(2))), "Ordem cronológica, não a de chegada.");
+            (int Points, string Band)[] bands = [(0, "low"), (299, "low"), (300, "regular"), (599, "regular"), (600, "good"), (799, "good"), (800, "excellent"), (1000, "excellent")];
+            foreach (var (points, band) in bands) Require(Nora.Api.Services.AttendanceScore.Band(points) == band, $"{points} pontos deveria ser {band}.");
             return Task.CompletedTask;
         });
         await Check("GET liveness tem escopo explícito, sem afirmação de readiness", async () =>
@@ -256,15 +268,15 @@ var familyDecisionFailures = await FamilyChecks.RunDecisionsAsync(directory.Full
 var familyGapFailures = await FamilyChecks.RunGapsAsync(directory.FullName);
 var googlePushFailures = await GooglePushChecks.RunAsync(directory.FullName);
 var deviceFailures = await ObsDeviceChecks.RunAsync(directory.FullName);
-var callNextFailures = await CallNextChecks.RunAsync(directory.FullName);
+var lightningFailures = await LightningAutoChecks.RunAsync(directory.FullName);
 var profileFailures = await UnitProfileChecks.RunAsync(directory.FullName);
 var crossUnitFailures = await CrossUnitChecks.RunAsync(directory.FullName);
-var approvalFailures = await SlotApprovalChecks.RunAsync(directory.FullName);
 var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
-var queueReturnFailures = await QueueReturnChecks.RunAsync(directory.FullName);
 var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
 var closingFailures = await ClosingChecks.RunAsync(directory.FullName);
-return closingFailures + queueReturnFailures + performanceFailures + deviceFailures + callNextFailures + profileFailures + crossUnitFailures + approvalFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+var photoFailures = await PhotoChecks.RunAsync(directory.FullName);
+var alphabeticalFailures = await AlphabeticalChecks.RunAsync(directory.FullName);
+return alphabeticalFailures + photoFailures + closingFailures + performanceFailures + deviceFailures + lightningFailures + profileFailures + crossUnitFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

@@ -7,7 +7,7 @@
     <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontSize" Value="12" /></Style>
   </UserControl.Resources>
   <StackPanel>
-    <TextBlock Text="Informações da UBS" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,20" ToolTip="Profissionais, consultórios, grade semanal e bloqueios da unidade ativa." />
+    <TextBlock Text="Informações da UBS" Style="{StaticResource PageTitle}" Margin="0,0,0,20" ToolTip="Profissionais, consultórios, grade semanal e bloqueios da unidade ativa." />
     <views:ObsUnitNoticeView />
     <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,18" AutomationProperties.Name="Somente leitura para atendente" Visibility="{Binding ShowCatalogReadOnlyNotice, Converter={StaticResource BoolVisibility}}">
       <Grid>
@@ -20,9 +20,9 @@
       <StackPanel><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel></DockPanel>
 
     <!-- Atendimento ao público: horário de funcionamento por dia, serviços e especialidades da grade. O administrador edita; a equipe lê. -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Atendimento ao público" ToolTip="Horários e serviços mostrados ao paciente; cada dia permite até dois intervalos.">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="profile" AutomationProperties.Name="Atendimento ao público" ToolTip="Horários e serviços mostrados ao paciente; cada dia permite até dois intervalos.">
       <StackPanel>
-        <TextBlock Text="Atendimento ao público" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="Atendimento ao público" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <Border Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,12" AutomationProperties.Name="Atendimento somente em leitura" Visibility="{Binding ShowProfileReadOnlyNotice, Converter={StaticResource BoolVisibility}}">
           <TextBlock Text="{Binding ProfileReadOnlyNotice}" TextWrapping="Wrap" />
         </Border>
@@ -60,21 +60,12 @@
       </StackPanel>
     </Border>
 
-    <!-- Aprovação das vagas reaproveitadas (opcional, por UBS). -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Aprovação das vagas reaproveitadas" ToolTip="Quando ligada, uma vaga gerada por cancelamento espera aprovação antes de ser oferecida. A aprovação não confirma o atendimento.">
-      <StackPanel>
-        <TextBlock Text="Aprovação das vagas reaproveitadas" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
-        <TextBlock Text="{Binding SlotApprovalState}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Estado da aprovação das vagas" />
-        <Button Content="{Binding SlotApprovalToggleLabel}" Style="{StaticResource ObsPrimaryButton}" Click="OnToggleSlotApproval" IsEnabled="{Binding CanToggleSlotApproval}" HorizontalAlignment="Left" ToolTip="Só o administrador da UBS liga ou desliga. Pede confirmação." ToolTipService.ShowOnDisabled="True" />
-        <ItemsControl ItemsSource="{Binding SlotApprovalSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do salvamento da aprovação das vagas" />
-      </StackPanel>
-    </Border>
 
     <!-- Computadores do OBS (P-014): só o administrador vê e opera; a atendente só entra em computador ativado. -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Computadores" ToolTip="A atendente só entra em computadores ativados; o administrador entra em qualquer um." Visibility="{Binding ShowDevicesSection, Converter={StaticResource BoolVisibility}}">
+    <Grid views:SubPage.Key="devices"><Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Computadores" ToolTip="A atendente só entra em computadores ativados; o administrador entra em qualquer um." Visibility="{Binding ShowDevicesSection, Converter={StaticResource BoolVisibility}}">
       <StackPanel>
         <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefreshDevices" IsEnabled="{Binding CanManageDevices}" AutomationProperties.Name="Atualizar computadores" ToolTip="Lê de novo a lista de computadores desta UBS." />
-          <TextBlock Text="Computadores" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" /></DockPanel>
+          <TextBlock Text="Computadores" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></DockPanel>
         <DataGrid ItemsSource="{Binding ObsDevices}" SelectedItem="{Binding SelectedObsDevice}" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Computadores da UBS">
           <DataGrid.CellStyle><Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}"><Setter Property="Padding" Value="8,8" /></Style></DataGrid.CellStyle>
           <DataGrid.Columns>
@@ -108,16 +99,16 @@
             <TextBlock Text="{Binding IssuedCodeTitle}" FontWeight="SemiBold" />
             <TextBlock Text="{Binding IssuedCodeText}" FontSize="36" FontWeight="Bold" FontFamily="Consolas" Margin="0,8,0,4" TextWrapping="NoWrap" AutomationProperties.Name="Código de ativação" />
             <TextBlock Text="{Binding IssuedCodeValidity}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,10" />
-            <WrapPanel><Button Content="Copiar código" Click="OnCopyIssuedCode" Margin="0,0,8,0" /><Button Content="Fechar" Click="OnCloseIssuedCode" /></WrapPanel>
+            <WrapPanel><Button Content="Copiar código" Click="OnCopyIssuedCode" Margin="0,0,8,0" ToolTip="Copia o código de ativação."/><Button Content="Fechar" Click="OnCloseIssuedCode" ToolTip="Fecha este aviso."/></WrapPanel>
           </StackPanel>
         </Border>
       </StackPanel>
-    </Border>
+    </Border></Grid>
 
     <!-- Profissionais -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Profissionais" ToolTip="Gerencie profissionais e suas especialidades. O conselho não é conferido pelo sistema; desativar não cancela consultas já marcadas.">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="professionals" AutomationProperties.Name="Profissionais" ToolTip="Gerencie profissionais e suas especialidades. O conselho não é conferido pelo sistema; desativar não cancela consultas já marcadas.">
       <StackPanel>
-        <TextBlock Text="Profissionais" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="Profissionais" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <DataGrid ItemsSource="{Binding Professionals}" SelectedItem="{Binding SelectedProfessional}" MaxHeight="260" MinHeight="64" AutomationProperties.Name="Profissionais da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding FullName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
@@ -128,9 +119,9 @@
         </DataGrid>
         <TextBlock Text="{Binding ProfessionalsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding ProfessionalsState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel Margin="0,12,0,0">
-          <Button Content="Editar profissional selecionado" Click="OnEditProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" />
-          <Button Content="{Binding ProfessionalActiveLabel}" Click="OnToggleProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" />
-          <Button Content="Novo profissional" Style="{StaticResource ObsPrimaryButton}" Click="OnNewProfessional" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+          <Button Content="Editar profissional selecionado" Click="OnEditProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" ToolTip="Edita o profissional selecionado."/>
+          <Button Content="{Binding ProfessionalActiveLabel}" Click="OnToggleProfessional" IsEnabled="{Binding CanChangeProfessional}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o profissional selecionado."/>
+          <Button Content="Novo profissional" Style="{StaticResource ObsPrimaryButton}" Click="OnNewProfessional" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" ToolTip="Abre o cadastro de profissional."/>
         </WrapPanel>
         <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="640" HorizontalAlignment="Left">
@@ -149,20 +140,20 @@
             <TextBlock Text="Especialidades (da lista da rede)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
             <ItemsControl ItemsSource="{Binding ProfessionalSpecialtyChoices}" AutomationProperties.Name="Especialidades do profissional">
               <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanCheck}" Content="{Binding Name}" Margin="0,0,18,8" Checked="OnSpecialtyChoice" Unchecked="OnSpecialtyChoice" AutomationProperties.Name="{Binding Name}" /></DataTemplate></ItemsControl.ItemTemplate>
+              <ItemsControl.ItemTemplate><DataTemplate><CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanCheck}" ToolTip="Liga ou desliga esta especialidade para o profissional." Content="{Binding Name}" Margin="0,0,18,8" Checked="OnSpecialtyChoice" Unchecked="OnSpecialtyChoice" AutomationProperties.Name="{Binding Name}" /></DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBlock Text="A Secretaria ainda não cadastrou especialidades ativas. Peça a ela para cadastrá-las na seção Especialidades." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding NoSpecialtyChoices, Converter={StaticResource BoolVisibility}}" />
+            <TextBlock Text="Sem especialidades ativas. Peça à Secretaria para cadastrá-las." Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,8" Visibility="{Binding NoSpecialtyChoices, Converter={StaticResource BoolVisibility}}" />
             <TextBlock Text="{Binding ProfessionalSpecialtyError}" Style="{StaticResource FieldError}" Margin="0,0,0,8" Visibility="{Binding ProfessionalSpecialtyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Salvar profissional" Click="OnSaveProfessional" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button Content="Salvar profissional" Click="OnSaveProfessional" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o profissional."/>
           </StackPanel>
         </Border>
       </StackPanel>
     </Border>
 
     <!-- Consultórios -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Consultórios" ToolTip="Consultórios desativados deixam de oferecer horários, mas a grade permanece cadastrada.">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="rooms" AutomationProperties.Name="Consultórios" ToolTip="Consultórios desativados deixam de oferecer horários, mas a grade permanece cadastrada.">
       <StackPanel>
-        <TextBlock Text="Consultórios" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="Consultórios" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <DataGrid ItemsSource="{Binding Rooms}" SelectedItem="{Binding SelectedRoom}" MaxHeight="220" MinHeight="64" AutomationProperties.Name="Consultórios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
@@ -171,9 +162,9 @@
         </DataGrid>
         <TextBlock Text="{Binding RoomsState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding RoomsState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel Margin="0,12,0,0">
-          <Button Content="Renomear selecionado" Click="OnEditRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" />
-          <Button Content="{Binding RoomActiveLabel}" Click="OnToggleRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" />
-          <Button Content="Novo consultório" Style="{StaticResource ObsPrimaryButton}" Click="OnNewRoom" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+          <Button Content="Renomear selecionado" Click="OnEditRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" ToolTip="Renomeia o consultório selecionado."/>
+          <Button Content="{Binding RoomActiveLabel}" Click="OnToggleRoom" IsEnabled="{Binding CanChangeRoom}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o consultório selecionado."/>
+          <Button Content="Novo consultório" Style="{StaticResource ObsPrimaryButton}" Click="OnNewRoom" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" ToolTip="Abre o cadastro de consultório."/>
         </WrapPanel>
         <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="420" HorizontalAlignment="Left">
@@ -181,16 +172,16 @@
             <TextBlock Text="Nome do consultório" Style="{StaticResource FieldLabel}" />
             <TextBox Text="{Binding RoomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="Nome do consultório" />
             <TextBlock Text="{Binding RoomNameError}" Style="{StaticResource FieldError}" Visibility="{Binding RoomNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Salvar consultório" Click="OnSaveRoom" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o consultório." Content="Salvar consultório" Click="OnSaveRoom" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
       </StackPanel>
     </Border>
 
     <!-- Grade semanal -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Grade semanal" ToolTip="A grade define atendimentos por dia, profissional, especialidade e consultório. Horários sobrepostos não são aceitos.">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="schedule" AutomationProperties.Name="Grade semanal" ToolTip="A grade define atendimentos por dia, profissional, especialidade e consultório. Horários sobrepostos não são aceitos.">
       <StackPanel>
-        <TextBlock Text="Grade semanal de horários" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="Grade semanal de horários" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <DataGrid ItemsSource="{Binding ScheduleRows}" SelectedItem="{Binding SelectedSchedule}" MaxHeight="300" MinHeight="64" AutomationProperties.Name="Grade semanal da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Dia" Binding="{Binding WeekdayDisplay}" SortMemberPath="Weekday" Width="130" />
@@ -204,9 +195,9 @@
         </DataGrid>
         <TextBlock Text="{Binding ScheduleState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding ScheduleState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel Margin="0,12,0,0">
-          <Button Content="Editar horário selecionado" Click="OnEditSchedule" IsEnabled="{Binding CanChangeSchedule}" Margin="0,0,8,8" />
+          <Button ToolTip="Edita o horário selecionado da grade." Content="Editar horário selecionado" Click="OnEditSchedule" IsEnabled="{Binding CanChangeSchedule}" Margin="0,0,8,8" />
           <Button Content="Remover horário selecionado" Click="OnDeleteSchedule" IsEnabled="{Binding CanChangeSchedule}" Margin="0,0,8,8" ToolTip="Consultas já marcadas não são afetadas." ToolTipService.ShowOnDisabled="True" />
-          <Button Content="Novo horário" Style="{StaticResource ObsPrimaryButton}" Click="OnNewSchedule" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
+          <Button ToolTip="Abre o cadastro de horário na grade." Content="Novo horário" Style="{StaticResource ObsPrimaryButton}" Click="OnNewSchedule" IsEnabled="{Binding CanEditCatalog}" Margin="0,0,8,8" />
         </WrapPanel>
         <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="760" HorizontalAlignment="Left">
@@ -230,16 +221,16 @@
               <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Top" /><TextBlock Grid.Column="1" Text="{Binding ScheduleOverlapError}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></Grid>
             </Border>
             <TextBlock Text="{Binding ScheduleError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding ScheduleError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Salvar horário na grade" Click="OnSaveSchedule" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o horário na grade." Content="Salvar horário na grade" Click="OnSaveSchedule" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
       </StackPanel>
     </Border>
 
     <!-- Bloqueios -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="4,1,1,1" AutomationProperties.Name="Bloqueios" ToolTip="Bloqueios retiram horários livres de um profissional ou da UBS inteira no período informado.">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,18" views:SubPage.Key="blocks" AutomationProperties.Name="Bloqueios" ToolTip="Bloqueios retiram horários livres de um profissional ou da UBS inteira no período informado.">
       <StackPanel>
-        <TextBlock Text="Bloqueios (folgas e feriados)" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="Bloqueios (folgas e feriados)" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <DataGrid ItemsSource="{Binding ScheduleBlocks}" SelectedItem="{Binding SelectedBlock}" MaxHeight="240" MinHeight="64" AutomationProperties.Name="Bloqueios da UBS" CanUserSortColumns="True">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Vale para" Binding="{Binding ScopeDisplay}" Width="*" MinWidth="140" ElementStyle="{StaticResource CellText}" />
@@ -249,7 +240,7 @@
         </DataGrid>
         <TextBlock Text="{Binding BlocksState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding BlocksState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <WrapPanel Margin="0,12,0,0">
-          <Button Content="Remover bloqueio selecionado" Click="OnDeleteBlock" IsEnabled="{Binding CanChangeBlock}" Margin="0,0,8,8" />
+          <Button ToolTip="Remove o bloqueio selecionado." Content="Remover bloqueio selecionado" Click="OnDeleteBlock" IsEnabled="{Binding CanChangeBlock}" Margin="0,0,8,8" />
         </WrapPanel>
         <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,8,0,0">
           <StackPanel IsEnabled="{Binding CanEditCatalog}" MaxWidth="760" HorizontalAlignment="Left">
@@ -260,7 +251,7 @@
               <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="De (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockFromText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data inicial do bloqueio" /></StackPanel>
               <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="Até (opcional)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockToText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Data final do bloqueio" ToolTip="Em branco, o bloqueio vale só para o dia inicial." /></StackPanel>
             </WrapPanel>
-            <CheckBox Content="Dia inteiro (feriado ou folga)" IsChecked="{Binding BlockFullDay}" Margin="0,0,0,12" AutomationProperties.Name="Bloquear dias inteiros" />
+            <CheckBox ToolTip="Bloqueia o dia todo, sem escolher horário." Content="Dia inteiro (feriado ou folga)" IsChecked="{Binding BlockFullDay}" Margin="0,0,0,12" AutomationProperties.Name="Bloquear dias inteiros" />
             <WrapPanel IsEnabled="{Binding BlockTimesEnabled}">
               <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Início (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockStartTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário inicial do bloqueio" /></StackPanel>
               <StackPanel Width="130" Margin="0,0,12,0"><TextBlock Text="Fim (HH:mm)" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding BlockEndTime, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário final do bloqueio" /></StackPanel>
@@ -268,7 +259,7 @@
             <TextBlock Text="Motivo" Style="{StaticResource FieldLabel}" />
             <TextBox Text="{Binding BlockReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Motivo do bloqueio" />
             <TextBlock Text="{Binding BlockError}" Style="{StaticResource FieldError}" Margin="0,0,0,12" Visibility="{Binding BlockError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <Button Content="Criar bloqueio" Click="OnSaveBlock" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
+            <Button ToolTip="Grava o bloqueio de agenda." Content="Criar bloqueio" Click="OnSaveBlock" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
       </StackPanel>

@@ -135,6 +135,9 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
             scope.launch { if (allowLocalNetwork()) controller.login(identifier, password) else controller.localNetworkDenied() }
         },
         onRefresh = { scope.launch { controller.refreshUnit() } },
+        onDismissMessage = controller::dismissMessage,
+        photo = PhotoActions(onLoad = { scope.launch { controller.loadMe(); controller.loadPhoto() } }, onUpload = { bytes -> scope.launch { controller.uploadPhoto(bytes) } },
+            onRemove = { scope.launch { controller.removePhoto() } }),
         openFlashUnit = openFlashUnit, onFlashOpened = onFlashOpened, openFlashDependent = openFlashDependent, openAppointments = openAppointments,
         openNotices = openNotices, onNoticesOpened = onNoticesOpened, openFamily = openFamily, onFamilyOpened = onFamilyOpened,
         notificationOfferId = notificationOfferId, notificationUnitId = notificationUnitId,
@@ -155,7 +158,6 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
         onLoadUnits = { scope.launch { controller.loadUnits() } },
         onLoadAppointments = { scope.launch { controller.loadAppointments() } },
         onLoadAttendance = { scope.launch { controller.loadAttendance() } },
-        onCancelQueueEntry = { id -> scope.launch { controller.cancelQueueEntry(id) } },
         onCheckUnlink = controller::checkUnlinkImpact,
         onUnlinkUnit = { scope.launch { controller.unlinkSelectedUnit() } },
         onShowOwnUnits = controller::showOwnUnits,
@@ -182,17 +184,18 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
 private const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
 private const val LOCAL_NETWORK_SDK = 37
 
-private enum class PatientDestination(val title: String) {
-    HOME("Início"),
-    JOURNEY("Jornada"),
-    NOTICES("Avisos"),
-    FAMILY("Família"),
-    PROFILE("Perfil"),
+/** [title] é o rótulo da aba; [header] é o título do cabeçalho com a seta de voltar; [hint] é a dica ao segurar a aba. */
+private enum class PatientDestination(val title: String, val header: String = title, val hint: String = "") {
+    HOME("Início", hint = "Próxima consulta e atalhos"),
+    JOURNEY("Jornada", "Sua Jornada", "Score, exames e vacinas"),
+    NOTICES("Avisos", hint = "Comunicados e vagas abertas"),
+    FAMILY("Família", hint = "Dependentes e agir por eles"),
+    PROFILE("Perfil", hint = "Seus dados, foto e conta"),
     APPOINTMENTS("Consultas"),
-    UNITS("UBS"),
-    BOOKING("Agendamento"),
+    UNITS("UBS", "Unidades de saúde"),
+    BOOKING("Agendamento", "Agendar consulta"),
     FLASH("Vaga Relâmpago"),
-    REGISTER("Cadastro"),
+    REGISTER("Cadastro", "Confirmar login"),
     PASSWORD("Alterar senha"),
 }
 
@@ -284,11 +287,12 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean = { _, _, _ -> false },
     initiallyShowSettings: Boolean = false, onLoadUnits: () -> Unit = {}, onLoadAppointments: () -> Unit = {}, onCancelAppointment: (String) -> Unit = {}, onSelectUnit: (String) -> Unit = {},
     onLocateUnit: (Double, Double) -> PatientHealthUnit? = { _, _ -> null },
-    onLoadAttendance: () -> Unit = {}, onCancelQueueEntry: (Long) -> Unit = {},
+    onLoadAttendance: () -> Unit = {},
     onCheckUnlink: suspend (String) -> UnlinkImpact? = { null }, onUnlinkUnit: () -> Unit = {}, onShowOwnUnits: () -> Boolean = { false },
     onChangePassword: suspend (String, String) -> Unit = { _, _ -> throw ApiFailure(503, "Troca de senha indisponível.") },
     onConfirmPresence: (String, String) -> Unit = { _, _ -> }, onOpenBooking: () -> Unit = {},
     onLoadAvailability: (String, Int) -> Unit = { _, _ -> }, onBookSlot: (AvailableSlot) -> Unit = {},
+    onDismissMessage: () -> Unit = {}, photo: PhotoActions = PhotoActions(),
     family: FamilyActions = FamilyActions(), community: CommunityActions = CommunityActions(), email: EmailActions = EmailActions(),
     google: GoogleActions = GoogleActions(), onLoadAbout: (String) -> Unit = {},
     openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null, openAppointments: Boolean = false,
@@ -451,6 +455,9 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         back()
     }
     NoraTheme(settings.appearance) {
+    // Resultado das ações (sucesso, aviso ou erro) no pop-up padrão, nunca como texto vermelho solto na tela.
+    patient.message?.let { text -> NoraNoticeDialog(noticeKindOf(text), text, onDismissMessage) }
+    if (patient.session != null) FullScreenAlertPrompt(settings.flashNotifications)
     if (searchOpen && patient.session != null) {
         PatientSearchDialog(onDismiss = { searchOpen = false }, onOpen = { page ->
             searchOpen = false
@@ -469,6 +476,13 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            // Toda tela que não é o Início tem o mesmo cabeçalho: seta de voltar (pilha de telas), título e, com sessão, o score.
+            topBar = {
+                if (settingsOpen || destination != PatientDestination.HOME) NoraTopBar(
+                    if (settingsOpen) "Configurações" else destination.header, onBack = { back() }) {
+                    if (patient.session != null) ScoreButton(scoreSummary) { navigate(PatientDestination.JOURNEY.name) }
+                }
+            },
             bottomBar = {
                 if (patient.session != null) {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface,
@@ -482,7 +496,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                                         if (item == PatientDestination.NOTICES && unseenNotices > 0) {
                                             Badge { Text(if (unseenNotices > 99) "99+" else "$unseenNotices") }
                                         }
-                                    }) { PatientNavigationIcon(item) }
+                                    }) { Hint(item.hint) { PatientNavigationIcon(item) } }
                                 },
                                 label = { Text(item.title, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(
@@ -515,33 +529,16 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         .padding(horizontal = 20.dp, vertical = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(if (settings.comfortableSpacing) 20.dp else 12.dp),
                 ) {
-                    if (patient.session != null) {
+                    if (patient.session != null && !settingsOpen && destination == PatientDestination.HOME) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            if (settingsOpen || destination != PatientDestination.HOME) {
-                                IconButton(onClick = { back() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                                }
-                            } else {
-                                IconButton(onClick = { searchOpen = true }) {
-                                    Icon(Icons.Default.Search, contentDescription = "Pesquisar")
-                                }
-                            }
+                            Hint("Pesquisar funções do app") { IconButton(onClick = { searchOpen = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "Pesquisar")
+                            } }
                             Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { navigate(PatientDestination.JOURNEY.name) },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                                ScoreTrophy(if (scoreSummary.answeredUnits > 0) bandColor(scoreSummary.band) else MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.width(4.dp))
-                                Text(if (scoreSummary.answeredUnits > 0) "${scoreSummary.points}${if (scoreSummary.failedUnits > 0 || scoreSummary.pendingUnits > 0) "*" else ""}" else "—",
-                                    color = if (scoreSummary.answeredUnits > 0) bandColor(scoreSummary.band) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.labelLarge)
-                            }
+                            ScoreButton(scoreSummary) { navigate(PatientDestination.JOURNEY.name) }
                         }
                     }
                     if (settingsOpen) {
-                        if (patient.session == null) IconButton(onClick = { back() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
-                        }
-                        Text("Configurações", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         SettingsScreen(settings, onSettingsChange, patient, onAddressChange, google, onChangePassword = {
                             navigate(PatientDestination.PASSWORD.name)
                         }, onLogout = {
@@ -550,18 +547,13 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             onLogout()
                         })
                     } else {
-                        if (patient.session == null && destination != PatientDestination.HOME && destination != PatientDestination.REGISTER) {
-                            IconButton(onClick = { back() }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
-                            }
-                        }
                         // As telas que agem por alguém dizem sempre por quem (faixa) e usam a visão dessa pessoa.
                         if (patient.session != null && destination in actingDestinations) ActingBanner(patient, family.onActFor)
                         when (destination) {
                         PatientDestination.HOME -> HomeScreen(settings.showGuidance,
                             onOpenSettings = { navigate("SETTINGS") }, onNavigate = { navigate(it.name) },
                             patient = view, onAddressChange = onAddressChange, onLogin = onLogin,
-                            onRefresh = onRefresh, onLoadUnits = onLoadUnits, onLeaveQueue = onCancelQueueEntry,
+                            onRefresh = onRefresh, onLoadUnits = onLoadUnits,
                             onConfirmPresence = onConfirmPresence,
                             // O Início mostra as ofertas da visão em tela: agindo por um dependente, as dele.
                             onOpenOffer = { unitId -> offerRequest = unitId to patient.actingFor },
@@ -570,7 +562,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             onRequestPasswordReset = onRequestPasswordReset,
                             onConfirmPasswordReset = onConfirmPasswordReset, google = google)
                         PatientDestination.JOURNEY -> JourneyScreen(view, onOpenAppointments = { navigate(PatientDestination.APPOINTMENTS.name) },
-                            onRefreshAttendance = onLoadAttendance, onLeaveQueue = onCancelQueueEntry, onLoadRecords = community.onLoadRecords)
+                            onRefreshAttendance = onLoadAttendance, onLoadRecords = community.onLoadRecords)
                         PatientDestination.NOTICES -> NoticesScreen(patient,
                             onOpenOffer = { unitId -> offerRequest = unitId to null },
                             onOpenDependentOffer = { dependentId, unitId -> offerRequest = unitId to dependentId },
@@ -581,7 +573,8 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                             onLogout = {
                                 destination = PatientDestination.HOME
                                 onLogout()
-                            }, email = email)
+                            }, email = email, photo = photo, onOpenFamily = { navigate(PatientDestination.FAMILY.name) },
+                            onOpenUnits = { navigate(PatientDestination.UNITS.name) })
                         PatientDestination.APPOINTMENTS -> AppointmentsScreen(view, onSelectUnit, onLoadUnits, onLoadAppointments, onCancelAppointment,
                             onConfirmPresence, onBook = { navigate(PatientDestination.BOOKING.name) })
                         PatientDestination.UNITS -> UnitsScreen(patient, ownUnitsNotice, onLoadUnits, onSelectUnit, onLocateUnit, onRegistrationUnits, onLinkUnits, onCheckUnlink, onUnlinkUnit, onLoadAbout)
@@ -593,12 +586,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         PatientDestination.REGISTER -> RegisterScreen(onBack = { back() }, onLoadUnits = onRegistrationUnits, onStart = onStartRegistration, onSend = onSendRegistrationCode, onConfirm = onConfirmRegistration)
                         }
                     }
-                    Text(
-                        "Elaborado por: Luana Pinheiro (luana.pinheiro.cruz@gmail.com) e Mateus Todeschini (mateustodeschini123@gmail.com)",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .72f),
-                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
-                    )
+                    NoraFooter()
                 }
             }
         }
@@ -618,6 +606,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
     var helpOpen by rememberSaveable { mutableStateOf(false) }
+    var stepsOpen by rememberSaveable { mutableStateOf(false) }
     var localMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var recoveryCodeStep by rememberSaveable { mutableStateOf(false) }
     // O desafio da recuperação sobrevive à rotação: refazer o pedido gastaria o limite de envios.
@@ -646,7 +635,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                     recoveryChallengeId = onRequestPasswordReset(recoveryCpf)
                     recoveryCodeStep = true
                     recoveryCode = ""
-                    recoveryMessage = "Se houver uma conta vinculada, enviaremos um código ao e-mail cadastrado. Ele vale por 10 minutos."
+                    recoveryMessage = "Se houver conta, enviamos um código ao e-mail cadastrado (vale 10 min)."
                 } catch (failure: ApiFailure) {
                     recoveryMessage = failure.message
                 } catch (_: IOException) {
@@ -663,7 +652,8 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
     }
     val submitPasswordReset: () -> Unit = {
         when {
-            recoveryPassword.length < 8 -> recoveryMessage = "A nova senha precisa ter pelo menos 8 caracteres."
+            recoveryPassword.isEmpty() -> recoveryMessage = "Digite a nova senha."
+            recoveryPassword.length > 256 -> recoveryMessage = "A senha pode ter até 256 caracteres."
             recoveryPassword != recoveryPasswordConfirmation -> recoveryMessage = "As senhas não correspondem."
             recoveryChallengeId.isBlank() -> recoveryMessage = "Solicite um novo código para continuar."
             else -> {
@@ -724,7 +714,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Acessar minha conta", style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                Text("Use o CPF ou e-mail cadastrado na unidade.",
+                Text("Use o CPF ou e-mail cadastrado na UBS.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedTextField(value = identifier, onValueChange = { identifier = it; localMessage = null },
@@ -751,8 +741,6 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                 }) { Text("Esqueci a senha") }
             }
             if (localMessage != null) Text(localMessage!!, color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
-            if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall)
             Button(onClick = {
                 if (!identifier.contains('@') && !isValidCpf(identifier.trim())) {
@@ -786,7 +774,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center) {
                 Text("Primeiro acesso?", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onRegister) { Text("Criar conta", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { stepsOpen = true }) { Text("Confirmar login", fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -810,11 +798,12 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
             supportingText = { Text(if (BuildConfig.DEBUG) "No emulador local também pode usar http://10.0.2.2:5080" else "Informe o endereço HTTPS fornecido pela unidade") })
     }
 
+    if (stepsOpen) ConfirmLoginSteps(onOk = { stepsOpen = false; onRegister() }, onDismiss = { stepsOpen = false })
     if (helpOpen) AlertDialog(
         onDismissRequest = { helpOpen = false },
         containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Ajuda com o aplicativo") },
-        text = { Text("Confira sua conexão e se o endereço do serviço informado pela UBS está correto. Se o problema continuar, procure sua unidade de saúde.") },
+        text = { Text("Confira a internet e o endereço do serviço. Se continuar, procure sua UBS.") },
         confirmButton = { TextButton(onClick = { helpOpen = false }) { Text("Entendi") } },
         dismissButton = { TextButton(onClick = { helpOpen = false; onOpenSettings() }) { Text("Configurações") } },
     )
@@ -825,7 +814,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (!recoveryCodeStep) {
-                    Text("Digite o CPF da conta. Se houver um cadastro, enviaremos um código ao e-mail associado.")
+                    Text("Digite o CPF. Enviaremos um código ao e-mail cadastrado.")
                     OutlinedTextField(value = recoveryCpf, onValueChange = {
                         recoveryCpf = it.filter { char -> char.isDigit() || char in ".- " }.take(14)
                         recoveryMessage = null
@@ -834,7 +823,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                         shape = RoundedCornerShape(14.dp), keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number, imeAction = ImeAction.Done))
                 } else {
-                    Text("Informe o código recebido por e-mail e escolha uma nova senha.")
+                    Text("Digite o código do e-mail e a nova senha.")
                     OutlinedTextField(value = recoveryCode, onValueChange = {
                         recoveryCode = it.filter { digit -> digit in '0'..'9' }.take(6)
                         recoveryMessage = null
@@ -879,7 +868,7 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
         onDismissRequest = { invalidCodeOpen = false },
         containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Código inválido") },
-        text = { Text("Confira os 6 dígitos ou solicite outro código. Você também pode informar novamente o CPF.") },
+        text = { Text("Confira os 6 dígitos ou peça outro código.") },
         confirmButton = { TextButton(onClick = {
             invalidCodeOpen = false
             recoveryCodeStep = false
@@ -974,11 +963,8 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
         finally { loadingUnits = false }
     }
     LaunchedEffect(Unit) { loadUnits() }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, enabled = !busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
-        Text("Criar conta", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-    }
-    SectionCard("Seus dados", "Use os dados do titular cadastrados na UBS") {
+    MutedText("Seus dados já foram cadastrados pela UBS. Confirme-os e crie sua senha.")
+    SectionCard("1. Seus dados", "Iguais aos cadastrados na UBS") {
         val editing = challenge == null && !busy
         OutlinedTextField(name, { name = it }, enabled = editing, label = { Text("Nome completo") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
@@ -987,16 +973,16 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
             isError = cpf.isNotBlank() && cpf.count { it in '0'..'9' } >= 11 && !isValidCpf(cpf),
             supportingText = { if (cpf.isNotBlank() && cpf.count { it in '0'..'9' } >= 11 && !isValidCpf(cpf)) Text("Confira o CPF informado.") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next))
-        OutlinedTextField(value = password, onValueChange = { password = it }, enabled = editing, label = { Text("Senha") },
+        OutlinedTextField(value = password, onValueChange = { password = it.take(256) }, enabled = editing, label = { Text("Crie sua senha") },
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
             trailingIcon = { PasswordEyeButton(showPassword) { showPassword = !showPassword } })
-        Text("Unidades em que você possui cadastro", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("UBS onde você tem cadastro", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         if (loadingUnits) MutedText("Carregando unidades…")
         if (!loadingUnits && units == null) TextButton(onClick = { scope.launch { loadUnits() } }, enabled = !busy) { Text("Tentar novamente") }
         if (units?.isEmpty() == true) MutedText("Nenhuma UBS disponível no momento.")
-        units?.forEach { unit ->
+        units?.sortedAlphabetically { it.name }?.forEach { unit ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = unit.id in selectedUnits, enabled = editing, onCheckedChange = { checked ->
                     if (checked && unit.id !in selectedUnits) selectedUnits = selectedUnits + unit.id
@@ -1010,12 +996,12 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
                 val response = onStart(name.trim(), cpf, password, selectedUnits)
                 if (response.challengeId == null || response.emails.isEmpty()) noMatches = true
                 else { challenge = response.challengeId; options = response.emails; password = "" }
-            } } }, enabled = !busy && name.trim().length >= 2 && isValidCpf(cpf) && password.length >= 8 && selectedUnits.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text("Criar conta", fontWeight = FontWeight.Bold) }
+            } } }, enabled = !busy && name.trim().length >= 2 && isValidCpf(cpf) && password.isNotEmpty() && selectedUnits.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text("Continuar", fontWeight = FontWeight.Bold) }
         }
         error?.let { MutedText(it) }
     }
-    if (challenge != null) SectionCard("Confirme seu e-mail", "Escolha um e-mail cadastrado em uma das UBS para receber o código") {
+    if (challenge != null) SectionCard("2. Confirme seu e-mail", "Escolha onde receber o código") {
         options.forEach { option ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = selectedOption == option.id, enabled = !busy, onClick = { selectedOption = option.id; codeSent = false; code = "" })
@@ -1030,19 +1016,19 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
             Button(onClick = { scope.launch { runRegistration {
                 val result = onConfirm(challenge!!, code)
                 if (result.codeValid) { linkedIds = result.linkedUnits; unmatchedIds = result.unmatchedUnits; completed = true } else error = "Código incorreto, expirado ou já utilizado."
-            } } }, enabled = !busy && code.length == 6, modifier = Modifier.fillMaxWidth()) { Text("Confirmar cadastro") }
+            } } }, enabled = !busy && code.length == 6, modifier = Modifier.fillMaxWidth()) { Text("Confirmar login") }
         }
         error?.let { MutedText(it) }
-        MutedText("O e-mail confirmado será usado para acessar e recuperar sua conta.")
+        MutedText("Este e-mail servirá para entrar e recuperar a senha.")
     }
     if (noMatches) AlertDialog(onDismissRequest = { noMatches = false }, title = { Text("Cadastro não encontrado") },
-        text = { Text("Não encontramos seu CPF nas UBS selecionadas. Confira as unidades ou procure a equipe da UBS.") },
+        text = { Text("Seu CPF não está nas UBS escolhidas. Confira ou procure a UBS.") },
         confirmButton = { TextButton(onClick = { noMatches = false }) { Text("Entendi") } })
     if (completed) {
         fun names(ids: List<String>) = ids.map { id -> units?.firstOrNull { it.id == id }?.name ?: "UBS" }.joinToString(", ")
         val linked = names(linkedIds)
         val missing = names(unmatchedIds)
-        AlertDialog(onDismissRequest = onBack, title = { Text("Conta criada") },
+        AlertDialog(onDismissRequest = onBack, title = { Text("Login confirmado") },
             text = { Text("UBS vinculadas: $linked." + if (unmatchedIds.isNotEmpty())"\n\nNão encontramos seu cadastro em: $missing. Procure a equipe dessas unidades." else "") },
             confirmButton = { TextButton(onClick = onBack) { Text("Ir para o login") } })
     }
@@ -1053,7 +1039,7 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
 private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
     onNavigate: (PatientDestination) -> Unit, patient: PatientState,
     onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?,
-    onRefresh: () -> Unit, onLoadUnits: () -> Unit, onLeaveQueue: (Long) -> Unit, onOpenOffer: (String) -> Unit,
+    onRefresh: () -> Unit, onLoadUnits: () -> Unit, onOpenOffer: (String) -> Unit,
     onOpenDependentOffer: (String, String) -> Unit, onOpenProfile: () -> Unit,
     onConfirmPresence: (String, String) -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
@@ -1120,12 +1106,11 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 val firstName = patient.session.user.fullName.substringBefore(' ')
                 Text("Olá, $firstName", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             }
-            IconButton(onClick = onOpenSettings) {
+            Hint("Configurações do app") { IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Configurações")
-            }
+            } }
         }
     }
-    if (patient.message != null) Text(patient.message, color = MaterialTheme.colorScheme.error)
     if (patient.busy || patient.loadingUnits) LinearProgressIndicator(Modifier.fillMaxWidth())
     if (patient.session != null) EmailSuggestionNotice(patient, onOpenProfile)
     if (showGuidance && patient.session != null && patient.units?.isEmpty() == true)
@@ -1204,27 +1189,9 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 onNavigate(PatientDestination.FLASH)
             }
         }
-        SectionCard("Acompanhamento", "Status informado pela unidade") {
-            val queue = patient.unitQueue
-            when {
-                patient.units == null -> {
-                    MutedText(if (patient.loadingUnits) "Carregando suas UBS…" else "Não foi possível carregar suas UBS.")
-                    if (!patient.loadingUnits) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Carregar minhas UBS") }
-                }
-                patient.selectedUnitId == null -> MutedText("Escolha uma UBS vinculada para consultar sua situação.")
-                queue == null -> MutedText("Toque em atualizar para consultar sua situação.")
-                queue.isEmpty() -> MutedText("Não há solicitações de atendimento em acompanhamento nesta UBS.")
-                else -> QueueEntries(queue, patient.busy, onLeaveQueue)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { onNavigate(PatientDestination.FLASH) }, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Escolher UBS") }
-                OutlinedButton(onClick = onRefresh, enabled = !patient.busy && patient.selectedUnitId != null, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    ) { Text(if (patient.busy) "Atualizando…" else "Atualizar") }
-            }
-        }
-        SectionCard("⚡ Vaga Relâmpago", "Oportunidades da sua UBS", highlight = openOffers.list.value.isNotEmpty() || dependentOffers.list.value.isNotEmpty()) {
+        if (patient.units == null && !patient.loadingUnits) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy,
+            modifier = Modifier.fillMaxWidth()) { Text("Carregar minhas UBS") }
+        SectionCard("⚡ Vaga Relâmpago", "Antecipe sua consulta", highlight = openOffers.list.value.isNotEmpty() || dependentOffers.list.value.isNotEmpty()) {
             val open = openOffers.list.value
             // As ofertas dos dependentes (com o nome deles) aparecem junto das do paciente; agindo por um dependente, só as dele.
             val dependents = if (patient.actingFor == null) dependentOffers.list.value else emptyList()
@@ -1235,7 +1202,7 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
                 }
                 patient.units == null -> MutedText("As oportunidades aparecem aqui assim que suas UBS forem carregadas.")
                 !offersLoadedForAll(patient.units, patient.unitData) -> MutedText("Consultando as oportunidades das suas UBS…")
-                else -> MutedText("Nenhuma oportunidade aguarda sua resposta.")
+                else -> MutedText("Nenhuma vaga agora. Avisamos quando abrir uma antes da sua consulta.")
             }
         }
         return
@@ -1245,14 +1212,14 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Sua jornada de cuidado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text("O acompanhamento estará disponível quando sua conta e a unidade de saúde estiverem conectadas.",
+            Text("Entre na conta para acompanhar seus cuidados.",
                 color = MaterialTheme.colorScheme.onPrimaryContainer)
             Text("Serviços de saúde ainda não conectados", style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
     SectionCard("Agendamento e unidades", "A rede de saúde em um só lugar") {
-        MutedText("Entre na sua conta para acompanhar seus dados. Nenhuma consulta ou UBS é exibida sem informação da rede.")
+        MutedText("Entre na conta para ver consultas e UBS.")
         OutlinedButton(onClick = { onNavigate(PatientDestination.UNITS) }, modifier = Modifier.fillMaxWidth()) {
             Text("Ver informações sobre UBS")
         }
@@ -1265,7 +1232,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
     onLocateUnit: (Double, Double) -> PatientHealthUnit?, onCatalog: suspend () -> List<RegistrationUnit>,
     onLink: suspend (List<String>) -> UnitLinkResult, onCheckUnlink: suspend (String) -> UnlinkImpact?, onUnlink: () -> Unit,
     onLoadAbout: (String) -> Unit) {
-    ScreenTitle("Unidades de saúde", "Consulte as UBS cadastradas pela rede.")
+    ScreenTitle("Unidades de saúde", "Suas UBS, horários e mapa.")
     if (ownUnitsNotice) ActionMessage("Agora você está vendo as suas UBS")
     val selected = patient.units?.find { it.id == patient.selectedUnitId }
     var expanded by remember { mutableStateOf(false) }
@@ -1303,7 +1270,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
                         Text(selected?.name ?: "Selecionar UBS")
                     }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        patient.units.forEach { unit ->
+                        patient.units.sortedAlphabetically { it.name }.forEach { unit ->
                             DropdownMenuItem(text = { Text(unit.name) }, onClick = {
                                 expanded = false
                                 onSelectUnit(unit.id)
@@ -1315,7 +1282,6 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
             }
         }
         // Até a troca para as próprias UBS (no primeiro quadro), a mensagem em tela ainda é a do dependente: não aparece aqui.
-        patient.message?.takeIf { patient.actingFor == null }?.let { MutedText(it) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy,
                 contentPadding = PaddingValues(horizontal = 12.dp),
@@ -1331,7 +1297,6 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Remover") }
         }
-        MutedText("A distância até a UBS ainda não é informada pela rede.")
     }
     // Horário de funcionamento, serviços e especialidades da UBS selecionada: lidos a cada abertura da tela e a cada troca de UBS.
     LaunchedEffect(selected?.id, patient.session?.token) {
@@ -1340,7 +1305,7 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
     }
     if (patient.session != null && selected != null) UnitAboutCard(selected.name, patient.about[selected.id], onRetry = { onLoadAbout(selected.id) })
     UnitsMap(selected, onLocateUnit)
-    // Confere o que será cancelado: relê a fila e as consultas futuras da UBS a cada abertura, sem confiar no que já estava lido.
+    // Confere o que será cancelado: relê as consultas futuras da UBS a cada abertura, sem confiar no que já estava lido.
     LaunchedEffect(unlinkOpen, selected?.id) {
         val id = selected?.id
         if (unlinkOpen && id != null) { impact = onCheckUnlink(id); checking = false }
@@ -1356,8 +1321,8 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
         title = { Text("Vincular UBS") },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                MutedText("Selecione as unidades onde você já foi cadastrado. Seu CPF será conferido em cada uma.")
-                catalog?.forEach { unit ->
+                MutedText("Escolha as UBS onde você tem cadastro.")
+                catalog?.sortedAlphabetically { it.name }?.forEach { unit ->
                     Row(Modifier.fillMaxWidth().selectable(selected = unit.id in chosen, enabled = !linkBusy,
                         onClick = { chosenIds = if (unit.id in chosen) chosenIds - unit.id else if (chosenIds.size < 20) chosenIds + unit.id else chosenIds },
                         role = Role.Checkbox), verticalAlignment = Alignment.CenterVertically) {
@@ -1384,20 +1349,24 @@ private fun UnitsScreen(patient: PatientState, ownUnitsNotice: Boolean, onLoadUn
 }
 
 @Composable
-internal fun ScreenTitle(title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+internal fun ScreenTitle(@Suppress("UNUSED_PARAMETER") title: String, subtitle: String) {
+    // O título fica no cabeçalho (NoraTopBar); aqui só a frase curta da tela.
+    if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
 }
 
+/** Botão do score no cabeçalho: troféu na cor da faixa e os pontos; leva à Jornada. */
 @Composable
-internal fun NoraSymbol(size: androidx.compose.ui.unit.Dp) {
-    Image(painterResource(R.drawable.nora_symbol_transparente), contentDescription = "Símbolo NORA",
-        colorFilter = noraBrandColorFilter(MaterialTheme.colorScheme.background.luminance() < .5f),
-        modifier = Modifier.size(size))
+private fun ScoreButton(scoreSummary: AttendanceSummary, onClick: () -> Unit) {
+    Hint("Seu score de comparecimento") { TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+        ScoreTrophy(if (scoreSummary.answeredUnits > 0) bandColor(scoreSummary.band) else MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(4.dp))
+        Text(if (scoreSummary.answeredUnits > 0) "${scoreSummary.points}${if (scoreSummary.failedUnits > 0 || scoreSummary.pendingUnits > 0) "*" else ""}" else "—",
+            color = if (scoreSummary.answeredUnits > 0) bandColor(scoreSummary.band) else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge)
+    } }
 }
+
 
 @Composable
 private fun QuickActionCard(title: String, subtitle: String, glyph: String, modifier: Modifier = Modifier,
@@ -1481,7 +1450,7 @@ private fun ScoreTrophy(color: Color) {
 @Composable
 private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> Unit,
     patient: PatientState, onAddressChange: (String) -> Unit, google: GoogleActions, onChangePassword: () -> Unit, onLogout: () -> Unit) {
-    SectionCard("Aparência", "Escolha como a NORA aparece para você") {
+    SectionCard("Aparência", "") {
         Appearance.entries.forEach { appearance ->
             val selected = settings.appearance == appearance
             Surface(
@@ -1500,19 +1469,19 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
             }
         }
     }
-    SectionCard("Notificações", "Suas preferências de avisos") {
-        MutedText("Permita notificações do NORA no Android para receber avisos.")
+    SectionCard("Notificações", "") {
         PreferenceSwitch("Consultas", "Lembretes ainda indisponíveis.", settings.appointmentNotifications) {
             onChange(settings.copy(appointmentNotifications = it))
         }
-        PreferenceSwitch("Vaga Relâmpago", "Oportunidades enviadas pela UBS.", settings.flashNotifications) {
+        PreferenceSwitch("Vaga Relâmpago", "Alerta para antecipar sua consulta.", settings.flashNotifications) {
             onChange(settings.copy(flashNotifications = it))
         }
+        FullScreenAlertSetting()
         PreferenceSwitch("Comunicados da rede", "Comunicados para suas UBS.", settings.announcementNotifications) {
             onChange(settings.copy(announcementNotifications = it))
         }
     }
-    SectionCard("Interface", "Mais conforto na navegação") {
+    SectionCard("Interface", "") {
         PreferenceSwitch("Mostrar orientações", "Ajuda quando não há UBS vinculada", settings.showGuidance) {
             onChange(settings.copy(showGuidance = it))
         }
@@ -1527,9 +1496,8 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
         if (patient.session == null) OutlinedTextField(patient.address, onAddressChange,
             label = { Text("Endereço do serviço NORA") }, singleLine = true,
             enabled = !patient.busy, modifier = Modifier.fillMaxWidth())
-        if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}. Para trocar o endereço, saia e configure na tela de entrada.")
+        if (patient.address.isNotBlank()) MutedText("Serviço: ${patient.address}")
         // Com o cartão do Google na tela, a mensagem das ações dele aparece lá, uma vez só.
-        if (patient.message != null && !googleCardVisible(patient, google)) Text(patient.message, color = MaterialTheme.colorScheme.error)
         if (patient.session != null) {
             OutlinedButton(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) { Text("Alterar senha") }
             OutlinedButton(onClick = onLogout, enabled = !patient.busy,
@@ -1545,7 +1513,7 @@ private fun SettingsScreen(settings: UserSettings, onChange: (UserSettings) -> U
     if (resetOpen) AlertDialog(
         onDismissRequest = { resetOpen = false },
         title = { Text("Restaurar preferências?") },
-        text = { Text("A aparência voltará a seguir o sistema e as preferências locais serão restauradas.") },
+        text = { Text("Aparência e preferências voltam ao padrão.") },
         confirmButton = { TextButton(onClick = { onChange(UserSettings()); resetOpen = false }) { Text("Restaurar") } },
         dismissButton = { TextButton(onClick = { resetOpen = false }) { Text("Cancelar") } },
     )

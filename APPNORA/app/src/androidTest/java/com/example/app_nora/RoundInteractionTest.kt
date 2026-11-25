@@ -27,7 +27,7 @@ class RoundInteractionTest {
 
     private fun connected(about: AboutState? = null, google: GoogleState = GoogleState(), actingFor: String? = null) = PatientState(
         address = "https://nora.example.test", session = PatientSession("test-token", "2099-01-01T00:00:00Z", PatientUser("test-user", "Paciente de teste")),
-        units = listOf(unit), selectedUnitId = unit.id, unitData = mapOf(unit.id to UnitSnapshot(queue = emptyList(), offers = emptyList(), appointments = emptyList())),
+        units = listOf(unit), selectedUnitId = unit.id, unitData = mapOf(unit.id to UnitSnapshot(offers = emptyList(), appointments = emptyList())),
         family = FamilyState(links = listOf(maria)), actingFor = actingFor, google = google,
         about = if (about == null) emptyMap() else mapOf(unit.id to about))
 

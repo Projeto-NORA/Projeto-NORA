@@ -116,7 +116,7 @@ internal static partial class Program
             var window = OpenMunicipal(fixture, storageRoot, "municipal-alert-badge", Appearance.Light);
             try
             {
-                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.Single(item => item.Id == "alerts");
+                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.SelectMany(item => item.Children.Prepend(item)).Single(item => item.Id == "alerts" && !item.HasChildren);
                 void Age() => typeof(WorkspaceViewModel).GetField("networkBadgeAttemptedAt", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(vm, (DateTimeOffset?)(DateTimeOffset.Now.AddMinutes(-6)));
                 Require(nav.Badge == 1, "O alerta inicial deve aparecer no menu após o login.");
                 window.ViewModel.Navigate("alerts"); Settle(vm);

@@ -7,7 +7,7 @@
   <StackPanel>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Definir metas">
       <StackPanel IsEnabled="{Binding CanEditGoals}">
-        <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar metas" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar metas" ToolTip="Atualizar metas" Click="OnRefresh" /><TextBlock Text="Definir metas" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" ToolTip="A meta da rede vale para toda UBS que não tem meta própria; escolher uma UBS abaixo permite sobrescrever a meta só nela. Situação: atingida; perto (até 10% da meta); fora; sem dado (sem consulta ou fila para calcular)." /></DockPanel>
+        <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar metas" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar metas" ToolTip="Atualizar metas" Click="OnRefresh" /><TextBlock Text="Definir metas" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" ToolTip="A meta da rede vale para toda UBS que não tem meta própria; escolher uma UBS abaixo permite sobrescrever a meta só nela. Situação: atingida; perto (até 10% da meta); fora; sem dado (sem consulta ou fila para calcular)." /></DockPanel>
 
         <StackPanel Width="320" HorizontalAlignment="Left"><TextBlock Text="Escopo das metas" FontWeight="SemiBold" FontSize="12" />
           <ComboBox ItemsSource="{Binding UnitFilterOptions}" DisplayMemberPath="SelectorLabel" SelectedValuePath="Id" SelectedValue="{Binding GoalScope}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Escopo das metas" /></StackPanel>
@@ -27,7 +27,7 @@
                     <ComboBox SelectedValue="{Binding WaitUnit}" SelectedValuePath="Tag" Width="110" Margin="0,6,16,6" Visibility="{Binding IsWait, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Unidade da espera máxima">
                       <ComboBoxItem Content="horas" Tag="h" /><ComboBoxItem Content="dias" Tag="d" />
                     </ComboBox>
-                    <Button Content="Salvar meta" Tag="{Binding Metric}" Click="OnSave" Margin="0,0,8,0" AutomationProperties.Name="{Binding Title, StringFormat=Salvar meta de {0}}" />
+                    <Button Content="Salvar meta" Tag="{Binding Metric}" Click="OnSave" Margin="0,0,8,0" AutomationProperties.Name="{Binding Title, StringFormat=Salvar meta de {0}}" ToolTip="Grava a meta desta linha."/>
                     <Button Content="Remover meta" Tag="{Binding Metric}" Click="OnRemove" IsEnabled="{Binding HasCurrent}" AutomationProperties.Name="{Binding Title, StringFormat=Remover meta de {0}}" ToolTipService.ShowOnDisabled="True" ToolTip="Remove a meta gravada neste escopo." />
                   </WrapPanel>
                   <TextBlock Text="{Binding Error}" Style="{StaticResource FieldError}" Margin="0,0,0,4" Visibility="{Binding Error, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
@@ -43,7 +43,7 @@
     <views:NetworkFiltersView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Situação das metas por UBS">
       <StackPanel>
-        <TextBlock Text="Situação das metas por UBS" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,12" ToolTip="Calculada pelos indicadores do período e dos filtros acima. Cada UBS usa a meta própria ou, se não tiver, a da rede; sem meta definida aparece Sem meta. O estado vem escrito, com ícone." />
+        <TextBlock Text="Situação das metas por UBS" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Calculada pelos indicadores do período e dos filtros acima. Cada UBS usa a meta própria ou, se não tiver, a da rede; sem meta definida aparece Sem meta. O estado vem escrito, com ícone." />
 
         <DataGrid ItemsSource="{Binding GoalUnitRows}" RowHeight="64" MaxHeight="420" MinHeight="64" AutomationProperties.Name="Situação das metas por UBS">
           <DataGrid.Columns>

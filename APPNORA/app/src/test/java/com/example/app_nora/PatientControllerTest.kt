@@ -46,7 +46,6 @@ class PatientControllerTest {
 
         override suspend fun login(identifier: String, password: String) = PatientSession("token-1", "2099-01-01T00:00:00Z", user)
         override suspend fun units(token: String) = units
-        override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
         override suspend fun appointments(token: String, unitId: String): List<PatientAppointment> { appointmentCalls++; return appointments }
         override suspend fun cancelAppointment(token: String, unitId: String, id: String) { cancelFailure?.let { throw it } }
         override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> {
@@ -82,7 +81,6 @@ class PatientControllerTest {
         assertNotNull(controller.state.session)
         assertEquals(unitA.id, controller.state.selectedUnitId)
         assertEquals(listOf("o1"), controller.state.unitOffers?.map { it.id })
-        assertEquals(emptyList<UnitQueueEntry>(), controller.state.unitQueue)
         assertEquals("ap", controller.state.appointments?.single()?.id)
         assertFalse(controller.state.busy); assertFalse(controller.state.loadingUnits)
     }
@@ -214,7 +212,7 @@ class PatientControllerTest {
         yield()
         assertFalse("A background poll must not block the user", controller.state.busy)
         controller.respondUnitOffer("o1", true)
-        assertEquals("Oferta aceita. Sua consulta foi agendada.", controller.state.message)
+        assertEquals("Consulta antecipada! Veja a nova data em Consultas.", controller.state.message)
         assertEquals("accepted", controller.state.unitOffers?.single()?.status)
         gate.complete(Unit)
         poll.join()
@@ -231,7 +229,7 @@ class PatientControllerTest {
         assertEquals(offerCallsBefore + 1, api.offersCalls)
         assertEquals(appointmentCallsBefore + 1, api.appointmentCalls)
         controller.respondUnitOffer("o2", false)
-        assertEquals("Oferta recusada. Você continua na fila, no mesmo lugar.", controller.state.message)
+        assertEquals("Oferta recusada. Sua consulta continua na data original.", controller.state.message)
         assertEquals(offerCallsBefore + 2, api.offersCalls)
         assertEquals("No appointment reload after a decline", appointmentCallsBefore + 1, api.appointmentCalls)
         assertEquals(listOf("accepted", "declined"), controller.state.unitOffers?.map { it.status })

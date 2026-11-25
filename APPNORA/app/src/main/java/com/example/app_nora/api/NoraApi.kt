@@ -11,7 +11,8 @@ import java.net.URL
 import java.net.URLEncoder
 import java.util.Calendar
 
-data class PatientUser(val id: String, val fullName: String)
+/** [cpfMasked] e [email] só existem quando o servidor os manda na sessão; o app nunca inventa esses dados. */
+data class PatientUser(val id: String, val fullName: String, val cpfMasked: String? = null, val email: String? = null)
 data class PatientSession(val token: String, val expiresAt: String, val user: PatientUser)
 data class RegistrationUnit(val id: String, val name: String, val region: String)
 data class RegistrationEmailOption(val id: String, val maskedEmail: String)
@@ -34,11 +35,8 @@ data class PatientAppointment(val id: String, val specialty: String, val profess
 data class Specialty(val id: String, val name: String)
 /** Atendimento livre da grade de uma UBS; `startsAt` é devolvido ao servidor exatamente como veio. */
 data class AvailableSlot(val startsAt: String, val endsAt: String, val professionalId: String, val professionalName: String,
-    val specialtyId: String, val specialtyName: String) {
+    val specialtyId: String, val specialtyName: String, val room: String? = null) {
     val startsAtMillis: Long? = parseInstantMillis(startsAt)
-}
-data class UnitQueueEntry(val id: Long, val specialty: String, val enteredAt: String, val status: String) {
-    val enteredAtMillis: Long? = parseInstantMillis(enteredAt)
 }
 data class UnitOffer(val id: String, val specialty: String, val professional: String, val startsAt: String, val endsAt: String, val expiresAt: String, val status: String) {
     val expiresAtMillis: Long? = parseInstantMillis(expiresAt)
@@ -107,11 +105,9 @@ interface PatientApi {
     suspend fun linkUnits(token: String, unitIds: List<String>): UnitLinkResult = throw ApiFailure(501, "Vínculo indisponível.")
     suspend fun appointments(token: String, unitId: String): List<PatientAppointment> = throw ApiFailure(501, "Agenda indisponível.")
     suspend fun cancelAppointment(token: String, unitId: String, id: String): Unit = throw ApiFailure(501, "Cancelamento indisponível.")
-    suspend fun unitQueue(token: String, unitId: String): List<UnitQueueEntry> = throw ApiFailure(501, "Fila indisponível.")
     suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> = throw ApiFailure(501, "Ofertas indisponíveis.")
     suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean): OfferResponse = throw ApiFailure(501, "Oferta indisponível.")
     suspend fun attendance(token: String, unitId: String): UnitAttendance = throw ApiFailure(501, "Participação indisponível.")
-    suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long): Unit = throw ApiFailure(501, "Cancelamento indisponível.")
     suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult = throw ApiFailure(501, "Remoção indisponível.")
     /** Exatamente o que a remoção do vínculo cancelaria agora: todas as consultas futuras e entradas ativas de fila na UBS. */
     suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact = throw ApiFailure(501, "Remoção indisponível.")
@@ -149,8 +145,6 @@ interface PatientApi {
         throw ApiFailure(501, "Agendamento indisponível.")
     suspend fun dependentAvailability(token: String, dependentId: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long): List<AvailableSlot> =
         throw ApiFailure(501, "Horários indisponíveis.")
-    suspend fun dependentQueue(token: String, dependentId: String, unitId: String): List<UnitQueueEntry> = throw ApiFailure(501, "Fila indisponível.")
-    suspend fun dependentCancelQueueEntry(token: String, dependentId: String, unitId: String, entryId: Long): Unit = throw ApiFailure(501, "Cancelamento indisponível.")
     suspend fun dependentUnitOffers(token: String, dependentId: String, unitId: String): List<UnitOffer> = throw ApiFailure(501, "Ofertas indisponíveis.")
     suspend fun dependentRespondOffer(token: String, dependentId: String, unitId: String, id: String, accept: Boolean): OfferResponse = throw ApiFailure(501, "Oferta indisponível.")
     suspend fun dependentAttendance(token: String, dependentId: String, unitId: String): UnitAttendance = throw ApiFailure(501, "Participação indisponível.")
@@ -170,9 +164,19 @@ interface PatientApi {
     /** P2: remove o token do aparelho (logout); idempotente. */
     suspend fun removePushToken(token: String, pushToken: String): Unit = throw ApiFailure(501, "Push indisponível.")
     suspend fun pushEnabled(token: String): Boolean = throw ApiFailure(501, "Push indisponível.")
+    /** Identidade da sessão (`GET /api/auth/me`); lê `cpfMasked`/`cpf` e `email` quando o servidor os mandar. */
+    suspend fun me(token: String): PatientUser? = null
+    /** Foto de perfil (JPEG) da conta; `null` quando não há foto (404 `photo-not-found`). */
+    suspend fun profilePhoto(token: String): ByteArray? = null
+    /** Troca a foto de perfil: corpo binário `image/jpeg` de até [PHOTO_MAX_BYTES]. */
+    suspend fun uploadProfilePhoto(token: String, jpeg: ByteArray): Unit = throw ApiFailure(501, "Foto de perfil indisponível.")
+    suspend fun deleteProfilePhoto(token: String): Unit = throw ApiFailure(501, "Foto de perfil indisponível.")
     suspend fun logout(token: String)
     suspend fun presence(token: String, online: Boolean)
 }
+
+/** Limite do servidor para a foto de perfil (`PUT /api/auth/photo`). */
+const val PHOTO_MAX_BYTES = 2 * 1024 * 1024
 
 /** Identificadores de UBS e de registros chegam como GUID; qualquer outra coisa nunca vira caminho de URL. */
 private val GUID = Regex("[a-fA-F0-9-]{36}")
@@ -269,7 +273,7 @@ class NoraApi(private val address: String) : PatientApi {
         val items = request(path, token = token, context = ApiContext.AVAILABILITY).getJSONArray("slots")
         return List(items.length()) { index -> items.getJSONObject(index).let {
             AvailableSlot(it.getString("startsAt"), it.getString("endsAt"), it.getString("professionalId"), it.getString("professionalName"),
-                it.getString("specialtyId"), it.getString("specialtyName"))
+                it.getString("specialtyId"), it.getString("specialtyName"), it.stringOrNull("room")?.takeIf { room -> room.isNotBlank() })
         } }
     }
 
@@ -305,13 +309,6 @@ class NoraApi(private val address: String) : PatientApi {
         request("$prefix/appointments/$id/cancel", "POST", token, JSONObject().put("confirmed", true), ApiContext.APPOINTMENT_CANCEL)
     }
 
-    override suspend fun unitQueue(token: String, unitId: String) = queue(token, own(unitId))
-    override suspend fun dependentQueue(token: String, dependentId: String, unitId: String) = queue(token, delegated(dependentId, unitId))
-
-    private suspend fun queue(token: String, prefix: String): List<UnitQueueEntry> {
-        val entries = request("$prefix/waiting-list", token = token, context = ApiContext.UNIT).getJSONArray("entries")
-        return List(entries.length()) { index -> entries.getJSONObject(index).let { UnitQueueEntry(it.getLong("id"), it.getString("specialty"), it.getString("enteredAt"), it.getString("status")) } }
-    }
 
     override suspend fun unitOffers(token: String, unitId: String) = offers(token, own(unitId))
     override suspend fun dependentUnitOffers(token: String, dependentId: String, unitId: String) = offers(token, delegated(dependentId, unitId))
@@ -346,15 +343,6 @@ class NoraApi(private val address: String) : PatientApi {
             body.getDouble("cancellationWeight"), score, body.getInt("windowMonths"), points,
             attendanceBandFromWire(body.optString("band", "")) ?: attendanceBandOf(points),
             if (body.isNull("hasHistory")) score != null else body.getBoolean("hasHistory"))
-    }
-
-    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = cancelEntry(token, own(unitId), entryId)
-    override suspend fun dependentCancelQueueEntry(token: String, dependentId: String, unitId: String, entryId: Long) =
-        cancelEntry(token, delegated(dependentId, unitId), entryId)
-
-    private suspend fun cancelEntry(token: String, prefix: String, entryId: Long) {
-        require(entryId > 0) { "Solicitação inválida." }
-        request("$prefix/waiting-list/$entryId/cancel", "POST", token, JSONObject().put("confirmed", true), ApiContext.QUEUE_CANCEL)
     }
 
     override suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult {
@@ -518,9 +506,74 @@ class NoraApi(private val address: String) : PatientApi {
         request(if (online) "/api/patient/presence" else "/api/patient/presence/offline", "POST", token, context = ApiContext.SESSION)
     }
 
+    // ---- Foto de perfil: contrato fixo GET/PUT/DELETE /api/auth/photo ----------------------------------------
+
+    override suspend fun me(token: String): PatientUser =
+        user(request("/api/auth/me", token = token, context = ApiContext.SESSION))
+
+    override suspend fun profilePhoto(token: String): ByteArray? {
+        val (status, bytes) = binary("/api/auth/photo", "GET", token, null)
+        if (status == 404) return null
+        if (status !in 200..299) throw photoFailure(status, bytes)
+        return bytes.takeIf { it.isNotEmpty() }
+    }
+
+    override suspend fun uploadProfilePhoto(token: String, jpeg: ByteArray) {
+        require(jpeg.isNotEmpty()) { "Escolha uma foto." }
+        if (jpeg.size > PHOTO_MAX_BYTES) throw ApiFailure(413, failureMessage(413, PHOTO_TOO_LARGE, ApiContext.PHOTO), PHOTO_TOO_LARGE)
+        val (status, bytes) = binary("/api/auth/photo", "PUT", token, jpeg)
+        if (status !in 200..299) throw photoFailure(status, bytes)
+    }
+
+    override suspend fun deleteProfilePhoto(token: String) {
+        val (status, bytes) = binary("/api/auth/photo", "DELETE", token, null)
+        // Sem foto para apagar também é o resultado pedido.
+        if (status !in 200..299 && status != 404) throw photoFailure(status, bytes)
+    }
+
+    private fun photoFailure(status: Int, body: ByteArray): ApiFailure {
+        val code = problemCode(String(body, Charsets.UTF_8))
+        return ApiFailure(status, failureMessage(status, code, ApiContext.PHOTO), code)
+    }
+
+    /** Requisição de corpo binário (a foto); devolve o status e os bytes da resposta, até o dobro do limite da foto. */
+    private suspend fun binary(path: String, method: String, token: String, jpeg: ByteArray?): Pair<Int, ByteArray> = withContext(Dispatchers.IO) {
+        val connection = URL(address + path).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = method
+            connection.connectTimeout = 10000
+            connection.readTimeout = 20000
+            connection.instanceFollowRedirects = false
+            connection.setRequestProperty("Accept", "image/jpeg, application/json")
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            jpeg?.let {
+                connection.doOutput = true
+                connection.setFixedLengthStreamingMode(it.size)
+                connection.setRequestProperty("Content-Type", "image/jpeg")
+                connection.outputStream.use { output -> output.write(it) }
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val bytes = stream?.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var length = input.read(buffer)
+                while (length != -1) {
+                    if (output.size() + length > 2 * PHOTO_MAX_BYTES) throw IOException("Resposta do serviço excede o limite esperado.")
+                    output.write(buffer, 0, length)
+                    length = input.read(buffer)
+                }
+                output.toByteArray()
+            } ?: ByteArray(0)
+            status to bytes
+        } finally { connection.disconnect() }
+    }
+
     private fun user(body: JSONObject): PatientUser {
         if (body.getString("scope") != "patient") throw ApiFailure(403, failureMessage(403, "forbidden", ApiContext.LOGIN), "forbidden")
-        return PatientUser(body.getString("id"), body.getString("fullName"))
+        return PatientUser(body.getString("id"), body.getString("fullName"),
+            (body.stringOrNull("cpfMasked") ?: body.stringOrNull("cpf"))?.takeIf { it.isNotBlank() }?.let(::maskCpf),
+            body.stringOrNull("email")?.takeIf { it.isNotBlank() })
     }
 
     private suspend fun request(path: String, method: String = "GET", token: String? = null,
@@ -528,8 +581,8 @@ class NoraApi(private val address: String) : PatientApi {
         val connection = URL(address + path).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
-            connection.connectTimeout = 10000
-            connection.readTimeout = 15000
+            connection.connectTimeout = 30000
+            connection.readTimeout = 75000
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("Accept", "application/json")
             token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }

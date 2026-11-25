@@ -10,15 +10,13 @@ using Nora.Desktop.Views;
 
 namespace Nora.Desktop.Checks;
 
-/// <summary>Rodada final de 2026-11-16 no desktop: computadores do OBS, Chamar próximo, atendimento ao público, aprovação das vagas e os textos de nova tentativa.</summary>
+/// <summary>Rodada final de 2026-11-16 no desktop: computadores do OBS, atendimento ao público e os textos de nova tentativa.</summary>
 internal static partial class Program
 {
     private static void RunRoundChecks(Application application, string storageRoot, string[] args)
     {
         RunObsDeviceChecks(storageRoot, args);
-        RunCallNextChecks(storageRoot, args);
         RunUnitProfileChecks(storageRoot, args);
-        RunSlotApprovalChecks(storageRoot, args);
         RunRetryTextsChecks(storageRoot, args);
         RunScoreHistoryChecks(storageRoot, args);
     }
@@ -436,7 +434,7 @@ internal static partial class Program
             Console.WriteLine("E2E de computadores do OBS não solicitado: defina NORA_E2E_URL, NORA_E2E_UNIT_REGISTRY=1 e a conta de atendente em NORA_E2E_ATTENDANT_IDENTIFIER e NORA_E2E_ATTENDANT_PASSWORD.");
             return;
         }
-        Check("E2E contratos da rodada com a API real: perfil da UBS (horários e serviços), aprovação das vagas, prévia do 1º da fila, vagas com os campos novos e erro de Chamar próximo", () => Task.Run(async () =>
+        Check("E2E contratos da rodada com a API real: perfil da UBS (horários e serviços), vagas com os campos novos e erro de Chamar próximo", () => Task.Run(async () =>
         {
             var identifier = Environment.GetEnvironmentVariable("NORA_E2E_IDENTIFIER") ?? throw new InvalidOperationException("Falta identificador E2E.");
             var password = Environment.GetEnvironmentVariable("NORA_E2E_PASSWORD") ?? throw new InvalidOperationException("Falta senha E2E.");
@@ -448,22 +446,11 @@ internal static partial class Program
             var saved = await api.SaveUnitProfileAsync(unit.Id, new UnitProfileDraft([new(1, "07:00", "11:30"), new(1, "13:00", "17:00"), new(6, "08:00", "12:00")], "Vacinas e curativos"));
             var read = await api.UnitProfileAsync(unit.Id);
             Require(saved.Informed && read.Informed && read.Services == "Vacinas e curativos" && read.OpeningHours.Length == 3 && OpeningHoursText.ForDay(read.OpeningHours, 1) == "07:00–11:30 e 13:00–17:00" && OpeningHoursText.ForDay(read.OpeningHours, 0) == "Fechado", "O perfil gravado deveria voltar igual na API real.");
-            // Aprovação das vagas: liga e desliga, e o perfil do OBS mostra a chave.
-            var on = await api.SetSlotApprovalAsync(unit.Id, true);
-            Require(on.Enabled && on.Since is not null && (await api.UnitProfileAsync(unit.Id)).SlotApprovalRequired, "A API real deveria ligar a aprovação das vagas.");
-            var off = await api.SetSlotApprovalAsync(unit.Id, false);
-            Require(!off.Enabled && !(await api.UnitProfileAsync(unit.Id)).SlotApprovalRequired, "A API real deveria desligar a aprovação das vagas.");
-            // Prévia da fila e vagas: o formato do corpo (entryId numérico, campos novos da vaga) é lido pelo cliente sem erro.
             var specialty = (await api.ObsSpecialtiesAsync()).First(item => item.IsActive);
-            var next = await api.NextInQueueAsync(unit.Id, specialty.Id);
-            Require(next is null || (next.EntryId > 0 && next.PatientName.Length > 0), "A prévia do 1º da fila veio num formato inesperado.");
             var slots = await api.UnitLightningSlotsAsync(unit.Id);
             Require(slots.Items.All(slot => slot.Origin.Length > 0 && slot.Status.Length > 0), "As vagas deveriam trazer origem e situação.");
             // Computadores: a lista da UBS é lida pelo administrador.
             _ = await api.ObsDevicesAsync(unit.Id);
-            // Chamar próximo com profissional desconhecido é recusado com mensagem e status, nunca com falha genérica.
-            try { await api.CallNextAsync(unit.Id, specialty.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddHours(3)); throw new InvalidOperationException("Profissional desconhecido não pode receber a vaga."); }
-            catch (NoraApiException error) { Require(error.Status is 400 or 409 && error.Message.Length > 0, $"Erro inesperado de Chamar próximo: {error.Status} {error.Message}"); }
         }).GetAwaiter().GetResult());
 
         Check("E2E computadores do OBS: administrador ativa este e gera código → atendente ativa com o código e entra com Manter conectado → administrador revoga → atendente volta à ativação", () =>

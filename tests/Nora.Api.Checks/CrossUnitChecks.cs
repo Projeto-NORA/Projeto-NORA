@@ -72,13 +72,16 @@ internal static class CrossUnitChecks
         {
             var pc = await f.PatientAsync(3, u1, u2);
             using (var app = await AppBook(pc, u1, ana, cardiology, slots[3])) Expect(app, 201);
-            using (var join = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u2}/waiting-list", new { cpf = Cpf(3), specialty = "Clínica geral" })) Expect(join, 201);
-            using (var call = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u2}/waiting-list/call-next", new { specialtyId = clinical, professionalId = carla, startsAt = slots[3], confirmed = true })) Expect(call, 201); // o chamar próximo não consulta outras UBS
+            // Vaga automática na UBS 2 no mesmo horário (consulta cancelada de outra pessoa) e P3 com consulta posterior de Clínica geral lá: a oferta automática não consulta outras UBS.
+            var later = Guid.NewGuid();
+            await f.UnitExec(u2, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,'Clínica geral','Agenda futura',$3,$4,'scheduled',$5,$6)", later, Cpf(3), slots[3].AddDays(30), slots[3].AddDays(30).AddMinutes(30), f.AdminId, f.Clock.GetUtcNow());
+            await f.UnitExec(u2, "INSERT INTO nora_unit.appointments(id,cpf,specialty,specialty_id,professional,professional_id,starts_at,ends_at,status,created_by,created_at) VALUES(gen_random_uuid(),$1,'Clínica geral',$2,'Dra. Carla Dias',$3,$4,$5,'cancelled',$6,$7)", Cpf(2), clinical, carla, slots[3], slots[3].AddMinutes(30), f.AdminId, f.Clock.GetUtcNow());
+            await f.AdvanceAsync(u2);
             using var offers = await pc.GetAsync($"/api/patient/units/{u2}/lightning-offers"); Expect(offers, 200);
             var offer = (await Read(offers)).GetProperty("offers").EnumerateArray().Last().GetProperty("id").GetGuid();
             using (var accept = await pc.PostAsJsonAsync($"/api/patient/units/{u2}/lightning-offers/{offer}/respond", new { accept = true })) await ExpectOverlap(accept);
-            Ensure(await f.UnitScalar<string>(u2, "SELECT o.status||':'||s.status||':'||q.status FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE o.id=$1", offer) == "pending:offered:offered" && await Count(u2, 3) == 0,
-                "A oferta continua pendente e nenhuma consulta foi criada.");
+            Ensure(await f.UnitScalar<string>(u2, "SELECT o.status||':'||s.status||':'||a.status FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id JOIN nora_unit.appointments a ON a.id=o.appointment_id WHERE o.id=$1", offer) == "pending:offered:scheduled" && await Count(u2, 3) == 1,
+                "A oferta continua pendente, a consulta a antecipar continua marcada e nenhuma consulta nova foi criada.");
             using (var decline = await pc.PostAsJsonAsync($"/api/patient/units/{u2}/lightning-offers/{offer}/respond", new { accept = false })) Expect(decline, 200);
         });
 

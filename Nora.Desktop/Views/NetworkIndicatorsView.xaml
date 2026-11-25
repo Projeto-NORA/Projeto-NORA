@@ -6,7 +6,7 @@
     <views:ScoreNoteView />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Comparativo por região" FontSize="19" FontWeight="SemiBold"  ToolTip="Regiões agrupadas sem diferenciar maiúsculas. A barra acompanha o comparecimento; o valor escrito ao lado é a informação." Margin="0,0,0,12" />
+        <TextBlock Text="Comparativo por região" Style="{StaticResource SectionTitle}"  ToolTip="Regiões agrupadas sem diferenciar maiúsculas. A barra acompanha o comparecimento; o valor escrito ao lado é a informação." Margin="0,0,0,12" />
 
         <DataGrid ItemsSource="{Binding RegionPerformance}" CanUserSortColumns="True" MaxHeight="340" MinHeight="64" AutomationProperties.Name="Comparativo por região">
           <DataGrid.Columns>
@@ -32,7 +32,7 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Série no tempo" FontSize="19" FontWeight="SemiBold"  ToolTip="Consultas por dia, pela data marcada, com os filtros acima." Margin="0,0,0,12" />
+        <TextBlock Text="Série no tempo" Style="{StaticResource SectionTitle}"  ToolTip="Consultas por dia, pela data marcada, com os filtros acima." Margin="0,0,0,12" />
 
         <views:EvolutionChartView Data="{Binding NetworkChart}" />
       </StackPanel>

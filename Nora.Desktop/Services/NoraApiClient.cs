@@ -21,7 +21,7 @@ public sealed class NoraApiException(string message, bool unauthorized = false, 
 public sealed class NoraApiClient : IDisposable
 {
     // Valores fixos do campo "code" do problem+json; qualquer outro texto do servidor é ignorado.
-    private static readonly HashSet<string> ErrorCodes = ["invalid-input", "unauthorized", "forbidden", "not-found", "conflict", "too-many-requests", "internal-error", "service-unavailable", "invalid-current-password", "password-change-required", "database-provisioning-failed", "unit-database-outdated", "catalog-required", "slot-unavailable", "patient-overlap", "specialty-limit", "booking-window", "confirmation-window", "family-link-closed", "dependent-inactive", "device-required", "invalid-activation-code", "device-already-active", "device-revoked", "queue-empty", "call-next-too-late", "approval-expired", "other-unit-overlap"];
+    private static readonly HashSet<string> ErrorCodes = ["invalid-input", "unauthorized", "forbidden", "not-found", "conflict", "too-many-requests", "internal-error", "service-unavailable", "invalid-current-password", "password-change-required", "database-provisioning-failed", "unit-database-outdated", "catalog-required", "slot-unavailable", "patient-overlap", "specialty-limit", "booking-window", "confirmation-window", "family-link-closed", "dependent-inactive", "device-required", "invalid-activation-code", "device-already-active", "device-revoked", "other-unit-overlap", "photo-not-found", "photo-invalid", "photo-too-large"];
     private readonly HttpClient http;
     private Uri? endpoint;
     private string? token;
@@ -85,17 +85,9 @@ public sealed class NoraApiClient : IDisposable
     public Task<ActivationCodeInfo> IssueDeviceCodeAsync(Guid unitId, Guid id) => SendAsync<ActivationCodeInfo>(HttpMethod.Post, $"api/obs/units/{unitId}/devices/{id}/activation-code", new { });
     public Task<RevokedObsDevice> RevokeDeviceAsync(Guid unitId, Guid id) => SendAsync<RevokedObsDevice>(HttpMethod.Post, $"api/obs/units/{unitId}/devices/{id}/revoke", new { confirmed = true });
 
-    // Atendimento ao público (horário, serviços), aprovação das vagas reaproveitadas e "Chamar próximo".
+    // Atendimento ao público (horário, serviços). A Vaga Relâmpago é automática: o OBS só lê as vagas e as ofertas.
     public Task<UnitProfile> UnitProfileAsync(Guid unitId, CancellationToken cancellation = default) => SendAsync<UnitProfile>(HttpMethod.Get, $"api/obs/units/{unitId}/profile", cancellation: cancellation);
     public Task<UnitProfile> SaveUnitProfileAsync(Guid unitId, UnitProfileDraft draft) => SendAsync<UnitProfile>(HttpMethod.Put, $"api/obs/units/{unitId}/profile", draft);
-    public Task<SlotApprovalState> SetSlotApprovalAsync(Guid unitId, bool enabled) => SendAsync<SlotApprovalState>(HttpMethod.Put, $"api/obs/units/{unitId}/slot-approval", new { enabled, confirmed = true });
-    public Task<UnitLightningSlot> ApproveLightningSlotAsync(Guid unitId, Guid slotId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots/{slotId}/approve", new { confirmed = true });
-    public Task<UnitLightningSlot> DiscardLightningSlotAsync(Guid unitId, Guid slotId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots/{slotId}/discard", new { confirmed = true });
-    /// <summary>1º da fila que pode receber. Com <paramref name="professionalId"/> e <paramref name="startsAt"/> (o horário escolhido) o servidor usa o mesmo critério da chamada e pula quem já tem consulta que cruze esse horário.</summary>
-    public async Task<NextInQueue?> NextInQueueAsync(Guid unitId, Guid specialtyId, Guid? professionalId = null, DateTimeOffset? startsAt = null, CancellationToken cancellation = default) =>
-        (await SendAsync<NextInQueueResult>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list/next?specialtyId={specialtyId}" + (professionalId is { } professional && startsAt is { } start ? $"&professionalId={professional}&startsAt={Uri.EscapeDataString(start.ToUniversalTime().ToString("O"))}" : ""), cancellation: cancellation)).Next;
-    public Task<CallNextResult> CallNextAsync(Guid unitId, Guid specialtyId, Guid professionalId, DateTimeOffset startsAt) =>
-        SendAsync<CallNextResult>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/call-next", new { specialtyId, professionalId, startsAt, confirmed = true });
     public async Task LogoutAsync()
     {
         try { if (token != null) await SendAsync<object>(HttpMethod.Post, "api/auth/logout"); }
@@ -207,20 +199,14 @@ public sealed class NoraApiClient : IDisposable
     public Task<FamilyLink> RejectFamilyLinkAsync(Guid unitId, Guid id, string? reason) => SendAsync<FamilyLink>(HttpMethod.Post, $"api/obs/units/{unitId}/family-links/{id}/reject", new { confirmed = true, reason });
     public Task<FamilyLink> EndFamilyLinkAsync(Guid unitId, Guid id) => SendAsync<FamilyLink>(HttpMethod.Post, $"api/obs/units/{unitId}/family-links/{id}/end", new { confirmed = true });
 
-    /// <summary>Prévia da desativação do cadastro: quantas consultas futuras e entradas de fila seriam canceladas. O CPF vai no corpo; nada é gravado.</summary>
+    /// <summary>Prévia da desativação do cadastro: quantas consultas futuras e ofertas pendentes seriam encerradas. O CPF vai no corpo; nada é gravado.</summary>
     public Task<DeactivationPreview> DeactivationPreviewAsync(Guid unitId, string cpf) => SendAsync<DeactivationPreview>(HttpMethod.Post, $"api/obs/units/{unitId}/registry/deactivation-preview", new { cpf });
 
     public Task<AppointmentInfo> ChangeAppointmentStatusAsync(Guid unitId, Guid id, string status, bool confirmed) => SendAsync<AppointmentInfo>(HttpMethod.Patch, $"api/obs/units/{unitId}/appointments/{id}/status", new { status, confirmed });
-    /// <summary>Primeira página (todas as entradas ativas e as encerradas mais recentes) ou, com <paramref name="historyBefore"/>, só as encerradas mais antigas que o cursor.</summary>
-    public Task<WaitingListPage> UnitWaitingListAsync(Guid unitId, string? historyBefore = null) =>
-        SendAsync<WaitingListPage>(HttpMethod.Get, $"api/obs/units/{unitId}/waiting-list{HistoryQuery(historyBefore)}");
-    public Task<UnitWaitingEntry> AddUnitWaitingEntryAsync(Guid unitId, string cpf, string specialty) => SendAsync<UnitWaitingEntry>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list", new { cpf, specialty });
-    public Task<object> CancelUnitWaitingEntryAsync(Guid unitId, long id) => SendAsync<object>(HttpMethod.Post, $"api/obs/units/{unitId}/waiting-list/{id}/cancel", new { confirmed = true });
-    /// <summary>Mesmo formato da fila: vagas ativas mais as encerradas mais recentes, e <paramref name="historyBefore"/> para as mais antigas.</summary>
+    /// <summary>Vagas ativas mais as encerradas mais recentes, e <paramref name="historyBefore"/> para as mais antigas.</summary>
     public Task<LightningSlotPage> UnitLightningSlotsAsync(Guid unitId, string? historyBefore = null) =>
         SendAsync<LightningSlotPage>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots{HistoryQuery(historyBefore)}");
     private static string HistoryQuery(string? historyBefore) => string.IsNullOrEmpty(historyBefore) ? "" : "?historyBefore=" + Uri.EscapeDataString(historyBefore);
-    public Task<UnitLightningSlot> CreateUnitLightningSlotAsync(Guid unitId, Guid appointmentId) => SendAsync<UnitLightningSlot>(HttpMethod.Post, $"api/obs/units/{unitId}/lightning-slots", new { appointmentId, confirmed = true });
     public Task<UnitSlotOffer[]> UnitSlotOffersAsync(Guid unitId, Guid slotId) => SendAsync<UnitSlotOffer[]>(HttpMethod.Get, $"api/obs/units/{unitId}/lightning-slots/{slotId}/offers");
     public Task<UnitMetrics> UnitMetricsAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellation = default) =>
         SendAsync<UnitMetrics>(HttpMethod.Get, $"api/obs/units/{unitId}/metrics?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}", cancellation: cancellation);
@@ -253,6 +239,57 @@ public sealed class NoraApiClient : IDisposable
     public Task<HealthUnit[]> StaffUnitsAsync(Guid id) => SendAsync<HealthUnit[]>(HttpMethod.Get, $"api/municipal/staff/{id}/units");
     public Task<object> SetStaffUnitAsync(Guid staffId, Guid unitId, bool grant) => SendAsync<object>(grant ? HttpMethod.Put : HttpMethod.Delete, $"api/municipal/staff/{staffId}/units/{unitId}");
     public Task<MunicipalSummary> SummaryAsync(Guid? unitId = null, CancellationToken cancellation = default) => SendAsync<MunicipalSummary>(HttpMethod.Get, unitId is { } id ? $"api/municipal/summary?unitId={id}" : "api/municipal/summary", cancellation: cancellation);
+
+    // Foto de perfil da conta logada (contrato fixo): GET 200 bytes ou 404 photo-not-found; PUT binário até 2 MB (204, 400 photo-invalid, 413 photo-too-large); DELETE 204.
+    public const int MaxPhotoBytes = 2 * 1024 * 1024;
+    /// <summary>Bytes da foto da conta, ou nulo quando a conta não tem foto (404).</summary>
+    public async Task<byte[]?> AccountPhotoAsync(CancellationToken cancellation = default)
+    {
+        try { return await SendBytesAsync(HttpMethod.Get, "api/auth/photo", null, cancellation); }
+        catch (NoraApiException error) when (error.Status == 404) { return null; }
+    }
+    public async Task UploadAccountPhotoAsync(byte[] data, string contentType)
+    {
+        if (contentType is not ("image/jpeg" or "image/png" or "image/webp")) throw new NoraApiException("A foto precisa ser JPG, PNG ou WebP.");
+        if (data.Length == 0) throw new NoraApiException("A imagem escolhida está vazia.");
+        if (data.Length > MaxPhotoBytes) throw new NoraApiException("A foto passou de 2 MB. Escolha uma imagem menor.");
+        var content = new ByteArrayContent(data);
+        content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        await SendBytesAsync(HttpMethod.Put, "api/auth/photo", content);
+    }
+    public Task DeleteAccountPhotoAsync() => SendBytesAsync(HttpMethod.Delete, "api/auth/photo", null);
+
+    /// <summary>Requisição com corpo e resposta binários (foto); mesmas regras de sessão e de erro do <see cref="SendAsync{T}"/>.</summary>
+    private async Task<byte[]?> SendBytesAsync(HttpMethod method, string path, HttpContent? content, CancellationToken cancellation = default)
+    {
+        if (disposed) throw new NoraApiException("O aplicativo foi fechado. Abra-o para conectar novamente.");
+        if (endpoint == null) throw new NoraApiException("Configure o endereço da API antes de conectar.");
+        if (token == null) throw new NoraApiException("Entre na sua conta para continuar.", true);
+        try
+        {
+            using var request = new HttpRequestMessage(method, new Uri(endpoint, path));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (SendsDeviceCredential) request.Headers.TryAddWithoutValidation("X-Nora-Device", deviceHeader);
+            if (content != null) request.Content = content;
+            using var response = await http.SendAsync(request, cancellation);
+            if (!response.IsSuccessStatusCode)
+            {
+                var unauthorized = response.StatusCode == HttpStatusCode.Unauthorized;
+                if (unauthorized) ClearSession();
+                var code = await ReadErrorCodeAsync(response);
+                if (code is null && response.StatusCode == HttpStatusCode.RequestEntityTooLarge) code = "photo-too-large";
+                throw new NoraApiException(ErrorMessage(method, path, response.StatusCode, code, true), unauthorized, code, (int)response.StatusCode);
+            }
+            if (response.StatusCode == HttpStatusCode.NoContent || method != HttpMethod.Get) return null;
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellation);
+            if (bytes.Length > MaxPhotoBytes * 2) throw new NoraApiException("A API retornou uma foto maior que o esperado.");
+            return bytes;
+        }
+        catch (HttpRequestException) { throw new NoraApiException("Não foi possível conectar à API. Confira o endereço e a conexão."); }
+        catch (IOException) { throw new NoraApiException("A conexão com a API foi interrompida. Tente novamente."); }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+        catch (TaskCanceledException) { throw new NoraApiException("A API demorou para responder. Tente novamente."); }
+    }
 
     private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body = null, bool authenticated = true, CancellationToken cancellation = default)
     {
@@ -327,11 +364,11 @@ public sealed class NoraApiClient : IDisposable
             "invalid-activation-code" => "Código inválido, vencido ou já usado. Peça um novo código ao administrador da UBS.",
             "device-already-active" => "Este computador já está ativado. Revogue-o antes de ativá-lo para outra UBS.",
             "device-revoked" => "Este computador foi desativado pelo administrador da UBS ou a ativação não vale mais.",
-            "queue-empty" => "Ninguém desta fila pode receber a oferta agora (sem conta no aplicativo, cadastro inativo, oferta pendente ou consulta no mesmo horário).",
-            "call-next-too-late" => "Faltam menos de 10 minutos para esse horário. Escolha um horário mais tarde.",
-            "approval-expired" => "Falta menos de 1 hora para a consulta; a vaga foi fechada sem ser ofertada.",
             "other-unit-overlap" => "O paciente já tem consulta neste horário em outra UBS. Escolha outro horário.",
-            "forbidden" when IsAdministratorWrite(method, path) => "Somente o administrador da UBS altera o atendimento ao público, a aprovação das vagas e os computadores. Peça a um administrador da UBS.",
+            "photo-not-found" => "Esta conta ainda não tem foto.",
+            "photo-invalid" => "A imagem não foi aceita. Use uma foto JPG, PNG ou WebP.",
+            "photo-too-large" => "A foto passou de 2 MB. Escolha uma imagem menor.",
+            "forbidden" when IsAdministratorWrite(method, path) => "Somente o administrador da UBS altera o o atendimento ao público e os computadores. Peça a um administrador da UBS.",
             "forbidden" => IsCatalogWrite(method, path)
                 ? "Somente o administrador da UBS altera profissionais, consultórios, grade e bloqueios. Peça a um administrador da UBS."
                 : path.StartsWith("api/obs/units/", StringComparison.Ordinal)
@@ -341,7 +378,6 @@ public sealed class NoraApiClient : IDisposable
             "invalid-current-password" => "A senha atual não confere.",
             "unit-database-outdated" => UnitBaseMessage,
             "catalog-required" => "Esta UBS marca consultas pelo catálogo: escolha a especialidade, o profissional e um horário livre da lista.",
-            "slot-unavailable" when path.EndsWith("/approve", StringComparison.Ordinal) => "O horário já foi ocupado; a vaga foi fechada.",
             "slot-unavailable" => "Esse horário não está mais livre. Escolha outro horário da lista.",
             "patient-overlap" => "O paciente já tem uma consulta que cruza este horário. Escolha outro horário ou cancele a outra consulta.",
             "specialty-limit" => "O paciente já tem uma consulta futura marcada pelo aplicativo nesta especialidade.",
@@ -363,9 +399,9 @@ public sealed class NoraApiClient : IDisposable
     private static bool IsCatalogWrite(HttpMethod method, string path) => method != HttpMethod.Get && path.StartsWith("api/obs/units/", StringComparison.Ordinal)
         && (path.Contains("/professionals", StringComparison.Ordinal) || path.Contains("/rooms", StringComparison.Ordinal) || path.Contains("/schedule", StringComparison.Ordinal));
 
-    /// <summary>Escrita que só o administrador da UBS faz e que não é do catálogo: atendimento ao público, aprovação das vagas e computadores do OBS.</summary>
+    /// <summary>Escrita que só o administrador da UBS faz e que não é do catálogo: atendimento ao público e computadores do OBS.</summary>
     private static bool IsAdministratorWrite(HttpMethod method, string path) => method != HttpMethod.Get && path.StartsWith("api/obs/units/", StringComparison.Ordinal)
-        && (path.EndsWith("/profile", StringComparison.Ordinal) || path.EndsWith("/slot-approval", StringComparison.Ordinal) || path.Contains("/devices", StringComparison.Ordinal));
+        && (path.EndsWith("/profile", StringComparison.Ordinal) || path.Contains("/devices", StringComparison.Ordinal));
 
     private static string NotFoundMessage(string path)
     {
@@ -392,7 +428,6 @@ public sealed class NoraApiClient : IDisposable
         if (path.Contains("/devices", StringComparison.Ordinal)) return "Confira o nome do computador: de 1 a 60 caracteres, sem caracteres de controle.";
         if (path.Contains("historyBefore=", StringComparison.Ordinal)) return "O ponto de partida do histórico não vale mais. Atualize a lista e peça o histórico de novo.";
         if (path.EndsWith("/profile", StringComparison.Ordinal)) return "Confira o atendimento ao público: até dois intervalos por dia, com o fim depois do início e sem sobreposição, e serviços de até 1.000 caracteres.";
-        if (path.Contains("/waiting-list/call-next", StringComparison.Ordinal) || path.Contains("/waiting-list/next", StringComparison.Ordinal)) return "Confira a especialidade e o horário escolhidos para o Chamar próximo.";
         if (path == "api/auth/password") return "Confira a nova senha: use de 8 a 256 caracteres, diferente da atual.";
         if (path == "api/municipal/staff") return "Confira nome, e-mail, perfil e senha provisória (8 a 256 caracteres).";
         if (path.StartsWith("api/municipal/staff/", StringComparison.Ordinal) && path.EndsWith("/password", StringComparison.Ordinal)) return "A senha provisória precisa ter de 8 a 256 caracteres.";
@@ -449,9 +484,6 @@ public sealed class NoraApiClient : IDisposable
             return "Sobreposição: o profissional ou o consultório já tem horário neste dia da semana que cruza o intervalo informado (encostar não é sobrepor). Ajuste o horário, o dia ou a vigência. Se nada cruza, o profissional ou o consultório pode ter sido desativado por outra pessoa: atualize as configurações.";
         if (create && path.EndsWith("/appointments", StringComparison.Ordinal)) return "Horário em conflito: o paciente ou o profissional já tem consulta ou vaga neste intervalo.";
         if (path.Contains("/appointments/", StringComparison.Ordinal) && path.EndsWith("/status", StringComparison.Ordinal)) return "A consulta já foi alterada por outra pessoa. Atualize a agenda.";
-        if (create && path.EndsWith("/waiting-list", StringComparison.Ordinal)) return "Este paciente já está na fila desta especialidade.";
-        if (create && path.EndsWith("/lightning-slots", StringComparison.Ordinal)) return "Já existe uma vaga para esta consulta, talvez aguardando aprovação. Atualize as vagas.";
-        if (path.Contains("/waiting-list/", StringComparison.Ordinal) && path.EndsWith("/cancel", StringComparison.Ordinal)) return "A entrada já foi encerrada. Atualize a fila.";
         return "O registro já existe ou sua situação mudou. Atualize a lista.";
     }
     public void Dispose() { disposed = true; ClearSession(); http.Dispose(); }

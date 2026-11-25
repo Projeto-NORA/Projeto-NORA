@@ -21,6 +21,7 @@ public sealed class AccountRateLimiter : IDisposable
         GoogleLink => 20,
         PushDevice => 30,
         ObsDevices => 30,
+        ProfilePhoto => 30,
         _ => throw new ArgumentOutOfRangeException(nameof(policy))
     };
 
@@ -34,6 +35,8 @@ public sealed class AccountRateLimiter : IDisposable
     public const string PushDevice = "push-device";
     /// <summary>Criar computador do OBS, gerar código de ativação e revogar (cada geração de código é uma permissão).</summary>
     public const string ObsDevices = "obs-devices";
+    /// <summary>Enviar ou remover a foto de perfil (PUT e DELETE de /api/auth/photo).</summary>
+    public const string ProfilePhoto = "profile-photo";
 
     /// <summary>Consome uma permissão da conta na política; sem permissão disponível → 429.</summary>
     public void Require(string policy, Guid accountId)

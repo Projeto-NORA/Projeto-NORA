@@ -37,7 +37,7 @@ public sealed class AccountDao(DatabaseHelper database)
     public Task<List<PatientInfo>> PatientsAsync(DateTimeOffset now, CancellationToken ct) => database.UseAsync(async connection =>
     {
         await using var command = database.Command(connection,
-            "SELECT a.id,a.full_name,a.cpf,a.email,a.phone,a.is_active AND EXISTS(SELECT 1 FROM nora.sessions s WHERE s.account_id=a.id AND s.revoked_at IS NULL AND s.expires_at>$1 AND s.presence_seen_at>$2),a.is_active,a.created_at,a.cep,a.street,a.address_number,a.complement,a.neighborhood,a.city,a.state,a.ibge FROM nora.accounts a WHERE a.scope='patient' ORDER BY a.created_at DESC,a.id", now, now - AuthService.PresenceTimeout);
+            "SELECT a.id,a.full_name,a.cpf,a.email,a.phone,a.is_active AND EXISTS(SELECT 1 FROM nora.sessions s WHERE s.account_id=a.id AND s.revoked_at IS NULL AND s.expires_at>$1 AND s.presence_seen_at>$2),a.is_active,a.created_at,a.cep,a.street,a.address_number,a.complement,a.neighborhood,a.city,a.state,a.ibge FROM nora.accounts a WHERE a.scope='patient' ORDER BY lower(a.full_name),a.id", now, now - AuthService.PresenceTimeout);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var patients = new List<PatientInfo>();
         while (await reader.ReadAsync(ct))
@@ -69,7 +69,7 @@ public sealed class AccountDao(DatabaseHelper database)
     }, ct);
 
     private static Account ReadAccount(NpgsqlDataReader reader) => new(
-        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)),
+        new UserInfo(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)).WithContact(reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetString(6)),
         reader.IsDBNull(5) ? "" : reader.GetString(5), reader.GetString(6), reader.GetString(7));
     private static string? ReadOptional(NpgsqlDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
 }

@@ -1,14 +1,14 @@
 <UserControl x:Class="Nora.Desktop.Views.StaffAccessView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Border Style="{StaticResource Card}" Margin="0,0,0,18">
     <StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="Vínculos de contas OBS" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" ToolTip="Registre as UBS que cada conta pode operar. Desativar uma conta preserva estes vínculos. Selecione a conta na tabela acima." />
+      <TextBlock Text="Vínculos de contas OBS" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Registre as UBS que cada conta pode operar. Desativar uma conta preserva estes vínculos. Selecione a conta na tabela acima." />
 
       <TextBlock Text="{Binding SelectedStaffLabel}" FontWeight="SemiBold" Margin="0,0,0,12" />
-      <Button Content="Atualizar vínculos" Click="OnLoadUnits" IsEnabled="{Binding CanLoadStaffUnits}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <Button Content="Atualizar vínculos" Click="OnLoadUnits" IsEnabled="{Binding CanLoadStaffUnits}" HorizontalAlignment="Left" Margin="0,0,0,12" ToolTip="Lê os vínculos da conta de novo."/>
       <TextBlock Text="UBS autorizadas" /><ListBox ItemsSource="{Binding StaffUnits}" SelectedItem="{Binding SelectedStaffGrant}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS autorizadas à conta" MinHeight="80" MaxHeight="180" Margin="0,6,0,12" />
-      <Button Content="Revogar vínculo selecionado" Click="OnRevoke" IsEnabled="{Binding CanRevokeStaffUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+      <Button Content="Revogar vínculo selecionado" Click="OnRevoke" IsEnabled="{Binding CanRevokeStaffUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" ToolTip="Retira o acesso da conta a esta UBS."/>
       <TextBlock Text="UBS para conceder" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedStaffUnit}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS para conceder acesso" Margin="0,6,0,12" />
-      <Button Content="Conceder vínculo" Click="OnGrant" IsEnabled="{Binding CanGrantStaffUnit}" HorizontalAlignment="Left" />
+      <Button Content="Conceder vínculo" Click="OnGrant" IsEnabled="{Binding CanGrantStaffUnit}" HorizontalAlignment="Left" ToolTip="Dá à conta acesso à UBS escolhida."/>
     </StackPanel>
   </Border>
 </UserControl>

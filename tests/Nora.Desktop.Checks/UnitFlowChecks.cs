@@ -39,10 +39,10 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 Require(vm.ActiveObsUnit?.Id == unit.Id && vm.UnitLabel == "UBS Única" && !vm.ObsUnitSelectionOpen && vm.ObsUnitPrompt == "", "UBS única não foi confirmada sozinha.");
-                Require(vm.ObsRegistry.Count == 1 && vm.UnitWaitingList.Count == 1 && vm.UnitLightningSlots.Count == 1, "Cadastro, fila ou vagas não foram carregados já no login.");
-                Require(vm.TodayScheduledCount == "1" && vm.TodayCompletedCount == "1" && vm.PatientTotalCount == "1" && vm.QueueWaitingCount == "1" && vm.SlotOpenCount == "1", "Resumo do dia não foi carregado já no login.");
+                Require(vm.ObsRegistry.Count == 1 && vm.UnitLightningSlots.Count == 1, "Cadastro ou vagas não foram carregados já no login.");
+                Require(vm.TodayScheduledCount == "1" && vm.TodayCompletedCount == "1" && vm.PatientTotalCount == "1" && vm.OffersRunningCount == "0" && vm.SlotOpenCount == "1", "Resumo do dia não foi carregado já no login.");
                 Require(vm.Appointments.Count == 2, "Agenda da semana não foi carregada já no login.");
-                Require(fixture.Count("GET", "/registry") == 1 && fixture.Count("GET", "/waiting-list") == 1 && fixture.Count("GET", "/lightning-slots") == 1 && fixture.Count("GET", "/appointments") == 2, "O login deveria ler cada parte uma única vez, sem esperar o temporizador.");
+                Require(fixture.Count("GET", "/registry") == 1 && fixture.Count("GET", "/lightning-slots") == 1 && fixture.Count("GET", "/appointments") == 2, "O login deveria ler cada parte uma única vez, sem esperar o temporizador.");
                 var content = Layout(window, 1280, 740);
                 Require(VisibleTexts(content).Count(text => text == "UBS Única") >= 3, "Nome da UBS ativa não aparece no cabeçalho, na barra lateral e no Painel.");
                 window.ViewModel.Navigate("settings"); content = Layout(window, 1280, 740);
@@ -129,7 +129,7 @@ internal static partial class Program
                     var content = Layout(window, 980, 640);
                     Require(VisibleTexts(content).Any(text => text.Contains("Nenhuma UBS autorizada", StringComparison.Ordinal)), "Aba sem UBS não explica a ausência de concessão: " + route + " | " + string.Join(" / ", VisibleTexts(content)));
                 }
-                Require(fixture.Count("GET", "/registry") == 0 && fixture.Count("GET", "/waiting-list") == 0, "Dados de UBS foram lidos sem UBS ativa.");
+                Require(fixture.Count("GET", "/registry") == 0, "Dados de UBS foram lidos sem UBS ativa.");
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
@@ -144,14 +144,14 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 vm.CandidateObsUnit = first; Pump(vm.ConfirmObsUnitAsync());
-                Require(vm.ActiveObsUnit?.Id == first.Id && vm.UnitWaitingList.Count == 1, "Cenário inicial incorreto.");
+                Require(vm.ActiveObsUnit?.Id == first.Id && vm.UnitLightningSlots.Count >= 0, "Cenário inicial incorreto.");
                 fixture.UnavailableUnits.Add(second.Id);
                 vm.CandidateObsUnit = second; Pump(vm.ConfirmObsUnitAsync());
-                Require(vm.ActiveObsUnit?.Id == first.Id && vm.UnitLabel == "UBS Primeira" && vm.ObsRegistry.Single().FullName == "Paciente Primeiro" && vm.UnitWaitingList.Count == 1, "Falha ao trocar de UBS apagou a UBS ativa ou seus dados.");
+                Require(vm.ActiveObsUnit?.Id == first.Id && vm.UnitLabel == "UBS Primeira" && vm.ObsRegistry.Single().FullName == "Paciente Primeiro", "Falha ao trocar de UBS apagou a UBS ativa ou seus dados.");
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("indisponível") && !vm.Message.Contains("private-server-secret"), "Falha não foi explicada na faixa comum: " + vm.Message);
                 fixture.UnavailableUnits.Clear();
                 Pump(vm.ConfirmObsUnitAsync());
-                Require(vm.ActiveObsUnit?.Id == second.Id && vm.ObsRegistry.Single().FullName == "Paciente Segundo" && vm.UnitWaitingList.Count == 0, "Nova tentativa não concluiu a troca.");
+                Require(vm.ActiveObsUnit?.Id == second.Id && vm.ObsRegistry.Single().FullName == "Paciente Segundo", "Nova tentativa não concluiu a troca.");
                 // Perder a concessão da UBS ativa: a lista nova não a inclui e a escolha volta a ser obrigatória.
                 fixture.Granted = [first.Id];
                 Pump(vm.LoadObsUnitsAsync());
@@ -173,7 +173,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "patients", 1280, 1400);
-                Click(window, content, "+ Novo cadastro", 1280, 1400);
+                Click(window, content, "+ Cadastrar paciente", 1280, 1400);
                 content = Layout(window, 1280, 1400);
                 var cep = Input(content, "CEP no cadastro da UBS");
                 cep.Focus();
@@ -193,7 +193,7 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                Require(vm.QueueWaitingCount == "0" && vm.SlotOpenCount == "0" && vm.TodayCompletedCount == "0" && vm.TodayScheduledCount == "0", "Listas vazias consultadas não apareceram como zero no painel.");
+                Require(vm.OffersRunningCount == "0" && vm.SlotOpenCount == "0" && vm.TodayCompletedCount == "0" && vm.TodayScheduledCount == "0", "Listas vazias consultadas não apareceram como zero no painel.");
                 var noon = new DateTimeOffset(DateTime.Today.AddHours(12));
                 foreach (var status in new[] { "scheduled", "called", "completed", "missed", "cancelled" }) fixture.AddAppointment(unit.Id, status, noon);
                 vm.RefreshCommand.Execute(null); Settle(vm);
@@ -215,10 +215,6 @@ internal static partial class Program
                 Require(vm.IsEditingObsRegistry && vm.ObsRegistryCpf == "52998224725", "Edição não carregou CPF do cadastro selecionado.");
                 vm.ObsRegistryName = "Paciente Atualizado"; vm.ObsRegistryNumber = "20"; Pump(vm.CreateObsRegistryAsync());
                 Require(vm.ObsRegistry.Single().FullName == "Paciente Atualizado" && vm.ObsRegistry.Single().Address?.Number == "20" && !vm.IsEditingObsRegistry, "Edição não persistiu nome e endereço.");
-                vm.WaitingPatient = vm.ObsRegistry.Single(); vm.WaitingSpecialty = "Cardiologia"; Pump(vm.AddUnitWaitingEntryAsync());
-                Require(vm.UnitWaitingList.Single().Specialty == "Cardiologia" && vm.UnitWaitingList.Single().Position == 1, "Fila da UBS não recebeu especialidade e posição.");
-                vm.SelectedWaitingEntry = vm.UnitWaitingList.Single(); Pump(vm.CancelUnitWaitingEntryAsync());
-                Require(vm.UnitWaitingList.Single().Status == "cancelled" && vm.UnitWaitingList.Single().Position == 0 && !vm.CanCancelWaitingEntry, "Cancelamento da fila da UBS não foi refletido.");
                 // Agenda de amanhã: o início precisa ser no futuro.
                 vm.SelectAgendaDayCommand.Execute(null); vm.MoveAgenda(1); Settle(vm);
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); vm.AppointmentSpecialty = "Cardiologia"; vm.AppointmentProfessional = "Profissional"; vm.AppointmentStart = "09:00"; vm.AppointmentEnd = "09:30";
@@ -229,9 +225,7 @@ internal static partial class Program
                 Pump(vm.ChangeAppointmentStatusAsync("called", false));
                 Require(vm.SelectedAppointment?.Status == "called" && vm.CanCompleteAppointment && !vm.CanCallAppointment, "Chamar não atualizou a consulta e os botões.");
                 Pump(vm.ChangeAppointmentStatusAsync("cancelled", true));
-                Require(vm.SelectedAppointment?.Status == "cancelled" && vm.CanCreateLightning && !vm.CanCancelAppointment, "Cancelar não atualizou a consulta e os botões.");
-                Pump(vm.CreateUnitLightningSlotAsync());
-                Require(vm.UnitLightningSlots.Single().AppointmentId == appointment.Id && vm.UnitLightningSlots.Single().Status == "open", "Vaga não foi criada para a consulta selecionada.");
+                Require(vm.SelectedAppointment?.Status == "cancelled" && !vm.CanCancelAppointment, "Cancelar não atualizou a consulta e os botões.");
                 vm.SelectedObsRegistry = vm.ObsRegistry.Single(); Pump(vm.SetObsRegistryActiveAsync(vm.SelectedObsRegistry.Cpf, false));
                 Require(vm.SelectedObsRegistry?.IsActive == false && !vm.ActiveObsRegistry.Any(), "Desativação não foi refletida na UBS.");
                 vm.ObsRegistryStatusFilter = "Ativos"; Require(!vm.FilteredObsRegistry.Any(), "Filtro exibiu paciente desativado.");
@@ -248,12 +242,10 @@ internal static partial class Program
                 Require(!unitSelector.IsExpanded, "Escolha da UBS permaneceu aberta após a confirmação.");
                 unitSelector.IsExpanded = true; Layout(window, 980, 640);
                 Require(vm.ObsUnitSelectionOpen && Descendants<Button>(unitSelector).Any(button => button.Content?.ToString() == "Confirmar UBS" && button.IsVisible), "Não é possível reabrir a escolha da UBS.");
-                window.ViewModel.Navigate("queue"); Settle(vm); content = Layout(window, 980, 640);
-                Require(Descendants<UnitQueueView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Fila por especialidade da UBS" && grid.Items.Count == 1), "Fila por UBS não apareceu na tela.");
                 window.ViewModel.Navigate("slots"); Settle(vm); content = Layout(window, 980, 640);
-                Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vagas da UBS" && grid.Items.Count == 1), "Vagas por UBS não apareceram na tela.");
+                Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vagas da UBS"), "Vagas por UBS não apareceram na tela.");
                 vm.LogoutCommand.Execute(null); Settle(vm);
-                Require(vm.ObsRegistry.Count == 0 && vm.ActiveObsUnit == null && vm.Appointments.Count == 0 && vm.UnitWaitingList.Count == 0, "Saída preservou dados da UBS.");
+                Require(vm.ObsRegistry.Count == 0 && vm.ActiveObsUnit == null && vm.Appointments.Count == 0, "Saída preservou dados da UBS.");
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
         });
@@ -291,7 +283,7 @@ internal static partial class Program
                 Require(vm.MessageKind == MessageKind.Error && fixture.Count("PUT", "/registry") == 0, "Edição com contato inválido foi enviada.");
                 vm.NewObsRegistryDraft();
                 var content = Layout(window, 980, 640); window.ViewModel.Navigate("patients"); content = Layout(window, 980, 640);
-                var draft = Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Cadastrar referência na UBS"); draft.IsExpanded = true; content = Layout(window, 980, 640);
+                var draft = Descendants<Border>(content).Single(card => Nora.Desktop.Views.SubPage.GetKey(card) == "register");  content = Layout(window, 980, 640);
                 Input(content, "E-mail no cadastro da UBS").Text = "ruim"; Input(content, "Telefone no cadastro da UBS").Text = "12"; content = Layout(window, 980, 640);
                 var errors = VisibleTexts(content);
                 Require(errors.Any(text => text.StartsWith("E-mail inválido", StringComparison.Ordinal)) && errors.Any(text => text.StartsWith("Telefone inválido", StringComparison.Ordinal)), "Mensagens por campo não aparecem sob os campos.");

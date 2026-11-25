@@ -7,9 +7,9 @@
         <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource BrandSoftBrush}" HorizontalAlignment="Left">
           <TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="23" Foreground="{DynamicResource BrandBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
-        <TextBlock Text="Dados protegidos da unidade" Foreground="{DynamicResource BrandTextBrush}" FontSize="20" FontWeight="SemiBold" Margin="0,18,0,6" />
+        <TextBlock Text="Dados protegidos da unidade" Foreground="{DynamicResource BrandTextBrush}" Style="{StaticResource SectionTitle}" Margin="0,18,0,6" />
         <TextBlock Text="{Binding AccessRequiredHint}" Foreground="#D9FFFFFF" TextWrapping="Wrap" />
-        <Button Content="Ir para acesso" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="home" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,22,0,0" Background="#063B7A" Foreground="#FFFFFF" BorderThickness="0" />
+        <Button Content="Ir para acesso" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="home" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,22,0,0" Background="#063B7A" Foreground="#FFFFFF" BorderThickness="0" ToolTip="Vai à tela de acesso."/>
       </StackPanel>
     </Border>
   </StackPanel>

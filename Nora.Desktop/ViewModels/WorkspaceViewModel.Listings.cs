@@ -51,7 +51,6 @@ public sealed partial class WorkspaceViewModel
         return item switch
         {
             UnitPatientRecord patient when ObsRegistry.Contains(patient) => BuildUnitPatientDetails(patient),
-            UnitWaitingEntry entry when UnitWaitingList.Contains(entry) => BuildWaitingDetails(entry),
             AppointmentInfo appointment when Appointments.Contains(appointment) => BuildAppointmentDetails(appointment),
             UnitLightningSlot slot when UnitLightningSlots.Contains(slot) => new(slot.Specialty, "Vaga Relâmpago da UBS", BuildSlotFields(slot)),
             _ => null
@@ -66,8 +65,6 @@ public sealed partial class WorkspaceViewModel
             new("Situação", slot.StatusDisplay), new("Origem", slot.OriginDisplay), new("Criada em", slot.CreatedAtDisplay)
         };
         if (slot.Source is not null) fields.Add(new("Consulta de origem", slot.SourceDisplay));
-        if (slot.ApprovalDeadline is not null) fields.Add(new("Prazo de aprovação", slot.ApprovalDeadlineDisplay));
-        if (slot.DecidedAt is { } decidedAt) fields.Add(new("Decidida em", $"{decidedAt.ToLocalTime():dd/MM/yyyy HH:mm}{(string.IsNullOrWhiteSpace(slot.DecidedByName) ? "" : " por " + slot.DecidedByName)}"));
         return fields;
     }
 
@@ -75,11 +72,6 @@ public sealed partial class WorkspaceViewModel
         new("Paciente", appointment.PatientName, true), new("CPF", appointment.FormattedCpf, true), new("Especialidade", appointment.Specialty), new("Profissional", appointment.Professional),
         new("Horário", appointment.TimeDisplay), new("Situação", appointment.StatusDisplay), new("Marcada por", appointment.BookedByDisplay),
         new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação: a confirmação só vale para consulta agendada, de 48 h até 2 h antes.")]);
-
-    private static ItemDetails BuildWaitingDetails(UnitWaitingEntry entry) => new(entry.PatientName, "Entrada na fila da UBS", [
-        new("Paciente", entry.PatientName, true), new("CPF", entry.FormattedCpf, true), new("Especialidade", entry.Specialty),
-        new("Ordem de oferta na especialidade", entry.PositionDisplay), new("Score do paciente", entry.ScoreDisplay), new("Tempo de espera", entry.WaitDisplay),
-        new("Entrada", entry.EnteredAtDisplay), new("Situação", entry.StatusDisplay)]);
 
     private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
     {
@@ -93,7 +85,7 @@ public sealed partial class WorkspaceViewModel
     private const string AttendanceGroup = "Score nos últimos 12 meses";
     private const string AttendanceRule = "Pontos de 0 a 1000 = comparecimento × 1000, em que comparecimento = concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas ainda agendadas ou chamadas e cancelamentos feitos pela unidade não entram. Quem ainda não teve consulta encerrada começa em 1000. Faixas: Baixo 0–299, Regular 300–599, Bom 600–799, Excelente 800–1000.";
     /// <summary>Efeito do score na Vaga Relâmpago, repetido nas telas do OBS que mostram os pontos.</summary>
-    public const string ScorePriorityText = "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. O score não muda a prioridade clínica nem o direito ao atendimento.";
+    public const string ScorePriorityText = "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago. O score não muda a prioridade clínica nem o direito ao atendimento.";
     private static IEnumerable<DetailField> AttendanceFields(UnitAttendance? attendance)
     {
         if (attendance is null) return [new("Score", "—", Group: AttendanceGroup), new("Como é calculado", "A API não enviou o score deste cadastro. Atualize a lista da UBS.", Group: AttendanceGroup)];

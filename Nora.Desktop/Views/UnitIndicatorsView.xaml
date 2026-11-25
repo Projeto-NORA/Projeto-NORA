@@ -7,7 +7,7 @@
       <StackPanel>
         <DockPanel>
           <TextBlock DockPanel.Dock="Right" Text="{Binding UnitMetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock Text="Filtros" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="Filtros" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" />
         </DockPanel>
         <WrapPanel IsEnabled="{Binding CanFilterUnitMetrics}" Margin="0,12,0,0">
           <StackPanel Width="190" Margin="0,0,12,10"><TextBlock Text="Período" FontWeight="SemiBold" FontSize="12" />
@@ -27,12 +27,12 @@
       </StackPanel>
     </Border>
     <TextBlock Text="{Binding UnitMetricsStateText}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,10" Visibility="{Binding UnitMetricsStateText, Converter={StaticResource TextVisibility}}" />
-    <TextBlock Text="Visão geral" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,4,0,8" />
-    <ItemsControl ItemsSource="{Binding UnitOverviewCards}" ItemTemplate="{StaticResource ObsMetricCard}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0,-6,6" AutomationProperties.Name="Indicadores da UBS no período" />
-    <TextBlock Text="ⓘ Como é calculado o comparecimento" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,0,0,20" ToolTip="Comparecimento = concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas agendadas e cancelamentos pela unidade não entram." AutomationProperties.HelpText="Comparecimento é calculado a partir das consultas concluídas, faltas e cancelamentos feitos pelo paciente, ponderados pela antecedência." />
+    <TextBlock Text="Visão geral" Style="{StaticResource SectionTitle}" Margin="0,4,0,8" />
+    <ItemsControl ItemsSource="{Binding UnitOverviewCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0,-6,6" AutomationProperties.Name="Indicadores da UBS no período" />
+    <TextBlock Text="ⓘ Como é calculado o comparecimento" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Margin="0,0,0,20" ToolTip="Comparecimento = concluídas ÷ (concluídas + faltas + cancelamentos feitos pelo paciente, ponderados pela antecedência). Consultas agendadas e cancelamentos pela unidade não entram." AutomationProperties.HelpText="Comparecimento: concluídas, faltas e cancelamentos do paciente, ponderados pela antecedência." />
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" ToolTip="Distribuição entre consultas concluídas, faltas e canceladas pela data marcada no período.">
       <StackPanel>
-        <TextBlock Text="Distribuição das consultas encerradas" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" />
+        <TextBlock Text="Distribuição das consultas encerradas" Style="{StaticResource SectionTitle}" />
         <WrapPanel Margin="0,14,0,0" Visibility="{Binding HasUnitOutcomeData, Converter={StaticResource BoolVisibility}}">
           <views:OutcomePie Metrics="{Binding UnitMetricsData}" Width="150" Height="150" Margin="0,0,24,0" />
           <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding UnitMetricsData.Appointments.Completed, StringFormat='● Concluídas: {0}'}" Foreground="{DynamicResource SuccessBrush}" FontWeight="Bold" Margin="0,0,0,8" /><TextBlock Text="{Binding UnitMetricsData.Appointments.Missed, StringFormat='● Faltas: {0}'}" Foreground="{DynamicResource ErrorBrush}" FontWeight="Bold" Margin="0,0,0,8" /><TextBlock Text="{Binding UnitMetricsData.Appointments.Cancelled, StringFormat='● Canceladas: {0}'}" Foreground="{DynamicResource WarningBrush}" FontWeight="Bold" /></StackPanel>
@@ -42,13 +42,13 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="⚡ Vaga Relâmpago no período" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" ToolTip="Aceite da oferta não equivale a atendimento confirmado." />
-        <ItemsControl ItemsSource="{Binding UnitLightningCards}" ItemTemplate="{StaticResource ObsMetricCard}" ItemsPanel="{StaticResource FourColumnPanel}" Margin="-6,0" AutomationProperties.Name="Vaga Relâmpago da UBS no período" />
+        <TextBlock Text="⚡ Vaga Relâmpago no período" Style="{StaticResource SectionTitle}" ToolTip="Aceite da oferta não equivale a atendimento confirmado." />
+        <ItemsControl ItemsSource="{Binding UnitLightningCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource FourColumnPanel}" Margin="-6,0" AutomationProperties.Name="Vaga Relâmpago da UBS no período" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Por especialidade" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" ToolTip="Clique no título de uma coluna para ordenar. Os filtros de especialidade e situação aplicam-se apenas a esta tabela." />
+        <TextBlock Text="Por especialidade" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Clique no título de uma coluna para ordenar. Os filtros de especialidade e situação aplicam-se apenas a esta tabela." />
         <DataGrid ItemsSource="{Binding FilteredUnitSpecialtyPerformance}" CanUserSortColumns="True" MaxHeight="340" MinHeight="64" AutomationProperties.Name="Indicadores da UBS por especialidade">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Especialidade" Binding="{Binding Name}" Width="*" MinWidth="160" />
@@ -65,19 +65,19 @@
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18">
       <StackPanel>
-        <TextBlock Text="Série no tempo" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" ToolTip="Consultas por dia, pela data marcada, no período escolhido." />
+        <TextBlock Text="Série no tempo" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Consultas por dia, pela data marcada, no período escolhido." />
         <views:EvolutionChartView Data="{Binding UnitChart}" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Capacidade da UBS no período">
       <StackPanel>
-        <TextBlock Text="Capacidade da agenda no período" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" ToolTip="Horários ofertados pela grade menos os bloqueados e quantos têm consulta marcada." />
-        <ItemsControl ItemsSource="{Binding UnitCapacityCards}" ItemTemplate="{StaticResource ObsMetricCard}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0" AutomationProperties.Name="Capacidade da UBS" />
+        <TextBlock Text="Capacidade da agenda no período" Style="{StaticResource SectionTitle}" ToolTip="Horários ofertados pela grade menos os bloqueados e quantos têm consulta marcada." />
+        <ItemsControl ItemsSource="{Binding UnitCapacityCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0" AutomationProperties.Name="Capacidade da UBS" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Metas da UBS no período">
       <StackPanel>
-        <TextBlock Text="Metas da Secretaria" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" ToolTip="Situação da meta da UBS ou, se não houver, da rede." />
+        <TextBlock Text="Metas da Secretaria" Style="{StaticResource SectionTitle}" ToolTip="Situação da meta da UBS ou, se não houver, da rede." />
         <ItemsControl ItemsSource="{Binding UnitGoalCells}" ItemTemplate="{StaticResource GoalCardTemplate}" ItemsPanel="{StaticResource ThreeColumnPanel}" Margin="-6,0" AutomationProperties.Name="Situação das metas da UBS" />
         <TextBlock Text="{Binding UnitGoalsState}" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="{Binding UnitGoalsState, Converter={StaticResource TextVisibility}}" />
       </StackPanel>

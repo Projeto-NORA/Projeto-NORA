@@ -7,7 +7,7 @@
     <DockPanel LastChildFill="False" Margin="0,0,0,8">
       <Button Click="OnLoadUnits" DockPanel.Dock="Left" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de UBS" ToolTip="Atualizar lista de UBS" />
       <Button Content="Confirmar UBS" Click="OnConfirm" IsEnabled="{Binding CanConfirmObsUnit}" DockPanel.Dock="Right" Style="{StaticResource ObsPrimaryButton}" Margin="12,0,0,0" ToolTip="Carrega os dados da UBS escolhida." />
-      <Button Content="Sugerir UBS pela localização" Click="OnLocate" IsEnabled="{Binding HasAvailableObsUnits}" DockPanel.Dock="Right" Style="{StaticResource TextActionButton}" />
+      <Button Content="Sugerir UBS pela localização" Click="OnLocate" IsEnabled="{Binding HasAvailableObsUnits}" DockPanel.Dock="Right" Style="{StaticResource TextActionButton}" ToolTip="Sugere a UBS mais próxima de você."/>
     </DockPanel>
   </StackPanel>
 </UserControl>

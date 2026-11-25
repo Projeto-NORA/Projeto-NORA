@@ -32,8 +32,8 @@ public sealed partial class WorkspaceViewModel
     }
     /// <summary>Texto do painel de exportação: diz o escopo do resumo que foi aplicado (o que vai no CSV), não o da escolha ainda em leitura.</summary>
     public string SummaryExportNote => "Baixe em CSV os totais carregados da API. O arquivo contém dados agregados e não inclui pacientes identificáveis. "
-        + (appliedSummaryUnitId is null ? "O resumo é de toda a rede; o período filtra somente as vagas pela data de criação; pacientes e fila são totais atuais de toda a rede."
-            : $"O resumo é só da {AppliedSummaryUnitLabel}, que aparece pelo nome no arquivo; o período filtra somente as vagas pela data de criação; pacientes e fila são totais atuais só dessa UBS.");
+        + (appliedSummaryUnitId is null ? "O resumo é de toda a rede; o período filtra somente as vagas pela data de criação; os pacientes são totais atuais de toda a rede."
+            : $"O resumo é só da {AppliedSummaryUnitLabel}, que aparece pelo nome no arquivo; o período filtra somente as vagas pela data de criação; os pacientes são totais atuais só dessa UBS.");
     public string AppliedSummaryUnitLabel => appliedSummaryUnitId is { } id ? Units.FirstOrDefault(unit => unit.Id == id)?.Name ?? "UBS selecionada" : "Toda a rede";
     public bool UnitsLoaded { get => unitsLoaded; private set { unitsLoaded = value; Notify(); Notify(nameof(UnitsState)); } }
     public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Carregando as unidades da API…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : !FilteredUnits.Any() ? "Nenhuma unidade encontrada para esta pesquisa." : "";

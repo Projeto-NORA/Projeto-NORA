@@ -35,7 +35,6 @@ import com.example.app_nora.api.parsePush
 import com.example.app_nora.api.toOpenRequest
 import com.example.app_nora.preferences.SettingsStore
 import com.example.app_nora.ui.NoraApp
-import com.example.app_nora.ui.noraBrandColorFilter
 
 class MainActivity : ComponentActivity() {
     // UBS da notificação de Vaga Relâmpago tocada; só o identificador da UBS viaja no Intent.
@@ -122,9 +121,8 @@ fun NoraSplash(dark: Boolean) {
     val pulse = rememberInfiniteTransition(label = "logo")
     val scale by pulse.animateFloat(0.94f, 1.03f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulso")
     Box(Modifier.fillMaxSize().background(if (dark) Color(0xFF081B2B) else Color(0xFFF3F6FA)), contentAlignment = Alignment.Center) {
-        Image(painterResource(R.drawable.nora_logo_transparente), contentDescription = "NORA carregando",
-            colorFilter = noraBrandColorFilter(dark),
-            modifier = Modifier.fillMaxWidth(.8f).graphicsLayer { scaleX = scale; scaleY = scale })
+        Image(painterResource(if (dark) R.drawable.nora_n_white else R.drawable.nora_n_navy), contentDescription = "NORA carregando",
+            modifier = Modifier.fillMaxWidth(.45f).graphicsLayer { scaleX = scale; scaleY = scale })
     }
 }
 

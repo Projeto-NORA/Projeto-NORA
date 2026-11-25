@@ -52,6 +52,21 @@ internal object PushHub {
 
     fun attach(controller: PatientController) { this.controller = WeakReference(controller) }
 
+    /**
+     * Push de Vaga Relâmpago com o app vivo e sessão aberta: lê as ofertas na hora e dispara o alerta em tela cheia (deduplicado com o
+     * ciclo de 30 s por [LightningAlerts]). Sem sessão em memória, mostra o aviso genérico ([fallback]).
+     */
+    fun onLightningPush(context: Context, fallback: () -> Unit) {
+        val target = controller?.get()
+        if (target?.state?.session == null) { fallback(); return }
+        scope.launch {
+            target.pollOffersNow()
+            val enabled = SettingsStore.flashNotificationsEnabled(context)
+            // Oferta já alertada pelo ciclo de 30 s não alerta de novo; sessão encerrada no meio da leitura cai no aviso genérico.
+            if (target.state.session == null) fallback() else LightningAlerts.sync(context, target.state, enabled)
+        }
+    }
+
     fun onNewToken(token: String) {
         val target = controller?.get() ?: return
         scope.launch { target.syncPushToken(token) }
@@ -64,7 +79,8 @@ class NoraMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val target = parsePush { message.data[it] } ?: return
-        PushNotifier.show(applicationContext, target)
+        if (target.type == PushType.LIGHTNING_OFFER) PushHub.onLightningPush(applicationContext) { PushNotifier.show(applicationContext, target) }
+        else PushNotifier.show(applicationContext, target)
     }
 }
 

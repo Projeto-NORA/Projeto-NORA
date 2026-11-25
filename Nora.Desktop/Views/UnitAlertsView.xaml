@@ -8,7 +8,7 @@
     </DockPanel>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Alertas da UBS" ToolTip="Fila alta, espera longa, faltas, ocupação da grade e metas fora dos limites da rede.">
       <StackPanel>
-        <TextBlock Text="O que passou do limite" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,12" />
+        <TextBlock Text="O que passou do limite" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <ItemsControl ItemsSource="{Binding UnitAlerts}" AutomationProperties.Name="Alertas da UBS ativa">
           <ItemsControl.ItemTemplate>
             <DataTemplate>

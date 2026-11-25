@@ -32,7 +32,6 @@ class PatientPresenceService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var heartbeat: Job? = null
     private var activeConnection: Connection? = null
-    private val notifier by lazy { LightningNotifier(this) }
     private val communityNotifier by lazy { CommunityNotifier(this) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -46,12 +45,12 @@ class PatientPresenceService : Service() {
         showConnectionNotification()
         if (activeConnection !== connection) {
             heartbeat?.cancel()
-            notifier.clear()
+            LightningAlerts.clear(applicationContext)
             communityNotifier.clear()
             activeConnection?.let(::sendOffline)
             activeConnection = connection
             // Remover uma UBS retira na hora os avisos de oferta dela, sem esperar o próximo ciclo de 30 s.
-            connection.controller.onOffersRemoved = { notifier.sync(connection.controller.state, SettingsStore.flashNotificationsEnabled(applicationContext)) }
+            connection.controller.onOffersRemoved = { LightningAlerts.sync(applicationContext, connection.controller.state, SettingsStore.flashNotificationsEnabled(applicationContext)) }
             heartbeat = scope.launch {
                 val controller = connection.controller
                 fun connected() = controller.state.session?.token == connection.session.token
@@ -64,11 +63,12 @@ class PatientPresenceService : Service() {
                     // Comunicados novos (cursor), pedidos de família, ofertas dos dependentes e e-mail: uma requisição leve de cada.
                     val announcements = controller.pollCommunity(connection.session, connection.generation)
                     if (!connected()) break
-                    notifier.sync(controller.state, SettingsStore.flashNotificationsEnabled(applicationContext))
+                    // Oferta nova dispara o alerta em tela cheia (o mesmo objeto do push: a mesma oferta nunca alerta duas vezes).
+                    LightningAlerts.sync(applicationContext, controller.state, SettingsStore.flashNotificationsEnabled(applicationContext))
                     communityNotifier.notify(announcements, SettingsStore.announcementNotificationsEnabled(applicationContext))
                     delay(30_000)
                 }
-                notifier.clear()
+                LightningAlerts.clear(applicationContext)
                 communityNotifier.clear()
                 stopSelf()
             }
@@ -120,7 +120,7 @@ class PatientPresenceService : Service() {
     private fun endConnection() {
         heartbeat?.cancel()
         heartbeat = null
-        notifier.clear()
+        LightningAlerts.clear(applicationContext)
         communityNotifier.clear()
         val ended = activeConnection
         activeConnection = null

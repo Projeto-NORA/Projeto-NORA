@@ -5,8 +5,9 @@ using Nora.Api.Services;
 namespace Nora.Api.DAOs;
 
 /// <summary>
-/// Quem pode receber uma oferta de Vaga Relâmpago, num só lugar para o distribuidor automático e o "chamar próximo". Elegível: conta de paciente ativa vinculada à UBS, ou dependente com vínculo de Família aprovado e
-/// responsável ativo (a oferta vai ao responsável); mais, na UBS, entrada <c>waiting</c> da especialidade, cadastro ativo, sem oferta pendente e (com horário) sem consulta na UBS que cruze o horário. Ordem de oferta: mais pontos de score primeiro, depois <c>entered_at, id</c>.
+/// Quem pode receber uma oferta de Vaga Relâmpago (2026-11-24: automática, sem fila manual). Elegível: conta de paciente ativa vinculada à UBS, ou dependente com vínculo de Família aprovado e responsável ativo (a oferta vai ao
+/// responsável); mais, na UBS, consulta <c>scheduled</c> da mesma especialidade com início posterior ao da vaga (é ela que será antecipada), cadastro ativo, sem oferta pendente, sem outra consulta que cruze o horário e sem ter
+/// recusado ou deixado vencer a mesma vaga. Ordem: mais pontos de score, depois a consulta mais distante, depois o id.
 /// </summary>
 internal static class LightningEligibility
 {
@@ -25,64 +26,52 @@ internal static class LightningEligibility
         return eligible;
     }
 
+    /// <summary>
+    /// Consultas que podem ser antecipadas para a vaga ($1 especialidade, $2 CPFs elegíveis, $3/$4 início e fim da vaga, $5 a vaga): consulta <c>scheduled</c> da mesma especialidade (qualquer profissional) com início posterior ao da
+    /// vaga, cadastro ativo, sem oferta pendente, sem outra consulta que cruze o horário da vaga (a própria consulta que será antecipada não conta) e sem ter recusado ou deixado vencer esta mesma vaga.
+    /// Uma linha por CPF: a consulta mais distante dele (é a que ganha mais ao antecipar).
+    /// </summary>
     private const string Candidates =
-        "FROM nora_unit.waiting_list q WHERE q.status='waiting' AND lower(btrim(q.specialty))=lower(btrim($1)) AND q.cpf=ANY($2) " +
-        "AND EXISTS(SELECT 1 FROM nora_unit.patient_registry p WHERE p.cpf=q.cpf AND p.is_active) " +
-        "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list other ON other.id=o.entry_id WHERE o.status='pending' AND other.cpf=q.cpf) ";
-    private const string NoOverlap = "AND NOT EXISTS(SELECT 1 FROM nora_unit.appointments a WHERE a.cpf=q.cpf AND a.status IN ('scheduled','called','completed','missed') AND a.starts_at<$4 AND a.ends_at>$3) ";
+        "SELECT DISTINCT ON (a.cpf) a.id,a.cpf,a.starts_at FROM nora_unit.appointments a " +
+        "WHERE a.status='scheduled' AND a.starts_at>$3 AND lower(btrim(a.specialty))=lower(btrim($1)) AND a.cpf=ANY($2) " +
+        "AND EXISTS(SELECT 1 FROM nora_unit.patient_registry p WHERE p.cpf=a.cpf AND p.is_active) " +
+        "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers o WHERE o.status='pending' AND o.cpf=a.cpf) " +
+        "AND NOT EXISTS(SELECT 1 FROM nora_unit.appointments b WHERE b.cpf=a.cpf AND b.id<>a.id AND b.status IN ('scheduled','called','completed','missed') AND b.starts_at<$4 AND b.ends_at>$3) " +
+        "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers r WHERE r.slot_id=$5 AND r.cpf=a.cpf AND r.status IN ('declined','expired')) " +
+        "ORDER BY a.cpf,a.starts_at DESC,a.id";
 
-    /// <summary>R-030: quem recusou ou deixou vencer a oferta desta vaga volta à fila na mesma posição, mas não recebe a mesma vaga de novo (a vaga segue para o próximo).</summary>
-    private const string NotAlreadyOffered = "AND NOT EXISTS(SELECT 1 FROM nora_unit.lightning_offers r JOIN nora_unit.waiting_list rq ON rq.id=r.entry_id WHERE r.slot_id=$5 AND rq.cpf=q.cpf AND r.status IN ('declined','expired')) ";
-
+    /// <summary>Candidato escolhido: o CPF e a consulta que será antecipada.</summary>
+    public sealed record Candidate(string Cpf, Guid AppointmentId, DateTimeOffset AppointmentStartsAt);
 
     /// <summary>
-    /// Candidatos na ordem de oferta: mais pontos primeiro (score em pontos do CPF na própria UBS, docs/api.md) e, em empate, a ordem de entrada na fila (<c>entered_at, id</c>). Quem não tem consulta encerrada vale 1000.
-    /// Sem travar linha: quem decide trava a escolhida depois.
+    /// Candidatos na ordem de oferta: mais pontos de score primeiro (no banco da própria UBS); empate → a consulta mais distante (ganha mais ao antecipar); depois o id da consulta. Sem travar linha.
     /// </summary>
-    private static async Task<List<(long Id, string Cpf, DateTimeOffset EnteredAt)>> RankAsync(NpgsqlConnection unit, string filter, object[] values, DateTimeOffset now, CancellationToken ct)
+    internal static async Task<List<Candidate>> RankAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset start, DateTimeOffset end, Guid slotId, DateTimeOffset now, CancellationToken ct)
     {
-        var candidates = new List<(long Id, string Cpf, DateTimeOffset EnteredAt)>();
-        await using (var query = new NpgsqlCommand("SELECT q.id,q.cpf,q.entered_at " + filter + "ORDER BY q.entered_at,q.id", unit))
+        var candidates = new List<Candidate>();
+        await using (var query = new NpgsqlCommand(Candidates, unit))
         {
-            foreach (var value in values) query.Parameters.AddWithValue(value);
+            foreach (var value in new object[] { specialty, eligible.ToArray(), start, end, slotId }) query.Parameters.AddWithValue(value);
             await using var reader = await query.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) candidates.Add((reader.GetInt64(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)));
+            while (await reader.ReadAsync(ct)) candidates.Add(new(reader.GetString(1), reader.GetGuid(0), reader.GetFieldValue<DateTimeOffset>(2)));
         }
-        if (candidates.Count < 2) return candidates;
+        if (candidates.Count == 0) return candidates;
         var (from, to) = UnitRegistryReadService.AttendanceWindow(now);
-        var tallies = await UnitMetricsDao.ReadAttendanceAsync(unit, from, to, candidates.Select(candidate => candidate.Cpf).Distinct().ToArray(), ct);
-        return candidates.OrderByDescending(candidate => tallies.GetValueOrDefault(candidate.Cpf).Points).ToList();
+        var tallies = await UnitMetricsDao.ReadAttendanceAsync(unit, from, to, candidates.Select(candidate => candidate.Cpf).ToArray(), ct);
+        return candidates.OrderByDescending(candidate => tallies.GetValueOrDefault(candidate.Cpf).Points).ThenByDescending(candidate => candidate.AppointmentStartsAt).ThenBy(candidate => candidate.AppointmentId).ToList();
     }
 
     /// <summary>
-    /// Primeira entrada elegível para o horário na ordem de oferta (mais pontos, depois a ordem de entrada), travada (<c>FOR UPDATE</c>) na transação da UBS; nulo se ninguém pode receber. Com <paramref name="slotId"/> (vaga que já existe),
-    /// quem já recusou ou deixou vencer a oferta dessa mesma vaga fica de fora; no "chamar próximo" a vaga ainda não existe e não há o que excluir. O chamador já segura o lock da fila da UBS.
+    /// Primeiro candidato da ordem de oferta, com a consulta que será antecipada travada (<c>FOR UPDATE</c>) e ainda <c>scheduled</c>; nulo se ninguém pode receber. O chamador já segura o lock da fila da UBS.
     /// </summary>
-    public static async Task<long?> PickAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset start, DateTimeOffset end, DateTimeOffset now, CancellationToken ct, Guid? slotId = null)
+    public static async Task<Candidate?> PickAsync(NpgsqlConnection unit, Guid slotId, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset start, DateTimeOffset end, DateTimeOffset now, CancellationToken ct)
     {
-        var values = new List<object> { specialty, eligible.ToArray(), start, end };
-        if (slotId is { } id) values.Add(id);
-        foreach (var candidate in await RankAsync(unit, Candidates + NoOverlap + (slotId is null ? "" : NotAlreadyOffered), values.ToArray(), now, ct))
+        foreach (var candidate in await RankAsync(unit, specialty, eligible, start, end, slotId, now, ct))
         {
-            await using var lockRow = new NpgsqlCommand("SELECT id FROM nora_unit.waiting_list WHERE id=$1 AND status='waiting' FOR UPDATE", unit);
-            lockRow.Parameters.AddWithValue(candidate.Id);
-            if (await lockRow.ExecuteScalarAsync(ct) is long entry) return entry;
+            await using var lockRow = new NpgsqlCommand("SELECT id FROM nora_unit.appointments WHERE id=$1 AND status='scheduled' FOR UPDATE", unit);
+            lockRow.Parameters.AddWithValue(candidate.AppointmentId);
+            if (await lockRow.ExecuteScalarAsync(ct) is Guid) return candidate;
         }
         return null;
-    }
-
-    /// <summary>
-    /// Prévia do primeiro da ordem de oferta que pode receber, sem travar: a oferta real pode ir a outra pessoa se a fila mudar. Com <paramref name="start"/> e <paramref name="end"/> usa o mesmo critério de horário do
-    /// <see cref="PickAsync"/> (pula quem já tem consulta na UBS que cruze o horário); sem eles, ignora o horário.
-    /// </summary>
-    public static async Task<(long EntryId, string Name, DateTimeOffset EnteredAt)?> PreviewAsync(NpgsqlConnection unit, string specialty, IReadOnlyCollection<string> eligible, DateTimeOffset now, CancellationToken ct, DateTimeOffset? start = null, DateTimeOffset? end = null)
-    {
-        var timed = start is not null && end is not null;
-        var values = new List<object> { specialty, eligible.ToArray() };
-        if (start is { } from && end is { } to) { values.Add(from); values.Add(to); }
-        if ((await RankAsync(unit, Candidates + (timed ? NoOverlap : ""), values.ToArray(), now, ct)).FirstOrDefault() is not { Id: > 0 } first) return null;
-        await using var name = new NpgsqlCommand("SELECT full_name FROM nora_unit.patient_registry WHERE cpf=$1", unit);
-        name.Parameters.AddWithValue(first.Cpf);
-        return (first.Id, (string)(await name.ExecuteScalarAsync(ct))!, first.EnteredAt);
     }
 }

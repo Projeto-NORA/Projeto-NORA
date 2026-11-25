@@ -15,6 +15,6 @@ public partial class ObsUnitPickerView : UserControl
         if (DataContext is not WorkspaceViewModel vm || !vm.HasAvailableObsUnits) return;
         if (!Confirmation.Ask(Window.GetWindow(this), "Acessar localização", "Permitir que o NORA acesse a localização deste computador para sugerir a UBS autorizada mais próxima?")) return;
         var dialog = new ObsLocationDialog { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() == true) vm.SuggestClosestObsUnit(dialog.Latitude, dialog.Longitude);
+        if (Services.DialogService.ShowModal(dialog, Window.GetWindow(this)) == true) vm.SuggestClosestObsUnit(dialog.Latitude, dialog.Longitude);
     }
 }

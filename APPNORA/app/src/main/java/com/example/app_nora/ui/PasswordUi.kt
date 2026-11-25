@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONException
 import java.io.IOException
 
-private const val MIN_PASSWORD = 8
 private const val MAX_PASSWORD = 256
 
 /**
@@ -47,8 +46,7 @@ fun ChangePasswordScreen(required: Boolean, onSubmit: suspend (String, String) -
         success = false
         when {
             current.isEmpty() -> currentError = "Informe a senha atual."
-            next.length < MIN_PASSWORD -> formError = "A nova senha precisa ter pelo menos $MIN_PASSWORD caracteres."
-            next == current -> formError = "A nova senha precisa ser diferente da atual."
+            next.isEmpty() -> formError = "Digite a nova senha."
             next != confirmation -> formError = "As senhas não correspondem."
             else -> {
                 busy = true; currentError = null; formError = null
@@ -69,13 +67,13 @@ fun ChangePasswordScreen(required: Boolean, onSubmit: suspend (String, String) -
             }
         }
     }
-    ScreenTitle("Alterar senha", "Defina uma nova senha para sua conta.")
+    ScreenTitle("Alterar senha", "")
     if (required) Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer,
         modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
         Text("É preciso definir uma nova senha para continuar usando o aplicativo.", Modifier.padding(14.dp),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
     }
-    SectionCard("Sua senha", "Mínimo de $MIN_PASSWORD caracteres, diferente da atual") {
+    SectionCard("Sua senha", "") {
         OutlinedTextField(value = current, onValueChange = { current = it.take(MAX_PASSWORD); currentError = null; success = false },
             label = { Text("Senha atual") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp), isError = currentError != null,
@@ -93,10 +91,11 @@ fun ChangePasswordScreen(required: Boolean, onSubmit: suspend (String, String) -
             visualTransformation = transformation(showConfirmation), keyboardOptions = options(true),
             trailingIcon = { PasswordEyeButton(showConfirmation) { showConfirmation = !showConfirmation } })
         formError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        if (success) ActionMessage("Senha alterada. Os outros aparelhos foram desconectados; você continua conectado neste.")
         Button(onClick = submit, enabled = !busy && current.isNotEmpty() && next.isNotEmpty() && confirmation.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
             Text(if (busy) "Alterando…" else "Alterar senha", fontWeight = FontWeight.Bold)
         }
     }
+    if (success) NoraNoticeDialog(com.example.app_nora.api.NoticeKind.SUCCESS,
+        "Senha alterada. Os outros aparelhos foram desconectados.", onDismiss = { success = false })
 }

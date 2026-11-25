@@ -53,7 +53,6 @@ internal static class PlatformChecks
             var patients = new Dictionary<int, HttpClient>();
             foreach (var n in patientIds.Keys) { patients[n] = Client(app); await Login(patients[n], "patient", Cpf(n)); }
             Guid u1 = Guid.Empty, u2 = Guid.Empty, pendingUnit = Guid.Empty;
-            DateTimeOffset p5EnteredU2 = default;
 
             async Task<T> Scalar<T>(string sql, params object[] values)
             {
@@ -85,12 +84,7 @@ internal static class PlatformChecks
                 using var response = await (actor ?? obs).PatchAsJsonAsync($"/api/obs/units/{unit}/appointments/{appointment}/status", new { status, confirmed = status == "cancelled" });
                 Expect(response, 200);
             }
-            async Task<long> AddWaiting(Guid unit, string cpf, string specialty)
-            {
-                using var response = await obs.PostAsJsonAsync($"/api/obs/units/{unit}/waiting-list", new { cpf, specialty });
-                Expect(response, 201);
-                return (await Read(response)).GetProperty("id").GetInt64();
-            }
+            Task Advance(Guid unit) => app.Services.GetRequiredService<UnitLightningDispatcher>().AdvanceAsync(unit, default);
             async Task Register(Guid unit, int n, string? name = null)
             {
                 using var response = await obs.PostAsJsonAsync($"/api/obs/units/{unit}/registry", new { cpf = Cpf(n), fullName = name ?? $"Paciente {n}", email = $"patient{n}@example.test" });
@@ -236,7 +230,7 @@ internal static class PlatformChecks
                 using (var obsCreate = await obs.PostAsJsonAsync("/api/municipal/staff", good)) Expect(obsCreate, 403);
                 using (var patientCreate = await patients[1].PostAsJsonAsync("/api/municipal/staff", good)) Expect(patientCreate, 403);
                 foreach (var invalid in new object[] { new { fullName = "A", email = "x@example.test", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", password = "Provisoria-123", role = "attendant" },
-                    new { fullName = "Atendente", email = "inválido", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", email = "x@example.test", password = "curta", role = "attendant" },
+                    new { fullName = "Atendente", email = "inválido", password = "Provisoria-123", role = "attendant" }, new { fullName = "Atendente", email = "x@example.test", password = "", role = "attendant" },
                     new { fullName = "Atendente", email = "x@example.test", password = "Provisoria-123", role = "manager" }, new { fullName = "Atendente", email = "x@example.test", password = "Provisoria-123", role = "patient" } })
                 { using var rejected = await municipal.PostAsJsonAsync("/api/municipal/staff", invalid); Expect(rejected, 400); }
                 using var created = await municipal.PostAsJsonAsync("/api/municipal/staff", good); Expect(created, 201);
@@ -264,7 +258,9 @@ internal static class PlatformChecks
                 using (var anonymousPassword = await anonymous.PostAsJsonAsync("/api/auth/password", new { currentPassword = "a", newPassword = "Senha-nova-123" })) Expect(anonymousPassword, 401);
                 using (var wrong = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Errada-123456", newPassword = "Senha-nova-123" })) await ExpectProblem(wrong, 400, "invalid-current-password");
                 using (var same = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = "Provisoria-123" })) await ExpectProblem(same, 400, "invalid-input");
-                using (var tooShort = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = "curta" })) await ExpectProblem(tooShort, 400, "invalid-input");
+                // Senha sem restrições (2026-11-24): só a vazia e a acima de 256 caracteres são recusadas.
+                using (var empty = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = "" })) await ExpectProblem(empty, 400, "invalid-input");
+                using (var tooLong = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = new string('x', 257) })) await ExpectProblem(tooLong, 400, "invalid-input");
                 using (var missing = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123" })) Expect(missing, 400);
                 using (var stillBlocked = await first.GetAsync("/api/obs/units")) Expect(stillBlocked, 403);
                 using (var changed = await first.PostAsJsonAsync("/api/auth/password", new { currentPassword = "Provisoria-123", newPassword = "Senha-nova-123" })) Expect(changed, 204);
@@ -273,9 +269,9 @@ internal static class PlatformChecks
                 using (var otherSession = await second.GetAsync("/api/auth/me")) Expect(otherSession, 401);
                 using (var oldLogin = await anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "obs", identifier = "nova@example.test", password = "Provisoria-123" })) Expect(oldLogin, 401);
                 using (var newLogin = await anonymous.PostAsJsonAsync("/api/auth/login", new { scope = "obs", identifier = "nova@example.test", password = "Senha-nova-123" })) { Expect(newLogin, 200); Require(!(await Read(newLogin)).GetProperty("user").GetProperty("mustChangePassword").GetBoolean(), "Novo login ainda exige troca."); }
-                // Qualquer perfil troca a própria senha: o paciente 7 troca e volta ao valor original.
-                using (var patientChange = await patients[7].PostAsJsonAsync("/api/auth/password", new { currentPassword = Password, newPassword = "Outra-senha-123" })) Expect(patientChange, 204);
-                using (var patientRestore = await patients[7].PostAsJsonAsync("/api/auth/password", new { currentPassword = "Outra-senha-123", newPassword = Password })) Expect(patientRestore, 204);
+                // Qualquer perfil troca a própria senha: o paciente 7 troca para uma senha curta só de números (aceita) e volta ao valor original.
+                using (var patientChange = await patients[7].PostAsJsonAsync("/api/auth/password", new { currentPassword = Password, newPassword = "1234" })) Expect(patientChange, 204);
+                using (var patientRestore = await patients[7].PostAsJsonAsync("/api/auth/password", new { currentPassword = "1234", newPassword = Password })) Expect(patientRestore, 204);
             });
 
             await Check("Desativar, reativar e redefinir senha de conta OBS: confirmação, sessões, concessões preservadas e autorização", async () =>
@@ -303,7 +299,7 @@ internal static class PlatformChecks
                 using (var anonymousReset = await anonymous.PostAsJsonAsync(passwordPath, new { password = "Provisoria-456", confirmed = true })) Expect(anonymousReset, 401);
                 using (var obsReset = await obs.PostAsJsonAsync(passwordPath, new { password = "Provisoria-456", confirmed = true })) Expect(obsReset, 403);
                 using (var unconfirmedReset = await municipal.PostAsJsonAsync(passwordPath, new { password = "Provisoria-456", confirmed = false })) Expect(unconfirmedReset, 400);
-                using (var shortReset = await municipal.PostAsJsonAsync(passwordPath, new { password = "curta", confirmed = true })) Expect(shortReset, 400);
+                using (var longReset = await municipal.PostAsJsonAsync(passwordPath, new { password = new string('x', 257), confirmed = true })) Expect(longReset, 400);
                 using (var unknownReset = await municipal.PostAsJsonAsync($"/api/municipal/staff/{Guid.NewGuid()}/password", new { password = "Provisoria-456", confirmed = true })) Expect(unknownReset, 404);
                 using (var reset = await municipal.PostAsJsonAsync(passwordPath, new { password = "Provisoria-456", confirmed = true })) Expect(reset, 204);
                 using (var revoked = await resetSession.GetAsync("/api/auth/me")) Expect(revoked, 401);
@@ -312,6 +308,50 @@ internal static class PlatformChecks
                 using (var mustChange = await again.GetAsync("/api/obs/units")) await ExpectProblem(mustChange, 403, "password-change-required");
                 var events = await Scalar<long>("SELECT count(DISTINCT action) FROM nora.staff_account_events WHERE account_id=$1 AND actor_id=$2", staffId, managerAccount.Id);
                 Require(events == 4, "Eventos de conta (created, deactivated, reactivated, password_reset) incompletos.");
+            });
+
+            await Check("Senha sem restrições: curta e sem número aceita; vazia e acima de 256 recusadas (regra única, equipe, provisionamento, cadastro pelo app e redefinição)", async () =>
+            {
+                Require(AccountService.ValidPassword("a") && AccountService.ValidPassword("1234") && AccountService.ValidPassword("abcd") && AccountService.ValidPassword("   ") && AccountService.ValidPassword(new string('x', 256)), "Senha curta, sem número ou só de espaços deveria valer.");
+                Require(!AccountService.ValidPassword(null) && !AccountService.ValidPassword("") && !AccountService.ValidPassword(new string('x', 257)), "Senha nula, vazia ou acima de 256 deveria ser recusada.");
+                var hasher = app.Services.GetRequiredService<Microsoft.AspNetCore.Identity.IPasswordHasher<Nora.Api.Models.Account>>();
+                async Task<bool> Matches(Guid id, string password)
+                {
+                    var hash = await Scalar<string>("SELECT password_hash FROM nora.accounts WHERE id=$1", id);
+                    return hasher.VerifyHashedPassword(new(new(id, "", "", ""), "", "", ""), hash, password) != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed;
+                }
+                async Task Rejected(Func<Task> action, string message)
+                {
+                    try { await action(); }
+                    catch (ApiInputException) { return; }
+                    throw new InvalidOperationException(message);
+                }
+                // Equipe (redefinição pela Secretaria): vazia e 257 → 400; "a" vale e depois volta à senha provisória que o check anterior deixou.
+                var staffService = app.Services.GetRequiredService<StaffAccountService>();
+                await Rejected(() => staffService.ResetPasswordAsync(managerAccount.Id, staffId, new("", true), default), "Redefinição da equipe aceitou senha vazia.");
+                await Rejected(() => staffService.ResetPasswordAsync(managerAccount.Id, staffId, new(new string('x', 257), true), default), "Redefinição da equipe aceitou 257 caracteres.");
+                await staffService.ResetPasswordAsync(managerAccount.Id, staffId, new("a", true), default);
+                Require(await Matches(staffId, "a"), "Senha curta da equipe não foi gravada.");
+                await staffService.ResetPasswordAsync(managerAccount.Id, staffId, new("Provisoria-456", true), default);
+                await Rejected(() => staffService.CreateAsync(managerAccount.Id, new("Equipe Vazia", "vazia@example.test", "", "attendant"), default), "Conta da equipe criada com senha vazia.");
+                await Rejected(() => staffService.CreateAsync(managerAccount.Id, new("Equipe Longa", "longa@example.test", new string('x', 257), "attendant"), default), "Conta da equipe criada com 257 caracteres.");
+                // Provisionamento (--provision e contas de teste): curta aceita, vazia e 257 recusadas.
+                var provisioned = await accounts.ProvisionStaffAsync("municipal", "manager", "Gestora senha curta", "senha.curta@example.test", "1234");
+                Require(await Matches(provisioned.Id, "1234"), "Provisionamento não gravou a senha curta.");
+                await Rejected(() => accounts.ProvisionStaffAsync("municipal", "manager", "Gestora vazia", "gestora.vazia@example.test", ""), "Provisionamento aceitou senha vazia.");
+                await Rejected(() => accounts.ProvisionStaffAsync("municipal", "manager", "Gestora longa", "gestora.longa@example.test", new string('x', 257)), "Provisionamento aceitou 257 caracteres.");
+                // Cadastro pelo app (primeiro acesso): vazia e 257 → 400; "a" passa da validação (o resto depende de chave e e-mail configurados).
+                var registration = app.Services.GetRequiredService<PatientRegistrationService>();
+                await Rejected(() => registration.StartAsync(new("Paciente Senha", Cpf(97), "", [u1]), default), "Cadastro pelo app aceitou senha vazia.");
+                await Rejected(() => registration.StartAsync(new("Paciente Senha", Cpf(97), new string('x', 257), [u1]), default), "Cadastro pelo app aceitou 257 caracteres.");
+                try { await registration.StartAsync(new("Paciente Senha", Cpf(97), "a", [u1]), default); }
+                catch (ApiInputException) { throw new InvalidOperationException("Cadastro pelo app recusou senha curta."); }
+                catch (EmailDeliveryUnavailableException) { }
+                // Redefinição por código: vazia e 257 → 400; "a" passa da validação (código malformado só devolve codeValid=false).
+                var reset = app.Services.GetRequiredService<PasswordResetService>();
+                await Rejected(() => reset.FinishAsync(new(Guid.NewGuid(), "000000", ""), default), "Redefinição por código aceitou senha vazia.");
+                await Rejected(() => reset.FinishAsync(new(Guid.NewGuid(), "000000", new string('x', 257)), default), "Redefinição por código aceitou 257 caracteres.");
+                Require(!(await reset.FinishAsync(new(Guid.NewGuid(), "x", "a"), default)).CodeValid, "Código malformado não pode valer.");
             });
 
             await Check("Cadastros de referência e vínculos dos pacientes de teste", async () =>
@@ -328,68 +368,67 @@ internal static class PlatformChecks
             });
 
             // ---- UBS 2: fila, vagas, ofertas, cancelamento e saída do paciente (relógio em minutos desde T0) ----
-            long e1 = 0, e2 = 0, e3 = 0, e4 = 0; Guid slot1 = Guid.Empty, slot2 = Guid.Empty;
-            await Check("Fila e vagas: oferta ao primeiro, recusa e aceite; paciente sai da fila com redistribuição; ofertas da vaga para o OBS", async () =>
+            Guid slot1 = Guid.Empty, slot2 = Guid.Empty;
+            await Check("Vaga Relâmpago automática: oferta a quem tem consulta posterior (a mais distante primeiro), recusa, aceite com antecipação e cascata; consulta a antecipar cancelada passa ao próximo; ofertas da vaga para o OBS", async () =>
             {
                 var a1 = await Book(u2, Cpf(20), "Neurologia", "Prof Neuro 1", t0.AddDays(3).AddHours(-2));
                 var a2 = await Book(u2, Cpf(20), "Neurologia", "Prof Neuro 2", t0.AddDays(4));
-                e1 = await AddWaiting(u2, Cpf(2), "Neurologia"); clock.AdvanceTo(t0.AddMinutes(5));
-                e2 = await AddWaiting(u2, Cpf(4), "Neurologia"); clock.AdvanceTo(t0.AddMinutes(10));
-                e3 = await AddWaiting(u2, Cpf(1), "neurologia"); // mesma especialidade escrita de outro jeito
+                // Candidatos (mesma especialidade, início posterior, sem histórico = mesmo score): a mais distante primeiro → P2, P4, P1 (especialidade escrita de outro jeito).
+                var p2Later = await Book(u2, Cpf(2), "Neurologia", "Prof Neuro Futuro 2", t0.AddDays(30));
+                var p4Later = await Book(u2, Cpf(4), "Neurologia", "Prof Neuro Futuro 4", t0.AddDays(20));
+                var p1Later = await Book(u2, Cpf(1), "neurologia", "Prof Neuro Futuro 1", t0.AddDays(10));
                 clock.AdvanceTo(t0.AddMinutes(30));
                 await Status(u2, a1, "cancelled");
                 using (var slotResponse = await obs.PostAsJsonAsync($"/api/obs/units/{u2}/lightning-slots", new { appointmentId = a1, confirmed = true })) { Expect(slotResponse, 201); slot1 = (await Read(slotResponse)).GetProperty("id").GetGuid(); }
                 var offersPath = $"/api/patient/units/{u2}/lightning-offers";
                 Guid offerP2;
-                using (var offers = await patients[2].GetAsync(offersPath)) { Expect(offers, 200); offerP2 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
+                using (var offers = await patients[2].GetAsync(offersPath))
+                {
+                    Expect(offers, 200); var pending = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending");
+                    offerP2 = pending.GetProperty("id").GetGuid(); Require(pending.GetProperty("replacesAppointmentId").GetGuid() == p2Later, "A oferta deveria dizer qual consulta será antecipada.");
+                }
                 clock.AdvanceTo(t0.AddMinutes(31));
                 using (var decline = await patients[2].PostAsJsonAsync($"{offersPath}/{offerP2}/respond", new { accept = false })) Expect(decline, 200);
-                // R-030: recusar devolve a entrada à fila na mesma posição (entered_at intacto); este teste segue o roteiro antigo e o P2 sai da fila cancelando a própria entrada.
-                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e1) == "waiting" && await UnitScalar<bool>(u2, "SELECT entered_at=$2 FROM nora_unit.waiting_list WHERE id=$1", e1, t0), "Recusar deveria devolver a entrada à fila na mesma posição.");
-                using (var leave = await patients[2].PostAsJsonAsync($"/api/patient/units/{u2}/waiting-list/{e1}/cancel", new { confirmed = true })) Expect(leave, 204);
+                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.appointments WHERE id=$1", p2Later) == "scheduled", "Recusar não mexe na consulta marcada.");
                 Guid offerP4;
                 using (var offers = await patients[4].GetAsync(offersPath)) { Expect(offers, 200); offerP4 = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
                 clock.AdvanceTo(t0.AddMinutes(33));
                 using (var accept = await patients[4].PostAsJsonAsync($"{offersPath}/{offerP4}/respond", new { accept = true })) { Expect(accept, 200); Require((await Read(accept)).GetProperty("accepted").GetBoolean(), "Aceite não confirmado."); }
+                Require(await UnitScalar<string>(u2, "SELECT a.status||':'||e.source FROM nora_unit.appointments a JOIN nora_unit.appointment_events e ON e.appointment_id=a.id AND e.status='cancelled' WHERE a.id=$1", p4Later) == "cancelled:rescheduled-lightning", "O aceite deveria cancelar a consulta antecipada.");
+                // Cascata: o horário antigo do P4 virou vaga e foi oferecido ao P2 (que só recusou a outra vaga).
+                Require(await UnitScalar<string>(u2, "SELECT s.origin||':'||o.cpf||':'||o.status FROM nora_unit.lightning_slots s JOIN nora_unit.lightning_offers o ON o.slot_id=s.id WHERE s.appointment_id=$1", p4Later) == $"rescheduled:{Cpf(2)}:pending", "O horário liberado deveria virar vaga oferecida ao próximo.");
                 // Ofertas da vaga 1 para o OBS: ordem cronológica, nome e situação, sem CPF.
                 using (var slotOffers = await obs.GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot1}/offers"))
                 {
                     Expect(slotOffers, 200); var text = await slotOffers.Content.ReadAsStringAsync(); var rows = JsonDocument.Parse(text).RootElement.EnumerateArray().ToArray();
                     Require(rows.Length == 2 && rows[0].GetProperty("patientName").GetString() == "Paciente 2" && rows[0].GetProperty("status").GetString() == "declined" && rows[1].GetProperty("patientName").GetString() == "Paciente 4" && rows[1].GetProperty("status").GetString() == "accepted", "Ofertas da vaga fora de ordem ou com situação errada.");
-                    Require(rows[0].GetProperty("expiresAt").GetDateTimeOffset() < rows[1].GetProperty("expiresAt").GetDateTimeOffset() && !text.Contains(Cpf(2)) && !text.Contains("cpf"), "Ofertas expõem CPF ou fora de ordem cronológica.");
+                    Require(rows[0].GetProperty("expiresAt").GetDateTimeOffset() < rows[1].GetProperty("expiresAt").GetDateTimeOffset() && !text.Contains(Cpf(2)) && !text.Contains("cpf") && rows[1].GetProperty("replacesStartsAt").GetDateTimeOffset() == t0.AddDays(20), "Ofertas expõem CPF, fora de ordem cronológica ou sem a consulta antecipada.");
                 }
                 using (var unknownSlot = await obs.GetAsync($"/api/obs/units/{u2}/lightning-slots/{Guid.NewGuid()}/offers")) Expect(unknownSlot, 404);
                 using (var deniedFree = await free.GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot1}/offers")) Expect(deniedFree, 403);
                 using (var deniedManager = await municipal.GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot1}/offers")) Expect(deniedManager, 403);
                 using (var deniedPatient = await patients[1].GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot1}/offers")) Expect(deniedPatient, 403);
                 using (var anonymousOffers = await anonymous.GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot1}/offers")) Expect(anonymousOffers, 401);
-                // Segunda vaga: a oferta vai ao P1 (primeiro da fila); ele cancela a própria entrada e a vaga passa ao P5.
+                // Segunda vaga: o P2 já tem oferta pendente; vai ao P1 (consulta mais distante que a do P5). O P1 cancela a consulta que seria antecipada e a vaga passa ao P5.
                 clock.AdvanceTo(t0.AddMinutes(35));
-                await AddWaiting(u2, Cpf(5), "Neurologia"); p5EnteredU2 = clock.GetUtcNow();
-                using (var p5 = await obs.GetAsync($"/api/obs/units/{u2}/waiting-list")) e4 = (await Read(p5)).GetProperty("items").EnumerateArray().Single(entry => entry.GetProperty("cpf").GetString() == Cpf(5)).GetProperty("id").GetInt64();
+                await Book(u2, Cpf(5), "Neurologia", "Prof Neuro Futuro 5", t0.AddDays(5));
                 clock.AdvanceTo(t0.AddMinutes(40));
                 await Status(u2, a2, "cancelled");
                 using (var slotResponse = await obs.PostAsJsonAsync($"/api/obs/units/{u2}/lightning-slots", new { appointmentId = a2, confirmed = true })) { Expect(slotResponse, 201); slot2 = (await Read(slotResponse)).GetProperty("id").GetGuid(); }
-                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e3) == "offered", "A segunda vaga deveria ter sido ofertada ao primeiro da fila.");
+                Require(await UnitScalar<string>(u2, "SELECT cpf FROM nora_unit.lightning_offers WHERE slot_id=$1 AND status='pending'", slot2) == Cpf(1), "A segunda vaga deveria ter sido ofertada ao P1.");
                 clock.AdvanceTo(t0.AddMinutes(41));
-                var cancelPath = $"/api/patient/units/{u2}/waiting-list/{e3}/cancel";
+                // Sair da fila não existe mais: a rota do paciente responde 410 (com sessão de paciente), 401 sem sessão e 403 para outro perfil.
+                var cancelPath = $"/api/patient/units/{u2}/waiting-list/1/cancel";
                 using (var anonymousCancel = await anonymous.PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(anonymousCancel, 401);
                 using (var obsCancel = await obs.PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(obsCancel, 403);
-                using (var unlinked = await patients[3].PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(unlinked, 403);
-                using (var unconfirmed = await patients[1].PostAsJsonAsync(cancelPath, new { confirmed = false })) Expect(unconfirmed, 400);
-                using (var missingBody = await patients[1].PostAsJsonAsync(cancelPath, new { })) Expect(missingBody, 400);
-                using (var someoneElse = await patients[2].PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(someoneElse, 404);
-                using (var inexistent = await patients[1].PostAsJsonAsync($"/api/patient/units/{u2}/waiting-list/987654/cancel", new { confirmed = true })) Expect(inexistent, 404);
-                using (var cancelled = await patients[1].PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(cancelled, 204);
-                using (var repeat = await patients[1].PostAsJsonAsync(cancelPath, new { confirmed = true })) Expect(repeat, 409);
-                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e3) == "cancelled", "Entrada do paciente não foi cancelada.");
-                Require(await UnitScalar<string>(u2, "SELECT source FROM nora_unit.waiting_list_events WHERE entry_id=$1 AND status='cancelled'", e3) == "patient", "Cancelamento do paciente não gravou origem 'patient'.");
-                Require(await UnitScalar<Guid>(u2, "SELECT actor_id FROM nora_unit.waiting_list_events WHERE entry_id=$1 AND status='cancelled'", e3) == patientIds[1], "Cancelamento do paciente sem o autor correto.");
-                Require(await UnitScalar<string>(u2, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", e4) == "offered", "A vaga não foi redistribuída ao próximo da fila.");
+                using (var removed = await patients[1].PostAsJsonAsync(cancelPath, new { confirmed = true })) await ExpectProblem(removed, 410, "manual-queue-removed");
+                using (var cancelOwn = await patients[1].PostAsJsonAsync($"/api/patient/units/{u2}/appointments/{p1Later}/cancel", new { confirmed = true })) Expect(cancelOwn, 200);
+                await Advance(u2);
+                Require(await UnitScalar<string>(u2, "SELECT source FROM nora_unit.appointment_events WHERE appointment_id=$1 AND status='cancelled'", p1Later) == "patient", "Cancelamento do paciente não gravou origem 'patient'.");
                 using (var slotOffers = await obs.GetAsync($"/api/obs/units/{u2}/lightning-slots/{slot2}/offers"))
                 {
                     Expect(slotOffers, 200); var rows = (await Read(slotOffers)).EnumerateArray().ToArray();
-                    Require(rows.Length == 2 && rows[0].GetProperty("patientName").GetString() == "Paciente 1" && rows[0].GetProperty("status").GetString() == "cancelled" && rows[1].GetProperty("patientName").GetString() == "Paciente 5" && rows[1].GetProperty("status").GetString() == "pending", "Ofertas da segunda vaga incorretas após o cancelamento do paciente.");
+                    Require(rows.Length == 2 && rows[0].GetProperty("patientName").GetString() == "Paciente 1" && rows[0].GetProperty("status").GetString() == "cancelled" && rows[1].GetProperty("patientName").GetString() == "Paciente 5" && rows[1].GetProperty("status").GetString() == "pending", "Ofertas da segunda vaga incorretas após o cancelamento da consulta a antecipar.");
                 }
             });
 
@@ -398,7 +437,6 @@ internal static class PlatformChecks
                 var accepted = await UnitScalar<Guid>(u2, "SELECT id FROM nora_unit.appointments WHERE cpf=$1 AND status='scheduled'", Cpf(4));
                 var extra = await Book(u2, Cpf(4), "Clínica", "Prof Extra", t0.AddDays(2).AddHours(-2));
                 await Status(u2, extra, "called");
-                await AddWaiting(u2, Cpf(4), "Oftalmologia");
                 clock.AdvanceTo(t0.AddMinutes(45));
                 var unlinkPath = $"/api/patient/units/{u2}/unlink";
                 using (var anonymousUnlink = await anonymous.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Expect(anonymousUnlink, 401);
@@ -407,41 +445,36 @@ internal static class PlatformChecks
                 using (var unconfirmed = await patients[4].PostAsJsonAsync(unlinkPath, new { confirmed = false })) Expect(unconfirmed, 400);
                 using (var missing = await patients[4].PostAsJsonAsync(unlinkPath, new { })) Expect(missing, 400);
                 using (var done = await patients[4].PostAsJsonAsync(unlinkPath, new { confirmed = true }))
-                { Expect(done, 200); var body = await Read(done); Require(body.GetProperty("cancelledAppointments").GetInt32() == 2 && body.GetProperty("cancelledEntries").GetInt32() == 1, "Contagens da remoção do vínculo incorretas."); }
+                { Expect(done, 200); var body = await Read(done); Require(body.GetProperty("cancelledAppointments").GetInt32() == 2 && body.GetProperty("cancelledEntries").GetInt32() == 0, "Contagens da remoção do vínculo incorretas (sem fila manual, nenhuma entrada)."); }
                 using (var again = await patients[4].PostAsJsonAsync(unlinkPath, new { confirmed = true })) Expect(again, 403);
                 using (var units = await patients[4].GetAsync("/api/patient/units")) { Expect(units, 200); Require(!(await Read(units)).GetProperty("units").EnumerateArray().Any(u => u.GetProperty("id").GetGuid() == u2), "UBS removida ainda aparece para o paciente."); }
-                using (var forbidden = await patients[4].GetAsync($"/api/patient/units/{u2}/waiting-list")) Expect(forbidden, 403);
+                using (var forbidden = await patients[4].GetAsync($"/api/patient/units/{u2}/lightning-offers")) Expect(forbidden, 403);
                 Require(await Scalar<long>("SELECT count(*) FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2", patientIds[4], u2) == 0, "Linha de vínculo não foi removida.");
                 Require(await Scalar<long>("SELECT count(*) FROM nora.patient_unit_link_events WHERE patient_id=$1 AND unit_id=$2 AND action='linked'", patientIds[4], u2) == 1 && await Scalar<long>("SELECT count(*) FROM nora.patient_unit_link_events WHERE patient_id=$1 AND unit_id=$2 AND action='unlinked'", patientIds[4], u2) == 1, "Eventos de vínculo (linked/unlinked) incorretos.");
                 Require(await UnitScalar<long>(u2, "SELECT count(*) FROM nora_unit.appointment_events WHERE status='cancelled' AND source='patient' AND actor_id=$1 AND appointment_id=ANY($2)", patientIds[4], new[] { accepted, extra }) == 2, "Cancelamentos do vínculo sem origem 'patient'.");
-                Require(await UnitScalar<long>(u2, "SELECT count(*) FROM nora_unit.waiting_list WHERE cpf=$1 AND status IN ('waiting','offered')", Cpf(4)) == 0, "Entradas ativas sobreviveram à remoção do vínculo.");
+                Require(await UnitScalar<long>(u2, "SELECT count(*) FROM nora_unit.lightning_offers WHERE cpf=$1 AND status='pending'", Cpf(4)) == 0, "Ofertas pendentes sobreviveram à remoção do vínculo.");
                 var weight = await Attendance(u2, 4);
-                Require(weight.GetProperty("cancelledByPatient").GetInt64() == 2 && Math.Abs(weight.GetProperty("cancellationWeight").GetDouble() - 0.3) < 1e-9 && weight.GetProperty("score").GetDouble() == 0.0, "Cancelamentos da remoção do vínculo devem pesar pela tabela normal (0,1 + 0,2).");
+                Require(weight.GetProperty("cancelledByPatient").GetInt64() == 2 && Math.Abs(weight.GetProperty("cancellationWeight").GetDouble() - 0.3) < 1e-9 && weight.GetProperty("points").GetInt32() == 690 && weight.GetProperty("score").GetDouble() == 0.69, "Cancelamentos da remoção do vínculo devem pesar pela tabela normal: antecedência de ~70 h = 0 e de ~45 h = −10 → 690 (" + weight + ").");
                 using (var relink = await patients[4].PostAsJsonAsync("/api/patient/units/link", new { unitIds = new[] { u2 } })) { Expect(relink, 200); Require((await Read(relink)).GetProperty("linkedUnits").GetArrayLength() == 1, "Não foi possível vincular de novo."); }
                 Require(await Scalar<long>("SELECT count(*) FROM nora.patient_unit_link_events WHERE patient_id=$1 AND unit_id=$2 AND action='linked'", patientIds[4], u2) == 2, "Novo vínculo não registrou evento.");
                 // Cadastro desativado na UBS não impede a saída.
                 using (var deactivate = await obs.PatchAsJsonAsync($"/api/obs/units/{u2}/registry/active", new { cpf = Cpf(6), isActive = false, confirmed = true })) Expect(deactivate, 204);
                 using (var inactiveUnlink = await patients[6].PostAsJsonAsync(unlinkPath, new { confirmed = true })) { Expect(inactiveUnlink, 200); var body = await Read(inactiveUnlink); Require(body.GetProperty("cancelledAppointments").GetInt32() == 0 && body.GetProperty("cancelledEntries").GetInt32() == 0, "Contagens com cadastro desativado incorretas."); }
                 Require(await Scalar<long>("SELECT count(*) FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2", patientIds[6], u2) == 0, "Cadastro desativado impediu remover o vínculo.");
-                // P5 aguarda também na UBS 1 (não há vaga lá): conta como duas entradas e uma pessoa na rede.
-                using (var other = await obs.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(5), specialty = "Cardiologia" })) Expect(other, 201);
             });
 
-            await Check("Indicadores da UBS 2: espera média por oferta aceita, maior espera ativa e vagas da janela", async () =>
+            await Check("Indicadores da UBS 2: vagas da janela (as automáticas incluídas) e espera da fila manual vazia", async () =>
             {
                 var window = $"from={Uri.EscapeDataString(t0.ToString("O"))}&to={Uri.EscapeDataString(t0.AddDays(1).ToString("O"))}";
                 using var response = await obs.GetAsync($"/api/obs/units/{u2}/metrics?{window}"); Expect(response, 200);
                 var body = await Read(response); var waiting = body.GetProperty("waiting"); var lightning = body.GetProperty("lightning");
-                Require(waiting.GetProperty("acceptedEntries").GetInt64() == 1 && waiting.GetProperty("averageWaitMinutes").GetDouble() == 28.0, "Espera média deveria ser 28 min (entrou +5, aceitou +33).");
-                Require(waiting.GetProperty("activeEntries").GetInt64() == 1 && waiting.GetProperty("waitingPatients").GetInt64() == 1 && Math.Abs(waiting.GetProperty("longestActiveWaitMinutes").GetDouble() - (clock.GetUtcNow() - p5EnteredU2).TotalMinutes) < 0.06, "Fila ativa ou maior espera incorretas.");
-                Require(lightning.GetProperty("registeredSlots").GetInt64() == 2 && lightning.GetProperty("acceptedOffers").GetInt64() == 1 && lightning.GetProperty("declinedOffers").GetInt64() == 1 && lightning.GetProperty("expiredOffers").GetInt64() == 0, "Contagens de vagas e ofertas incorretas.");
-                var neuro = body.GetProperty("bySpecialty").EnumerateArray().Single(s => s.GetProperty("specialty").GetString()!.ToLowerInvariant() == "neurologia");
-                Require(neuro.GetProperty("activeEntries").GetInt64() == 1 && neuro.GetProperty("averageWaitMinutes").GetDouble() == 28.0, "Indicadores de Neurologia (UBS 2) incorretos.");
-                // Espera fora da janela de saída não conta.
+                // Sem fila manual: não há entrada, espera nem saída por oferta aceita.
+                Require(waiting.GetProperty("acceptedEntries").GetInt64() == 0 && waiting.GetProperty("averageWaitMinutes").ValueKind == JsonValueKind.Null && waiting.GetProperty("activeEntries").GetInt64() == 0 && waiting.GetProperty("waitingPatients").GetInt64() == 0 && waiting.GetProperty("longestActiveWaitMinutes").ValueKind == JsonValueKind.Null, "Sem fila manual a espera deveria vir vazia.");
+                // Vagas criadas na janela: a1 e a2 (equipe), a cascata do P4, a consulta cancelada do P1 e as duas consultas que a remoção do vínculo do P4 cancelou.
+                Require(lightning.GetProperty("registeredSlots").GetInt64() == 6 && lightning.GetProperty("acceptedOffers").GetInt64() == 1 && lightning.GetProperty("declinedOffers").GetInt64() == 1 && lightning.GetProperty("expiredOffers").GetInt64() == 1, "Contagens de vagas e ofertas incorretas (a oferta da cascata ao P2, feita em +33 min, venceu no passe da remoção do vínculo em +45 min): " + lightning);
                 var later = $"from={Uri.EscapeDataString(t0.AddDays(1).ToString("O"))}&to={Uri.EscapeDataString(t0.AddDays(2).ToString("O"))}";
                 using var empty = await obs.GetAsync($"/api/obs/units/{u2}/metrics?{later}"); Expect(empty, 200);
-                var emptyBody = await Read(empty);
-                Require(emptyBody.GetProperty("waiting").GetProperty("acceptedEntries").GetInt64() == 0 && emptyBody.GetProperty("waiting").GetProperty("averageWaitMinutes").ValueKind == JsonValueKind.Null && emptyBody.GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 0, "Saída da fila fora da janela entrou na espera média.");
+                Require((await Read(empty)).GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 0, "Vagas fora da janela entraram na contagem.");
             });
 
             // ---- UBS 1: consultas, score e comparecimento ----
@@ -483,15 +516,15 @@ internal static class PlatformChecks
             await Check("Score por paciente no cadastro do OBS e no app (12 meses); a Secretaria não recebe o campo", async () =>
             {
                 var p3 = await Attendance(u1, 3);
-                Require(p3.GetProperty("completed").GetInt64() == 2 && p3.GetProperty("missed").GetInt64() == 0 && p3.GetProperty("cancelledByPatient").GetInt64() == 9 && Math.Abs(p3.GetProperty("cancellationWeight").GetDouble() - 4.02) < 1e-9 && Math.Abs(p3.GetProperty("score").GetDouble() - Math.Round(2 / 6.02, 4)) < 1e-9, "Score do P3 incorreto (9 cancelamentos, uma de cada faixa).");
+                Require(p3.GetProperty("completed").GetInt64() == 2 && p3.GetProperty("missed").GetInt64() == 0 && p3.GetProperty("cancelledByPatient").GetInt64() == 9 && Math.Abs(p3.GetProperty("cancellationWeight").GetDouble() - 4.02) < 1e-9 && p3.GetProperty("points").GetInt32() == 680 && p3.GetProperty("score").GetDouble() == 0.68 && p3.GetProperty("band").GetString() == "good", "Score do P3 incorreto (9 cancelamentos: 0+0+0−10−20−20−30−30−40 = −150 a partir de 700, depois +60 e +70 → 680): " + p3);
                 var p1 = await Attendance(u1, 1);
-                Require(p1.GetProperty("completed").GetInt64() == 3 && p1.GetProperty("missed").GetInt64() == 1 && p1.GetProperty("cancelledByPatient").GetInt64() == 1 && Math.Abs(p1.GetProperty("cancellationWeight").GetDouble() - 0.2) < 1e-9 && Math.Abs(p1.GetProperty("score").GetDouble() - Math.Round(3 / 4.2, 4)) < 1e-9, "Score do P1 incorreto (cancelamento da equipe não pesa, agendada e chamada não entram).");
+                Require(p1.GetProperty("completed").GetInt64() == 3 && p1.GetProperty("missed").GetInt64() == 1 && p1.GetProperty("cancelledByPatient").GetInt64() == 1 && Math.Abs(p1.GetProperty("cancellationWeight").GetDouble() - 0.2) < 1e-9 && p1.GetProperty("points").GetInt32() == 840 && p1.GetProperty("score").GetDouble() == 0.84, "Score do P1 incorreto (cancelamento com 24 h = −10, a da equipe não pesa; +60 +70 +80 de sequência e a falta −60 → 840; agendada e chamada não entram): " + p1);
                 var p2 = await Attendance(u1, 2);
-                Require(p2.GetProperty("completed").GetInt64() == 1 && p2.GetProperty("cancelledByPatient").GetInt64() == 2 && Math.Abs(p2.GetProperty("cancellationWeight").GetDouble() - 1.8) < 1e-9 && Math.Abs(p2.GetProperty("score").GetDouble() - Math.Round(1 / 2.8, 4)) < 1e-9, "Score do P2 incorreto.");
+                Require(p2.GetProperty("completed").GetInt64() == 1 && p2.GetProperty("cancelledByPatient").GetInt64() == 2 && Math.Abs(p2.GetProperty("cancellationWeight").GetDouble() - 1.8) < 1e-9 && p2.GetProperty("points").GetInt32() == 690, "Score do P2 incorreto (−30 com 2 h, −40 com 30 min, +60 → 690): " + p2);
                 var p7 = await Attendance(u1, 7);
-                Require(p7.GetProperty("completed").GetInt64() == 0 && p7.GetProperty("cancellationWeight").GetDouble() == 0 && p7.GetProperty("score").ValueKind == JsonValueKind.Null, "Paciente sem consulta deve ter score nulo.");
+                Require(p7.GetProperty("completed").GetInt64() == 0 && p7.GetProperty("cancellationWeight").GetDouble() == 0 && p7.GetProperty("score").ValueKind == JsonValueKind.Null && p7.GetProperty("points").GetInt32() == 700 && !p7.GetProperty("hasHistory").GetBoolean(), "Paciente sem consulta deve ter score nulo e 700 pontos.");
                 var p9 = await Attendance(u1, 9);
-                Require(p9.GetProperty("missed").GetInt64() == 1 && p9.GetProperty("score").GetDouble() == 0.0, "A janela de 12 meses deve incluir a falta recente e excluir a de 400 dias.");
+                Require(p9.GetProperty("missed").GetInt64() == 1 && p9.GetProperty("points").GetInt32() == 670, "A janela de 12 meses deve incluir a falta de 100 dias (pela metade: −30) e excluir a de 400 dias: " + p9);
                 using (var managerRegistry = await municipal.GetAsync($"/api/municipal/units/{u1}/registry")) { Expect(managerRegistry, 200); var text = await managerRegistry.Content.ReadAsStringAsync(); Require(!text.Contains("attendance"), "A rota municipal de cadastro não deve receber o score."); }
                 var own = $"/api/patient/units/{u1}/attendance";
                 using (var ownResponse = await patients[3].GetAsync(own))
@@ -515,14 +548,14 @@ internal static class PlatformChecks
                 var specialties = body.GetProperty("bySpecialty").EnumerateArray().ToDictionary(s => s.GetProperty("specialty").GetString()!, s => s);
                 Require(specialties.Keys.Count(k => k.StartsWith("cardio", StringComparison.OrdinalIgnoreCase)) == 1 && specialties.ContainsKey("Cardiologia"), "Cardiologia/cardiologia deveria ser um grupo com a grafia mais frequente.");
                 var cardio = specialties["Cardiologia"];
-                Require(cardio.GetProperty("completed").GetInt64() == 3 && cardio.GetProperty("missed").GetInt64() == 1 && cardio.GetProperty("cancelled").GetInt64() == 2 && Math.Abs(cardio.GetProperty("cancellationWeight").GetDouble() - 0.2) < 1e-9 && Math.Abs(cardio.GetProperty("attendanceScore").GetDouble() - Math.Round(3 / 4.2, 4)) < 1e-9 && cardio.GetProperty("activeEntries").GetInt64() == 1, "Indicadores de Cardiologia incorretos.");
+                Require(cardio.GetProperty("completed").GetInt64() == 3 && cardio.GetProperty("missed").GetInt64() == 1 && cardio.GetProperty("cancelled").GetInt64() == 2 && Math.Abs(cardio.GetProperty("cancellationWeight").GetDouble() - 0.2) < 1e-9 && Math.Abs(cardio.GetProperty("attendanceScore").GetDouble() - Math.Round(3 / 4.2, 4)) < 1e-9 && cardio.GetProperty("activeEntries").GetInt64() == 0, "Indicadores de Cardiologia incorretos.");
                 Require(Math.Abs(specialties["Ortopedia"].GetProperty("cancellationWeight").GetDouble() - 4.02) < 1e-9 && specialties["Dermatologia"].GetProperty("completed").GetInt64() == 1, "Indicadores de Ortopedia/Dermatologia incorretos.");
                 var daily = body.GetProperty("daily").EnumerateArray().ToDictionary(d => d.GetProperty("date").GetString()!, d => d);
                 Require(daily["2026-10-08"].GetProperty("completed").GetInt64() == 1 && (!daily.TryGetValue("2026-10-09", out var ninth) || ninth.GetProperty("completed").GetInt64() == 0), "Consulta às 01h30 UTC deveria cair no dia anterior no fuso America/Sao_Paulo.");
                 Require(daily["2026-10-15"].GetProperty("completed").GetInt64() == 2 && daily["2026-10-12"].GetProperty("missed").GetInt64() == 1 && daily["2026-10-13"].GetProperty("scheduled").GetInt64() == 1, "Série diária incorreta.");
                 Require(body.GetProperty("daily").EnumerateArray().Sum(d => d.GetProperty("completed").GetInt64()) == 6 && body.GetProperty("daily").EnumerateArray().Sum(d => d.GetProperty("cancelled").GetInt64()) == 13 && daily.Keys.All(k => k.Length == 10 && k[4] == '-'), "A série diária não fecha com os totais ou usa formato incorreto.");
                 var w = body.GetProperty("waiting");
-                Require(w.GetProperty("activeEntries").GetInt64() == 1 && w.GetProperty("averageWaitMinutes").ValueKind == JsonValueKind.Null && w.GetProperty("acceptedEntries").GetInt64() == 0, "Fila da UBS 1 incorreta.");
+                Require(w.GetProperty("activeEntries").GetInt64() == 0 && w.GetProperty("averageWaitMinutes").ValueKind == JsonValueKind.Null && w.GetProperty("acceptedEntries").GetInt64() == 0, "Fila da UBS 1 incorreta (sem fila manual).");
                 Require(body.GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 0, "UBS 1 não tem vagas.");
                 // Janela: pela data marcada; a falta de 100 dias antes não entra e o limite superior é exclusivo.
                 using var narrow = await obs.GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(2).ToString("O"))}"); Expect(narrow, 200);
@@ -543,21 +576,21 @@ internal static class PlatformChecks
                 using var response = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}"); Expect(response, 200);
                 var text = await response.Content.ReadAsStringAsync(); var body = JsonDocument.Parse(text).RootElement; var totals = body.GetProperty("totals");
                 Require(!text.Contains(Cpf(1)) && !text.Contains("example.test") && !text.Contains("Paciente 1"), "Indicadores da rede expõem dado pessoal.");
-                Require(totals.GetProperty("appointments").GetProperty("completed").GetInt64() == 6 && totals.GetProperty("appointments").GetProperty("cancelled").GetInt64() == 17 && totals.GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 14, "Totais de consultas da rede incorretos (UBS 1 + UBS 2).");
+                Require(totals.GetProperty("appointments").GetProperty("completed").GetInt64() == 6 && totals.GetProperty("appointments").GetProperty("cancelled").GetInt64() == 19 && totals.GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 15, "Totais de consultas da rede incorretos (UBS 1: 13 e 12; UBS 2: a1, a2, a antecipada do P4, a do P1 e as duas da remoção do vínculo).");
                 var weight = 6.02 + 0.3; var score = Math.Round(6 / (6 + 1 + weight), 4);
                 Require(Math.Abs(totals.GetProperty("appointments").GetProperty("cancellationWeight").GetDouble() - weight) < 1e-9 && Math.Abs(totals.GetProperty("appointments").GetProperty("attendanceScore").GetDouble() - score) < 1e-9, "Peso ou score da rede incorretos.");
                 var waiting = totals.GetProperty("waiting");
-                Require(waiting.GetProperty("activeEntries").GetInt64() == 2 && waiting.GetProperty("waitingPatients").GetInt64() == 1 && waiting.GetProperty("acceptedEntries").GetInt64() == 1 && waiting.GetProperty("averageWaitMinutes").GetDouble() == 28.0, "Espera da rede: duas entradas, uma pessoa (CPF distinto), uma saída por oferta aceita.");
-                Require(totals.GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 2 && totals.GetProperty("lightning").GetProperty("acceptedOffers").GetInt64() == 1, "Vagas da rede incorretas.");
+                Require(waiting.GetProperty("activeEntries").GetInt64() == 0 && waiting.GetProperty("waitingPatients").GetInt64() == 0 && waiting.GetProperty("acceptedEntries").GetInt64() == 0 && waiting.GetProperty("averageWaitMinutes").ValueKind == JsonValueKind.Null, "Espera da rede: sem fila manual.");
+                Require(totals.GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 6 && totals.GetProperty("lightning").GetProperty("acceptedOffers").GetInt64() == 1, "Vagas da rede incorretas.");
                 var byUnit = body.GetProperty("byUnit").EnumerateArray().ToDictionary(u => u.GetProperty("unitId").GetGuid(), u => u);
-                Require(byUnit.ContainsKey(u1) && byUnit.ContainsKey(u2) && !byUnit.ContainsKey(pendingUnit) && byUnit[u1].GetProperty("name").GetString() == "UBS Um" && byUnit[u2].GetProperty("region").GetString() == "Norte" && byUnit[u1].GetProperty("waiting").GetProperty("waitingPatients").GetInt64() == 1, "Resumo por UBS incorreto.");
+                Require(byUnit.ContainsKey(u1) && byUnit.ContainsKey(u2) && !byUnit.ContainsKey(pendingUnit) && byUnit[u1].GetProperty("name").GetString() == "UBS Um" && byUnit[u2].GetProperty("region").GetString() == "Norte" && byUnit[u1].GetProperty("waiting").GetProperty("waitingPatients").GetInt64() == 0, "Resumo por UBS incorreto.");
                 var regions = body.GetProperty("byRegion").EnumerateArray().ToDictionary(r => r.GetProperty("region").GetString()!, r => r);
-                Require(regions.ContainsKey("Centro") && regions.ContainsKey("Norte") && regions["Norte"].GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 2 && regions["Centro"].GetProperty("appointments").GetProperty("completed").GetInt64() == 6, "Resumo por região incorreto.");
+                Require(regions.ContainsKey("Centro") && regions.ContainsKey("Norte") && regions["Norte"].GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 3 && regions["Centro"].GetProperty("appointments").GetProperty("completed").GetInt64() == 6, "Resumo por região incorreto.");
                 var specialties = body.GetProperty("bySpecialty").EnumerateArray().Select(s => s.GetProperty("specialty").GetString()!).ToList();
                 Require(specialties.Contains("Neurologia") || specialties.Any(s => s.Equals("neurologia", StringComparison.OrdinalIgnoreCase)), "Especialidade de outra UBS ausente do agrupamento da rede.");
                 Require(body.GetProperty("unitsWithoutDatabase").GetInt64() == 1, "UBS pending deveria ser contada em unitsWithoutDatabase.");
                 // Filtros: UBS, região (sem diferenciar maiúsculas) e especialidade.
-                using (var one = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}&unitId={u2}")) { Expect(one, 200); var oneBody = await Read(one); Require(oneBody.GetProperty("byUnit").GetArrayLength() == 1 && oneBody.GetProperty("totals").GetProperty("appointments").GetProperty("completed").GetInt64() == 0 && oneBody.GetProperty("totals").GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 2, "Filtro por UBS incorreto."); }
+                using (var one = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}&unitId={u2}")) { Expect(one, 200); var oneBody = await Read(one); Require(oneBody.GetProperty("byUnit").GetArrayLength() == 1 && oneBody.GetProperty("totals").GetProperty("appointments").GetProperty("completed").GetInt64() == 0 && oneBody.GetProperty("totals").GetProperty("appointments").GetProperty("cancelledByPatient").GetInt64() == 3, "Filtro por UBS incorreto."); }
                 using (var region = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}&region=NORTE")) { Expect(region, 200); var regionBody = await Read(region); Require(regionBody.GetProperty("byUnit").GetArrayLength() == 1 && regionBody.GetProperty("byUnit")[0].GetProperty("unitId").GetGuid() == u2 && regionBody.GetProperty("byRegion").GetArrayLength() == 1, "Filtro por região deveria ignorar maiúsculas."); }
                 using (var specialty = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}&specialty=CARDIOLOGIA"))
                 {
@@ -578,11 +611,11 @@ internal static class PlatformChecks
                 var body = await Read(response);
                 // Ativos: P1, P2, P3, P5, P7, P9 (UBS 1) e P1, P2, P4, P5, S1 (UBS 2). Só desativados: P8 (UBS 1) e P6 (UBS 2).
                 Require(body.GetProperty("patients").GetInt64() == 8 && body.GetProperty("inactivePatients").GetInt64() == 2, $"Pacientes ativos/desativados incorretos ({body.GetProperty("patients").GetInt64()}/{body.GetProperty("inactivePatients").GetInt64()}).");
-                Require(body.GetProperty("waitingPatients").GetInt64() == 1 && body.GetProperty("waitingEntries").GetInt64() == 2, "A mesma pessoa em duas filas deve contar uma vez em waitingPatients e duas em waitingEntries.");
+                Require(body.GetProperty("waitingPatients").GetInt64() == 0 && body.GetProperty("waitingEntries").GetInt64() == 0, "Sem fila manual, ninguém aguarda.");
                 Require(body.GetProperty("unitsWithoutDatabase").GetInt64() == 1, "unitsWithoutDatabase incorreto.");
                 using var one = await municipal.GetAsync($"/api/municipal/summary?unitId={u2}"); Expect(one, 200);
                 var oneBody = await Read(one);
-                Require(oneBody.GetProperty("patients").GetInt64() == 5 && oneBody.GetProperty("inactivePatients").GetInt64() == 1 && oneBody.GetProperty("waitingEntries").GetInt64() == 1 && oneBody.GetProperty("unitsWithoutDatabase").GetInt64() == 0, "Resumo filtrado por UBS incorreto.");
+                Require(oneBody.GetProperty("patients").GetInt64() == 5 && oneBody.GetProperty("inactivePatients").GetInt64() == 1 && oneBody.GetProperty("waitingEntries").GetInt64() == 0 && oneBody.GetProperty("unitsWithoutDatabase").GetInt64() == 0, "Resumo filtrado por UBS incorreto.");
                 using var pendingOnly = await municipal.GetAsync($"/api/municipal/summary?unitId={pendingUnit}"); Expect(pendingOnly, 200);
                 var pendingBody = await Read(pendingOnly);
                 Require(pendingBody.GetProperty("patients").GetInt64() == 0 && pendingBody.GetProperty("unitsWithoutDatabase").GetInt64() == 1, "Resumo de UBS pending deveria vir vazio e informar a pendência.");

@@ -13,7 +13,7 @@ using Nora.Desktop.ViewModels;
 
 namespace Nora.Desktop.Views;
 
-public partial class ShellWindow : Window
+public partial class ShellWindow : Window, IDialogHost
 {
     private readonly ThemeService themes;
     private readonly FullScreenService fullScreen;
@@ -49,8 +49,33 @@ public partial class ShellWindow : Window
             if (ViewModel.Animations)
                 PageContainer.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(160)));
         }
+        if (args.PropertyName == nameof(ShellViewModel.SidebarItems) && ViewModel.Animations)
+        {
+            // Troca entre o menu principal e as subabas: desliza da direita (entrando na área) ou da esquerda (voltando ao menu).
+            var from = ViewModel.ShowingSubmenu ? 28 : -28;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            SidebarSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            SidebarList.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
+        }
+        if (args.PropertyName == nameof(ShellViewModel.Route) && ViewModel.Animations)
+            PageSlide.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         if (args.PropertyName == nameof(ShellViewModel.Animations) && !ViewModel.Animations)
             PageContainer.BeginAnimation(OpacityProperty, null);
+    }
+    private void OnPhotoMenu(object sender, RoutedEventArgs args) { if (sender is FrameworkElement target) AccountAvatar.OpenPhotoMenu(target, ViewModel.Workspace); }
+    /// <summary>Mini botão de gráfico dos cartões de indicador: abre o pop-up com Linha e Pizza.</summary>
+    private void OnShowChart(object sender, ExecutedRoutedEventArgs args)
+    {
+        var (title, value) = args.Parameter switch
+        {
+            MetricCard card => (card.Title, card.Value),
+            string text when text.Split('|') is { Length: 2 } parts => (parts[0], parts[1]),
+            string text => (text, ""),
+            _ => ("Indicador", "")
+        };
+        var chart = ViewModel.Workspace.BuildIndicatorChart(title, value);
+        DialogService.ShowModal(new IndicatorChartWindow(chart), this);
+        args.Handled = true;
     }
     private void OnAccountMenu(object sender, RoutedEventArgs args)
     {
@@ -100,6 +125,7 @@ public partial class ShellWindow : Window
     {
         var modifiers = Keyboard.Modifiers;
         if (args.Key == Key.F11 && modifiers == ModifierKeys.None) ViewModel.FullScreen = !ViewModel.FullScreen;
+        else if (args.SystemKey == Key.Left && modifiers == ModifierKeys.Alt) ViewModel.GoBack();
         else if (args.Key == Key.Escape && ViewModel.FullScreen) ViewModel.FullScreen = false;
         else if (args.Key == Key.D1 && modifiers == ModifierKeys.Control) ViewModel.Navigate("home");
         else if (args.Key == Key.OemComma && modifiers == ModifierKeys.Control) ViewModel.Navigate("settings");
@@ -111,15 +137,16 @@ public partial class ShellWindow : Window
     private void OnClosing(object? sender, CancelEventArgs args)
     {
         if (!ViewModel.ConfirmClose) return;
-        var dialog = new Window { Owner = this, Title = "Fechar " + ViewModel.Profile.Name, Width = 420, Height = 220, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceBrush"), Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextBrush"), ShowInTaskbar = false };
-        var panel = new StackPanel { Margin = new Thickness(24) };
-        panel.Children.Add(new TextBlock { Text = "Deseja fechar o aplicativo?", FontSize = 21, FontWeight = FontWeights.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "Suas preferências salvas estarão disponíveis ao voltar.", Margin = new Thickness(0, 12, 0, 20), TextWrapping = TextWrapping.Wrap });
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var cancel = new Button { Content = "Continuar aqui", IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
-        var close = new Button { Content = "Fechar", IsDefault = true, Style = (Style)Application.Current.FindResource("PrimaryButton") };
-        close.Click += (_, _) => dialog.DialogResult = true;
-        actions.Children.Add(cancel); actions.Children.Add(close); panel.Children.Add(actions); dialog.Content = panel;
-        args.Cancel = dialog.ShowDialog() != true;
+        args.Cancel = !DialogService.Ask(this, "Fechar " + ViewModel.Profile.Name + "?", "Suas preferências ficam salvas para a próxima vez.", "Fechar", "Continuar aqui");
+    }
+    private int dimmed;
+    /// <summary>Escurece o conteúdo enquanto um diálogo da marca está aberto (diálogos aninhados contam).</summary>
+    public void SetDimmed(bool value)
+    {
+        dimmed = Math.Max(0, dimmed + (value ? 1 : -1));
+        var show = dimmed > 0;
+        if (show == (DialogOverlay.Visibility == Visibility.Visible)) return;
+        DialogOverlay.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show && ViewModel.Animations) DialogOverlay.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
     }
 }

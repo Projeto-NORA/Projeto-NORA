@@ -22,7 +22,7 @@ public sealed class PatientRegistrationService(DatabaseHelper central, UnitPatie
         var name = request.FullName?.Trim() ?? "";
         var units = request.UnitIds?.Distinct().ToArray() ?? [];
         if (!AccountService.ValidCpf(cpf) || name.Length is < 2 or > 160 || name.Any(char.IsControl) ||
-            request.Password is null || request.Password.Length is < 8 or > 256 || units.Length is < 1 or > 20 || units.Any(id => id == Guid.Empty))
+            !AccountService.ValidPassword(request.Password) || units.Length is < 1 or > 20 || units.Any(id => id == Guid.Empty))
             throw new ApiInputException();
         var key = SigningKey();
         if (!email.IsConfigured) throw new EmailDeliveryUnavailableException();

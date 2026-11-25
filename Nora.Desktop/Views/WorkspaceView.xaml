@@ -18,10 +18,11 @@
     </Style>
   </UserControl.Resources>
   <StackPanel>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="32" MaxWidth="560" HorizontalAlignment="Left" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
       <StackPanel>
       <StackPanel IsEnabled="{Binding CanLogin}">
-        <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <Image x:Name="LoginBrandMark" Source="{DynamicResource BrandMarkImage}" Width="56" Height="56" HorizontalAlignment="Left" Margin="0,0,0,20" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="Logotipo NORA" />
+        <TextBlock Text="Entre no seu espaço de trabalho" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,8" />
         <TextBlock Text="Entre com o e-mail da sua conta." Style="{StaticResource Muted}" Margin="0,0,0,20" />
         <TextBlock Text="Endereço da API" />
         <TextBox Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da API" />
@@ -44,21 +45,19 @@
             <Button Content="Ativar com código" Click="OnActivate" IsEnabled="{Binding CanActivateWithCode}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Ativa este computador para a UBS do código." ToolTipService.ShowOnDisabled="True" />
           </StackPanel>
         </StackPanel>
-        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Entre para acessar os dados da sua unidade." />
+        <Button Content="Entrar" Click="OnLogin" Style="{StaticResource BigPrimaryButton}" HorizontalAlignment="Stretch" ToolTip="Entra com o e-mail e a senha informados." />
       </StackPanel>
       <ItemsControl ItemsSource="{Binding OpeningSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,14,0,0" Visibility="{Binding HasOpeningSteps, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Passos da abertura" />
       </StackPanel>
     </Border>
     <StackPanel Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}">
       <views:ObsUnitRegistryView Visibility="{Binding ShowPatients, Converter={StaticResource BoolVisibility}}" />
-      <views:UnitQueueView Visibility="{Binding ShowQueue, Converter={StaticResource BoolVisibility}}" />
       <views:UnitLightningSlotsView Visibility="{Binding ShowSlots, Converter={StaticResource BoolVisibility}}" />
       <StackPanel Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}">
         <TextBlock Text="Indicadores agregados" FontSize="26" FontWeight="SemiBold" />
         <TextBlock Text="Totais fornecidos pela API, sem identificação de pacientes." Style="{StaticResource Muted}" Margin="0,8,0,20" />
         <UniformGrid Columns="2">
           <Border Style="{StaticResource Card}" Margin="0,0,8,16"><StackPanel><TextBlock Text="Pacientes cadastrados" /><TextBlock Text="{Binding PatientCount}" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,0" /></StackPanel></Border>
-          <Border Style="{StaticResource Card}" Margin="8,0,0,16"><StackPanel><TextBlock Text="Pacientes aguardando" /><TextBlock Text="{Binding WaitingCount}" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,0" /></StackPanel></Border>
           <Border Style="{StaticResource Card}" Margin="0,0,8,16"><StackPanel><TextBlock Text="Vagas abertas" /><TextBlock Text="{Binding SlotCount}" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,0" /></StackPanel></Border>
           <Border Style="{StaticResource Card}" Margin="8,0,0,16"><StackPanel><TextBlock Text="Ofertas aceitas" /><TextBlock Text="{Binding AcceptedCount}" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,0" /></StackPanel></Border>
         </UniformGrid>

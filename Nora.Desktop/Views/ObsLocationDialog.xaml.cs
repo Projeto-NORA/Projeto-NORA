@@ -27,6 +27,7 @@ public partial class ObsLocationDialog : Window
     public ObsLocationDialog()
     {
         InitializeComponent();
+        Services.DialogService.RoundCorners(this);
         Loaded += OnLoaded;
         timer.Tick += (_, _) => Fail("Não foi possível obter uma localização recente. Escolha a UBS manualmente.");
         Closed += (_, _) => { closed = true; timer.Stop(); Browser.Dispose(); };

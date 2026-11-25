@@ -54,14 +54,13 @@ internal static partial class FamilyChecks
         });
 
         // ======== 1. Limite por conta (429) das escritas delegadas ========
-        await Check("Escritas delegadas: 60 escritas por 10 minutos por conta, somando cancelar consulta, sair da fila, responder oferta e cancelar pedido; a 61ª de qualquer delas → 429; outra conta não é afetada", async () =>
+        await Check("Escritas delegadas: 60 escritas por 10 minutos por conta, somando cancelar consulta, responder oferta e cancelar pedido; a 61ª de qualquer delas → 429; outra conta não é afetada", async () =>
         {
             using var guardian = await Guardian(61, "Responsável Sessenta e Um");
             var link = await Linked(guardian, 91);
             Func<Task<HttpResponseMessage>>[] writes =
             [
                 () => guardian.PostAsJsonAsync($"{Base(link, u1)}/appointments/{Guid.NewGuid()}/cancel", new { confirmed = true }),
-                () => guardian.PostAsJsonAsync($"{Base(link, u1)}/waiting-list/999999/cancel", new { confirmed = true }),
                 () => guardian.PostAsJsonAsync($"{Base(link, u1)}/lightning-offers/{Guid.NewGuid()}/respond", new { accept = false }),
                 () => guardian.PostAsJsonAsync($"/api/patient/dependents/{Guid.NewGuid()}/cancel", new { confirmed = true })
             ];
@@ -126,16 +125,16 @@ internal static partial class FamilyChecks
             Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.appointments WHERE id=$1", appointment) == "cancelled", "A operação delegada vale.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointment_events WHERE appointment_id=$1 AND status='cancelled' AND source='patient' AND guardian_id IS NOT NULL", appointment) == 1
                 && await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointment_events WHERE appointment_id=$1 AND source='system'", appointment) == 0, "O cancelamento é do responsável (origem patient, com guardian_id), não do sistema.");
-            using (var after = await guardian.PostAsJsonAsync($"{Base(link, u1)}/waiting-list/1/cancel", new { confirmed = true })) Expect(after, 403);
+            using (var after = await guardian.PostAsJsonAsync($"{Base(link, u1)}/lightning-offers/{Guid.NewGuid()}/respond", new { accept = false })) Expect(after, 403);
         });
 
         // ======== 3. Recusa de oferta pelo responsável ========
-        await Check("Recusa de oferta pelo responsável: 200 sem consulta, oferta declined, entrada volta à fila (R-030) com autor e guardian_id, vaga passa ao próximo; responder de novo → 409", async () =>
+        await Check("Recusa de oferta pelo responsável: 200 sem consulta nova, oferta declined, a consulta marcada do dependente continua, vaga passa ao próximo; responder de novo → 409", async () =>
         {
             using var guardian = await Guardian(64, "Responsável Sessenta e Quatro");
             var link = await Linked(guardian, 93);
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(93), specialty = "Ortopedia" })) Expect(queue, 201);
-            using (var queueNext = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(1), specialty = "Ortopedia" })) Expect(queueNext, 201);
+            var dependentLater = await f.LaterAsync(u1, 93, "Ortopedia", extraDays: 30);
+            await f.LaterAsync(u1, 1, "Ortopedia");
             var source = await StaffAppointment(31, "Ortopedia", "2026-11-21T12:00:00Z", "2026-11-21T12:30:00Z");
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
             using (var slot = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = source, confirmed = true })) Expect(slot, 201);
@@ -152,10 +151,9 @@ internal static partial class FamilyChecks
                 Require(!body.GetProperty("accepted").GetBoolean() && body.GetProperty("appointmentId").ValueKind == JsonValueKind.Null, $"Recusa sem consulta: {body}.");
             }
             Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.lightning_offers WHERE id=$1", offer) == "declined", "A oferta fica recusada.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1", Cpf(93)) == 0, "A recusa não cria consulta para o dependente.");
-            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.waiting_list WHERE cpf=$1 ORDER BY id DESC LIMIT 1", Cpf(93)) == "waiting", "R-030: a entrada do dependente volta à fila (waiting).");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events e JOIN nora_unit.waiting_list q ON q.id=e.entry_id WHERE q.cpf=$1 AND e.status='waiting' AND e.source='patient' AND e.actor_id=e.guardian_id AND e.guardian_id IS NOT NULL", Cpf(93)) == 1, "Auditoria: autor e guardian_id = responsável, origem patient.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(1)) == 1, "A vaga passa ao próximo da fila.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND booked_by='lightning'", Cpf(93)) == 0, "A recusa não cria consulta para o dependente.");
+            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.appointments WHERE id=$1", dependentLater) == "scheduled", "A recusa não mexe na consulta marcada do dependente.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(1)) == 1, "A vaga passa ao próximo da fila.");
             using (var again = await guardian.PostAsJsonAsync($"{Base(link, u1)}/lightning-offers/{offer}/respond", new { accept = false })) Expect(again, 409);
         });
 

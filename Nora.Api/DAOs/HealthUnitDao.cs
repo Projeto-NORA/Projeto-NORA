@@ -11,7 +11,7 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
     public async Task<List<HealthUnit>> ListAsync(CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u ORDER BY u.name,u.id");
+        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u ORDER BY lower(u.name),u.id");
         await using var reader = await command.ExecuteReaderAsync(ct);
         var units = new List<HealthUnit>();
         while (await reader.ReadAsync(ct)) units.Add(Read(reader));
@@ -27,7 +27,7 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
     public async Task<List<HealthUnit>> ListForPatientAsync(Guid patientId, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u JOIN nora.patient_units p ON p.unit_id=u.id WHERE p.patient_id=$1 ORDER BY u.name,u.id", patientId);
+        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u JOIN nora.patient_units p ON p.unit_id=u.id WHERE p.patient_id=$1 ORDER BY lower(u.name),u.id", patientId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var units = new List<HealthUnit>();
         while (await reader.ReadAsync(ct)) units.Add(Read(reader));
@@ -36,7 +36,7 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
     public async Task<List<HealthUnit>> ListForStaffAsync(Guid accountId, CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u JOIN nora.staff_units s ON s.unit_id=u.id WHERE s.account_id=$1 ORDER BY u.name,u.id", accountId);
+        await using var command = database.Command(connection, $"SELECT {UnitColumns} FROM nora.health_units u JOIN nora.staff_units s ON s.unit_id=u.id WHERE s.account_id=$1 ORDER BY lower(u.name),u.id", accountId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var units = new List<HealthUnit>();
         while (await reader.ReadAsync(ct)) units.Add(Read(reader));
@@ -55,7 +55,7 @@ public sealed class HealthUnitDao(DatabaseHelper database, UnitDatabaseRouter ro
     public async Task<List<StaffAccount>> ListStaffAsync(CancellationToken ct)
     {
         await using var connection = await database.OpenAsync(ct);
-        await using var command = database.Command(connection, "SELECT id,full_name,role,email,is_active,must_change_password FROM nora.accounts WHERE scope='obs' ORDER BY full_name,id");
+        await using var command = database.Command(connection, "SELECT id,full_name,role,email,is_active,must_change_password FROM nora.accounts WHERE scope='obs' ORDER BY lower(full_name),id");
         await using var reader = await command.ExecuteReaderAsync(ct);
         var staff = new List<StaffAccount>();
         while (await reader.ReadAsync(ct)) staff.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4), reader.GetBoolean(5)));

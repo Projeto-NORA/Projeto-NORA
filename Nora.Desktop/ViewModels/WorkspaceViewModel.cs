@@ -9,7 +9,7 @@ namespace Nora.Desktop.ViewModels;
 
 /// <summary>
 /// Estado do espaço de trabalho. Partes por assunto: Messages (faixa de retorno), ObsUnits (UBS e cadastro),
-/// UnitData (leitura por UBS), Appointments (agenda), Lightning (fila e vagas), Listings (fichas), Units/Staff (Secretaria).
+/// UnitData (leitura por UBS), Appointments (agenda), Lightning (vagas), Listings (fichas), Units/Staff (Secretaria).
 /// </summary>
 public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 {
@@ -30,26 +30,26 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] BusyDependents =
     [
         nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(CanReadUnitRegistry),
-        nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment), nameof(CanCreateLightning),
-        nameof(CanCancelWaitingEntry), nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
-        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanLoadMoreQueueHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
+        nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment),
+        nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
+        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
         nameof(CanEditCatalog), nameof(CanChangeProfessional), nameof(CanChangeRoom), nameof(CanChangeSchedule), nameof(CanChangeBlock), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders),
         nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
-        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(CanToggleSlotApproval), nameof(CanDecideSlotApproval), nameof(CanCallNextSearch), nameof(CanCallNextOffer), nameof(CanOpenCallNext)
+        nameof(CanEditProfile), nameof(CanSaveProfile)
     ];
     private static readonly string[] SessionDependents =
     [
         nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
-        nameof(AccountRoleLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState), nameof(CanLoadMoreQueueHistory), nameof(CanLoadMoreSlotsHistory),
+        nameof(AccountRoleLabel), nameof(PhotoStateLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState), nameof(CanLoadMoreSlotsHistory),
         nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement),
         nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(ShowDevicesSection), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
-        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(CanToggleSlotApproval), nameof(CanDecideSlotApproval), nameof(CanCallNextSearch), nameof(CanCallNextOffer), nameof(CanOpenCallNext), nameof(ShowProfileReadOnlyNotice)
+        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice)
     ];
     private static readonly string[] SectionDependents =
     [
-        nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowQueue), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts), nameof(ShowUnitSettings), nameof(ShowAnnouncements), nameof(ShowFamily),
+        nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts), nameof(ShowUnitSettings), nameof(ShowAnnouncements), nameof(ShowFamily),
         nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredTitle), nameof(AccessRequiredDescription), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage),
         nameof(PageTitle), nameof(PageSubtitle)
     ];
@@ -131,16 +131,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     }
     public bool ShowDashboard => IsAuthenticated && IsOperational && Section == "home";
     public bool ShowPatients => IsAuthenticated && IsOperational && Section == "patients";
-    public bool ShowQueue => IsAuthenticated && IsOperational && Section == "queue";
     public bool ShowAgenda => IsOperational && Section == "agenda";
     public bool ShowSlots => IsAuthenticated && IsOperational && Section == "slots";
     public bool ShowIndicators => IsOperational && Section == "indicators";
     public bool ShowAlerts => IsOperational && Section == "alerts";
     public bool ShowUnitSettings => IsAuthenticated && IsOperational && Section == "unit-settings";
-    public bool RequiresSignInForCurrentSection => IsOperational && IsSignedOut && Section is "queue" or "patients" or "slots" or "unit-settings" or "family" or "announcements";
+    public bool RequiresSignInForCurrentSection => IsOperational && IsSignedOut && Section is "patients" or "slots" or "unit-settings" or "family" or "announcements";
     public string AccessRequiredTitle => Section switch
     {
-        "queue" => "Fila da unidade",
         "patients" => "Pacientes da unidade",
         "slots" => "Vagas Relâmpago",
         "unit-settings" => "Informações da UBS",
@@ -150,9 +148,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     };
     public string AccessRequiredDescription => Section switch
     {
-        "queue" => "Acompanhe posição, tempo de espera e a situação de cada entrada da fila.",
         "patients" => "Pesquise e consulte apenas os dados necessários para o trabalho da sua UBS.",
-        "slots" => "Acompanhe as oportunidades reaproveitadas como Vaga Relâmpago.",
+        "slots" => "Painel automático das vagas e ofertas.",
         "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios da sua UBS.",
         "family" => "Pedidos de vínculo entre responsáveis e dependentes, decididos pela equipe da UBS.",
         "announcements" => "Comunicados da Secretaria para a equipe das UBS desta conta.",
@@ -160,7 +157,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     };
     public string AccessRequiredHint => Section switch
     {
-        "queue" => "Entre no Painel da UBS para carregar a fila protegida da sua unidade.",
         "patients" => "Entre no Painel da UBS para carregar os pacientes autorizados da sua unidade.",
         "slots" => "Entre no Painel da UBS para carregar as vagas e seus estados.",
         "unit-settings" => "Entre no Painel da UBS para carregar o cadastro de profissionais, consultórios e grade.",
@@ -172,24 +168,21 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public bool IsAlertsPage => ShowAlerts;
     public string PageTitle => Section == "alerts" ? "Central de alertas" : "Indicadores da UBS";
     public string PageSubtitle => Section == "alerts"
-        ? "Fila alta, espera longa, faltas, ocupação da grade e metas fora, avaliados pela API com os limites da rede."
-        : "Espera, produção, comparecimento e Vaga Relâmpago da sua unidade, com os dados reais da UBS.";
+        ? "Situações que pedem atenção, avaliadas pela API."
+        : "Espera, produção, comparecimento e Vaga Relâmpago da UBS.";
     public string PatientTotalCount => HasActiveObsUnit ? ObsRegistry.Count.ToString() : "—";
-    public string QueueWaitingCount => HasActiveObsUnit && unitQueueLoaded ? UnitWaitingList.Count(entry => entry.IsActive).ToString() : "—";
+    /// <summary>Ofertas de Vaga Relâmpago correndo agora.</summary>
+    public string OffersRunningCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(slot => slot.Status == "offered").ToString() : "—";
     public string SlotOpenCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(entry => entry.Status is "open" or "offered").ToString() : "—";
 
     public string PatientCount => summary?.Patients.ToString() ?? "—";
     public string InactiveCount => summary?.InactivePatients?.ToString() ?? "—";
-    public string WaitingCount => summary?.WaitingPatients.ToString() ?? "—";
-    public string WaitingEntriesCount => summary?.WaitingEntries?.ToString() ?? "—";
     /// <summary>Totais "agora" do resumo da rede (respeitam o filtro de UBS, não o de período).</summary>
     public System.Collections.ObjectModel.ObservableCollection<MetricCard> SummaryCards { get; } = [];
     private MetricCard[] BuildSummaryCards() =>
     [
         new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo em alguma UBS (CPF contado uma vez)"),
         new("Desativados", InactiveCount, "Pessoas que só têm cadastro desativado"),
-        new("Pacientes aguardando", WaitingCount, "Pessoas na fila agora (CPF contado uma vez)"),
-        new("Solicitações na fila", WaitingEntriesCount, "Entradas ativas: uma pessoa pode ter mais de uma"),
         new("Vagas abertas", SlotCount, "Vagas abertas ou ofertadas agora"),
         new("Ofertas aceitas", AcceptedCount, "Total histórico; não confirma o atendimento")
     ];
@@ -201,12 +194,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public string ExpiredOffersCount => summary?.ExpiredOffers?.ToString() ?? "—";
     public string PendingOffersCount => summary?.PendingOffers?.ToString() ?? "—";
     public string CancelledOffersCount => summary?.CancelledOffers?.ToString() ?? "—";
-    // Aprovação das vagas reaproveitadas: API antiga sem os campos mostra "Indisponível" (nunca zero), e sem resumo carregado mostra "—".
-    private string SummaryCount(long? value) => value is { } count ? DisplayFormat.Count(count) : summary is null ? "—" : "Indisponível";
-    public string AwaitingApprovalSlotsCount => SummaryCount(summary?.AwaitingApprovalSlots);
-    public string ApprovedSlotsCount => SummaryCount(summary?.ApprovedSlots);
-    public string ApprovalTimeoutSlotsCount => SummaryCount(summary?.ApprovalTimeoutSlots);
-    public string DiscardedSlotsCount => SummaryCount(summary?.DiscardedSlots);
     public static IReadOnlyList<PeriodOption> LightningPeriodOptions { get; } =
         [new(0, "Todo o histórico"), new(7, "Últimos 7 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias")];
     public int LightningPeriodDays
@@ -232,7 +219,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] LightningNames =
         [nameof(CanFilterLightning), nameof(LightningOpen), nameof(LightningAccepted), nameof(LightningRegistered), nameof(LightningCreated), nameof(LightningDeclined), nameof(LightningExpired), nameof(LightningPending), nameof(LightningCancelled)];
     private static readonly string[] SummaryNames =
-        [nameof(PatientCount), nameof(InactiveCount), nameof(WaitingEntriesCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(WaitingCount), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(AwaitingApprovalSlotsCount), nameof(ApprovedSlotsCount), nameof(ApprovalTimeoutSlotsCount), nameof(DiscardedSlotsCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
+        [nameof(PatientCount), nameof(InactiveCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
     private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); }
     public bool CanExportSummary => IsAuthenticated && summary != null;
     public string SummaryReceivedLabel => summaryReceivedAt is { } time ? $"Recebido em {time.ToLocalTime():dd/MM/yyyy HH:mm:ss}" : "Nenhum resumo carregado";
@@ -284,6 +271,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Carga inicial depois do login (ou da troca obrigatória de senha): rede e UBS na Secretaria; UBS autorizadas no OBS.</summary>
     private async Task LoadAfterLoginAsync()
     {
+        _ = LoadAccountPhotoAsync();
         if (IsMunicipal) await LoadMunicipalAsync(); else await Task.WhenAll(InitializeObsUnitsAsync(), ReadAnnouncementsAsync(full: true));
         MarkFresh();
     }
@@ -449,7 +437,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private void SignOut()
     {
         refreshTimer.Stop();
-        api.ClearSession(); user = null; mustChangePassword = false;
+        api.ClearSession(); user = null; mustChangePassword = false; ClearAccountPhoto();
         ResetLoadedData();
         Identifier = "";
         ClearPasswordErrors();

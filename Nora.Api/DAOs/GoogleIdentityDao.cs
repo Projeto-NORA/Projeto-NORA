@@ -34,8 +34,8 @@ public sealed class GoogleIdentityDao(DatabaseHelper database)
     public Task<UserInfo?> FindPatientAsync(string subject, CancellationToken ct) => database.UseAsync(async connection =>
     {
         await using var command = database.Command(connection,
-            "SELECT a.id,a.full_name,a.role,a.scope,a.must_change_password FROM nora.google_identities g JOIN nora.accounts a ON a.id=g.account_id WHERE g.subject=$1 AND a.scope='patient' AND a.is_active", subject);
+            "SELECT a.id,a.full_name,a.role,a.scope,a.must_change_password,a.cpf,a.email FROM nora.google_identities g JOIN nora.accounts a ON a.id=g.account_id WHERE g.subject=$1 AND a.scope='patient' AND a.is_active", subject);
         await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? new UserInfo(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)) : null;
+        return await reader.ReadAsync(ct) ? new UserInfo(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)).WithContact(reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6)) : null;
     }, ct);
 }

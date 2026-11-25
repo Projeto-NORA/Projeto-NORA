@@ -37,7 +37,7 @@ internal static partial class Program
             var window = OpenOperational(fixture, storageRoot, "alert-badge", Appearance.Light);
             try
             {
-                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.Single(item => item.Id == "alerts");
+                var vm = LoginObs(window); var nav = window.ViewModel.Navigation.SelectMany(item => item.Children.Prepend(item)).Single(item => item.Id == "alerts" && !item.HasChildren);
                 Require(nav.Badge == 1, "O alerta inicial deveria aparecer no menu.");
                 window.ViewModel.Navigate("alerts"); Settle(vm);
                 Require(nav.Badge == 0 && vm.UnitAlerts.Count == 1, "Abrir a central deveria ocultar o aviso sem apagar o alerta.");

@@ -56,11 +56,11 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
     public Task<int> SetPresenceAsync(SessionInfo session, bool online, CancellationToken ct) => sessions.SetPresenceAsync(session.TokenHash, time.GetUtcNow(), online, ct);
     /// <summary>
     /// Troca a senha da própria conta. Senha atual incorreta → 400 invalid-current-password (nunca 401, que encerraria a sessão nos clientes);
-    /// nova igual à atual → 400. Limpa a troca obrigatória e revoga as outras sessões; a atual continua.
+    /// nova vazia, acima de 256 caracteres (<see cref="AccountService.ValidPassword"/>) ou igual à atual → 400. Limpa a troca obrigatória e revoga as outras sessões; a atual continua.
     /// </summary>
     public async Task ChangePasswordAsync(SessionInfo session, ChangePasswordRequest request, CancellationToken ct)
     {
-        if (request.CurrentPassword is null || request.CurrentPassword.Length > 256 || request.NewPassword is null || request.NewPassword.Length is < 8 or > 256) throw new ApiInputException();
+        if (request.CurrentPassword is null || request.CurrentPassword.Length > 256 || !AccountService.ValidPassword(request.NewPassword)) throw new ApiInputException();
         var hash = await accounts.FindPasswordHashAsync(session.User.Id, ct) ?? throw new ApiUnauthorizedException();
         var account = new Account(session.User, "", "", hash);
         if (passwords.VerifyHashedPassword(account, hash, request.CurrentPassword) == PasswordVerificationResult.Failed) throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-current-password");

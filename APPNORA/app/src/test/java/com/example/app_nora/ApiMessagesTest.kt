@@ -42,14 +42,11 @@ class ApiMessagesTest {
         assertEquals(failureMessage(409, null, ApiContext.OFFER_RESPOND), failureMessage(409, "bogus", ApiContext.OFFER_RESPOND))
     }
 
-    @Test fun passwordAndQueueMessagesAreSpecific() {
+    @Test fun passwordMessagesAreSpecific() {
         assertEquals("A senha atual está incorreta.", failureMessage(400, INVALID_CURRENT_PASSWORD, ApiContext.PASSWORD_CHANGE))
-        assertTrue(failureMessage(400, "invalid-input", ApiContext.PASSWORD_CHANGE).contains("8 a 256"))
+        assertTrue(failureMessage(400, "invalid-input", ApiContext.PASSWORD_CHANGE).contains("256"))
         for (context in ApiContext.entries)
             assertEquals(PASSWORD_CHANGE_REQUIRED_MESSAGE, failureMessage(403, PASSWORD_CHANGE_REQUIRED, context))
-        assertEquals("Esta solicitação não foi encontrada.", failureMessage(404, null, ApiContext.QUEUE_CANCEL))
-        assertEquals("Esta solicitação já foi encerrada.", failureMessage(409, null, ApiContext.QUEUE_CANCEL))
-        assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.QUEUE_CANCEL))
         assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.UNLINK))
         assertEquals(INVALID_CURRENT_PASSWORD, knownProblemCode(INVALID_CURRENT_PASSWORD))
         assertEquals(PASSWORD_CHANGE_REQUIRED, knownProblemCode(PASSWORD_CHANGE_REQUIRED))
@@ -96,7 +93,7 @@ class ApiMessagesTest {
     @Test fun actingForADependentChangesTheForbiddenAndBookingMessages() {
         assertEquals(UNIT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.UNIT))
         assertEquals(DEPENDENT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", ApiContext.UNIT, acting = true))
-        for (context in listOf(ApiContext.APPOINTMENT_CANCEL, ApiContext.OFFER_RESPOND, ApiContext.QUEUE_CANCEL, ApiContext.BOOKING, ApiContext.CONFIRMATION, ApiContext.RECORDS))
+        for (context in listOf(ApiContext.APPOINTMENT_CANCEL, ApiContext.OFFER_RESPOND, ApiContext.BOOKING, ApiContext.CONFIRMATION, ApiContext.RECORDS))
             assertEquals(DEPENDENT_FORBIDDEN_MESSAGE, failureMessage(403, "forbidden", context, acting = true))
         assertTrue(failureMessage(409, SPECIALTY_LIMIT, ApiContext.BOOKING, acting = true).startsWith("Esta pessoa"))
         assertTrue(failureMessage(409, SPECIALTY_LIMIT, ApiContext.BOOKING).startsWith("Você"))

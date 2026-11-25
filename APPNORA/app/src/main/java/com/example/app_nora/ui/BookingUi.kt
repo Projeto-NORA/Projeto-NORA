@@ -1,5 +1,16 @@
 package com.example.app_nora.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
@@ -51,20 +62,19 @@ internal fun PresenceConfirmation(appointment: PatientAppointment, now: Long, bu
             if (onDark) Button(onClick = onConfirm, enabled = !busy, modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0A3D68))) { Text("Confirmar presença") }
             else Button(onClick = onConfirm, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Confirmar presença") }
-            Text("Você pode confirmar até 2 horas antes da consulta. Se não confirmar, nada é cancelado.",
+            Text("Confirme até 2 h antes. Sem confirmação, nada é cancelado.",
                 style = MaterialTheme.typography.bodySmall, color = text)
         }
-        PresenceState.CLOSED -> Text("O prazo para confirmar a presença terminou. Sua consulta continua agendada: nada é cancelado por isso.",
+        PresenceState.CLOSED -> Text("Prazo de confirmação encerrado. A consulta continua marcada.",
             style = MaterialTheme.typography.bodySmall, color = text)
     }
 }
 
 @Composable
 private fun BookingRules(actingName: String?) {
-    SectionCard("Como funciona", "Regras do agendamento pelo aplicativo") {
-        MutedText("Escolha qualquer horário disponível.")
+    SectionCard("Como funciona", "") {
         MutedText(bookingLimitRuleText(actingName))
-        MutedText("A consulta é marcada na hora. A falta de confirmação não a cancela.")
+        MutedText("Marcada na hora, sem aprovação.")
     }
 }
 
@@ -86,7 +96,7 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     onLoadAvailability: (String, Int) -> Unit, onBook: (AvailableSlot) -> Unit, onOpenAppointments: () -> Unit,
     initialSpecialtyId: String? = null, actingName: String? = null) {
     val clock = LocalClockMillis.current
-    ScreenTitle("Agendar consulta", "Escolha a UBS, a especialidade e um horário livre.")
+    ScreenTitle("Agendar consulta", "UBS, especialidade e horário.")
     BookingRules(actingName)
     if (patient.session == null) {
         SectionCard("Entre na sua conta", "Agendamento") { MutedText("Entre na sua conta para ver os horários livres das suas UBS.") }
@@ -100,10 +110,9 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                 if (!patient.loadingUnits && !patient.busy) OutlinedButton(onClick = onLoadUnits, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
             }
             units.isEmpty() -> MutedText("Nenhuma UBS vinculada ao seu cadastro. Vincule uma UBS em Unidades para agendar.")
-            else -> units.forEach { unit -> ChoiceRow(unit.name, unit.id == patient.selectedUnitId, !patient.busy) { onSelectUnit(unit.id) } }
+            else -> units.sortedAlphabetically { it.name }.forEach { unit -> ChoiceRow(unit.name, unit.id == patient.selectedUnitId, !patient.busy) { onSelectUnit(unit.id) } }
         }
     }
-    ActionMessage(patient.message)
     val unit = units?.find { it.id == patient.selectedUnitId } ?: return
     val booked = patient.lastBooked?.takeIf { it.unitId == unit.id }
     if (booked != null) {
@@ -132,7 +141,7 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
                 if (!patient.specialtiesLoading) OutlinedButton(onClick = onOpenBooking, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
             }
             specialties.isEmpty() -> MutedText("A rede ainda não tem especialidades disponíveis para agendamento.")
-            else -> specialties.forEach { item -> ChoiceRow(item.name, item.id == specialtyId, !patient.busy) { specialtyId = item.id; weekIndex = 0; chosenDay = null } }
+            else -> specialties.sortedAlphabetically { it.name }.forEach { item -> ChoiceRow(item.name, item.id == specialtyId, !patient.busy) { specialtyId = item.id; weekIndex = 0; chosenDay = null } }
         }
     }
 
@@ -142,57 +151,133 @@ fun BookingScreen(patient: PatientState, onSelectUnit: (String) -> Unit, onLoadU
     var pickingDate by rememberSaveable(unit.id, subject, specialtyId) { mutableStateOf(false) }
     val result = patient.availability?.takeIf { it.unitId == unit.id && it.specialtyId == chosen && it.week == weekIndex }
     SectionCard("3. Escolha o dia e o horário", week?.let { "Semana de ${formatWeekRange(it)}" } ?: "Escolha uma data") {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { weekIndex--; chosenDay = null }, enabled = weekIndex > 0, modifier = Modifier.weight(1f)) { Text("Semana anterior") }
-            OutlinedButton(onClick = { weekIndex++; chosenDay = null }, enabled = bookingWeek(now, weekIndex + 1) != null, modifier = Modifier.weight(1f)) { Text("Próxima semana") }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Hint("Semana anterior") {
+                IconButton(onClick = { weekIndex--; chosenDay = null }, enabled = weekIndex > 0) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Semana anterior")
+                }
+            }
+            TextButton(onClick = { pickingDate = true }, enabled = !patient.busy, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Escolher outra data")
+            }
+            Hint("Próxima semana") {
+                IconButton(onClick = { weekIndex++; chosenDay = null }, enabled = bookingWeek(now, weekIndex + 1) != null) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Próxima semana")
+                }
+            }
         }
-        OutlinedButton(onClick = { pickingDate = true }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) { Text("Escolher outra data") }
         if (pickingDate) BookingDatePicker(now, onPick = { dayStart -> weekIndex = bookingWeekIndexFor(dayStart, now); chosenDay = dayStart; pickingDate = false }, onDismiss = { pickingDate = false })
+        val days = remember(result, now) { result?.let { groupSlotsByDay(it.slots, now) }.orEmpty() }
+        val shown = if (days.isEmpty()) null else shownDay(days, chosenDay)
+        // Faixa horizontal de dias: dia da semana e número; o escolhido em destaque e os sem vaga esmaecidos.
+        if (week != null) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(weekDays(week)) { day ->
+                val count = days.firstOrNull { it.dayStart == day }?.slots?.size ?: 0
+                DayPill(day, selected = shown?.dayStart == day, available = count > 0, enabled = count > 0 && !patient.busy) { chosenDay = day }
+            }
+        }
         if (result == null) {
             if (patient.availabilityLoading) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                MutedText("Consultando os horários livres…")
+                MutedText("Buscando horários livres…")
             } else {
                 MutedText(patient.bookingError ?: "Não foi possível consultar os horários.")
                 OutlinedButton(onClick = { onLoadAvailability(chosen, weekIndex) }, modifier = Modifier.fillMaxWidth()) { Text("Tentar novamente") }
             }
+        } else if (shown == null) {
+            MutedText("Sem horários livres nesta semana. Veja a próxima ou escolha outra data.")
         } else {
-            val days = remember(result, now) { groupSlotsByDay(result.slots, now) }
-            if (days.isEmpty()) {
-                MutedText("Nenhum horário livre nesta semana para esta especialidade nesta UBS. Veja a próxima semana ou escolha outra data.")
-            } else {
-                val shown = shownDay(days, chosenDay)
-                if (isWantedDayEmpty(days, chosenDay)) MutedText("Nenhum horário livre em ${formatDayLabel(chosenDay!!)}; veja os outros dias da semana.")
-                Text("Dia", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                days.forEach { day ->
-                    ChoiceRow("${formatDayLabel(day.dayStart)} · ${countLabel(day.slots.size, "horário", "horários")}",
-                        day.dayStart == shown.dayStart, !patient.busy) { chosenDay = day.dayStart }
-                }
-                Text("Horário", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                shown.slots.forEach { slot ->
-                    key(slot.startsAt, slot.professionalId) {
-                        OutlinedButton(onClick = { confirming = slot }, enabled = !patient.busy, modifier = Modifier.fillMaxWidth()) {
-                            Text("${formatClock(slot.startsAt)} às ${formatClock(slot.endsAt)} · ${slot.professionalName}")
-                        }
-                    }
-                }
+            if (isWantedDayEmpty(days, chosenDay)) MutedText("Sem horários em ${formatDayLabel(chosenDay!!)}. Veja os outros dias.")
+            Text(formatDayLabel(shown.dayStart).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+    if (result != null && days(result, now).isNotEmpty()) {
+        val all = days(result, now)
+        val shown = shownDay(all, chosenDay)
+        val professionals = remember(shown) { groupByProfessional(shown.slots) }
+        professionals.forEach { professional ->
+            key(shown.dayStart, professional.professionalId) {
+                ProfessionalCard(professional, unit.name, !patient.busy) { confirming = it }
             }
         }
     }
     confirming?.let { slot ->
-        AlertDialog(onDismissRequest = { confirming = null }, containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Marcar esta consulta?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${slot.specialtyName} em ${formatRange(slot.startsAt, slot.endsAt)}", fontWeight = FontWeight.SemiBold)
-                    Text("Profissional: ${slot.professionalName}")
-                    Text("Unidade: ${unit.name}")
-                    Text("A consulta vale na hora, sem aprovação da unidade.")
-                    Text(bookingCancelWarningText(actingName))
+        ConfirmSlotSheet(slot, unit.name, actingName, onConfirm = { confirming = null; onBook(slot) }, onDismiss = { confirming = null })
+    }
+}
+
+private fun days(result: AvailabilityResult, now: Long) = groupSlotsByDay(result.slots, now)
+
+@Composable
+private fun DayPill(day: Long, selected: Boolean, available: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(18.dp),
+        color = if (selected) colors.primary else colors.surface,
+        border = BorderStroke(1.dp, if (selected) colors.primary else colors.outlineVariant),
+        shadowElevation = if (selected) 4.dp else 0.dp,
+        modifier = Modifier.width(58.dp).alpha(if (available) 1f else .38f)) {
+        Column(Modifier.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(formatWeekdayShort(day), style = MaterialTheme.typography.labelMedium, color = if (selected) colors.onPrimary else colors.onSurfaceVariant)
+            Text(formatDayNumber(day), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (selected) colors.onPrimary else colors.onSurface)
+            Text(formatMonthShort(day), style = MaterialTheme.typography.labelSmall, color = if (selected) colors.onPrimary else colors.onSurfaceVariant)
+        }
+    }
+}
+
+/** Cartão de um profissional: inicial, nome, consultório e os horários em chips de manhã e tarde ("+N" mostra o resto). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProfessionalCard(day: ProfessionalDay, unitName: String, enabled: Boolean, onPick: (AvailableSlot) -> Unit) {
+    var expanded by rememberSaveable(day.professionalId) { mutableStateOf(false) }
+    val (morning, afternoon, hidden) = visibleSlots(day, expanded)
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProfileAvatar(day.professionalName, null, 48.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(day.professionalName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    MutedText(day.room ?: unitName)
                 }
-            },
-            confirmButton = { TextButton(onClick = { confirming = null; onBook(slot) }) { Text("Marcar consulta") } },
-            dismissButton = { TextButton(onClick = { confirming = null }) { Text("Voltar") } })
+                Text(countLabel(day.total, "horário", "horários"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            listOf("Manhã" to morning, "Tarde" to afternoon).forEach { (label, slots) ->
+                if (slots.isNotEmpty()) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        slots.forEach { slot ->
+                            AssistChip(onClick = { onPick(slot) }, enabled = enabled, label = { Text(formatClock(slot.startsAt), fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.semantics { contentDescription = "${formatClock(slot.startsAt)} às ${formatClock(slot.endsAt)} · ${slot.professionalName}" })
+                        }
+                    }
+                }
+            }
+            if (hidden > 0 || expanded && day.total > SLOT_CHIPS_COLLAPSED) AssistChip(onClick = { expanded = !expanded },
+                label = { Text(if (expanded) "Mostrar menos" else "+$hidden", fontWeight = FontWeight.Bold) }, shape = RoundedCornerShape(12.dp))
+        }
+    }
+}
+
+/** Confirmação do horário escolhido, em bottom sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConfirmSlotSheet(slot: AvailableSlot, unitName: String, actingName: String?, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Marcar esta consulta?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(slot.specialtyName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(formatRange(slot.startsAt, slot.endsAt))
+            Text("Profissional: ${slot.professionalName}")
+            Text("Unidade: $unitName")
+            MutedText(bookingCancelWarningText(actingName))
+            Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+                Text("Marcar consulta", fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
+        }
     }
 }
 
@@ -204,7 +289,7 @@ internal fun BookedCard(unitName: String, appointment: PatientAppointment, onOpe
         Text(formatRange(appointment.startsAt, appointment.endsAt))
         Text("Profissional: ${appointment.professional}")
         Text(statusLabel(appointment.status))
-        MutedText("De 48 horas até 2 horas antes, confirme sua presença em Consultas. Se não confirmar, nada é cancelado.")
+        MutedText("Confirme a presença em Consultas de 48 h a 2 h antes.")
         Button(onClick = onOpenAppointments, modifier = Modifier.fillMaxWidth()) { Text("Ver minhas consultas") }
         OutlinedButton(onClick = onAnother, modifier = Modifier.fillMaxWidth()) { Text("Agendar outra especialidade") }
     }

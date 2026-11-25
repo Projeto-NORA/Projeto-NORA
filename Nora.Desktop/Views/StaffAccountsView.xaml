@@ -1,10 +1,10 @@
 <UserControl x:Class="Nora.Desktop.Views.StaffAccountsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Border Style="{StaticResource Card}" Margin="0,0,0,18">
     <StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="Contas do OBS" FontSize="19" FontWeight="SemiBold" />
-      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,12" Text="Atendentes e administradores das UBS, ativos e desativados. Contas criadas ou redefinidas aqui usam uma senha provisória: a pessoa será obrigada a trocá-la no primeiro acesso." />
+      <TextBlock Text="Contas do OBS" Style="{StaticResource SectionTitle}" />
+      <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,12" Text="Atendentes e administradores das UBS. Senhas criadas ou redefinidas aqui são provisórias e exigem troca no primeiro acesso." />
       <WrapPanel Margin="0,0,0,12">
-        <Button Content="Atualizar contas e UBS" Click="OnLoad" Margin="0,0,8,8" />
+        <Button Content="Atualizar contas e UBS" Click="OnLoad" Margin="0,0,8,8" ToolTip="Lê contas e UBS de novo."/>
         <Button Content="{Binding StaffActiveActionLabel}" Click="OnChangeActive" IsEnabled="{Binding CanChangeStaffActive}" Margin="0,0,8,8" ToolTip="Desativar encerra as sessões da conta e preserva as concessões de UBS." />
       </WrapPanel>
       <DataGrid ItemsSource="{Binding Staff}" SelectedItem="{Binding SelectedStaff}" MaxHeight="300" MinHeight="64" CanUserSortColumns="True" AutomationProperties.Name="Contas OBS">
@@ -21,14 +21,14 @@
       <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
         <StackPanel MaxWidth="460" HorizontalAlignment="Left">
           <TextBlock Text="Redefinir senha provisória da conta selecionada" FontWeight="SemiBold" />
-          <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="As contas do OBS não têm e-mail de recuperação: aqui a Secretaria define uma nova senha provisória. As sessões da conta são encerradas e a troca será exigida no próximo acesso." />
+          <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,12" Text="Sem e-mail de recuperação: a Secretaria define uma nova senha provisória, e as sessões da conta são encerradas." />
           <TextBlock Text="Nova senha provisória (8 a 256 caracteres)" FontWeight="SemiBold" FontSize="12" />
           <PasswordBox x:Name="ResetPassword" Margin="0,6,0,12" AutomationProperties.Name="Nova senha provisória da conta" />
           <TextBlock Text="{Binding StaffResetPasswordError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffResetPasswordError, Converter={StaticResource TextVisibility}}" />
           <TextBlock Text="Confirmar a senha provisória" FontWeight="SemiBold" FontSize="12" />
           <PasswordBox x:Name="ResetConfirm" Margin="0,6,0,12" AutomationProperties.Name="Confirmação da senha provisória da conta" />
           <TextBlock Text="{Binding StaffResetConfirmError}" Style="{StaticResource FieldError}" Visibility="{Binding StaffResetConfirmError, Converter={StaticResource TextVisibility}}" />
-          <Button Content="Redefinir senha provisória" Click="OnReset" IsEnabled="{Binding CanResetStaffPassword}" HorizontalAlignment="Left" />
+          <Button Content="Redefinir senha provisória" Click="OnReset" IsEnabled="{Binding CanResetStaffPassword}" HorizontalAlignment="Left" ToolTip="Define uma nova senha provisória para a conta."/>
         </StackPanel>
       </Border>
     </StackPanel>

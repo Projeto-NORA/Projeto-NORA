@@ -550,16 +550,29 @@ internal static class SchedulingChecks
 
         await Check("Aceite de vaga relâmpago cria a consulta com bookedBy lightning", async () =>
         {
-            // A vaga aberta de P3 (quarta 11:30Z) é oferecida a P6, que entra na fila de Cardiologia; aceitar cria a consulta marcada como 'lightning'.
-            using (var entry = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(6), specialty = "Cardiologia" })) Expect(entry, 201);
-            Guid offer;
-            using (var offers = await f.Patients[6].GetAsync($"/api/patient/units/{u1}/lightning-offers")) { Expect(offers, 200); offer = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid(); }
-            using (var accept = await f.Patients[6].PostAsJsonAsync($"/api/patient/units/{u1}/lightning-offers/{offer}/respond", new { accept = true })) { Expect(accept, 200); Require((await Read(accept)).GetProperty("accepted").GetBoolean(), "Oferta aceita."); }
-            using (var list = await f.Attendant.GetAsync($"/api/obs/units/{u1}/appointments?from=2026-11-18T00:00:00Z&to=2026-11-19T00:00:00Z"))
+            // P6 tem consulta de Cardiologia mais tarde (2026-12-02): a vaga aberta de Cardiologia mais cedo (a de P3 ou uma que o distribuidor criou de um cancelamento anterior) é oferecida sozinha a ele;
+            // aceitar antecipa: cria a consulta 'lightning' no horário da vaga e cancela a antiga.
+            var later = Guid.NewGuid();
+            await f.UnitExecAsync(u1, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,'Cardiologia','Dr. Futuro',$3,$4,'scheduled',$5,$6)", later, Cpf(6), At("2026-12-02T12:00:00Z"), At("2026-12-02T12:30:00Z"), f.AdminId, T0);
+            // P6 com histórico bom (6 comparecimentos há 200 dias, fora das janelas dos indicadores) fica à frente dos outros candidatos de Cardiologia pelo score.
+            await f.UnitExecAsync(u1, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) SELECT gen_random_uuid(),$1,'Histórico','Prof antigo '||g,$2::timestamptz-g*interval '1 hour',$2::timestamptz-g*interval '1 hour'+interval '30 minutes','completed',$3,$2 FROM generate_series(1,6) g", Cpf(6), T0.AddDays(-200), f.AdminId);
+            await f.App.Services.GetRequiredService<UnitLightningDispatcher>().AdvanceAsync(u1, default);
+            Guid offer; DateTimeOffset offerStart;
+            using (var offers = await f.Patients[6].GetAsync($"/api/patient/units/{u1}/lightning-offers"))
             {
-                Expect(list, 200); var items = (await Read(list)).EnumerateArray().ToList(); var created = items.Single(i => i.GetProperty("bookedBy").GetString() == "lightning");
-                Require(created.GetProperty("cpf").GetString() == Cpf(6) && created.GetProperty("status").GetString() == "scheduled" && created.GetProperty("startsAt").GetDateTimeOffset() == At(Wed("11:30")), "Consulta da vaga relâmpago incorreta.");
+                Expect(offers, 200); var pending = (await Read(offers)).GetProperty("offers").EnumerateArray().Where(o => o.GetProperty("status").GetString() == "pending").ToList();
+                Require(pending.Count == 1, "P6 deveria ter uma oferta pendente; vagas e ofertas: " + await f.UnitScalarAsync<string>(u1, "SELECT COALESCE(string_agg(s.status||'@'||s.starts_at::text||'/'||s.specialty||'/'||COALESCE(o.cpf||':'||o.status,'-'),' ; '),'') FROM nora_unit.lightning_slots s LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id"));
+                offer = pending[0].GetProperty("id").GetGuid(); offerStart = pending[0].GetProperty("startsAt").GetDateTimeOffset();
             }
+            Guid acceptedId;
+            using (var accept = await f.Patients[6].PostAsJsonAsync($"/api/patient/units/{u1}/lightning-offers/{offer}/respond", new { accept = true })) { Expect(accept, 200); var body = await Read(accept); Require(body.GetProperty("accepted").GetBoolean(), "Oferta aceita."); acceptedId = body.GetProperty("appointmentId").GetGuid(); }
+            using (var list = await f.Attendant.GetAsync($"/api/obs/units/{u1}/appointments?from={Uri.EscapeDataString(offerStart.AddHours(-1).ToString("O"))}&to={Uri.EscapeDataString(offerStart.AddHours(1).ToString("O"))}"))
+            {
+                Expect(list, 200); var items = (await Read(list)).EnumerateArray().ToList(); var created = items.SingleOrDefault(i => i.GetProperty("id").GetGuid() == acceptedId);
+                Require(created.ValueKind == JsonValueKind.Object && created.GetProperty("bookedBy").GetString() == "lightning" && created.GetProperty("cpf").GetString() == Cpf(6) && created.GetProperty("status").GetString() == "scheduled" && created.GetProperty("startsAt").GetDateTimeOffset() == offerStart && offerStart < At("2026-12-02T12:00:00Z"),
+                    "Consulta da vaga relâmpago incorreta: " + await f.UnitScalarAsync<string>(u1, "SELECT status||'/'||booked_by||'/'||starts_at::text FROM nora_unit.appointments WHERE id=$1", acceptedId));
+            }
+            Require(await f.UnitScalarAsync<string>(u1, "SELECT a.status||'/'||e.source FROM nora_unit.appointments a JOIN nora_unit.appointment_events e ON e.appointment_id=a.id AND e.status='cancelled' WHERE a.id=$1", later) == "cancelled/rescheduled-lightning", "A consulta antecipada deveria ficar cancelada (rescheduled-lightning).");
         });
 
         await Check("Limite de requisições por conta nas rotas de escrita do paciente (agendamento 20 e confirmação 40 por 10 min); outro paciente não é afetado", async () =>

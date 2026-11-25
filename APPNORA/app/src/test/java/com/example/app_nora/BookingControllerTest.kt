@@ -50,7 +50,6 @@ class BookingControllerTest {
 
         override suspend fun login(identifier: String, password: String) = PatientSession("token", "2099-01-01T00:00:00Z", PatientUser("id", "Paciente de teste"))
         override suspend fun units(token: String) = units
-        override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
         override suspend fun unitOffers(token: String, unitId: String) = emptyList<UnitOffer>()
         override suspend fun appointments(token: String, unitId: String): List<PatientAppointment> {
             appointmentCalls++; appointmentsFailure?.let { throw it }; return appointments

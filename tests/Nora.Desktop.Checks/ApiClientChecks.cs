@@ -88,9 +88,6 @@ internal static partial class Program
                 (HttpMethod.Post, $"api/obs/units/{unit}/registry", HttpStatusCode.Conflict, "conflict", "cadastro com este CPF"),
                 (HttpMethod.Post, $"api/obs/units/{unit}/appointments", HttpStatusCode.Conflict, "conflict", "Horário em conflito"),
                 (HttpMethod.Patch, $"api/obs/units/{unit}/appointments/{Guid.NewGuid()}/status", HttpStatusCode.Conflict, "conflict", "já foi alterada"),
-                (HttpMethod.Post, $"api/obs/units/{unit}/waiting-list", HttpStatusCode.Conflict, "conflict", "já está na fila desta especialidade"),
-                (HttpMethod.Post, $"api/obs/units/{unit}/lightning-slots", HttpStatusCode.Conflict, "conflict", "Já existe uma vaga para esta consulta"),
-                (HttpMethod.Get, $"api/obs/units/{unit}/waiting-list", HttpStatusCode.ServiceUnavailable, "service-unavailable", "indisponível"),
                 (HttpMethod.Get, "api/municipal/summary", HttpStatusCode.ServiceUnavailable, null, "indisponível"),
                 (HttpMethod.Get, "api/obs/units", HttpStatusCode.TooManyRequests, "too-many-requests", "Muitas tentativas"),
                 (HttpMethod.Get, "api/obs/units", HttpStatusCode.BadRequest, "invalid-input", "Confira os dados"),
@@ -113,10 +110,7 @@ internal static partial class Program
                     else if (item.Method == HttpMethod.Post && item.Path.EndsWith("/registry")) await api.CreateObsRegistryAsync(unit, "Nome", "52998224725", "a@example.test");
                     else if (item.Method == HttpMethod.Post && item.Path.EndsWith("/appointments")) await api.CreateAppointmentAsync(unit, "52998224725", "Clínica", "Profissional", DateTimeOffset.Now, DateTimeOffset.Now.AddHours(1));
                     else if (item.Method == HttpMethod.Patch) await api.ChangeAppointmentStatusAsync(unit, Guid.Parse(item.Path.Split('/')[5]), "called", false);
-                    else if (item.Method == HttpMethod.Post && item.Path.EndsWith("/waiting-list")) await api.AddUnitWaitingEntryAsync(unit, "52998224725", "Clínica");
-                    else if (item.Method == HttpMethod.Post && item.Path.EndsWith("/lightning-slots")) await api.CreateUnitLightningSlotAsync(unit, Guid.NewGuid());
                     else if (item.Path.EndsWith("/registry")) await api.ObsRegistryAsync(unit);
-                    else if (item.Path.EndsWith("/waiting-list")) await api.UnitWaitingListAsync(unit);
                     else throw new InvalidOperationException("Caso sem chamada: " + item.Path);
                 }
                 catch (NoraApiException error)
@@ -246,7 +240,7 @@ internal static partial class Program
                 Require(!vm.IsBusy && !vm.HasMessage, "Atualização automática deixou uma mensagem redundante na tela.");
                 if (profile.IsMunicipal)
                 {
-                    Require(vm.PatientCount == "1" && vm.WaitingCount == "1", "Municipal perdeu totais agregados.");
+                    Require(vm.PatientCount == "1", "Municipal perdeu totais agregados.");
                     Require(vm.RegisteredSlotsCount == "3" && vm.CreatedOffersCount == "5" && vm.DeclinedOffersCount == "2" && vm.ExpiredOffersCount == "1", "Estados agregados não foram carregados.");
                     var csv = vm.CreateSummaryCsv();
                     Require(csv.Contains("Ofertas criadas;5;") && csv.Contains("Ofertas recusadas;2;") && !csv.Contains("Paciente Fixture"), "CSV não preservou os totais agregados ou revelou identidade.");
@@ -266,7 +260,7 @@ internal static partial class Program
                     if (profile.IsMunicipal)
                     {
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
-                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes aguardando"), "Total de pacientes aguardando não apareceu na Visão geral.");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes cadastrados"), "Total de pacientes cadastrados não apareceu na Visão geral.");
                         // A Visão geral tem apenas o seletor de UBS; os demais filtros ficam em Indicadores.
                         var unitFilter = Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Filtrar por UBS");
                         Require(unitFilter.IsEnabled, "O filtro de UBS da Visão geral deveria estar habilitado.");
@@ -342,7 +336,7 @@ internal static partial class Program
         Check("Rotas funcionais são restauradas somente no perfil correspondente", () =>
         {
             foreach (var profile in new[] { DesktopProfile.Operational, DesktopProfile.Municipal })
-            foreach (var route in profile.IsMunicipal ? new[] { "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "patients", "queue", "slots", "unit-settings", "family", "announcements" })
+            foreach (var route in profile.IsMunicipal ? new[] { "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users" } : new[] { "patients", "slots", "unit-settings", "family", "announcements" })
             {
                 var path = Path.Combine(storageRoot, "routes", profile.Id, route);
                 var storage = new PreferencesService(profile.Id, path);
@@ -354,9 +348,10 @@ internal static partial class Program
                     Require(window.ViewModel.Page == route && window.ViewModel.Workspace.Section == route, "Rota/seção divergiram na reabertura.");
                     PrepareWindow(window);
                     var content = Layout(window, 980, 640);
-                    var home = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == "home" && AutomationProperties.GetName(button) == window.ViewModel.Navigation.First(item => item.Id == "home").Title);
-                    var active = Descendants<Button>(content).Single(button => button.CommandParameter?.ToString() == route && AutomationProperties.GetName(button) == window.ViewModel.Navigation.First(item => item.Id == route).Title);
-                    Require(!Equals(home.Background, active.Background), "Home continua marcada quando outra rota foi restaurada.");
+                    // Navegação em dois níveis: a área da rota fica marcada (e, com subabas, a barra mostra a área aberta); Painel/Visão geral não.
+                    var shell = window.ViewModel;
+                    Require(shell.Navigation.Any(item => item.IsSelected && (item.Id == route || item.Children.Any(child => child.Id == route))) && !shell.Navigation.First(item => item.Id == "home").IsSelected, "Home continua marcada quando outra rota foi restaurada.");
+                    Require(Descendants<Button>(content).Any(button => button.IsVisible && AutomationProperties.GetName(button) is { Length: > 0 } name && shell.SidebarItems.Any(item => item.AutomationName == name)), "A barra lateral não mostra os itens da área restaurada.");
                 }
                 finally { window.Close(); }
             }

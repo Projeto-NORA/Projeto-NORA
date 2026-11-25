@@ -22,19 +22,21 @@ public partial class ObsUnitRegistryView : UserControl
     private async void OnCepTimer(object? sender, EventArgs e)
     {
         cepTimer.Stop();
-        if (DataContext is not WorkspaceViewModel { ObsRegistryDraftOpen: true } vm || !Services.BrazilianDataValidator.IsCompleteCep(vm.ObsRegistryCep)) return;
+        if (DataContext is not WorkspaceViewModel vm || !Services.BrazilianDataValidator.IsCompleteCep(vm.ObsRegistryCep)) return;
         if (!vm.CanOperate) { cepTimer.Start(); return; }
         await vm.LookupObsRegistryCepAsync();
     }
     private async void OnRefresh(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadObsRegistryAsync(); }
     private async void OnLookupCep(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LookupObsRegistryCepAsync(); }
     private async void OnCreate(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.CreateObsRegistryAsync(); }
-    private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.EditSelectedObsRegistry(); }
-    private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.NewObsRegistryDraft(); }
+    private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) { vm.EditSelectedObsRegistry(); OpenSubPage("patients:register"); } }
+    /// <summary>Leva à subaba indicada (Cadastro ou Listagem) quando a tela está na janela principal.</summary>
+    private void OpenSubPage(string route) { if (Window.GetWindow(this) is ShellWindow shell) shell.ViewModel.Navigate(route); }
+    private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) { vm.NewObsRegistryDraft(); OpenSubPage("patients:register"); } }
     private async void OnUpdateEmail(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel vm || vm.SelectedObsRegistry is null) return;
-        if (MessageBox.Show($"Corrigir o e-mail de {vm.SelectedObsRegistry.FullName} nesta UBS?", "Confirmar correção", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        if (Services.Confirmation.Ask(Window.GetWindow(this), "Corrigir e-mail", $"Corrigir o e-mail de {vm.SelectedObsRegistry.FullName} nesta UBS?", "Corrigir", "Cancelar"))
             await vm.UpdateObsRegistryEmailAsync();
     }
     private void OnDetails(object sender, RoutedEventArgs e)

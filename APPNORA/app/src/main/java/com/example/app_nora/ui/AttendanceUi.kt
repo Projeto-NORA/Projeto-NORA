@@ -17,17 +17,15 @@ import com.example.app_nora.api.*
 
 /** Explicação única da conta, em linguagem simples, igual à regra do servidor (docs/api.md). */
 internal const val ATTENDANCE_EXPLANATION =
-    "Como é calculado: cada consulta concluída aumenta o score e cada falta o reduz. Cancelar pelo aplicativo reduz " +
-        "menos quanto mais cedo for feito: com 4 dias ou mais de antecedência não reduz, e com menos de 1 hora vale " +
-        "como falta. Cancelamentos feitos pela unidade não contam."
+    "Consulta concluída aumenta o score; falta reduz. Cancelar com 4 dias ou mais não reduz; com menos de 1 hora conta " +
+        "como falta. Cancelamentos da UBS não contam."
 /** Escala do score: pontos de 0 a 1000 e as quatro faixas (iguais às do servidor e do OBS). */
 internal const val ATTENDANCE_BANDS =
-    "O score vai de 0 a 1000: Baixo (0 a 299), Regular (300 a 599), Bom (600 a 799) e Excelente (800 a 1000). " +
-        "Quem ainda não tem consulta encerrada começa em 1000."
+    "De 0 a 1000: Baixo (0–299), Regular (300–599), Bom (600–799), Excelente (800–1000). Sem consultas encerradas, começa em 1000."
 /** Efeito do score, igual ao texto do contrato: ordem das ofertas de Vaga Relâmpago, sem mexer na prioridade clínica. */
 internal fun attendancePriorityText(name: String?, severalUnits: Boolean = false): String =
-    "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago; empate segue a ordem de entrada na fila. " +
-        (if (severalUnits) "A ordem usa o score de cada UBS (veja o detalhe por UBS), não o número somado em destaque. " else "") +
+    "Score maior recebe antes as vagas para antecipar consulta. " +
+        (if (severalUnits) "Vale o score de cada UBS, não o total. " else "") +
         "O score não muda a prioridade clínica nem o direito ${if (name == null) "" else "de $name "}ao atendimento."
 
 /**
@@ -62,7 +60,7 @@ internal fun AttendanceCard(patient: PatientState, onRefresh: () -> Unit) {
                 }
                 if (summary.failedUnits > 0) Text(
                     if (summary.failedUnits == 1) "Uma UBS não respondeu e não entrou nesta conta. Atualize para tentar de novo."
-                    else "${summary.failedUnits} UBS não responderam e não entraram nesta conta. Atualize para tentar de novo.",
+                    else "${summary.failedUnits} UBS não responderam. Atualize para tentar de novo.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 if (units.size > 1) {
                     TextButton(onClick = { detailOpen = !detailOpen }, modifier = Modifier.fillMaxWidth()) {

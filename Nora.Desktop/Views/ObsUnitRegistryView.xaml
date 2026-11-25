@@ -12,14 +12,21 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
   </UserControl.Resources>
-  <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Consulte e registre os dados que serão conferidos no aplicativo do paciente.">
-    <StackPanel IsEnabled="{Binding CanEditDraft}">
-      <TextBlock Text="Pacientes" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,0,14" />
-      <Expander Header="Escolher ou trocar UBS" Style="{StaticResource ObsExpander}" IsExpanded="{Binding ObsUnitSelectionOpen}" Margin="0,0,0,8"><views:ObsUnitPickerView Margin="0,8,0,0" /></Expander>
-      <StackPanel Margin="0,12,0,8"><TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel>
-      <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
-        <Button Content="+ Novo cadastro" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" HorizontalAlignment="Right" Margin="0,0,0,8" />
-        <Expander Style="{StaticResource ObsExpander}" Header="{Binding ObsRegistryDraftTitle}" IsExpanded="{Binding ObsRegistryDraftOpen}" Margin="0,14,0,0"><StackPanel Margin="0,12,0,0">
+  <StackPanel>
+    <Grid Margin="0,0,0,24">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="Pacientes" Style="{StaticResource PageTitle}" /><TextBlock Text="{Binding ActiveObsUnitLabel}" Style="{StaticResource Muted}" /></StackPanel>
+      <Button Grid.Column="1" Content="+ Cadastrar paciente" Style="{StaticResource BigPrimaryButton}" Click="OnNew" IsEnabled="{Binding HasActiveObsUnit}" VerticalAlignment="Top" views:SubPage.Key="list" AutomationProperties.Name="Cadastrar paciente" ToolTip="Abre o formulário de cadastro de um paciente novo nesta UBS." />
+    </Grid>
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="20,14">
+      <Expander Header="Escolher ou trocar UBS" Style="{StaticResource ObsExpander}" IsExpanded="{Binding ObsUnitSelectionOpen}" ToolTip="Troca a UBS em que você está trabalhando."><views:ObsUnitPickerView Margin="0,8,0,0" /></Expander>
+    </Border>
+    <!-- Subaba Cadastro: formulário de paciente novo ou da ficha em edição. -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" views:SubPage.Key="register" IsEnabled="{Binding CanEditDraft}">
+      <StackPanel IsEnabled="{Binding HasActiveObsUnit}" MaxWidth="720" HorizontalAlignment="Left">
+        <TextBlock Text="{Binding ObsRegistryDraftTitle}" Style="{StaticResource SectionTitle}" />
+        <TextBlock Text="Nome, CPF e e-mail são obrigatórios; o resto é opcional." Style="{StaticResource Muted}" Margin="0,0,0,16" />
+        
           <TextBlock Text="Nome completo" /><TextBox Text="{Binding ObsRegistryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome no cadastro da UBS" />
           <TextBlock Text="CPF" /><TextBox Text="{Binding ObsRegistryCpf, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditingObsRegistry}" AutomationProperties.Name="CPF no cadastro da UBS" />
           <TextBlock Text="E-mail cadastrado" /><TextBox Text="{Binding ObsRegistryEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail no cadastro da UBS" Margin="0,6,0,4" /><TextBlock Text="{Binding ObsRegistryEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail do cadastro" />
@@ -32,22 +39,25 @@
           <TextBlock Text="Bairro" /><TextBox Text="{Binding ObsRegistryNeighborhood, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bairro no cadastro da UBS" />
           <TextBlock Text="Cidade" /><TextBox Text="{Binding ObsRegistryCity, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Cidade no cadastro da UBS" />
           <TextBlock Text="UF" /><TextBox Text="{Binding ObsRegistryState, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="UF no cadastro da UBS" MaxLength="2" CharacterCasing="Upper" />
-          <Button Content="{Binding ObsRegistrySaveLabel}" Click="OnCreate" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" />
-        </StackPanel></Expander>
-        <Button Style="{StaticResource IconRefreshButton}" Click="OnRefresh" HorizontalAlignment="Right" Margin="0,0,0,10" AutomationProperties.Name="Atualizar cadastros da UBS" ToolTip="Atualizar cadastros da UBS" />
+          <Button Content="{Binding ObsRegistrySaveLabel}" Click="OnCreate" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o novo cadastro."/>
+      </StackPanel>
+    </Border>
+    <!-- Subaba Listagem: busca, filtros, lista em ordem alfabética e ações da ficha selecionada. -->
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" views:SubPage.Key="list" IsEnabled="{Binding CanEditDraft}">
+      <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
+        <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefresh" AutomationProperties.Name="Atualizar cadastros da UBS" ToolTip="Relê os cadastros desta UBS." /><TextBlock Text="Listagem" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0" /></DockPanel>
         <TextBlock Text="Pesquisar por nome, CPF, e-mail ou telefone" /><Grid><TextBox Text="{Binding ObsRegistrySearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar cadastro da UBS" Padding="36,10,10,10" /><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource SecondaryBrush}" IsHitTestVisible="False" VerticalAlignment="Top" Margin="12,20,0,0" /></Grid>
         <WrapPanel><StackPanel Margin="0,0,12,0"><TextBlock Text="Situação na UBS" /><ComboBox SelectedValue="{Binding ObsRegistryStatusFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar situação na UBS"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Ativos" /><ComboBoxItem Content="Desativados" /></ComboBox></StackPanel><StackPanel Margin="0,0,12,0"><TextBlock Text="Presença no aplicativo" /><ComboBox SelectedValue="{Binding ObsRegistryPresenceFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar presença na UBS"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Online" /><ComboBoxItem Content="Offline" /></ComboBox></StackPanel><StackPanel><TextBlock Text="Ordenar por" /><ComboBox SelectedValue="{Binding ObsRegistrySort}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Ordenar cadastro da UBS"><ComboBoxItem Content="Mais recentes" /><ComboBoxItem Content="Nome A–Z" /><ComboBoxItem Content="Nome Z–A" /><ComboBoxItem Content="Maior score" /><ComboBoxItem Content="Menor score" /></ComboBox></StackPanel></WrapPanel>
         <ListBox ItemsSource="{Binding FilteredObsRegistry}" SelectedItem="{Binding SelectedObsRegistry}" AlternationCount="2" ItemContainerStyle="{StaticResource PatientRow}" MaxHeight="380" MinHeight="60" AutomationProperties.Name="Cadastros de referência da UBS" MouseDoubleClick="OnPatientDoubleClick" PreviewKeyDown="OnPatientKeyDown">
           <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="6"><TextBlock Text="{Binding FullName}" FontWeight="SemiBold" /><TextBlock Text="{Binding FormattedCpf, StringFormat='CPF: {0}'}" /><TextBlock Text="{Binding Email}" /><TextBlock Text="{Binding PhoneDisplay}" /><TextBlock Text="{Binding ActiveDisplay}" /><TextBlock Text="{Binding PresenceDisplay}" /><TextBlock Text="{Binding ScoreDisplay, StringFormat='Score (12 meses): {0}'}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.Name="Score do paciente nos últimos 12 meses" ToolTip="{x:Static vm:WorkspaceViewModel.ScorePriorityText}" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
         </ListBox>
-        <WrapPanel Margin="0,10,0,0"><Button Content="Ver ficha da UBS" Style="{StaticResource ObsPrimaryButton}" Click="OnDetails" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /><Button Content="Editar ficha" Style="{StaticResource ObsPrimaryButton}" Click="OnEdit" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /><Button Content="{Binding ObsRegistryActiveAction}" Style="{StaticResource ObsPrimaryButton}" Click="OnSetActive" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" /></WrapPanel>
-        <Expander Header="Corrigir somente o e-mail" Margin="0,8,0,0"><StackPanel>
+        <WrapPanel Margin="0,16,0,0"><Button Content="Ver ficha" Style="{StaticResource ObsPrimaryButton}" Click="OnDetails" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Abre a ficha completa, com exames e vacinas." ToolTipService.ShowOnDisabled="True" /><Button Content="Editar ficha" Click="OnEdit" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Abre a ficha selecionada na subaba Cadastro." ToolTipService.ShowOnDisabled="True" /><Button Content="{Binding ObsRegistryActiveAction}" Click="OnSetActive" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o paciente nesta UBS. Desativar cancela as consultas futuras." ToolTipService.ShowOnDisabled="True" /></WrapPanel>
+        <Expander Header="Corrigir somente o e-mail" Style="{StaticResource ObsExpander}" Margin="0,16,0,0" ToolTip="Atualiza só o e-mail do paciente selecionado, sem mexer no resto da ficha."><StackPanel>
           <TextBlock Text="Selecione o paciente acima e informe o endereço atualizado." TextWrapping="Wrap" Margin="0,12,0,4" />
           <TextBox Text="{Binding CorrectedObsEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail corrigido da UBS" Margin="0,6,0,4" /><TextBlock Text="{Binding CorrectedObsEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail corrigido" />
-          <Button Content="Corrigir e-mail" Click="OnUpdateEmail" HorizontalAlignment="Left" />
+          <Button Content="Corrigir e-mail" Click="OnUpdateEmail" HorizontalAlignment="Left" ToolTip="Corrige o e-mail do paciente selecionado."/>
         </StackPanel></Expander>
-
       </StackPanel>
-    </StackPanel>
-  </Border>
+    </Border>
+  </StackPanel>
 </UserControl>

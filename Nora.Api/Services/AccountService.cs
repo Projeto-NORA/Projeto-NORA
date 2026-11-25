@@ -20,7 +20,7 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
         var fullName = request.FullName?.Trim() ?? "";
         var cpf = staff ? "" : NormalizeCpf(request.Cpf);
         var email = request.Email?.Trim().ToLowerInvariant() ?? "";
-        if (fullName.Length is < 2 or > 160 || (!staff && !ValidCpf(cpf)) || email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || request.Password is null || request.Password.Length is < 8 or > 256)
+        if (fullName.Length is < 2 or > 160 || (!staff && !ValidCpf(cpf)) || email.Length > 254 || !MailAddress.TryCreate(email, out var address) || address.Address != email || !ValidPassword(request.Password))
             throw new ApiInputException();
         var normalized = new CreatePatientRequest(fullName, cpf, email, request.Password, NormalizePhone(request.Phone), NormalizeAddress(request.Address));
         var account = new Account(new(Guid.Empty, fullName, role, scope), cpf, email, "");
@@ -30,6 +30,13 @@ public sealed class AccountService(AccountDao accounts, IPasswordHasher<Account>
     /// <summary>Conta de equipe sem CPF (o cadastro inicial pelo terminal e as contas de teste): nome, e-mail e senha.</summary>
     public Task<PatientInfo> ProvisionStaffAsync(string scope, string role, string fullName, string email, string password, CancellationToken ct = default) =>
         scope == "patient" ? throw new ApiInputException() : ProvisionAsync(scope, role, new(fullName, "", email, password), ct);
+
+    /// <summary>
+    /// Regra única de senha nova (decisão da dona do projeto, 2026-11-24): sem tamanho mínimo e sem exigir letras ou números; só não pode ser nula nem vazia
+    /// e tem o máximo técnico de 256 caracteres. A senha nunca é aparada (o login também não apara), então espaços contam como caracteres comuns e uma senha
+    /// só de espaços é aceita. Vale para provisionamento, cadastro pelo app, redefinição por código, troca de senha e contas da equipe.
+    /// </summary>
+    public static bool ValidPassword([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? password) => password is { Length: > 0 and <= 256 };
 
     internal static string? NormalizePhone(string? value)
     {

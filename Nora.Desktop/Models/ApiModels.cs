@@ -11,8 +11,7 @@ public sealed record AddressInfo(string Cep, string Street, string? Number, stri
     public string Display => $"{Street}{(string.IsNullOrWhiteSpace(Number) ? "" : ", " + Number)} · {Neighborhood ?? "Bairro não informado"} · {City}/{State}";
 }
 public sealed record LightningCohort(int Days, long OpenSlots, long AcceptedOffers, long RegisteredSlots, long CreatedOffers, long DeclinedOffers, long ExpiredOffers, long PendingOffers, long CancelledOffers);
-public sealed record MunicipalSummary(long Patients, long WaitingPatients, long OpenSlots, long AcceptedOffers, long? RegisteredSlots = null, long? CreatedOffers = null, long? DeclinedOffers = null, long? ExpiredOffers = null, long? PendingOffers = null, long? CancelledOffers = null, LightningCohort[]? LightningCohorts = null, long? InactivePatients = null, long? WaitingEntries = null, long? UnitsWithoutDatabase = null,
-    long? AwaitingApprovalSlots = null, long? ApprovedSlots = null, long? ApprovalTimeoutSlots = null, long? DiscardedSlots = null);
+public sealed record MunicipalSummary(long Patients, long OpenSlots, long AcceptedOffers, long? RegisteredSlots = null, long? CreatedOffers = null, long? DeclinedOffers = null, long? ExpiredOffers = null, long? PendingOffers = null, long? CancelledOffers = null, LightningCohort[]? LightningCohorts = null, long? InactivePatients = null, long? UnitsWithoutDatabase = null);
 
 public sealed record HealthUnit(Guid Id, string Name, string Region, string Address, double Latitude, double Longitude, string? DatabaseState = null)
 {
@@ -109,55 +108,29 @@ public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, st
     }
 }
 
-/// <summary><c>Points</c>, <c>Band</c> e <c>OfferOrder</c> vêm da API (score do CPF na UBS e posição na ordem de oferta da especialidade); sem eles a ordem é calculada pelo cliente.</summary>
-public sealed record UnitWaitingEntry(long Id, string Cpf, string PatientName, string Specialty, DateTimeOffset EnteredAt, string Status, int? Points = null, string? Band = null, int? OfferOrder = null)
-{
-    /// <summary>Posição na ordem de oferta da especialidade (mais pontos primeiro, empate pela entrada): a da API, ou calculada pelo cliente quando ela não vem.</summary>
-    [JsonIgnore] public int Position { get; init; }
-    /// <summary>Tempo desde a entrada, calculado na leitura (sem temporizador próprio).</summary>
-    [JsonIgnore] public string WaitDisplay { get; init; } = "—";
-    [JsonIgnore] public bool IsActive => Status is "waiting" or "offered";
-    [JsonIgnore] public string PositionDisplay => Position > 0 ? $"{Position}º" : "—";
-    /// <summary>"742 · Bom"; "—" quando a API não trouxe os pontos.</summary>
-    [JsonIgnore] public string ScoreDisplay => Points is { } points ? $"{points} · {DisplayFormat.BandLabel(Band ?? DisplayFormat.BandFor(points))}" : "—";
-    /// <summary>Chaves numéricas das colunas Score e Ordem de oferta: o texto ("1000 · Excelente", "10º") ordenaria pela letra, não pelo valor.</summary>
-    [JsonIgnore] public int ScoreSort => Points ?? -1;
-    [JsonIgnore] public int OfferSort => Position > 0 ? Position : int.MaxValue;
-    [JsonIgnore] public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
-    public string EnteredAtDisplay => EnteredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
-    public string StatusDisplay => Status switch { "waiting" => "Aguardando", "offered" => "Oferta em andamento", "completed" => "Concluída", "cancelled" => "Cancelada", "closed" => "Encerrada", _ => Status };
-}
 public sealed record UnitLightningSlot(Guid Id, Guid? AppointmentId, string Specialty, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string Status, DateTimeOffset CreatedAt,
-    string Origin = "staff", DateTimeOffset? ApprovalDeadline = null, DateTimeOffset? DecidedAt = null, string? DecidedByName = null, string? ClosedReason = null, SlotSource? Source = null)
+    string Origin = "cancellation", string? ClosedReason = null, SlotSource? Source = null)
 {
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string CreatedAtDisplay => CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
-    [JsonIgnore] public bool IsAwaitingApproval => Status == "awaiting_approval";
-    /// <summary>Vaga ainda em andamento (aguardando aprovação, aberta ou ofertada); as demais são histórico.</summary>
-    [JsonIgnore] public bool IsActive => Status is "awaiting_approval" or "open" or "offered";
-    /// <summary>Quem criou a vaga: o cancelamento de uma consulta, a equipe pelo botão Gerar ou o "Chamar próximo".</summary>
-    public string OriginDisplay => Origin switch { "cancellation" => "Cancelamento", "call-next" => "Chamar próximo", "staff" => "Gerada pela equipe", _ => Origin };
+    /// <summary>Vaga ainda em andamento (aberta ou ofertada); as demais são histórico.</summary>
+    [JsonIgnore] public bool IsActive => Status is "open" or "offered";
+    public string OriginDisplay => Origin switch { "cancellation" => "Cancelamento", _ => Origin };
     public string StatusDisplay => Status switch
     {
-        "awaiting_approval" => "Aguardando aprovação",
         "open" => "Aberta",
         "offered" => "Ofertada",
         "accepted" => "Aceita",
         "closed" => ClosedReason switch
         {
-            "approval-timeout" => "Fechada sem aprovação",
-            "discarded" => "Descartada",
             "conflict" => "Fechada: horário ocupado",
             "too-late" => "Fechada: faltavam menos de 10 min",
             _ => "Encerrada"
         },
         _ => Status
     };
-    /// <summary>"Veio da consulta de Maria, cancelada em 14/11 09:10 pelo paciente"; vazio para o "Chamar próximo".</summary>
+    /// <summary>"Veio da consulta de Maria, cancelada em 14/11 09:10 pelo paciente".</summary>
     [JsonIgnore] public string SourceDisplay => Source?.Display ?? "";
-    [JsonIgnore] public string ApprovalDeadlineDisplay => ApprovalDeadline is { } at ? $"Aprovar até {at.ToLocalTime():dd/MM HH:mm}" : "";
-    /// <summary>Profissional, especialidade e horário numa linha só, para o painel de aprovação.</summary>
-    [JsonIgnore] public string SummaryDisplay => $"{Specialty} · {Professional} · {TimeDisplay}";
 }
 /// <summary>Uma oferta de uma Vaga Relâmpago (GET .../lightning-slots/{id}/offers): sem CPF, na ordem em que foram feitas.</summary>
 public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, DateTimeOffset ExpiresAt)
@@ -166,7 +139,5 @@ public sealed record UnitSlotOffer(Guid Id, string PatientName, string Status, D
     public string ExpiresAtDisplay => ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 }
 
-/// <summary>Resposta de GET .../waiting-list: todas as entradas ativas, mais as encerradas mais recentes. <c>HistoryCursor</c> não nulo = há encerradas mais antigas (peça com <c>?historyBefore=</c>).</summary>
-public sealed record WaitingListPage(UnitWaitingEntry[] Items, string? HistoryCursor = null);
-/// <summary>Resposta de GET .../lightning-slots, no mesmo formato da fila.</summary>
+/// <summary>Resposta de GET .../lightning-slots: vagas ativas mais as encerradas recentes; <c>HistoryCursor</c> não nulo = há mais antigas.</summary>
 public sealed record LightningSlotPage(UnitLightningSlot[] Items, string? HistoryCursor = null);

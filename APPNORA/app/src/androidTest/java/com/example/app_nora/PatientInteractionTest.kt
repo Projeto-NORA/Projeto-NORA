@@ -30,10 +30,10 @@ class PatientInteractionTest {
     private val unit = PatientHealthUnit("unit-id", "UBS Teste", "Centro", "Rua de teste", -23.5, -46.6)
     private fun offer(id: String, expiresInSeconds: Long, status: String = "pending") = UnitOffer(id, "Cardiologia", "Profissional",
         isoAt(now + 86_400_000), isoAt(now + 86_400_000 + 1_800_000), isoAt(now + expiresInSeconds * 1000), status)
-    private fun connected(offers: List<UnitOffer>? = null, appointments: List<PatientAppointment>? = null,
-        queue: List<UnitQueueEntry>? = emptyList()) = PatientState(address = "https://nora.example.test",
+    private fun connected(offers: List<UnitOffer>? = null, appointments: List<PatientAppointment>? = null) =
+        PatientState(address = "https://nora.example.test",
         session = PatientSession("test-token", "2099-01-01T00:00:00Z", user), units = listOf(unit), selectedUnitId = unit.id,
-        unitData = mapOf(unit.id to UnitSnapshot(queue = queue, offers = offers, appointments = appointments)))
+        unitData = mapOf(unit.id to UnitSnapshot(offers = offers, appointments = appointments)))
 
     @Test fun loginRequiresDataAndSendsEnteredIdentifier() {
         var submitted = ""
@@ -57,10 +57,10 @@ class PatientInteractionTest {
                     RegistrationUnit("unit-1", "UBS Centro", "Centro"),
                     RegistrationUnit("unit-2", "UBS Norte", "Norte")) })
         }
-        compose.onNode(hasText("Criar conta") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNode(hasText("Confirmar login") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         compose.onNodeWithContentDescription("Selecionar UBS Centro").assertIsOff().performSemanticsAction(SemanticsActions.OnClick).assertIsOn()
         compose.onNodeWithContentDescription("Selecionar UBS Norte").assertIsOff().performSemanticsAction(SemanticsActions.OnClick).assertIsOn()
-        compose.onNode(hasText("Criar conta") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Confirmar login") and hasClickAction()).assertIsNotEnabled()
     }
 
     @Test fun registrationFormSurvivesRotationButThePasswordDoesNot() {
@@ -69,7 +69,7 @@ class PatientInteractionTest {
             NoraPatientContent(UserSettings(), {}, PatientState(address = "https://nora.example.test"),
                 onLogin = { _, _ -> }, onRegistrationUnits = { listOf(RegistrationUnit("unit-1", "UBS Centro", "Centro")) })
         }
-        compose.onNode(hasText("Criar conta") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNode(hasText("Confirmar login") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         compose.onNodeWithText("Nome completo").performTextInput("Paciente Sintético")
         compose.onNodeWithText("Senha").performTextInput("senha-que-nao-deve-sobreviver")
         compose.onNodeWithContentDescription("Selecionar UBS Centro").performSemanticsAction(SemanticsActions.OnClick).assertIsOn()
@@ -107,7 +107,7 @@ class PatientInteractionTest {
                 onRespondUnit = { id, accept -> assertEquals(offer.id, id); answer = accept }, onLogout = { logout = true })
         }
         compose.onNodeWithText("Ver oportunidade").performScrollTo().performClick()
-        compose.onNodeWithText("Aceitar oportunidade").performScrollTo().performClick()
+        compose.onNodeWithText("Aceitar e antecipar").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(true, answer) }
         compose.onNodeWithText("Recusar oportunidade").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(false, answer) }
@@ -122,7 +122,7 @@ class PatientInteractionTest {
         compose.setContent { NoraPatientContent(UserSettings(), {}, state) }
         compose.onNode(hasText("Oportunidades") and hasClickAction()).performScrollTo().performClick()
         compose.onNodeWithText("Prazo encerrado").performScrollTo().assertExists()
-        compose.onNodeWithText("Aceitar oportunidade").assertDoesNotExist()
+        compose.onNodeWithText("Aceitar e antecipar").assertDoesNotExist()
         compose.onNodeWithText("Recusar oportunidade").assertDoesNotExist()
     }
 
@@ -136,7 +136,7 @@ class PatientInteractionTest {
         compose.onNodeWithText("Ver oportunidade").performScrollTo().performClick()
         // Nome da UBS na lista de escolha e no cartão da oferta.
         compose.onAllNodesWithText("UBS Teste").assertCountEquals(2)
-        compose.onNodeWithText("Aceitar oportunidade").assertIsEnabled()
+        compose.onNodeWithText("Aceitar e antecipar").assertIsEnabled()
     }
 
     @Test fun historyStartsCollapsedAndOpensOnRequest() {

@@ -19,12 +19,12 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
     var cancelPending by remember(patient.selectedUnitId, patient.session?.token) { mutableStateOf<PatientAppointment?>(null) }
     // A janela de confirmação muda de estado sozinha: o relógio acorda só nesses instantes.
     val presenceNow = rememberPresenceClock(patient.appointments.orEmpty())
-    ScreenTitle("Consultas", "Veja seus atendimentos futuros e anteriores.")
+    ScreenTitle("Consultas", "Futuras e anteriores.")
     SectionCard("Sua agenda", "Informações da unidade de saúde") {
         if (patient.session == null) MutedText("Entre na sua conta para consultar sua agenda.")
         else {
-            MutedText("Selecione uma UBS vinculada. São exibidas consultas de até 180 dias antes e depois de hoje.")
-            patient.units?.forEach { unit ->
+            MutedText("Escolha a UBS. Mostramos 180 dias antes e depois de hoje.")
+            patient.units?.sortedAlphabetically { it.name }?.forEach { unit ->
                 Row(Modifier.fillMaxWidth().selectable(selected = unit.id == patient.selectedUnitId, enabled = !patient.busy, onClick = { onSelectUnit(unit.id) }, role = Role.RadioButton), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = unit.id == patient.selectedUnitId, onClick = null)
                     Text(unit.name, Modifier.padding(start = 8.dp))
@@ -57,11 +57,10 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
             }
         }
     }
-    ActionMessage(patient.message)
     MutedText("Para remarcar, procure a equipe da UBS.")
     cancelPending?.let { appointment ->
         AlertDialog(onDismissRequest = { cancelPending = null }, title = { Text("Cancelar consulta?") },
-            text = { Text("${appointment.specialty} · ${formatDateTime(appointment.startsAt)}\nO cancelamento pode afetar seu score.") },
+            text = { Text("${appointment.specialty} · ${formatDateTime(appointment.startsAt)}\nPode afetar seu score.") },
             confirmButton = { TextButton(onClick = { cancelPending = null; onCancelAppointment(appointment.id) }) { Text("Confirmar") } },
             dismissButton = { TextButton(onClick = { cancelPending = null }) { Text("Voltar") } })
     }
@@ -69,9 +68,9 @@ fun AppointmentsScreen(patient: PatientState, onSelectUnit: (String) -> Unit, on
 
 /** Texto do cartão "Sua agenda" do Início quando não há próxima consulta, sem inventar dado. */
 internal fun noNextAppointmentText(patient: PatientState): String = when {
-    patient.units == null -> if (patient.loadingUnits) "Carregando suas UBS…" else "Não foi possível carregar suas UBS. Toque em Ver minhas consultas para tentar novamente."
+    patient.units == null -> if (patient.loadingUnits) "Carregando suas UBS…" else "Não foi possível carregar suas UBS."
     patient.units.isEmpty() -> "Nenhuma UBS vinculada ao seu cadastro."
     patient.units.any { patient.unitData[it.id]?.appointments == null } ->
-        "Nenhuma consulta futura nas UBS já consultadas. Abra suas consultas e escolha uma UBS para conferir as demais."
+        "Nenhuma consulta futura nas UBS consultadas."
     else -> "Você não tem consulta agendada nas suas UBS."
 }

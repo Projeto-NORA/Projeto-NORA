@@ -11,7 +11,7 @@ public partial class StaffAccessView : UserControl
     private async void OnGrant(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel { SelectedStaff: { } staff, SelectedStaffUnit: { } unit } vm) return;
-        if (Confirmation.Ask(Window.GetWindow(this), "Confirmar concessão", $"Conceder a {staff.FullName} acesso à UBS {unit.Name}? A conta passa a ver cadastros, agenda, fila e vagas dessa unidade."))
+        if (Confirmation.Ask(Window.GetWindow(this), "Confirmar concessão", $"Conceder a {staff.FullName} acesso à UBS {unit.Name}? A conta passa a ver cadastros, agenda e vagas dessa unidade."))
             await vm.ChangeStaffUnitAsync(true);
     }
     private async void OnRevoke(object sender, RoutedEventArgs e)

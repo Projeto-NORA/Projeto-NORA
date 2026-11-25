@@ -50,6 +50,8 @@ public sealed class FamilyService(DatabaseHelper central, FamilyDao family, Unit
     /// <summary>
     /// Pedidos e vínculos do responsável. O nome do dependente vem do cadastro de referência da UBS e só é mostrado depois da aprovação (aprovado ou encerrado); antes disso fica nulo. Se o banco de uma
     /// UBS estiver indisponível ou desatualizado, o nome daquela UBS fica nulo em vez de derrubar a lista: o vínculo é dado central.
+    /// Ordem: primeiro os que têm nome, de A a Z pelo nome do dependente (pt-BR, sem diferenciar maiúsculas; desempate pelo nome da UBS e pelo id); depois os sem nome (pedidos
+    /// pendentes, recusados ou cancelados, ou UBS fora do ar), na ordem do banco, mais recentes primeiro. O OrderBy do LINQ é estável.
     /// </summary>
     public async Task<List<DependentLink>> ListAsync(SessionInfo session, CancellationToken ct)
     {
@@ -58,7 +60,10 @@ public sealed class FamilyService(DatabaseHelper central, FamilyDao family, Unit
         var names = new Dictionary<(Guid, string), string>();
         foreach (var unit in rows.Where(NameVisible).GroupBy(row => row.UnitId))
             foreach (var (cpf, name) in await TryNamesAsync(unit.Key, unit.Select(row => row.DependentCpf).Distinct().ToArray(), ct)) names[(unit.Key, cpf)] = name;
-        return rows.Select(row => Guardian(row, NameVisible(row) ? names.GetValueOrDefault((row.UnitId, row.DependentCpf)) : null)).ToList();
+        var byName = StringComparer.Create(new System.Globalization.CultureInfo("pt-BR"), ignoreCase: true);
+        return rows.Select(row => Guardian(row, NameVisible(row) ? names.GetValueOrDefault((row.UnitId, row.DependentCpf)) : null))
+            .OrderBy(item => item.DependentName is null).ThenBy(item => item.DependentName ?? "", byName)
+            .ThenBy(item => item.DependentName is null ? "" : item.UnitName, byName).ThenBy(item => item.DependentName is null ? Guid.Empty : item.Id).ToList();
     }
 
     /// <summary>O nome do dependente só aparece depois da aprovação (vínculo aprovado ou, depois, encerrado).</summary>

@@ -8,4 +8,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\nora_n_navy.png" />
+    <Resource Include="Assets\nora_n_white.png" />
+    <Resource Include="Assets\nora.ico" />
+  </ItemGroup>
 </Project>

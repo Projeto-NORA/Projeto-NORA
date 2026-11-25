@@ -80,7 +80,7 @@ public sealed class PushService(PushOptions options, PushDao dao, PushSender sen
     {
         var offers = new List<(Guid, string)>(); var appointments = new List<(Guid, string)>();
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using (var query = new NpgsqlCommand("SELECT o.id,q.cpf FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE o.status='pending' AND o.expires_at>$1", connection))
+        await using (var query = new NpgsqlCommand("SELECT o.id,o.cpf FROM nora_unit.lightning_offers o WHERE o.status='pending' AND o.expires_at>$1", connection))
         {
             query.Parameters.AddWithValue(now);
             await using var reader = await query.ExecuteReaderAsync(ct);

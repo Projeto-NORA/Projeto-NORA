@@ -85,14 +85,14 @@ class NoraApiHttpTest {
     }
 
     @Test fun forbiddenInsideAUnitUsesTheLinkMessage() = runBlocking {
-        route("/api/patient/units/$unitId/waiting-list", 403, """{"title":"t","status":403,"code":"forbidden"}""")
-        try { api().unitQueue("t", unitId); fail("expected failure") }
+        route("/api/patient/units/$unitId/appointments", 403, """{"title":"t","status":403,"code":"forbidden"}""")
+        try { api().appointments("t", unitId); fail("expected failure") }
         catch (failure: ApiFailure) { assertEquals(UNIT_FORBIDDEN_MESSAGE, failure.message) }
     }
 
     @Test fun unknownCodeOrNonJsonErrorBodyFallsBackToTheStatus() = runBlocking {
-        route("/api/patient/units/$unitId/waiting-list", 503, "<html>proxy error</html>")
-        try { api().unitQueue("t", unitId); fail("expected failure") }
+        route("/api/patient/units/$unitId/appointments", 503, "<html>proxy error</html>")
+        try { api().appointments("t", unitId); fail("expected failure") }
         catch (failure: ApiFailure) {
             assertNull(failure.code)
             assertEquals(failureMessage(503, null, ApiContext.UNIT), failure.message)
@@ -150,18 +150,6 @@ class NoraApiHttpTest {
         assertEquals(1000, odd.points); assertEquals(AttendanceBand.EXCELLENT, odd.band)
     }
 
-    @Test fun leavingTheQueueSendsConfirmedAndAcceptsNoContent() = runBlocking {
-        route("/api/patient/units/$unitId/waiting-list/42/cancel", 204, "")
-        api().cancelQueueEntry("token-x", unitId, 42)
-        assertEquals("""{"confirmed":true}""", lastBody)
-        route("/api/patient/units/$unitId/waiting-list/43/cancel", 409, """{"code":"conflict","title":"SEGREDO"}""")
-        try { api().cancelQueueEntry("t", unitId, 43); fail("expected failure") }
-        catch (failure: ApiFailure) { assertEquals("Esta solicitação já foi encerrada.", failure.message) }
-        route("/api/patient/units/$unitId/waiting-list/44/cancel", 404, """{"code":"not-found"}""")
-        try { api().cancelQueueEntry("t", unitId, 44); fail("expected failure") }
-        catch (failure: ApiFailure) { assertEquals("Esta solicitação não foi encontrada.", failure.message) }
-    }
-
     @Test fun unlinkParsesTheCancelledNumbers() = runBlocking {
         route("/api/patient/units/$unitId/unlink", 200, """{"cancelledAppointments":3,"cancelledEntries":1}""")
         val result = api().unlinkUnit("token-x", unitId)
@@ -170,7 +158,7 @@ class NoraApiHttpTest {
     }
 
     @Test fun invalidIdentifiersNeverBecomePathSegments() = runBlocking {
-        for (call in listOf<suspend () -> Unit>({ api().attendance("t", "../x") }, { api().unlinkUnit("t", "x") }, { api().cancelQueueEntry("t", unitId, 0) })) {
+        for (call in listOf<suspend () -> Unit>({ api().attendance("t", "../x") }, { api().unlinkUnit("t", "x") })) {
             try { call(); fail("expected failure") } catch (_: IllegalArgumentException) {}
         }
     }
@@ -188,8 +176,8 @@ class NoraApiHttpTest {
             assertEquals(400, failure.status); assertEquals("invalid-current-password", failure.code)
             assertEquals("A senha atual está incorreta.", failure.message)
         }
-        route("/api/patient/units/$unitId/waiting-list", 403, """{"code":"password-change-required","title":"SEGREDO"}""")
-        try { api().unitQueue("t", unitId); fail("expected failure") }
+        route("/api/patient/units/$unitId/appointments", 403, """{"code":"password-change-required","title":"SEGREDO"}""")
+        try { api().appointments("t", unitId); fail("expected failure") }
         catch (failure: ApiFailure) {
             assertEquals(PASSWORD_CHANGE_REQUIRED, failure.code)
             assertEquals(PASSWORD_CHANGE_REQUIRED_MESSAGE, failure.message)
@@ -386,11 +374,6 @@ class NoraApiHttpTest {
         route("$dependentBase/appointments/$offerId/cancel", 200, appointment)
         api().dependentCancelAppointment("t", dependentId, unitId, offerId)
         assertEquals("""{"confirmed":true}""", lastBody)
-        route("$dependentBase/waiting-list", 200, """{"entries":[{"id":7,"cpf":"x","patientName":"n","specialty":"Pediatria","enteredAt":"2026-11-10T12:00:00Z","status":"waiting"}]}""")
-        assertEquals(7L, api().dependentQueue("t", dependentId, unitId).single().id)
-        route("$dependentBase/waiting-list/7/cancel", 204, "")
-        api().dependentCancelQueueEntry("t", dependentId, unitId, 7)
-        assertEquals("$dependentBase/waiting-list/7/cancel", lastUri)
         route("$dependentBase/lightning-offers", 200, """{"offers":[]}""")
         assertTrue(api().dependentUnitOffers("t", dependentId, unitId).isEmpty())
         route("$dependentBase/lightning-offers/$offerId/respond", 200, """{"accepted":true,"appointmentId":"abc"}""")
@@ -405,7 +388,7 @@ class NoraApiHttpTest {
 
     @Test fun aDependentOrUnitIdentifierNeverBecomesPath() = runBlocking {
         for (call in listOf<suspend () -> Unit>(
-            { api().dependentAppointments("t", "../x", unitId) }, { api().dependentQueue("t", dependentId, "x/y") },
+            { api().dependentAppointments("t", "../x", unitId) }, { api().dependentUnitOffers("t", dependentId, "x/y") },
             { api().dependentBook("t", dependentId, unitId, "x", specialtyId, "2026-11-20T12:00:00Z") })) {
             try { call(); fail("expected failure") } catch (_: IllegalArgumentException) {}
         }

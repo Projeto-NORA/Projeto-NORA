@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.example.app_nora.api.*
@@ -52,16 +53,16 @@ class BookingDatePickerTest {
                 }
             }
         }
-        compose.onNodeWithText("Próxima semana").performScrollTo().assertExists()
+        compose.onNodeWithContentDescription("Próxima semana").performScrollTo().assertExists()
     }
 
     @Test fun nextWeekIsNeverDisabledAndEachClickReadsThatWeek() {
         open()
-        repeat(3) { compose.onNodeWithText("Próxima semana").performScrollTo().assertIsEnabled().performClick() }
+        repeat(3) { compose.onNodeWithContentDescription("Próxima semana").performScrollTo().assertIsEnabled().performClick() }
         compose.waitForIdle()
         compose.runOnIdle { assertEquals(listOf(specialty.id to 0, specialty.id to 1, specialty.id to 2, specialty.id to 3), loads) }
-        compose.onNodeWithText("Próxima semana").assertIsEnabled()
-        compose.onNodeWithText("Semana anterior").assertIsEnabled()
+        compose.onNodeWithContentDescription("Próxima semana").assertIsEnabled()
+        compose.onNodeWithContentDescription("Semana anterior").assertIsEnabled()
     }
 
     @Test fun cancellingThePickerClosesItWithoutChangingTheWeek() {

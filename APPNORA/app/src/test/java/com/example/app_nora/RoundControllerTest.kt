@@ -335,7 +335,7 @@ class RoundControllerTest {
         // Recusar continua possível.
         api.ownFailure = null
         controller.respondUnitOffer("off-1", false)
-        assertEquals("Oferta recusada. Você continua na fila, no mesmo lugar.", controller.state.message)
+        assertEquals("Oferta recusada. Sua consulta continua na data original.", controller.state.message)
     }
 
     @Test fun acceptingTheOfferOfADependentWithOverlapNamesThePersonAndKeepsItPending() = runBlocking {

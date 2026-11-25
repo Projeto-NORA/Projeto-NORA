@@ -160,20 +160,19 @@ internal static partial class FamilyChecks
         {
             var link = await Linked(guardian, dependent, u1);
             Guid source;
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(dependent), specialty = "Cardiologia" })) Expect(queue, 201);
+            // Candidatos por consulta posterior: a do dependente é a mais distante (vem antes); a do próximo, mais perto, fica esperando a oferta do dependente cair.
+            var dependentLater = await f.LaterAsync(u1, dependent, "Cardiologia", extraDays: 30);
+            await f.LaterAsync(u1, waiter, "Cardiologia");
             using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = cardiology, startsAt = slotStart })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
             using (var slot = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = source, confirmed = true })) Expect(slot, 201);
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(dependent)) == 1, $"{label}: o dependente recebe a oferta pelo vínculo.");
-            // Quem entra na fila depois fica esperando: a vaga só passa a ele quando a oferta do dependente cair.
-            using (var queueWaiter = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(waiter), specialty = "Cardiologia" })) Expect(queueWaiter, 201);
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(dependent)) == 1, $"{label}: o dependente recebe a oferta pelo vínculo.");
             if (endByStaff) { using var end = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/family-links/{link}/end", new { confirmed = true }); Expect(end, 200); }
             else { using var end = await guardian.PostAsJsonAsync($"/api/patient/dependents/{link}/end", new { confirmed = true }); Expect(end, 200); }
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(dependent)) == 0, $"{label}: a oferta pendente do dependente sem acesso devia ser cancelada na hora.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='cancelled'", Cpf(dependent)) == 1, $"{label}: a oferta fica cancelada, não expirada.");
-            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.waiting_list WHERE cpf=$1 ORDER BY id DESC LIMIT 1", Cpf(dependent)) == "cancelled", $"{label}: a entrada da fila do dependente deixa de ficar 'offered'.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events e JOIN nora_unit.waiting_list q ON q.id=e.entry_id WHERE q.cpf=$1 AND e.status='cancelled'", Cpf(dependent)) == 1, $"{label}: o cancelamento da entrada fica na auditoria.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(waiter)) == 1, $"{label}: a vaga passa ao próximo elegível da fila.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(dependent)) == 0, $"{label}: a oferta pendente do dependente sem acesso devia ser cancelada na hora.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='cancelled'", Cpf(dependent)) == 1, $"{label}: a oferta fica cancelada, não expirada.");
+            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.appointments WHERE id=$1", dependentLater) == "scheduled", $"{label}: cancelar a oferta não mexe na consulta marcada do dependente.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(waiter)) == 1, $"{label}: a vaga passa ao próximo elegível da fila.");
             Require(await f.UnitScalar<string>(u1, "SELECT s.status FROM nora_unit.lightning_slots s WHERE s.appointment_id=$1", source) == "offered", $"{label}: a vaga volta a ser oferecida.");
         }
         await Check("Encerrar o vínculo pelo responsável cancela a oferta pendente do dependente, reabre a vaga e a oferece ao próximo da fila", async () => await EndedLinkReleasesOffer("Responsável", f.G4, 14, 21, "2026-11-18T14:00:00Z", endByStaff: false));
@@ -182,13 +181,13 @@ internal static partial class FamilyChecks
         {
             var link = await Linked(f.G4, 12, u1);
             Guid source;
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(12), specialty = "Clínica Geral" })) Expect(queue, 201);
+            await f.LaterAsync(u1, 12, "Clínica Geral", extraDays: 60);
             using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = clinical, startsAt = "2026-11-19T12:30:00Z" })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
             using (var slot = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = source, confirmed = true })) Expect(slot, 201);
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(12)) == 1, "O dependente com conta recebe a oferta.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(12)) == 1, "O dependente com conta recebe a oferta.");
             using (var end = await f.G4.PostAsJsonAsync($"/api/patient/dependents/{link}/end", new { confirmed = true })) Expect(end, 200);
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'", Cpf(12)) == 1, "Ele ainda responde pela própria conta: a oferta continua pendente.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'", Cpf(12)) == 1, "Ele ainda responde pela própria conta: a oferta continua pendente.");
         });
 
         // ======== Loop 2, achado 2: encerramentos simultâneos dos vínculos do mesmo dependente na mesma UBS ========
@@ -198,11 +197,11 @@ internal static partial class FamilyChecks
             using (var register = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/registry", new { cpf = Cpf(dependent), fullName = "Dependente Setenta e Um", email = "sem-conta71@example.test" })) Expect(register, 201);
             var byGuardian = await Linked(f.G1, dependent, u1); var byStaff = await Linked(f.G2, dependent, u1);
             Guid source;
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(dependent), specialty = "Cardiologia" })) Expect(queue, 201);
+            await f.LaterAsync(u1, dependent, "Cardiologia", extraDays: 90);
             using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-18T13:30:00Z" })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
             using (var slot = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = source, confirmed = true })) Expect(slot, 201);
-            const string pending = "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending'";
+            const string pending = "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending'";
             Require(await f.UnitScalar<long>(u1, pending, Cpf(dependent)) == 1, "Pré-condição: o dependente recebe a oferta pelos vínculos.");
             // Corrida reproduzida sempre, sem depender da temporização: um gatilho de teste, adiado para o commit, faz cada encerramento esperar um lock que o teste
             // segura. Os dois fecham o próprio vínculo, decidem se o dependente perdeu o acesso e só então param, ainda sem confirmar; o teste solta os dois juntos.
@@ -228,7 +227,7 @@ internal static partial class FamilyChecks
             finally { await f.Exec("DROP TRIGGER IF EXISTS hold_family_commit ON nora.family_links"); }
             Require(await f.Scalar<long>("SELECT count(*) FROM nora.family_links WHERE dependent_cpf=$1 AND unit_id=$2 AND status='approved'", Cpf(dependent), u1) == 0, "Os dois vínculos ficaram encerrados.");
             Require(await f.UnitScalar<long>(u1, pending, Cpf(dependent)) == 0, "Sem ninguém que responda por ele, a oferta pendente do dependente devia ser cancelada na hora.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='cancelled'", Cpf(dependent)) == 1, "A oferta fica cancelada, não presa até vencer.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='cancelled'", Cpf(dependent)) == 1, "A oferta fica cancelada, não presa até vencer.");
         });
 
         // ======== Achado 9: consulta periódica das ofertas dos dependentes ========
@@ -236,7 +235,7 @@ internal static partial class FamilyChecks
         {
             var firstLink = await Linked(f.G2, 41, u1); var secondLink = await Linked(f.G2, 13, u1);
             // Dois horários de clínica geral de quinta (12:00Z e 13:00Z) viram Vaga Relâmpago e vão aos dois dependentes, que entram na fila nessa ordem.
-            foreach (var dependent in new[] { 41, 13 }) { using var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(dependent), specialty = "Clínica Geral" }); Expect(queue, 201); }
+            await f.LaterAsync(u1, 41, "Clínica Geral", extraDays: 121); await f.LaterAsync(u1, 13, "Clínica Geral", extraDays: 120);
             foreach (var start in new[] { "2026-11-19T12:00:00Z", "2026-11-19T13:00:00Z" })
             {
                 Guid source;

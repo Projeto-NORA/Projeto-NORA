@@ -292,25 +292,18 @@ internal static partial class FamilyChecks
         });
 
         // ======== 7. Fila, ofertas e Jornada ========
-        await Check("Fila do dependente: o responsável lista só a do dependente e sai dela; outro dependente é 404; evento com autor e guardian_id; repetir é 409", async () =>
+        await Check("Fila manual removida: a leitura da fila do dependente responde vazia só ao responsável; sair da fila → 410 manual-queue-removed", async () =>
         {
-            long d1Entry, d3Entry;
-            using (var a = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(11), specialty = "Cardiologia" })) { Expect(a, 201); d1Entry = (await Read(a)).GetProperty("id").GetInt64(); }
-            using (var b = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(13), specialty = "Clínica Geral" })) { Expect(b, 201); d3Entry = (await Read(b)).GetProperty("id").GetInt64(); }
-            using (var list = await f.G1.GetAsync($"{Base(l1, u1)}/waiting-list")) { Expect(list, 200); var entries = (await Read(list)).GetProperty("entries").EnumerateArray().ToList(); Require(entries.Count == 1 && entries[0].GetProperty("id").GetInt64() == d1Entry && entries[0].GetProperty("cpf").GetString() == Cpf(11), "Fila do dependente."); }
-            using (var noConfirm = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/{d1Entry}/cancel", new { confirmed = false })) Expect(noConfirm, 400);
-            using (var otherDependent = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/{d3Entry}/cancel", new { confirmed = true })) Expect(otherDependent, 404);
-            using (var otherGuardian = await f.G2.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/{d1Entry}/cancel", new { confirmed = true })) Expect(otherGuardian, 403);
-            using (var leave = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/{d1Entry}/cancel", new { confirmed = true })) Expect(leave, 204);
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events WHERE entry_id=$1 AND status='cancelled' AND actor_id=$2 AND source='patient' AND guardian_id=$2", d1Entry, f.PatientIds[1]) == 1, "Saída da fila do responsável sem auditoria.");
-            Require(await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.waiting_list WHERE id=$1", d3Entry) == "waiting", "A entrada do outro dependente não foi tocada.");
-            using (var again = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/{d1Entry}/cancel", new { confirmed = true })) Expect(again, 409);
+            using (var list = await f.G1.GetAsync($"{Base(l1, u1)}/waiting-list")) { Expect(list, 200); Require((await Read(list)).GetProperty("entries").GetArrayLength() == 0, "Fila do dependente sempre vazia."); }
+            using (var otherGuardian = await f.G2.GetAsync($"{Base(l1, u1)}/waiting-list")) Expect(otherGuardian, 403);
+            using (var leave = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/1/cancel", new { confirmed = true })) await ExpectProblem(leave, 410, "manual-queue-removed");
+            using (var anonymous = await f.Anonymous.PostAsJsonAsync($"{Base(l1, u1)}/waiting-list/1/cancel", new { confirmed = true })) Expect(anonymous, 401);
         });
 
         await Check("Ofertas do dependente sem conta: ele recebe a oferta, o responsável a lista (por dependente e agregada, só pendentes), aceita e a consulta nasce com autor e guardian_id", async () =>
         {
-            // O dependente volta à fila (a UBS o inclui) e uma consulta futura de outra pessoa é cancelada e vira Vaga Relâmpago: o dependente sem conta é elegível pelo vínculo aprovado.
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(11), specialty = "Cardiologia" })) Expect(queue, 201);
+            // O dependente tem consulta de Cardiologia mais tarde e uma consulta futura de outra pessoa é cancelada e vira Vaga Relâmpago: o dependente sem conta é elegível pelo vínculo aprovado.
+            var later = await f.LaterAsync(u1, 11, "Cardiologia");
             Guid source;
             using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-18T13:30:00Z" })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);
@@ -337,7 +330,7 @@ internal static partial class FamilyChecks
             using (var accept = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/lightning-offers/{offer}/respond", new { accept = true })) { Expect(accept, 200); var body = await Read(accept); Require(body.GetProperty("accepted").GetBoolean(), "Aceite."); accepted = body.GetProperty("appointmentId").GetGuid(); }
             Require(await f.UnitScalar<string>(u1, "SELECT cpf||'/'||booked_by FROM nora_unit.appointments WHERE id=$1", accepted) == $"{Cpf(11)}/lightning", "A consulta da vaga é do dependente, marcada como lightning.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointment_events WHERE appointment_id=$1 AND status='scheduled' AND actor_id=$2 AND source='patient' AND guardian_id=$2", accepted, f.PatientIds[1]) == 1, "Evento de aceite com guardian_id.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.waiting_list_events e JOIN nora_unit.waiting_list q ON q.id=e.entry_id WHERE q.cpf=$1 AND e.status='completed' AND e.actor_id=$2 AND e.source='patient' AND e.guardian_id=$2", Cpf(11), f.PatientIds[1]) == 1, "Evento de fila do aceite com guardian_id.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointment_events WHERE appointment_id=$1 AND status='cancelled' AND actor_id=$2 AND source='rescheduled-lightning' AND guardian_id=$2", later, f.PatientIds[1]) == 1, "A consulta antecipada do dependente é cancelada com origem rescheduled-lightning e guardian_id.");
             using (var again = await f.G1.PostAsJsonAsync($"{Base(l1, u1)}/lightning-offers/{offer}/respond", new { accept = true })) Expect(again, 409);
             using (var emptyAfter = await f.G1.GetAsync("/api/patient/dependents/lightning-offers")) { Expect(emptyAfter, 200); Require((await Read(emptyAfter)).GetProperty("dependents").GetArrayLength() == 0, "Sem oferta pendente a consulta agregada fica vazia."); }
         });
@@ -382,7 +375,7 @@ internal static partial class FamilyChecks
         });
 
         // ======== 9. Desativação na UBS ========
-        await Check("Desativar o paciente na UBS cancela as consultas futuras scheduled/called como cancelamento da unidade (origem staff, não pesa no score), libera o horário e não cria Vaga Relâmpago; prévia antes", async () =>
+        await Check("Desativar o paciente na UBS cancela as consultas futuras scheduled/called como cancelamento da unidade (origem staff, não pesa no score), e o horário liberado vira Vaga Relâmpago automática; prévia antes", async () =>
         {
             Guid scheduled, called, otherUnit;
             using (var a = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(31), professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-18T14:00:00Z" })) { Expect(a, 201); scheduled = (await Read(a)).GetProperty("id").GetGuid(); }
@@ -392,10 +385,9 @@ internal static partial class FamilyChecks
             otherUnit = Guid.NewGuid();
             await f.UnitExec(u2, "INSERT INTO nora_unit.patient_registry(cpf,full_name,email,created_by) VALUES($1,'Paciente Trinta e Um','p31u2@example.test',$2)", Cpf(31), f.AdminId);
             await f.UnitExec(u2, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,'Cardiologia','Prof Outra',$3,$4,'scheduled',$5,$6)", otherUnit, Cpf(31), T0.AddDays(5), T0.AddDays(5).AddMinutes(30), f.AdminId, T0);
-            using (var q = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(31), specialty = "Ortopedia" })) Expect(q, 201);
             var slotsBefore = await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_slots");
             using (var preview = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/registry/deactivation-preview", new { cpf = Cpf(31) }))
-            { Expect(preview, 200); var body = await Read(preview); Require(body.GetProperty("futureAppointments").GetInt32() == 2 && body.GetProperty("activeWaitingEntries").GetInt32() == 1, $"Prévia: {body}."); }
+            { Expect(preview, 200); var body = await Read(preview); Require(body.GetProperty("futureAppointments").GetInt32() == 2 && body.GetProperty("activeWaitingEntries").GetInt32() == 0, $"Prévia: {body}."); }
             using (var noGrant = await f.OtherAttendant.PostAsJsonAsync($"/api/obs/units/{u1}/registry/deactivation-preview", new { cpf = Cpf(31) })) Expect(noGrant, 403);
             using (var patient = await f.G1.PostAsJsonAsync($"/api/obs/units/{u1}/registry/deactivation-preview", new { cpf = Cpf(31) })) Expect(patient, 403);
             using (var unknown = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/registry/deactivation-preview", new { cpf = Cpf(55) })) Expect(unknown, 404);
@@ -406,13 +398,14 @@ internal static partial class FamilyChecks
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointment_events WHERE appointment_id=ANY($1) AND status='cancelled' AND source='staff' AND actor_id=$2 AND guardian_id IS NULL", new[] { scheduled, called }, f.AttendantId) == 2, "Cancelamento da unidade: origem staff e autor.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status='completed'", Cpf(31)) == 1, "A consulta passada concluída não é tocada.");
             Require(await f.UnitScalar<string>(u2, "SELECT status FROM nora_unit.appointments WHERE id=$1", otherUnit) == "scheduled", "Consulta de outra UBS não é tocada.");
-            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_slots") == slotsBefore, "Nenhuma Vaga Relâmpago é criada automaticamente.");
+            Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_slots") == slotsBefore + 2 && await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_slots WHERE appointment_id=ANY($1) AND origin='cancellation'", new[] { scheduled, called }) == 2, "Os dois horários liberados viram Vaga Relâmpago automática (decisão de 2026-11-24).");
             using (var registry = await f.Attendant.GetAsync($"/api/obs/units/{u1}/registry"))
             {
                 var row = (await Read(registry)).EnumerateArray().Single(p => p.GetProperty("cpf").GetString() == Cpf(31)).GetProperty("attendance");
-                Require(row.GetProperty("cancelledByPatient").GetInt64() == 0 && row.GetProperty("cancellationWeight").GetDouble() == 0 && row.GetProperty("completed").GetInt64() == 1 && row.GetProperty("score").GetDouble() == 1.0, $"O cancelamento da unidade não pesa no score: {row}.");
+                Require(row.GetProperty("cancelledByPatient").GetInt64() == 0 && row.GetProperty("cancellationWeight").GetDouble() == 0 && row.GetProperty("completed").GetInt64() == 1 && row.GetProperty("points").GetInt32() == 760 && row.GetProperty("score").GetDouble() == 0.76, $"O cancelamento da unidade não pesa no score (só o comparecimento: 700 + 60): {row}.");
             }
-            Require((await FreeSlots(f.Attendant, $"/api/obs/units/{u1}", cardiology, "2026-11-18T00:00:00Z", "2026-11-19T00:00:00Z")).Contains("11-18 14:00"), "O horário cancelado volta à disponibilidade.");
+            // Desde 2026-11-24 o horário liberado vira Vaga Relâmpago, que segura o horário: não volta à agenda livre enquanto a vaga estiver aberta ou ofertada.
+            Require(!(await FreeSlots(f.Attendant, $"/api/obs/units/{u1}", cardiology, "2026-11-18T00:00:00Z", "2026-11-19T00:00:00Z")).Contains("11-18 14:00") && await f.UnitScalar<string>(u1, "SELECT status FROM nora_unit.lightning_slots WHERE appointment_id=$1", scheduled) is "open" or "offered", "O horário cancelado fica segurado pela Vaga Relâmpago automática.");
             using (var on = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/registry/active", new { cpf = Cpf(31), isActive = true, confirmed = true })) Expect(on, 204);
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status='cancelled'", Cpf(31)) == 2, "Reativar não restaura as consultas.");
             using (var after = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/registry/deactivation-preview", new { cpf = Cpf(31) })) Require((await Read(after)).GetProperty("futureAppointments").GetInt32() == 0, "Depois da reativação não há o que cancelar.");
@@ -507,7 +500,7 @@ internal static partial class FamilyChecks
         // ======== 11. Leitura de ofertas e limpeza ========
         await Check("A leitura das ofertas (própria, por dependente e agregada) não altera estado: nem oferta vencida, nem vaga, nem fila, nem eventos; quem redistribui é o worker/dispatcher", async () =>
         {
-            using (var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(51), specialty = "Cardiologia" })) Expect(queue, 201);
+            await f.LaterAsync(u1, 51, "Cardiologia");
             Guid source;
             using (var created = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/appointments", new { cpf = Cpf(41), professionalId = ana, specialtyId = cardiology, startsAt = "2026-11-18T14:30:00Z" })) { Expect(created, 201); source = (await Read(created)).GetProperty("id").GetGuid(); }
             using (var cancelled = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{source}/status", new { status = "cancelled", confirmed = true })) Expect(cancelled, 200);

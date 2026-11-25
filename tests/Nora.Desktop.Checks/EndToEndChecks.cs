@@ -103,13 +103,8 @@ internal static partial class Program
                     Require(vm.SelectedAppointment?.Status == "called", "OBS não chamou a consulta: " + vm.Message);
                     Pump(vm.ChangeAppointmentStatusAsync("cancelled", true));
                     Require(vm.SelectedAppointment?.Status == "cancelled", "OBS não cancelou a consulta: " + vm.Message);
-                    vm.WaitingPatient = vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test"); vm.WaitingSpecialty = "Clínica";
-                    Pump(vm.AddUnitWaitingEntryAsync());
-                    Require(vm.UnitWaitingList.Any(item => item.PatientName == "Referência WPF " + suffix && item.Status == "waiting"), "OBS não incluiu paciente na fila da UBS: " + vm.Message);
-                    Pump(vm.CreateUnitLightningSlotAsync());
-                    Require(vm.UnitLightningSlots.Any(item => item.AppointmentId == consultation!.Id && item.Status == "open"), "OBS não criou vaga a partir da consulta cancelada: " + vm.Message);
                     vm.RefreshCommand.Execute(null); PumpUntil(() => !vm.IsBusy);
-                    Require(vm.TodayScheduledCount != "—" && vm.TodayCompletedCount != "—" && vm.QueueWaitingCount == "2" && vm.SlotOpenCount == "2", "Painel não atualizou os dados da UBS pela API real: " + vm.Message);
+                    Require(vm.TodayScheduledCount != "—" && vm.TodayCompletedCount != "—" && vm.OffersRunningCount == "2" && vm.SlotOpenCount == "2", "Painel não atualizou os dados da UBS pela API real: " + vm.Message);
                     // Painel: espera média e série de 7 dias vêm da API real (nenhuma oferta foi aceita, então a espera é —); participação vem junto do cadastro.
                     Require(vm.HasActiveObsUnit && vm.PanelChart.Days.Count == 7 && vm.PanelWaitValue == "—" && vm.PanelWaitHint.Contains("Nenhuma entrada saiu da fila"), $"Painel não leu os indicadores da UBS pela API real: {vm.PanelWaitValue} / {vm.PanelWaitHint}");
                     Require(vm.ObsRegistry.All(p => p.Attendance is not null) && vm.ObsRegistry.Single(p => p.Email == "unit-" + suffix + "@example.test").Attendance is { Completed: 0, Missed: 0, CancelledByPatient: 0, Score: null }, "O cadastro de referência não trouxe a participação de cada paciente (nula sem consulta encerrada).");
@@ -204,10 +199,10 @@ internal static partial class Program
                     Require(vm.FamilyApproved.All(link => link.Id != familyRequest.Id) && Await(ReadDependentStatusAsync(address, guardianToken, familyRequest.Id)) == "ended", "Encerrar deveria refletir na API real: " + vm.Message);
                     obs.ViewModel.Navigate("home"); PumpUntil(() => !vm.IsBusy);
                     network.RefreshCommand.Execute(null); PumpUntil(() => !network.IsBusy);
-                    Require(network.PatientCount == "3" && network.WaitingCount == "2", "Resumo da Secretaria não agregou a rede sem duplicar paciente: " + network.Message);
+                    Require(network.PatientCount == "3", "Resumo da Secretaria não agregou a rede sem duplicar paciente: " + network.Message);
                     Pump(network.LoadUnitsAsync()); network.SummaryUnitFilter = network.Units.Single(u => u.Name == "UBS Cadastro E2E 2").Id;
                     PumpUntil(() => !network.IsBusy);
-                    Require(network.PatientCount == "1" && network.WaitingCount == "0" && network.CreateSummaryCsv().Contains("UBS Cadastro E2E 2"), "Filtro de UBS ou escopo do CSV não refletiu a unidade: " + network.Message);
+                    Require(network.PatientCount == "1" && network.CreateSummaryCsv().Contains("UBS Cadastro E2E 2"), "Filtro de UBS ou escopo do CSV não refletiu a unidade: " + network.Message);
                     network.SelectedUnit = network.Units.Single(u => u.Name == "UBS Cadastro E2E 1");
                     Pump(network.LoadMunicipalAppointmentsAsync());
                     Require(network.MunicipalAppointments.Any(a => a.PatientName == "Referência WPF " + suffix && a.Status == "cancelled"), "Secretaria não consultou a agenda real da UBS: " + network.Message);

@@ -23,7 +23,6 @@ import com.example.app_nora.ui.JourneyScreen
 import com.example.app_nora.ui.JourneySection
 import com.example.app_nora.ui.NoticesScreen
 import com.example.app_nora.ui.ProfileScreen
-import com.example.app_nora.ui.LeaveQueueDialog
 import com.example.app_nora.ui.UnlinkDialog
 import com.example.app_nora.ui.FlashScreen
 import com.example.app_nora.ui.LocalClockMillis
@@ -50,10 +49,10 @@ private fun offer(id: String, specialty: String, expiresIn: Long, status: String
 
 private fun session() = PatientSession("visual-fixture-not-a-token", "2026-10-10T20:00:00Z", previewUser)
 
-private fun connected(offers: List<UnitOffer>, queue: List<UnitQueueEntry> = emptyList(),
+private fun connected(offers: List<UnitOffer>,
     appointments: List<PatientAppointment>? = emptyList(), message: String? = null) = PatientState(
     address = "https://unidade.example.test", session = session(), units = listOf(centro), selectedUnitId = centro.id, message = message,
-    unitData = mapOf(centro.id to UnitSnapshot(queue = queue, offers = offers, appointments = appointments)))
+    unitData = mapOf(centro.id to UnitSnapshot(offers = offers, appointments = appointments)))
 
 private val nextAppointment = PatientAppointment("ap-1", "Ortopedia · fixture visual", "Profissional · fixture visual", at(172_800), at(172_800 + 1_800), "scheduled")
 
@@ -97,7 +96,6 @@ fun LoginErrorLight() = NoraPatientContent(UserSettings(Appearance.LIGHT), {},
 fun PatientPendingLight() = Fixed {
     NoraPatientContent(UserSettings(Appearance.LIGHT), {}, connected(
         offers = listOf(offer("o1", "Cardiologia · fixture visual", 570)),
-        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "offered")),
         appointments = listOf(nextAppointment)))
 }
 
@@ -107,7 +105,6 @@ fun PatientPendingLight() = Fixed {
 fun PatientAcceptedDark() = Fixed {
     NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(
         offers = listOf(offer("o1", "Cardiologia · fixture visual", -60, "accepted")),
-        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "completed")),
         appointments = listOf(nextAppointment)))
 }
 
@@ -151,15 +148,6 @@ fun LoginLargeFont() = NoraPatientContent(UserSettings(Appearance.LIGHT), {},
 @Preview(name = "14 Tablet configuracoes", widthDp = 1000, heightDp = 1000, locale = "pt-rBR")
 @Composable
 fun SettingsTablet() = NoraPatientContent(UserSettings(Appearance.LIGHT), {}, initiallyShowSettings = true)
-
-@PreviewTest
-@Preview(name = "15 Fila aguardando sem oferta", widthDp = 400, heightDp = 1700, locale = "pt-rBR")
-@Composable
-fun PatientWaitingLight() = Fixed {
-    NoraPatientContent(UserSettings(Appearance.LIGHT), {}, connected(emptyList(),
-        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"),
-            UnitQueueEntry(2, "Clínica geral · fixture visual", at(-864_000), "completed"))))
-}
 
 @PreviewTest
 @Preview(name = "16 Vaga Relampago com contagem regressiva", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
@@ -211,19 +199,17 @@ fun AppointmentsLight() = PlainScreen(Appearance.LIGHT) {
         {}, {}, {}, {})
 }
 
-private fun withAttendance(vararg items: Pair<PatientHealthUnit, UnitAttendance?>, failed: Set<String> = emptySet(),
-    queue: List<UnitQueueEntry> = emptyList()) = PatientState(
+private fun withAttendance(vararg items: Pair<PatientHealthUnit, UnitAttendance?>, failed: Set<String> = emptySet()) = PatientState(
     address = "https://unidade.example.test", session = session(), units = items.map { it.first }, selectedUnitId = items.first().first.id,
     unitData = items.associate { (unit, value) ->
-        unit.id to UnitSnapshot(queue = queue.takeIf { unit.id == items.first().first.id }, attendance = value, attendanceFailed = unit.id in failed)
+        unit.id to UnitSnapshot(attendance = value, attendanceFailed = unit.id in failed)
     })
 
 @PreviewTest
 @Preview(name = "22 Jornada com score em pontos", widthDp = 400, heightDp = 2000, locale = "pt-rBR")
 @Composable
 fun JourneyWithScoreLight() = PlainScreen(Appearance.LIGHT) {
-    JourneyScreen(withAttendance(centro to UnitAttendance(8, 1, 2, 0.5, 0.84, 12),
-        queue = listOf(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "waiting"))), {}, {}, {})
+    JourneyScreen(withAttendance(centro to UnitAttendance(8, 1, 2, 0.5, 0.84, 12)), {}, {}, {})
 }
 
 @PreviewTest
@@ -245,13 +231,6 @@ fun JourneyNoDataDark() = PlainScreen(Appearance.DARK) {
 @Composable
 fun JourneyOneUnitDownLight() = PlainScreen(Appearance.LIGHT) {
     JourneyScreen(withAttendance(centro to UnitAttendance(5, 0, 0, 0.0, 1.0, 12), norte to null, failed = setOf(norte.id)), {}, {}, {})
-}
-
-@PreviewTest
-@Preview(name = "25 Dialogo sair da fila", widthDp = 400, heightDp = 700, locale = "pt-rBR")
-@Composable
-fun LeaveQueueDialogLight() = PlainScreen(Appearance.LIGHT) {
-    LeaveQueueDialog(UnitQueueEntry(1, "Cardiologia · fixture visual", at(-3_600), "offered"), {}, {})
 }
 
 @PreviewTest
@@ -346,7 +325,7 @@ private val mariaLink = FamilyLink("dep-maria", "approved", norte.id, norte.name
 private fun communityState(announcements: List<Announcement>?, dependentOffers: List<DependentOffers> = emptyList(),
     offers: List<UnitOffer> = emptyList()) = PatientState(
     address = "https://unidade.example.test", session = session(), units = listOf(centro), selectedUnitId = centro.id,
-    unitData = mapOf(centro.id to UnitSnapshot(queue = emptyList(), offers = offers, appointments = emptyList())),
+    unitData = mapOf(centro.id to UnitSnapshot(offers = offers, appointments = emptyList())),
     announcements = AnnouncementsState(announcements.orEmpty(), cursor = 3, loaded = announcements != null),
     family = FamilyState(listOf(mariaLink)), dependentOffers = dependentOffers)
 
@@ -432,10 +411,9 @@ fun FamilyActingDark() = PlainScreen(Appearance.DARK) {
 
 private fun actingHome() = PatientState(
     address = "https://unidade.example.test", session = session(), units = listOf(centro, norte), selectedUnitId = centro.id,
-    unitData = mapOf(centro.id to UnitSnapshot(queue = emptyList(), offers = emptyList(), appointments = emptyList())),
+    unitData = mapOf(centro.id to UnitSnapshot(offers = emptyList(), appointments = emptyList())),
     family = FamilyState(listOf(mariaLink)), actingFor = mariaLink.id,
     dependentData = mapOf(mariaLink.id to UnitSnapshot(offers = listOf(offer("m1", "Pediatria · fixture visual", 500)),
-        queue = listOf(UnitQueueEntry(5, "Pediatria · fixture visual", at(-7_200), "waiting")),
         appointments = listOf(PatientAppointment("ap-m", "Pediatria · fixture visual", "Profissional · fixture visual", at(172_800), at(174_600), "scheduled")))),
     )
 

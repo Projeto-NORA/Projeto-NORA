@@ -10,7 +10,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         MainWindow = new ShellWindow(DesktopProfile.Operational, devices: new ObsDeviceStore());
-        MainWindow.Icon = BitmapFrame.Create(new Uri("pack://application:,,,/OBS-NORA;component/Assets/obs-nora.ico"));
+        MainWindow.Icon = BitmapFrame.Create(new Uri("pack://application:,,,/OBS-NORA;component/Assets/nora.ico"));
         UnhandledErrorHandler.Install(this, () => (MainWindow as ShellWindow)?.ViewModel.Workspace);
         MainWindow.Show();
     }

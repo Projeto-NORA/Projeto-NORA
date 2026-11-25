@@ -3,7 +3,7 @@
     <StackPanel>
       <DockPanel>
         <TextBlock DockPanel.Dock="Right" Text="{Binding MetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-        <StackPanel Orientation="Horizontal" ToolTip="Cada escolha é aplicada na hora aos números desta tela."><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,10,0" /><TextBlock Text="Filtros da rede" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" /></StackPanel>
+        <StackPanel Orientation="Horizontal" ToolTip="Cada escolha é aplicada na hora aos números desta tela."><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource AccentTextBrush}" Margin="0,0,10,0" /><TextBlock Text="Filtros da rede" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></StackPanel>
       </DockPanel>
       <UniformGrid Columns="4" Margin="0,14,0,0" IsEnabled="{Binding CanFilterNetwork}">
         <StackPanel Margin="0,0,12,10"><TextBlock Text="Período" FontWeight="SemiBold" FontSize="12" />

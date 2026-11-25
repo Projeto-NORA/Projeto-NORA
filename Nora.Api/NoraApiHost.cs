@@ -24,7 +24,6 @@ public static class NoraApiHost
         builder.Services.AddSingleton<UnitMigrationDao>();
         builder.Services.AddSingleton<UnitPatientRegistryDao>();
         builder.Services.AddSingleton<AppointmentDao>();
-        builder.Services.AddSingleton<UnitWaitingListDao>();
         builder.Services.AddSingleton<UnitLightningDao>();
         builder.Services.AddSingleton<UnitLightningDispatcher>();
         builder.Services.AddSingleton<UnitLightningService>();
@@ -43,13 +42,13 @@ public static class NoraApiHost
         builder.Services.AddSingleton<ObsDeviceDao>();
         builder.Services.AddSingleton<ObsDeviceService>();
         builder.Services.AddSingleton<CrossUnitOverlapService>();
-        builder.Services.AddSingleton<CallNextService>();
         builder.Services.AddSingleton<UnitProfileService>();
-        builder.Services.AddSingleton<SlotApprovalService>();
         builder.Services.AddSingleton<EmailSuggestionReconciler>();
         builder.Services.AddSingleton<UnitAccessService>();
         builder.Services.AddSingleton<PatientRegistrationService>();
         builder.Services.AddSingleton<AccountDao>();
+        builder.Services.AddSingleton<AccountPhotoDao>();
+        builder.Services.AddSingleton<AccountPhotoService>();
         builder.Services.AddSingleton<SessionDao>();
         builder.Services.AddSingleton<WorkflowDao>();
         builder.Services.AddSingleton<HealthUnitDao>();

@@ -15,8 +15,8 @@ import org.json.JSONException
 import java.io.IOException
 
 /**
- * Estado do paciente. Fila, ofertas e consultas ficam por UBS em [unitData]; os acessos
- * `appointments`, `unitQueue` e `unitOffers` devolvem os da UBS selecionada. Tudo isto é do próprio paciente: quando ele age
+ * Estado do paciente. Ofertas e consultas ficam por UBS em [unitData]; os acessos
+ * `appointments` e `unitOffers` devolvem os da UBS selecionada. Tudo isto é do próprio paciente: quando ele age
  * por um dependente ([actingFor]), os dados do dependente ficam em [dependentData] e as telas usam a visão de `effective()`.
  */
 data class PatientState(val address: String = "", val session: PatientSession? = null,
@@ -39,7 +39,7 @@ data class PatientState(val address: String = "", val session: PatientSession? =
     val family: FamilyState = FamilyState(),
     /** Id do vínculo aprovado pelo qual o paciente age agora; nulo quando age por si. */
     val actingFor: String? = null,
-    /** Fila, ofertas, consultas e Jornada de cada dependente, por id do vínculo (cada vínculo tem uma só UBS). */
+    /** Ofertas, consultas e Jornada de cada dependente, por id do vínculo (cada vínculo tem uma só UBS). */
     val dependentData: Map<String, UnitSnapshot> = emptyMap(),
     /** Ofertas abertas dos dependentes, lidas pela rota agregada do ciclo de 30 s. */
     val dependentOffers: List<DependentOffers> = emptyList(),
@@ -50,11 +50,12 @@ data class PatientState(val address: String = "", val session: PatientSession? =
     /** Situação do Google na conta (Configurações). */
     val google: GoogleState = GoogleState(),
     /** Horário de funcionamento, serviços e especialidades de cada UBS vinculada, por id da UBS (tela UBS). */
-    val about: Map<String, AboutState> = emptyMap()) {
+    val about: Map<String, AboutState> = emptyMap(),
+    /** Foto de perfil (JPEG) lida de `GET /api/auth/photo`; nula sem foto ou antes da leitura. Fica só em memória. */
+    val photo: ByteArray? = null, val photoLoaded: Boolean = false, val photoBusy: Boolean = false) {
     private val selectedSnapshot: UnitSnapshot? get() = selectedUnitId?.let { unitData[it] }
     val appointments: List<PatientAppointment>? get() = selectedSnapshot?.appointments
-    val unitQueue: List<UnitQueueEntry>? get() = selectedSnapshot?.queue
-    val unitOffers: List<UnitOffer>? get() = selectedSnapshot?.offers
+        val unitOffers: List<UnitOffer>? get() = selectedSnapshot?.offers
 }
 
 /** Comunicados já lidos (ordem crescente de `sequence`), o cursor da próxima leitura incremental e o estado da leitura. */
@@ -133,7 +134,8 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         unitData = emptyMap(), loadingUnits = false, attendanceLoading = false, passwordChangeRequired = false, message = message,
         specialties = null, specialtiesLoading = false, availability = null, availabilityLoading = false, bookingError = null, lastBooked = null,
         announcements = AnnouncementsState(), family = FamilyState(), actingFor = null, dependentData = emptyMap(),
-        dependentOffers = emptyList(), records = RecordsState(), email = EmailState(), google = GoogleState(), about = emptyMap())
+        dependentOffers = emptyList(), records = RecordsState(), email = EmailState(), google = GoogleState(), about = emptyMap(),
+        photo = null, photoLoaded = false, photoBusy = false)
 
     /**
      * A API do serviço. Com [acting] (por padrão o dependente atual), as chamadas por UBS vão pelas rotas do responsável; as ações
@@ -220,6 +222,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         state = state.copy(address = address, session = session)
     }
 
+    /** Fecha o pop-up do resultado da última ação (o texto de [PatientState.message]). */
+    fun dismissMessage() {
+        if (state.message != null) state = state.copy(message = null)
+    }
+
     /** Mostra um texto na tela (falha que aconteceu fora do controlador, como o Google que não abriu); nunca por cima de uma ação em andamento. */
     fun showMessage(text: String?) {
         if (!state.busy) state = state.copy(message = text)
@@ -298,14 +305,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         }
     }
 
-    /** Fila, ofertas e consultas de uma UBS; cada parte é aplicada assim que chega. Lança em qualquer falha. */
+    /** Ofertas e consultas de uma UBS; cada parte é aplicada assim que chega. Lança em qualquer falha. */
     private suspend fun loadUnitData(api: PatientApi, session: PatientSession, unitId: String, acting: String? = null) {
         val offers = api.unitOffers(session.token, unitId)
         if (!isLive(session, acting)) return
         updateUnit(unitId, acting) { it.copy(offers = offers) }
-        val queue = api.unitQueue(session.token, unitId)
-        if (!isLive(session, acting)) return
-        updateUnit(unitId, acting) { it.copy(queue = queue) }
         val appointments = api.appointments(session.token, unitId)
         if (isLive(session, acting)) updateUnit(unitId, acting) { it.copy(appointments = appointments) }
     }
@@ -403,8 +407,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         val unit = state.effective().selectedUnitId ?: return@operation
         val api = api(state.address, acting)
         val offers = api.unitOffers(session.token, unit)
-        val queue = api.unitQueue(session.token, unit)
-        if (isLive(session, acting)) { if (acting == null) touch(unit); updateUnit(unit, acting) { it.copy(queue = queue, offers = offers) } }
+        if (isLive(session, acting)) { if (acting == null) touch(unit); updateUnit(unit, acting) { it.copy(offers = offers) } }
     }
 
     suspend fun respondUnitOffer(id: String, accept: Boolean) = operation(ApiContext.OFFER_RESPOND) {
@@ -430,11 +433,10 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         if (!reloaded) updateUnit(unit, acting) { snapshot ->
             snapshot.copy(offers = snapshot.offers?.map { if (it.id == id) it.copy(status = if (accept) "accepted" else "declined") else it })
         }
-        val subject = if (acting == null) "Sua consulta foi agendada." else "A consulta foi agendada."
         val outcome = when {
-            accept && result.accepted -> "Oferta aceita. $subject"
-            accept -> "A unidade não confirmou o agendamento desta oportunidade. Confira ${if (acting == null) "suas consultas" else "as consultas"}."
-            else -> if (acting == null) "Oferta recusada. Você continua na fila, no mesmo lugar." else "Oferta recusada. A pessoa continua na fila, no mesmo lugar."
+            accept && result.accepted -> "Consulta antecipada! Veja a nova data em Consultas."
+            accept -> "A unidade não confirmou a antecipação. Confira ${if (acting == null) "suas consultas" else "as consultas"}."
+            else -> if (acting == null) "Oferta recusada. Sua consulta continua na data original." else "Oferta recusada. A consulta continua na data original."
         }
         state = state.copy(message = if (reloaded) outcome else "$outcome Não foi possível atualizar a tela; use Atualizar.")
     }
@@ -442,15 +444,14 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     private fun dropOffer(list: List<DependentOffers>, offerId: String): List<DependentOffers> =
         list.map { dependent -> dependent.copy(offers = dependent.offers.filter { it.id != offerId }) }.filter { it.offers.isNotEmpty() }
 
-    /** Recarrega ofertas e fila da UBS (e as consultas quando houve aceite). `false` se não foi possível. */
+    /** Recarrega as ofertas da UBS (e as consultas quando houve aceite). `false` se não foi possível. */
     private suspend fun reloadAfterResponse(api: PatientApi, session: PatientSession, unit: String, withAppointments: Boolean, acting: String?): Boolean {
         try {
             val offers = api.unitOffers(session.token, unit)
-            val queue = api.unitQueue(session.token, unit)
             val appointments = if (withAppointments) api.appointments(session.token, unit) else null
             if (isLive(session, acting)) {
                 if (acting == null) touch(unit)
-                updateUnit(unit, acting) { it.copy(offers = offers, queue = queue, appointments = appointments ?: it.appointments) }
+                updateUnit(unit, acting) { it.copy(offers = offers, appointments = appointments ?: it.appointments) }
             }
             return true
         }
@@ -492,6 +493,21 @@ class PatientController(private val store: AddressStore, private val apiFactory:
                 isCurrent(session, generation)
             }
             if (!finished) return
+        }
+    }
+
+    /**
+     * Leitura imediata das ofertas (as do paciente e as dos dependentes aprovados), pedida por um push de Vaga Relâmpago: o alerta em tela
+     * cheia sai na hora, sem esperar o ciclo de 30 s. Usa a mesma geração da presença; sem sessão não faz nada.
+     */
+    suspend fun pollOffersNow() {
+        val session = state.session ?: return
+        val generation = presenceGeneration
+        pollOffers(session, generation)
+        if (!isCurrent(session, generation) || approvedLinks(state.family.links).isEmpty()) return
+        cycleCall(session, generation, "Ofertas dos dependentes") { it.dependentsOpenOffers(session.token) }?.let { offers ->
+            val approved = approvedLinks(state.family.links).map { it.id }.toSet()
+            if (isCurrent(session, generation)) state = state.copy(dependentOffers = offers.filter { it.dependentId in approved })
         }
     }
 
@@ -765,7 +781,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         state = state.copy(message = presenceConfirmedText(confirmed) + ".")
     }
 
-    // ---- Participação, fila, vínculo e senha ----------------------------------------------------------
+    // ---- Participação, vínculo e senha ----------------------------------------------------------
 
     /**
      * Lê a participação em cada UBS da visão atual (as do paciente, ou a do dependente), uma requisição por UBS, sem `busy`. Quem
@@ -808,35 +824,11 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         }
     }
 
-    /** Sai da fila da UBS da visão atual. 404/409: a entrada mudou na unidade; mostra o estado real recarregando. */
-    suspend fun cancelQueueEntry(id: Long) = operation(ApiContext.QUEUE_CANCEL) {
-        val session = state.session ?: return@operation
-        val acting = state.actingFor
-        val view = state.effective()
-        val unit = view.selectedUnitId ?: return@operation
-        val entry = view.unitQueue?.singleOrNull { it.id == id && (it.status == "waiting" || it.status == "offered") } ?: return@operation
-        val api = api(state.address, acting)
-        if (acting == null) touch(unit)
-        try { api.cancelQueueEntry(session.token, unit, id) }
-        catch (failure: ApiFailure) {
-            if (failure.status == 404 || failure.status == 409) reloadAfterResponse(api, session, unit, false, acting)
-            throw failure
-        }
-        if (!isLive(session, acting)) return@operation
-        val reloaded = reloadAfterResponse(api, session, unit, false, acting)
-        if (!isLive(session, acting)) return@operation
-        if (!reloaded) updateUnit(unit, acting) { snapshot ->
-            snapshot.copy(queue = snapshot.queue?.map { if (it.id == id) it.copy(status = "cancelled") else it })
-        }
-        val outcome = if (acting == null) "Você saiu da fila de ${entry.specialty}." else "A saída da fila de ${entry.specialty} foi registrada."
-        state = state.copy(message = if (reloaded) outcome else "$outcome Não foi possível atualizar a tela; use Atualizar.")
-    }
-
     /**
      * Confere, sem `busy`, o que a remoção da UBS vai cancelar, pela prévia do servidor (`unlink-preview`), relida a cada abertura do aviso:
      * os números são exatamente os que a remoção cancelaria, sem limite de data. `null` quando não foi possível conferir (UBS indisponível,
      * limite de leituras, cadastro desativado, sem rede): o aviso então diz, sem número, que todas as consultas futuras e as solicitações
-     * de fila da UBS serão canceladas.
+     * da UBS serão canceladas.
      */
     suspend fun checkUnlinkImpact(unitId: String): UnlinkImpact? {
         val session = state.session ?: return null
@@ -1066,7 +1058,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
 
     /**
      * Passa a agir pelo dependente [linkId] (um vínculo aprovado) ou, com `null`, por si. A troca é imediata: Início, Consultas,
-     * Agendamento, Fila, Vaga Relâmpago e Jornada passam a usar as rotas do dependente e o que estava em tela do outro lado é limpo.
+     * Agendamento, Vaga Relâmpago e Jornada passam a usar as rotas do dependente e o que estava em tela do outro lado é limpo.
      * Devolve `true` quando agora se age por um dependente e seus dados ainda precisam ser lidos ([loadActingData]).
      */
     fun actFor(linkId: String?): Boolean {
@@ -1097,7 +1089,7 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     /** [actFor] seguido da leitura dos dados do dependente. */
     suspend fun switchActing(linkId: String?) { if (actFor(linkId)) loadActingData() }
 
-    /** Lê oferta, fila e consultas da UBS do dependente atual (sem `busy`); a falha vira [PatientState.message]. */
+    /** Lê ofertas e consultas da UBS do dependente atual (sem `busy`); a falha vira [PatientState.message]. */
     suspend fun loadActingData() = loadSubjectData()
 
     private suspend fun loadSubjectData() {
@@ -1333,6 +1325,67 @@ class PatientController(private val store: AddressStore, private val apiFactory:
                 catch (_: JSONException) { Log.w("NORA", "O serviço retornou uma resposta de push incompatível.") }
             }
         }
+    }
+
+    // ---- Foto de perfil -------------------------------------------------------------------------------------
+
+    /** Relê a identidade da sessão ao abrir o Perfil: o CPF mascarado e o e-mail aparecem quando a API passar a mandá-los. */
+    suspend fun loadMe() {
+        val session = state.session ?: return
+        try {
+            val user = api(state.address, null).me(session.token) ?: return
+            if (isCurrent(session) && user.id == session.user.id) state = state.copy(session = session.copy(user = user))
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) { Log.w("NORA", "Identidade não relida: HTTP ${failure.status}.") }
+        catch (_: IOException) { Log.w("NORA", "Identidade não relida.") }
+        catch (_: JSONException) { Log.w("NORA", "O serviço retornou uma identidade incompatível.") }
+    }
+
+    /** Lê a foto de perfil (ao abrir o Perfil). Sem foto (404) fica nula e o avatar mostra as iniciais; falha é silenciosa. */
+    suspend fun loadPhoto() {
+        val session = state.session ?: return
+        if (state.photoBusy) return
+        try {
+            val photo = api(state.address, null).profilePhoto(session.token)
+            if (isCurrent(session)) state = state.copy(photo = photo, photoLoaded = true)
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            if (failure.status == 401 && isCurrent(session)) state = signedOut(state, failure.message)
+            else Log.w("NORA", "Foto de perfil não lida: HTTP ${failure.status}.")
+        }
+        catch (_: IOException) { Log.w("NORA", "Foto de perfil não lida; a próxima abertura do Perfil tenta de novo.") }
+    }
+
+    /** Envia a foto já recortada e reduzida ([jpeg], até 2 MB). */
+    suspend fun uploadPhoto(jpeg: ByteArray) = photoOperation("Foto de perfil atualizada.") { session ->
+        api(state.address, null).uploadProfilePhoto(session.token, jpeg)
+        jpeg
+    }
+
+    /** Remove a foto; o avatar volta às iniciais. */
+    suspend fun removePhoto() = photoOperation("Foto de perfil removida.") { session ->
+        api(state.address, null).deleteProfilePhoto(session.token)
+        null
+    }
+
+    private suspend fun photoOperation(success: String, action: suspend (PatientSession) -> ByteArray?) {
+        val session = state.session ?: return
+        if (state.photoBusy || state.busy) return
+        state = state.copy(photoBusy = true, message = null)
+        try {
+            val photo = action(session)
+            if (isCurrent(session)) state = state.copy(photo = photo, photoLoaded = true, message = success)
+        }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            val text = failureMessage(failure.status, failure.code, ApiContext.PHOTO)
+            if (failure.status == 401 && isCurrent(session)) state = signedOut(state, text) else if (isCurrent(session)) state = state.copy(message = text)
+        }
+        catch (invalid: IllegalArgumentException) { if (isCurrent(session)) state = state.copy(message = invalid.message) }
+        catch (_: IOException) { if (isCurrent(session)) state = state.copy(message = CONNECTION_FAILED_MESSAGE) }
+        finally { if (isCurrent(session)) state = state.copy(photoBusy = false) }
     }
 
     suspend fun logout() = operation {

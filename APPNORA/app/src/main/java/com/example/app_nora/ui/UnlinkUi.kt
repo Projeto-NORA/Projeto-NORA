@@ -25,11 +25,9 @@ internal fun UnlinkDialog(unitName: String, impact: UnlinkImpact?, loading: Bool
                 Text("A UBS $unitName será removida do aplicativo.")
                 when {
                     loading -> Text("Conferindo o que será cancelado…")
-                    impact == null -> Text("Não foi possível conferir. Todas as consultas futuras e solicitações de fila desta UBS serão canceladas.", color = MaterialTheme.colorScheme.error)
-                    impact.appointments == 0 && impact.queueEntries == 0 ->
-                        Text("Você não tem consultas futuras nem solicitações de fila nesta UBS.")
-                    else -> Text("Serão canceladas agora: ${countLabel(impact.appointments, "consulta futura", "consultas futuras")} " +
-                        "e ${countLabel(impact.queueEntries, "solicitação de fila", "solicitações de fila")}.")
+                    impact == null -> Text("Não foi possível conferir. Todas as consultas futuras desta UBS serão canceladas.", color = MaterialTheme.colorScheme.error)
+                    impact.appointments == 0 -> Text("Você não tem consultas futuras nesta UBS.")
+                    else -> Text("Serão canceladas: ${countLabel(impact.appointments, "consulta futura", "consultas futuras")}.")
                 }
                 Text("Cancelamentos podem afetar seu score.")
                 Text("Para voltar, vincule a UBS novamente.")

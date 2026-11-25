@@ -76,11 +76,13 @@ internal static class ClientFixture
                     {
                         var starts = DateTimeOffset.UtcNow.AddDays(3);
                         await app.Services.GetRequiredService<AppointmentDao>().CreateAsync(unit.Id, operatorUser.Id, new("52998224725", "Clínica de teste", "Profissional de teste Android", starts, starts.AddMinutes(30)), default);
-                        await app.Services.GetRequiredService<UnitWaitingListDao>().AddAsync(unit.Id, operatorUser.Id, new("52998224725", "Cardiologia"), default);
                         await registry.CreateAsync(unit.Id, operatorUser.Id, new("12345678143", "Paciente de origem", "source@example.test"));
                         var slotStart = starts.AddDays(2);
                         var cancelled = await app.Services.GetRequiredService<AppointmentDao>().CreateAsync(unit.Id, operatorUser.Id, new("12345678143", "Cardiologia", "Profissional da vaga Android", slotStart, slotStart.AddMinutes(30)), default);
                         await app.Services.GetRequiredService<AppointmentDao>().ChangeStatusAsync(unit.Id, operatorUser.Id, cancelled.Id, new("cancelled", true), default);
+                        // Vaga Relâmpago automática: quem recebe a oferta é quem tem consulta posterior na mesma especialidade (a consulta que o aceite antecipa).
+                        var later = slotStart.AddDays(1);
+                        await app.Services.GetRequiredService<AppointmentDao>().CreateAsync(unit.Id, operatorUser.Id, new("52998224725", "Cardiologia", "Profissional futuro Android", later, later.AddMinutes(30)), default);
                         await app.Services.GetRequiredService<UnitLightningDao>().CreateAsync(unit.Id, operatorUser.Id, new(cancelled.Id, true), default);
                     }
                 }

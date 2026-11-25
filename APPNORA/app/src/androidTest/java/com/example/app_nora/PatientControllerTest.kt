@@ -37,7 +37,6 @@ class PatientControllerTest {
             releaseReload?.await()
             return emptyList()
         }
-        override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
         override suspend fun logout(token: String) = Unit
         override suspend fun presence(token: String, online: Boolean) {
             presenceFailure?.let { throw it }
@@ -261,7 +260,6 @@ class PatientControllerTest {
         controller.publishPresence(session, generation, false)
 
         controller.refreshUnit()
-        assertEquals("offered", requireNotNull(controller.state.unitQueue).single { it.specialty == "Cardiologia" }.status)
         controller.respondUnitOffer(available.id, true)
         assertEquals("Oferta aceita. Sua consulta foi agendada.", controller.state.message)
         assertEquals("accepted", requireNotNull(controller.state.unitOffers).single { it.id == available.id }.status)

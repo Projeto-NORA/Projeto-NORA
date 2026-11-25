@@ -25,13 +25,7 @@ public partial class AgendaView : UserControl
     private async void OnStatus(object sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceViewModel vm || sender is not Button { Tag: string status } || vm.SelectedAppointment is null) return;
-        if (status == "cancelled" && MessageBox.Show("Confirma o cancelamento desta consulta?", "Cancelar consulta", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (status == "cancelled" && !Nora.Desktop.Services.Confirmation.Ask(Window.GetWindow(this), "Cancelar consulta", "A consulta será cancelada e o horário pode ser oferecido como vaga relâmpago.", "Cancelar consulta", "Voltar")) return;
         await vm.ChangeAppointmentStatusAsync(status, status == "cancelled");
-    }
-    private async void OnCreateLightning(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not WorkspaceViewModel { CanCreateLightning: true } vm) return;
-        if (MessageBox.Show("Oferecer o horário desta consulta cancelada para a fila da especialidade?", "Gerar Vaga Relâmpago", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-            await vm.CreateUnitLightningSlotAsync();
     }
 }

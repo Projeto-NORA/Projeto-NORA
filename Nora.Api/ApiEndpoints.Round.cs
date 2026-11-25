@@ -40,11 +40,9 @@ internal static partial class ApiEndpoints
             return Results.Ok(new ObsDeviceEnvelope(await ObsDeviceService.RetryOnDeadlockAsync(() => access.ExecuteAdministratorAsync(session, unitId, connection => devices.RevokeAsync(connection, session, unitId, id, request, ObsDeviceCredentials.FromRequest(context.Request), ct), ct))));
         }).AddEndpointFilter(new AccountRateLimitFilter(AccountRateLimiter.ObsDevices));
 
-        // ---- Fila: chamar próximo (oferece um horário livre da grade ao primeiro elegível da especialidade) ----
-        obs.MapGet("/obs/units/{unitId:guid}/waiting-list/next", async (Guid unitId, Guid? specialtyId, DateTimeOffset? startsAt, Guid? professionalId, HttpContext context, CallNextService service, CancellationToken ct) =>
-            Results.Ok(await service.PreviewAsync(Session(context), unitId, specialtyId, startsAt, professionalId, ct)));
-        obs.MapPost("/obs/units/{unitId:guid}/waiting-list/call-next", async (Guid unitId, CallNextRequest request, HttpContext context, CallNextService service, CancellationToken ct) =>
-            Results.Json(await service.CallAsync(Session(context), unitId, request, ct), statusCode: StatusCodes.Status201Created));
+        // ---- Chamar próximo: removido em 2026-11-24 (a Vaga Relâmpago é automática) ----
+        obs.MapGet("/obs/units/{unitId:guid}/waiting-list/next", ManualQueueRemoved);
+        obs.MapPost("/obs/units/{unitId:guid}/waiting-list/call-next", ManualQueueRemoved);
 
         // ---- Atendimento ao público da UBS (o administrador grava; a equipe lê) ----
         obs.MapGet("/obs/units/{unitId:guid}/profile", async (Guid unitId, HttpContext context, UnitAccessService access, UnitProfileService profile, CancellationToken ct) =>
@@ -55,24 +53,10 @@ internal static partial class ApiEndpoints
             return Results.Ok(await access.ExecuteAdministratorAsync(session, unitId, connection => profile.ReplaceAsync(connection, session, unitId, request, ct), ct));
         });
 
-        // ---- Aprovação das vagas reaproveitadas ----
-        obs.MapPut("/obs/units/{unitId:guid}/slot-approval", async (Guid unitId, SlotApprovalRequest request, HttpContext context, SchedulingAccessService access, SlotApprovalService approval, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            return Results.Ok(await access.ExecuteAdministratorAsync(session, unitId, connection => approval.SetAsync(connection, session, unitId, request, ct), ct));
-        });
-        obs.MapPost("/obs/units/{unitId:guid}/lightning-slots/{slotId:guid}/approve", async (Guid unitId, Guid slotId, ConfirmedRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            var slot = await access.ExecuteAsync(session, unitId, () => lightning.ApproveAsync(unitId, session.User.Id, slotId, request.Confirmed, ct), ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.Ok(slot);
-        });
-        obs.MapPost("/obs/units/{unitId:guid}/lightning-slots/{slotId:guid}/discard", async (Guid unitId, Guid slotId, ConfirmedRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            return Results.Ok(await access.ExecuteAsync(session, unitId, () => lightning.DiscardAsync(unitId, session.User.Id, slotId, request.Confirmed, ct), ct));
-        });
+        // ---- Aprovação das vagas: removida em 2026-11-24 (toda vaga nasce aberta) ----
+        obs.MapPut("/obs/units/{unitId:guid}/slot-approval", ManualQueueRemoved);
+        obs.MapPost("/obs/units/{unitId:guid}/lightning-slots/{slotId:guid}/approve", ManualQueueRemoved);
+        obs.MapPost("/obs/units/{unitId:guid}/lightning-slots/{slotId:guid}/discard", ManualQueueRemoved);
 
         // ---- App: atendimento ao público da UBS vinculada (paciente) e da UBS do dependente (responsável) ----
         var patient = app.MapGroup("/api").AddEndpointFilter(new SessionFilter("patient"));

@@ -27,7 +27,7 @@ internal static partial class Program
                 Pump(vm.LoginAsync("isolated-test-password"));
                 var routes = profile.IsMunicipal
                     ? new[] { "home", "units", "specialties", "network", "indicators", "slots", "capacity", "alerts", "reports", "communication", "users", "settings" }
-                    : new[] { "home", "agenda", "indicators", "alerts", "patients", "queue", "slots", "unit-settings", "settings" };
+                    : new[] { "home", "agenda", "indicators", "alerts", "patients", "slots", "unit-settings", "settings" };
                 foreach (var route in routes)
                 {
                     window.ViewModel.Navigate(route);
@@ -119,7 +119,7 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 window.ViewModel.Navigate("patients"); Settle(vm);
                 var content = Layout(window, 980, 640);
-                Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Cadastrar referência na UBS").IsExpanded = true;
+                
                 content = Layout(window, 980, 640);
                 var name = Input(content, "Nome no cadastro da UBS");
                 name.Text = "Digitado antes do ciclo";
@@ -201,12 +201,12 @@ internal static partial class Program
                     Require(actual == delta, $"{route}: leituras do ciclo {actual}, esperadas {delta}.");
                 }
                 var changes = 0;
-                vm.ObsRegistry.CollectionChanged += (_, _) => changes++; vm.UnitWaitingList.CollectionChanged += (_, _) => changes++;
+                vm.ObsRegistry.CollectionChanged += (_, _) => changes++;
                 vm.UnitLightningSlots.CollectionChanged += (_, _) => changes++; vm.Appointments.CollectionChanged += (_, _) => changes++;
                 vm.SelectedObsRegistry = vm.ObsRegistry.Single();
-                Cycle("home", (1, 1, 1, 1));
+                Cycle("home", (1, 0, 1, 1)); // a fila manual não é mais lida (Vaga Relâmpago automática)
                 Cycle("patients", (1, 0, 0, 0));
-                Cycle("queue", (0, 1, 0, 0));
+                Cycle("queue", (0, 0, 1, 0)); // "queue" leva ao painel da Vaga Relâmpago
                 Cycle("slots", (0, 0, 1, 0));
                 Cycle("agenda", (0, 0, 0, 1));
                 Cycle("indicators", (0, 0, 0, 0));

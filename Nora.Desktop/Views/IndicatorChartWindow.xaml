@@ -1,0 +1,30 @@
+<Window x:Class="Nora.Desktop.Views.IndicatorChartWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="640" Height="520" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="Gráfico do indicador">
+  <Border Margin="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16" Padding="24">
+    <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.22" Color="#061E3B" /></Border.Effect>
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid MouseLeftButtonDown="OnDrag" Background="Transparent">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Border Width="40" Height="40" CornerRadius="20" Background="{DynamicResource InfoSurfaceBrush}" Margin="0,0,14,0"><TextBlock Text="&#xE9D2;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource AccentTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+        <StackPanel Grid.Column="1"><TextBlock x:Name="TitleText" Style="{StaticResource SectionTitle}" /><TextBlock x:Name="ValueText" Foreground="{DynamicResource SecondaryBrush}" FontSize="13" /></StackPanel>
+        <Button Grid.Column="2" Style="{StaticResource CircleIconButton}" Content="&#xE711;" IsCancel="True" Click="OnClose" ToolTip="Fechar o gráfico" AutomationProperties.Name="Fechar gráfico" VerticalAlignment="Top" />
+      </Grid>
+      <Border Grid.Row="1" HorizontalAlignment="Left" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="10" Padding="4" Margin="0,16,0,16">
+        <StackPanel Orientation="Horizontal">
+          <Button x:Name="LineTab" Style="{StaticResource NavItemButton}" Click="OnLine" MinHeight="32" Padding="16,6" Margin="0,0,4,0" ToolTip="Evolução do número ao longo do período (ou por especialidade, quando não há série)." AutomationProperties.Name="Gráfico de linha"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE9D2;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0" VerticalAlignment="Center" /><TextBlock Text="Linha" /></StackPanel></Button>
+          <Button x:Name="PieTab" Style="{StaticResource NavItemButton}" Click="OnPie" MinHeight="32" Padding="16,6" ToolTip="Composição do indicador em partes." AutomationProperties.Name="Gráfico de pizza"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xEB05;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0" VerticalAlignment="Center" /><TextBlock Text="Pizza" /></StackPanel></Button>
+        </StackPanel>
+      </Border>
+      <Grid Grid.Row="2">
+        <Canvas x:Name="LinePlot" ClipToBounds="True" SizeChanged="OnPlotSize" />
+        <Grid x:Name="PiePanel" Visibility="Collapsed">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <views:OutcomePie x:Name="Pie" HoleRatio="0.55" Margin="8" />
+          <StackPanel x:Name="PieLegend" Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0" MinWidth="170" />
+        </Grid>
+        <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
+      </Grid>
+      <TextBlock x:Name="NoteText" Grid.Row="3" Style="{StaticResource Muted}" FontSize="12" Margin="0,12,0,0" />
+    </Grid>
+  </Border>
+</Window>

@@ -10,13 +10,15 @@ A Fase 3 fechou o grupo 3 (P-030, P-036 e P-037 resolvidas; commits `69dc3ef`, `
 - Agendamento e presença pelo paciente: o app marca qualquer horário livre e futuro, sem antecedência mínima nem máxima prática, só com o teto técnico de 20 anos do servidor (decisão de 2026-11-17; antes era de 24 h a 90 dias), com no máximo uma consulta futura marcada pelo app por especialidade na rede, e confirma presença de 48 h a 2 h antes da consulta.
 - Capacidade (ocupação da grade) por UBS e na rede, consultórios ativos da UBS no OBS, metas da rede com sobrescrita por UBS (status cumprida, perto, fora ou sem dado) e alertas avaliados pela API nos cinco critérios decididos, no OBS e na Secretaria.
 - Comunicados da Secretaria para equipes e pacientes, por rede, região ou UBS, com leituras; Jornada com exames e vacinas lançados pelo OBS e lidos pelo paciente.
-- Família: o responsável pede o vínculo com um dependente numa UBS, a equipe aprova ou recusa, e o responsável age pelo dependente naquela UBS (consultas, agendamento, presença, fila, Vaga Relâmpago, Jornada e participação); o dependente sem conta também recebe ofertas.
+- Família: o responsável pede o vínculo com um dependente numa UBS, a equipe aprova ou recusa, e o responsável age pelo dependente naquela UBS (consultas, agendamento, presença, Vaga Relâmpago, Jornada e participação); o dependente sem conta também recebe ofertas.
 - Troca do e-mail da conta: a correção do e-mail de referência pela UBS, quando o paciente tem conta vinculada àquela UBS, gera uma sugestão que o paciente confirma por código enviado ao endereço novo.
 - Desativação do paciente na UBS também cancela as consultas futuras dele naquela UBS (cancelamento da unidade, sem peso no score), com prévia antes da confirmação.
 - Limpeza periódica de sessões revogadas ou vencidas e de desafios vencidos, e a leitura das ofertas de Vaga Relâmpago deixou de escrever (redistribuição só pelas ações e pelo worker).
 - Números da última rodada: API HTTP 30/30; PostgreSQL 18 fluxos 28/28, bancos separados PASS, plataforma 19/19, revisão 17/17, comunicação e Jornada 16/16, agenda 20/20, Família 21/21 e correções da revisão da Família 11/11; desktop 140/140; Android 217 testes locais, 48 previews, lint 0 erros e 6 avisos antigos. O E2E desktop com banco passou 141/141 depois de todas as correções, e a solução inteira (`NORA.slnx`) compila com 0 erros e 0 avisos. Detalhes e ressalvas em [execucao.md](execucao.md).
 
-**Rodada final (2026-11-16 e 17).** O grupo 3 ficou completo: "Chamar próximo" na Fila do OBS (oferta manual de um horário livre ao primeiro da ordem de oferta, o de mais pontos de score), serviços e horários da UBS editados no OBS e mostrados no app, recusa de consulta sobreposta em outra UBS (409 `other-unit-overlap`, sem dizer qual) e aprovação opcional das vagas reaproveitadas; também a ativação de computadores do OBS (P-014). Os testes instrumentados do Android rodam no emulador (P-040 resolvida). Contratos em [api.md](api.md); telas em [obs-painel-operacional.md](obs-painel-operacional.md), [secretaria.md](secretaria.md) e [app-paciente.md](app-paciente.md).
+**Vaga Relâmpago automática (2026-11-24).** Vaga Relâmpago automática: ao cancelar uma consulta, a API cria a vaga e a oferece, em dez minutos, a quem tem consulta posterior na mesma especialidade (mais pontos de score primeiro); aceitar antecipa a consulta, e recusar ou deixar vencer passa a oferta ao próximo. Não há fila de espera incluída pela equipe, "Chamar próximo", aprovação de vagas nem "sair da fila" (as rotas manuais respondem 410 `manual-queue-removed` e `GET .../waiting-list` devolve `entries: []`).
+
+**Rodada final (2026-11-16 e 17).** O grupo 3 ficou completo: serviços e horários da UBS editados no OBS e mostrados no app, recusa de consulta sobreposta em outra UBS (409 `other-unit-overlap`, sem dizer qual) (o "Chamar próximo" e a aprovação de vagas dessa rodada foram removidos em 2026-11-24, ver abaixo); também a ativação de computadores do OBS (P-014). Os testes instrumentados do Android rodam no emulador (P-040 resolvida). Contratos em [api.md](api.md); telas em [obs-painel-operacional.md](obs-painel-operacional.md), [secretaria.md](secretaria.md) e [app-paciente.md](app-paciente.md).
 
 **Continua fora.** "Entrar com Google" e push pelo servidor estão prontos e desligados até existirem as credenciais do Google (P-042); até lá os avisos de oferta e de comunicado do app são notificações locais do ciclo de 30 s. Hospedagem e distribuição dos aplicativos estão documentadas em [hospedagem.md](hospedagem.md) e [distribuicao.md](distribuicao.md), mas o deploy ainda não foi feito (P-049) e o APK de release não foi configurado (P-048).
 
@@ -126,7 +128,7 @@ existem.
 ### Grupo 3 — falta dado
 
 Consultórios ativos, estado "Livre" da agenda, cadastro estruturado de
-profissionais e de especialidades (hoje texto livre), "chamar próximo" da fila.
+profissionais e de especialidades (hoje texto livre).
 
 ## Secretaria (gestão)
 
@@ -188,7 +190,7 @@ consulta que gerou).
 
 ### Grupo 2 — falta rota
 
-Cancelar a própria entrada na fila, remover vínculo com uma UBS, trocar a senha
+Remover vínculo com uma UBS, trocar a senha
 estando conectado.
 
 ### Grupo 3 — falta dado
@@ -221,7 +223,7 @@ notificações push, serviços e horários da UBS.
 - `api.md` lista os estados de vaga como open/offered/accepted; existe também
   `closed`.
 - `obs-painel-operacional.md` descreve senha, posição e tempo de espera na Fila
-  e botões "Chamar próximo" desabilitados; a tela atual não tem nenhum deles.
+  e botões "Chamar próximo" desabilitados; a tela atual não tem nenhum deles (a fila manual não existe mais).
 
 ## Linha de base de validação (antes de qualquer alteração)
 

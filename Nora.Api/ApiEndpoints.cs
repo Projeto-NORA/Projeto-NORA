@@ -99,24 +99,13 @@ internal static partial class ApiEndpoints
         obs.MapPatch("/obs/units/{unitId:guid}/appointments/{id:guid}/status", async (Guid unitId, Guid id, AppointmentStatusRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(await access.ExecuteAsync(session, unitId, () => appointments.ChangeStatusAsync(unitId, session.User.Id, id, request, ct), ct));
+            var changed = await access.ExecuteAsync(session, unitId, () => appointments.ChangeStatusAsync(unitId, session.User.Id, id, request, ct), ct);
+            return Results.Ok(changed);
         });
-        obs.MapGet("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, int? historyLimit, string? historyBefore, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => waiting.ListForObsAsync(unitId, PageCursor.Limit(historyLimit), historyBefore, ct), ct, read: true)));
-        obs.MapPost("/obs/units/{unitId:guid}/waiting-list", async (Guid unitId, AddUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            var entry = await access.ExecuteAsync(session, unitId, () => waiting.AddAsync(unitId, session.User.Id, request, ct), ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.Json(entry, statusCode: StatusCodes.Status201Created);
-        });
-        obs.MapPost("/obs/units/{unitId:guid}/waiting-list/{id:long}/cancel", async (Guid unitId, long id, CancelUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            await access.ExecuteAsync(session, unitId, async () => { await waiting.CancelAsync(unitId, session.User.Id, id, request.Confirmed, ct); return true; }, ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.NoContent();
-        });
+        // Fila manual removida em 2026-11-24 (a Vaga Relâmpago escolhe sozinha entre quem tem consulta marcada): 410 manual-queue-removed.
+        obs.MapGet("/obs/units/{unitId:guid}/waiting-list", ManualQueueRemoved);
+        obs.MapPost("/obs/units/{unitId:guid}/waiting-list", ManualQueueRemoved);
+        obs.MapPost("/obs/units/{unitId:guid}/waiting-list/{id:long}/cancel", ManualQueueRemoved);
         obs.MapGet("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, int? historyLimit, string? historyBefore, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
             Results.Ok(await access.ExecuteAsync(Session(context), unitId, () => lightning.ListAsync(unitId, PageCursor.Limit(historyLimit), historyBefore, ct), ct, read: true)));
         obs.MapPost("/obs/units/{unitId:guid}/lightning-slots", async (Guid unitId, CreateUnitLightningSlotRequest request, HttpContext context, UnitAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CancellationToken ct) =>
@@ -178,27 +167,23 @@ internal static partial class ApiEndpoints
         patient.MapPost("/patient/units/{unitId:guid}/appointments/{id:guid}/cancel", async (Guid unitId, Guid id, CancelAppointmentRequest request, HttpContext context, UnitAccessService access, AppointmentDao appointments, CancellationToken ct) =>
         {
             var session = Session(context);
-            return Results.Ok(await access.ExecutePatientAsync(session, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf), ct));
+            var changed = await access.ExecutePatientAsync(session, unitId, cpf => appointments.ChangeStatusAsync(unitId, session.User.Id, id, new("cancelled", request.Confirmed), ct, cpf), ct);
+            return Results.Ok(changed);
         });
         // Só leitura (P-036): a redistribuição das ofertas não acontece mais aqui. As ações (fila, vaga, recusa, desativação) e o worker periódico redistribuem.
         patient.MapGet("/patient/units/{unitId:guid}/lightning-offers", async (Guid unitId, HttpContext context, UnitAccessService access, UnitLightningDao lightning, CancellationToken ct) =>
             Results.Ok(new { offers = await access.ExecutePatientAsync(Session(context), unitId, cpf => lightning.ListForPatientAsync(unitId, cpf, ct), ct, read: true) }));
-        patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, CancellationToken ct) =>
-            Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, cpf => waiting.ListAsync(unitId, ct, cpf), ct, read: true) }));
+        // Fila manual removida (2026-11-24): a leitura continua respondendo, sempre com a lista vazia, para o app antigo não quebrar.
+        patient.MapGet("/patient/units/{unitId:guid}/waiting-list", async (Guid unitId, HttpContext context, UnitAccessService access, CancellationToken ct) =>
+            Results.Ok(new { entries = await access.ExecutePatientAsync(Session(context), unitId, _ => Task.FromResult(Array.Empty<object>()), ct, read: true) }));
         patient.MapPost("/patient/units/{unitId:guid}/lightning-offers/{id:guid}/respond", async (Guid unitId, Guid id, UnitLightningResponse request, HttpContext context, SchedulingAccessService access, UnitLightningDao lightning, UnitLightningService lightningService, CrossUnitOverlapService crossUnit, CancellationToken ct) =>
         {
             var session = Session(context);
             var result = await access.ExecutePatientNetworkAsync(session, unitId, cpfLock => lightning.RespondAsync(unitId, session.User.Id, cpfLock.Cpf, id, request.Accept, ct, null, (start, end) => crossUnit.EnsureFreeAsync(cpfLock, unitId, start, end, ct)), ct);
-            if (!result.Accepted) await lightningService.TryAdvanceAsync(unitId, ct);
+            await lightningService.TryAdvanceAsync(unitId, ct); // recusa: próximo candidato; aceite: o horário antigo vira vaga (cascata)
             return Results.Ok(result);
         });
-        patient.MapPost("/patient/units/{unitId:guid}/waiting-list/{id:long}/cancel", async (Guid unitId, long id, CancelUnitWaitingEntryRequest request, HttpContext context, UnitAccessService access, UnitWaitingListDao waiting, UnitLightningService lightningService, CancellationToken ct) =>
-        {
-            var session = Session(context);
-            await access.ExecutePatientAsync(session, unitId, async cpf => { await waiting.CancelByPatientAsync(unitId, session.User.Id, cpf, id, request.Confirmed, ct); return true; }, ct);
-            await lightningService.TryAdvanceAsync(unitId, ct);
-            return Results.NoContent();
-        });
+        patient.MapPost("/patient/units/{unitId:guid}/waiting-list/{id:long}/cancel", ManualQueueRemoved);
         patient.MapPost("/patient/units/{unitId:guid}/unlink", async (Guid unitId, UnlinkUnitRequest request, HttpContext context, UnitAccessService access, UnitPatientUnlinkDao unlink, UnitLightningService lightningService, CancellationToken ct) =>
         {
             if (!request.Confirmed) throw new ApiInputException();
@@ -259,8 +244,16 @@ internal static partial class ApiEndpoints
         app.MapFamilyEndpoints(); // Fase 3 — Família e troca do e-mail da conta (ApiEndpoints.Family.cs)
         app.MapRoundEndpoints(); // Rodada final — computadores do OBS, chamar próximo, atendimento ao público e aprovação das vagas (ApiEndpoints.Round.cs)
         app.MapIdentityEndpoints(); // P-042 — Entrar com Google e push (ApiEndpoints.Identity.cs)
+        app.MapPhotoEndpoints(); // Foto de perfil de qualquer conta (ApiEndpoints.Photo.cs)
         app.MapGet("/api/municipal/summary",async(Guid? unitId, IConfiguration config, IHostEnvironment environment, UnitNetworkSummaryDao network, WorkflowService legacy, CancellationToken ct) =>
             Results.Ok(LegacyEnabled(config, environment) ? await legacy.SummaryAsync(ct) : await network.ReadAsync(unitId, ct))).AddEndpointFilter(new SessionFilter("municipal"));
+    }
+    /// <summary>Rotas do caminho manual da fila removidas em 2026-11-24 (fila do OBS, chamar próximo, aprovação das vagas, sair da fila): 410 com <c>code</c> <c>manual-queue-removed</c>.</summary>
+    private static IResult ManualQueueRemoved() => new GoneResult();
+    /// <summary>Escreve o problem+json do 410 sem passar pelo tratador de exceções (não é erro do servidor e não deve poluir o log).</summary>
+    private sealed class GoneResult : IResult
+    {
+        public Task ExecuteAsync(HttpContext context) { context.Response.StatusCode = StatusCodes.Status410Gone; return ApiProblems.WriteAsync(context, StatusCodes.Status410Gone, "manual-queue-removed"); }
     }
     private static SessionInfo Session(HttpContext context)=>(SessionInfo)context.Items[typeof(SessionInfo)]!;
     private static bool LegacyEnabled(IConfiguration config, IHostEnvironment environment) => environment.IsDevelopment() && config.GetValue("Nora:LegacyGlobalWorkflow:Enabled", false);

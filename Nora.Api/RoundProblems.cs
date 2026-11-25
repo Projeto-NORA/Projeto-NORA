@@ -15,6 +15,7 @@ internal static class RoundProblems
         ["queue-empty"] = ("queue-empty", "Ninguém para chamar", "Nenhuma pessoa desta fila pode receber a oferta agora."),
         ["call-next-too-late"] = ("call-next-too-late", "Horário muito próximo", "A oferta precisa de 10 minutos completos antes do horário. Escolha um horário mais tarde."),
         ["approval-expired"] = ("approval-expired", "Prazo de aprovação encerrado", "Falta menos de 1 hora para a consulta e a vaga foi fechada."),
+        ["manual-queue-removed"] = ("manual-queue-removed", "Função removida", "A fila manual, o chamar próximo e a aprovação das vagas foram removidos: a Vaga Relâmpago agora é oferecida sozinha a quem tem consulta marcada."),
         ["other-unit-overlap"] = ("other-unit-overlap", "Consulta em outra UBS", "Já tem consulta neste horário em outra UBS.")
     };
 

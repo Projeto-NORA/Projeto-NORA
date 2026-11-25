@@ -118,9 +118,8 @@ internal fun GoogleAccountCard(patient: PatientState, google: GoogleActions) {
                 running = false
             }
         }, enabled = !patient.busy && !running, modifier = Modifier.fillMaxWidth()) { Text("Vincular conta Google") }
+        // O resultado da ação aparece no pop-up padrão do app (NoraNoticeDialog), não em texto solto no cartão.
         StepList(steps)
-        patient.message?.let { Text(it, color = if (steps.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium) }
     }
     if (confirmUnlink) AlertDialog(
         onDismissRequest = { confirmUnlink = false },

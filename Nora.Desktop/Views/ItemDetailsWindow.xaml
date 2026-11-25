@@ -4,10 +4,10 @@
     <DataTemplate x:Key="TabsTemplate">
       <!-- Abas da ficha do paciente: Dados e Exames e vacinas. A aba aberta é marcada por texto e traço, não só por cor. -->
       <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-        <Button Content="Dados" Command="{Binding SelectDataCommand}" MinHeight="40" Padding="18,6" Margin="0,0,8,0" AutomationProperties.Name="Aba Dados">
+        <Button Content="Dados" Command="{Binding SelectDataCommand}" MinHeight="40" Padding="18,6" Margin="0,0,8,0" AutomationProperties.Name="Aba Dados" ToolTip="Mostra os dados do item.">
           <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ShowDataTab}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="BorderThickness" Value="0,0,0,3" /></DataTrigger></Style.Triggers></Style></Button.Style>
         </Button>
-        <Button Content="Exames e vacinas" Command="{Binding SelectHealthCommand}" MinHeight="40" Padding="18,6" AutomationProperties.Name="Aba Exames e vacinas">
+        <Button Content="Exames e vacinas" Command="{Binding SelectHealthCommand}" MinHeight="40" Padding="18,6" AutomationProperties.Name="Aba Exames e vacinas" ToolTip="Mostra exames e vacinas do paciente.">
           <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding ShowHealthTab}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="BorderThickness" Value="0,0,0,3" /></DataTrigger></Style.Triggers></Style></Button.Style>
         </Button>
       </StackPanel>

@@ -22,7 +22,8 @@ ALTER TABLE nora_unit.lightning_slots ALTER COLUMN ends_at SET NOT NULL;
 ALTER TABLE nora_unit.lightning_slots ALTER COLUMN appointment_id DROP NOT NULL;
 ALTER TABLE nora_unit.lightning_slots ALTER COLUMN created_by DROP NOT NULL;
 SELECT nora_unit.ensure_check('nora_unit.lightning_slots', 'lightning_slots_status_check', 'status IN (''awaiting_approval'', ''open'', ''offered'', ''accepted'', ''closed'')', ARRAY['awaiting_approval', 'open', 'offered', 'accepted', 'closed']);
-SELECT nora_unit.ensure_check('nora_unit.lightning_slots', 'lightning_slots_origin_check', 'origin IN (''staff'', ''cancellation'', ''call-next'')', ARRAY['staff', 'cancellation', 'call-next']);
+-- Lista final (com 'rescheduled' da 018): reaplicar uma lista menor recriaria a restrição sobre linhas que já usam o valor novo.
+SELECT nora_unit.ensure_check('nora_unit.lightning_slots', 'lightning_slots_origin_check', 'origin IN (''staff'', ''cancellation'', ''call-next'', ''rescheduled'')', ARRAY['staff', 'cancellation', 'call-next', 'rescheduled']);
 SELECT nora_unit.ensure_check('nora_unit.lightning_slots', 'lightning_slots_closed_reason_check', 'closed_reason IS NULL OR closed_reason IN (''too-late'', ''approval-timeout'', ''discarded'', ''conflict'')', ARRAY['too-late', 'approval-timeout', 'discarded', 'conflict']);
 DO $$
 BEGIN

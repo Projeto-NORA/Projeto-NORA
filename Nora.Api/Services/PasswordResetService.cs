@@ -54,7 +54,7 @@ public sealed class PasswordResetService(AccountDao accounts, PasswordResetDao r
 
     public async Task<PasswordResetFinishResponse> FinishAsync(PasswordResetFinishRequest request, CancellationToken ct)
     {
-        if (request.ChallengeId == Guid.Empty || request.NewPassword is null || request.NewPassword.Length is < 8 or > 256)
+        if (request.ChallengeId == Guid.Empty || !AccountService.ValidPassword(request.NewPassword))
             throw new ApiInputException();
         if (request.Code is null || request.Code.Length != 6 || request.Code.Any(c => !char.IsAsciiDigit(c)))
             return new(false);

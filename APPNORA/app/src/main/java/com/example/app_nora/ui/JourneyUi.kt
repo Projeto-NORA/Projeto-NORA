@@ -20,9 +20,9 @@ enum class JourneySection(val label: String) { APPOINTMENTS("Consultas"), EXAMS(
 
 @Composable
 fun JourneyScreen(patient: PatientState, onOpenAppointments: () -> Unit, onRefreshAttendance: () -> Unit,
-    onLeaveQueue: (Long) -> Unit, onLoadRecords: () -> Unit = {}, initialSection: JourneySection = JourneySection.APPOINTMENTS) {
+    onLoadRecords: () -> Unit = {}, initialSection: JourneySection = JourneySection.APPOINTMENTS) {
     val link = patient.actingLink()
-    ScreenTitle(if (link == null) "Sua Jornada" else "Jornada de ${dependentDisplayName(link)}", "Acompanhe os cuidados e os próximos passos.")
+    ScreenTitle(if (link == null) "Sua Jornada" else "Jornada de ${dependentDisplayName(link)}", if (link == null) "Seus cuidados em um só lugar." else "De ${dependentDisplayName(link)}.")
     AttendanceCard(patient, onRefreshAttendance)
     var section by rememberSaveable { mutableStateOf(initialSection) }
     SectionCard("Consultas, exames e vacinas", "Registrados pela equipe das UBS") {
@@ -34,17 +34,11 @@ fun JourneyScreen(patient: PatientState, onOpenAppointments: () -> Unit, onRefre
         }
         when (section) {
             JourneySection.APPOINTMENTS -> {
-                MutedText("Veja as consultas futuras e anteriores na tela Consultas.")
+                MutedText("Futuras e anteriores, em Consultas.")
                 OutlinedButton(onClick = onOpenAppointments, modifier = Modifier.fillMaxWidth()) { Text("Ver consultas") }
             }
             JourneySection.EXAMS -> RecordsList(patient, onLoadRecords, vaccines = false)
             JourneySection.VACCINES -> RecordsList(patient, onLoadRecords, vaccines = true)
-        }
-    }
-    ActionMessage(patient.message)
-    patient.unitQueue?.let { queue ->
-        if (queue.isNotEmpty()) SectionCard("Solicitações de atendimento", "Status informado pela unidade selecionada") {
-            QueueEntries(queue, patient.busy, onLeaveQueue)
         }
     }
 }
@@ -73,8 +67,8 @@ private fun RecordsList(patient: PatientState, onLoadRecords: () -> Unit, vaccin
         }
     }
     if (overview.answered > 0 && overview.failed > 0) Text(
-        if (overview.failed == 1) "Uma UBS não respondeu, então pode haver ${noun}s dela que não aparecem aqui. Atualize para tentar de novo."
-        else "${overview.failed} UBS não responderam, então pode haver ${noun}s delas que não aparecem aqui. Atualize para tentar de novo.",
+        if (overview.failed == 1) "Uma UBS não respondeu. Atualize para tentar de novo."
+        else "${overview.failed} UBS não responderam. Atualize para tentar de novo.",
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
     if (patient.records.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
     if (patient.session != null && patient.units?.isNotEmpty() == true) OutlinedButton(onClick = onLoadRecords, enabled = !patient.records.loading,

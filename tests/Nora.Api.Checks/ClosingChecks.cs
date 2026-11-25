@@ -41,31 +41,32 @@ internal static class ClosingChecks
         await f.TemplateAsync(u1, ana, 3, "08:00", "10:00", 30, room, cardiology);
         for (var number = 1; number <= 11; number++) await f.PatientAsync(number, u1);
 
-        // ---- Score em pontos ----
-        // número do paciente → (concluídas, faltas, pontos, faixa): 1 não tem histórico.
+        // ---- Score por eventos (2026-11-24) ----
+        // Seed grava as faltas antes dos comparecimentos (mais antigas), todas há menos de 90 dias: 700 − 60 por falta (limitado a 0) e depois +60, +70, +80… por comparecimento.
+        // número do paciente → (concluídas, faltas, pontos, faixa): 1 não tem histórico (700).
         var cases = new (int Number, int Completed, int Missed, int Points, string Band)[]
         {
-            (2, 299, 701, 299, "low"), (3, 3, 7, 300, "regular"), (4, 599, 401, 599, "regular"), (5, 3, 2, 600, "good"), (6, 799, 201, 799, "good"), (7, 4, 1, 800, "excellent"), (8, 0, 1, 0, "low")
+            (2, 0, 7, 280, "low"), (3, 0, 6, 340, "regular"), (4, 0, 2, 580, "regular"), (5, 0, 1, 640, "good"), (6, 1, 0, 760, "good"), (7, 2, 0, 830, "excellent"), (8, 0, 12, 0, "low"), (9, 6, 0, 1000, "excellent")
         };
         foreach (var (number, completed, missed, _, _) in cases) await Seed(f, u1, number, completed, missed);
 
-        await suite.Check("Score em pontos: o registry traz points, band e hasHistory em cada paciente (299/300, 599/600, 799/800 nas bordas; sem histórico = 1000, excelente, hasHistory falso); o score antigo continua", async () =>
+        await suite.Check("Score por eventos: o registry traz points, band e hasHistory (sem histórico = 700, good, hasHistory falso; limites 0 e 1000); score = pontos ÷ 1000; contagens antigas iguais", async () =>
         {
             using var response = await f.Admin.GetAsync($"/api/obs/units/{u1}/registry"); Expect(response, 200);
             var rows = (await Read(response)).EnumerateArray().ToDictionary(row => row.GetProperty("cpf").GetString()!);
             var none = rows[Cpf(1)].GetProperty("attendance");
-            Ensure(none.GetProperty("points").GetInt32() == 1000 && none.GetProperty("band").GetString() == "excellent" && !none.GetProperty("hasHistory").GetBoolean() && none.GetProperty("score").ValueKind == JsonValueKind.Null, "Sem consulta encerrada: 1000 pontos, excelente, sem histórico, score nulo.");
+            Ensure(none.GetProperty("points").GetInt32() == 700 && none.GetProperty("band").GetString() == "good" && !none.GetProperty("hasHistory").GetBoolean() && none.GetProperty("score").ValueKind == JsonValueKind.Null, "Sem histórico: 700 pontos, good, sem histórico, score nulo.");
             foreach (var (number, completed, missed, points, band) in cases)
             {
                 var attendance = rows[Cpf(number)].GetProperty("attendance");
                 Ensure(attendance.GetProperty("points").GetInt32() == points && attendance.GetProperty("band").GetString() == band && attendance.GetProperty("hasHistory").GetBoolean(), $"Paciente {number} ({completed}/{missed}): esperado {points} pontos, faixa {band}; veio {attendance.GetProperty("points").GetInt32()} {attendance.GetProperty("band").GetString()}.");
-                Ensure(attendance.GetProperty("completed").GetInt64() == completed && attendance.GetProperty("missed").GetInt64() == missed && Math.Abs(attendance.GetProperty("score").GetDouble() - Math.Round(completed / (double)(completed + missed), 4)) < 1e-9, $"Os campos antigos do paciente {number} mudaram.");
+                Ensure(attendance.GetProperty("completed").GetInt64() == completed && attendance.GetProperty("missed").GetInt64() == missed && attendance.GetProperty("score").GetDouble() == points / 1000.0, $"Contagens ou score (pontos ÷ 1000) do paciente {number} incorretos.");
             }
         });
 
-        await suite.Check("Score em pontos: a rota do paciente (/attendance) traz os mesmos points, band e hasHistory; a Secretaria continua sem attendance", async () =>
+        await suite.Check("Score por eventos: a rota do paciente (/attendance) traz os mesmos points, band e hasHistory; a Secretaria continua sem attendance", async () =>
         {
-            foreach (var (number, points, band, history) in new[] { (1, 1000, "excellent", false), (2, 299, "low", true), (3, 300, "regular", true), (5, 600, "good", true), (7, 800, "excellent", true) })
+            foreach (var (number, points, band, history) in new[] { (1, 700, "good", false), (2, 280, "low", true), (3, 340, "regular", true), (5, 640, "good", true), (7, 830, "excellent", true) })
             {
                 using var response = await f.Patients[number].GetAsync($"/api/patient/units/{u1}/attendance"); Expect(response, 200);
                 var body = await Read(response);
@@ -75,41 +76,15 @@ internal static class ClosingChecks
             Ensure(!(await municipal.Content.ReadAsStringAsync()).Contains("points", StringComparison.Ordinal), "A listagem da Secretaria não traz o score.");
         });
 
-        // ---- Fila do OBS: pontos e ordem de oferta ----
-        // Cardiologia na ordem de entrada: 3 (300), 1 (1000), 6 (799). Pediatria: 8 (0), 10 (1000, sem histórico), 11 (1000, sem histórico). Ortopedia: 5 (600) sozinho. O 2 entra e sai.
-        async Task Join(int number, string specialty) { using var join = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(number), specialty }); Expect(join, 201); f.Clock.Advance(TimeSpan.FromSeconds(5)); }
-        foreach (var number in new[] { 3, 1, 6 }) await Join(number, "Cardiologia");
-        foreach (var number in new[] { 8, 10, 11 }) await Join(number, "Pediatria");
-        await Join(5, "Ortopedia"); await Join(2, "Ortopedia");
-        var cancelledEntry = await f.UnitScalar<long>(u1, "SELECT id FROM nora_unit.waiting_list WHERE cpf=$1", Cpf(2));
-        using (var cancel = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list/{cancelledEntry}/cancel", new { confirmed = true })) Expect(cancel, 204);
-
-        async Task<Dictionary<string, JsonElement>> Queue(HttpClient? client = null, string query = "")
-        {
-            using var response = await (client ?? f.Admin).GetAsync($"/api/obs/units/{u1}/waiting-list{query}"); Expect(response, 200);
-            return (await Read(response)).GetProperty("items").EnumerateArray().ToDictionary(item => item.GetProperty("cpf").GetString()! + "/" + item.GetProperty("specialty").GetString());
-        }
-        async Task<string> OfferOrder(string specialty, params int[] numbers)
-        {
-            var queue = await Queue();
-            return string.Join(",", numbers.Select(number => queue[Cpf(number) + "/" + specialty].GetProperty("offerOrder") is { ValueKind: JsonValueKind.Number } order ? order.GetInt32().ToString() : "-"));
-        }
-
-        await suite.Check("Fila do OBS: cada entrada traz points e band do CPF na UBS e offerOrder (pontos desc, depois entrada) por especialidade; entrada encerrada tem offerOrder nulo", async () =>
-        {
-            var queue = await Queue();
-            Ensure(queue[Cpf(3) + "/Cardiologia"].GetProperty("points").GetInt32() == 300 && queue[Cpf(3) + "/Cardiologia"].GetProperty("band").GetString() == "regular"
-                && queue[Cpf(1) + "/Cardiologia"].GetProperty("points").GetInt32() == 1000 && queue[Cpf(1) + "/Cardiologia"].GetProperty("band").GetString() == "excellent"
-                && queue[Cpf(6) + "/Cardiologia"].GetProperty("points").GetInt32() == 799 && queue[Cpf(6) + "/Cardiologia"].GetProperty("band").GetString() == "good", "Pontos e faixas da Cardiologia.");
-            Ensure(await OfferOrder("Cardiologia", 1, 6, 3) == "1,2,3", "Cardiologia: 1000, depois 799, depois 300, mesmo tendo entrado por último.");
-            Ensure(await OfferOrder("Pediatria", 10, 11, 8) == "1,2,3", "Pediatria: empate em 1000 segue a ordem de entrada (10 antes do 11); o de 0 ponto é o último.");
-            Ensure(await OfferOrder("Ortopedia", 5) == "1" && queue[Cpf(2) + "/Ortopedia"].GetProperty("status").GetString() == "cancelled" && queue[Cpf(2) + "/Ortopedia"].GetProperty("offerOrder").ValueKind == JsonValueKind.Null, "A posição vale por especialidade e a entrada encerrada não tem posição.");
-            using var own = await f.Patients[3].GetAsync($"/api/patient/units/{u1}/waiting-list"); Expect(own, 200);
-            Ensure((await Read(own)).GetProperty("entries").EnumerateArray().All(entry => !entry.TryGetProperty("points", out _)), "As rotas do paciente seguem sem mudança.");
-        });
-
-        // ---- Prioridade da Vaga Relâmpago ----
-        async Task<Guid> OpenSlot(string specialty, string startLocal, Guid? professionalId = null)
+        // ---- Prioridade da Vaga Relâmpago (candidatos por consulta posterior) ----
+        // Consultas marcadas mais adiante (2027), por especialidade; a distância de cada uma está em dias depois de 2027-01-01.
+        async Task Later(int number, string specialty, int days) =>
+            await f.UnitExec(u1, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,'scheduled',$6,$7)",
+                Cpf(number), specialty, $"Agenda futura {number}", new DateTimeOffset(2027, 1, 1, 12, 0, 0, TimeSpan.Zero).AddDays(days), new DateTimeOffset(2027, 1, 1, 12, 30, 0, TimeSpan.Zero).AddDays(days), f.AdminId, f.Clock.GetUtcNow());
+        // Cardiologia: P3 (340) com a consulta mais distante, P1 (700) no meio e P6 (760) a mais perto. Pediatria: P8 (0) a mais distante, P11 e P10 (700) empatados.
+        await Later(3, "Cardiologia", 30); await Later(1, "Cardiologia", 20); await Later(6, "Cardiologia", 10);
+        await Later(8, "Pediatria", 30); await Later(11, "Pediatria", 20); await Later(10, "Pediatria", 10);
+        async Task<Guid> OpenSlot(string specialty, string startLocal)
         {
             var start = Wednesday(startLocal); var id = Guid.NewGuid();
             await f.UnitExec(u1, "INSERT INTO nora_unit.lightning_slots(id,appointment_id,status,created_at,created_by,origin,specialty,specialty_id,professional,professional_id,room_id,starts_at,ends_at) VALUES($1,NULL,'open',$2,$3,'call-next',$4,NULL,'Prof prioridade',NULL,NULL,$5,$6)",
@@ -120,10 +95,10 @@ internal static class ClosingChecks
         async Task<string> Offers(Guid slot)
         {
             await using var unit = await f.Router.OpenAsync(u1);
-            await using var command = new NpgsqlCommand("SELECT q.cpf||':'||o.status FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE o.slot_id=$1 ORDER BY o.expires_at,o.id", unit);
+            await using var command = new NpgsqlCommand("SELECT o.cpf||':'||o.status FROM nora_unit.lightning_offers o WHERE o.slot_id=$1 ORDER BY o.expires_at,o.id", unit);
             command.Parameters.AddWithValue(slot);
             await using var reader = await command.ExecuteReaderAsync(); var rows = new List<string>();
-            while (await reader.ReadAsync()) rows.Add(reader.GetString(0).Replace(Cpf(1), "P1").Replace(Cpf(3), "P3").Replace(Cpf(6), "P6").Replace(Cpf(8), "P8").Replace(Cpf(10), "P10").Replace(Cpf(11), "P11"));
+            while (await reader.ReadAsync()) rows.Add(reader.GetString(0).Replace(Cpf(10), "P10").Replace(Cpf(11), "P11").Replace(Cpf(1), "P1").Replace(Cpf(3), "P3").Replace(Cpf(6), "P6").Replace(Cpf(8), "P8"));
             return string.Join(",", rows);
         }
         async Task Respond(int number, bool accept)
@@ -133,64 +108,45 @@ internal static class ClosingChecks
             var offer = (await Read(offers)).GetProperty("offers").EnumerateArray().Single(item => item.GetProperty("status").GetString() == "pending").GetProperty("id").GetGuid();
             using var response = await f.Patients[number].PostAsJsonAsync($"/api/patient/units/{u1}/lightning-offers/{offer}/respond", new { accept }); Expect(response, 200);
         }
-
-        var slotCardiology = Guid.Empty;
-        await suite.Check("Prioridade: a vaga vai a quem tem mais pontos (não ao primeiro da fila); recusa e vencimento passam a vez ao próximo por pontos e não mudam o score", async () =>
+        async Task<int> Points(int number)
         {
-            slotCardiology = await OpenSlot("Cardiologia", "09:30");
+            using var response = await f.Patients[number].GetAsync($"/api/patient/units/{u1}/attendance"); Expect(response, 200);
+            return (await Read(response)).GetProperty("points").GetInt32();
+        }
+
+        await suite.Check("Prioridade: a vaga vai a quem tem mais pontos (não a quem ganha mais ao antecipar); recusa e vencimento passam a vez ao próximo por pontos e não mudam o score", async () =>
+        {
+            var slot = await OpenSlot("Cardiologia", "09:30");
             await f.AdvanceAsync(u1);
-            Ensure(await Offers(slotCardiology) == "P1:pending", $"1000 pontos recebe antes de quem entrou primeiro (300): {await Offers(slotCardiology)}.");
-            await Respond(1, false);
-            Ensure(await Offers(slotCardiology) == "P1:declined,P6:pending", $"Depois do 1000, o de 799 (não o de 300): {await Offers(slotCardiology)}.");
+            Ensure(await Offers(slot) == "P6:pending", $"760 pontos recebe antes, mesmo com a consulta mais perto: {await Offers(slot)}.");
+            await Respond(6, false);
+            Ensure(await Offers(slot) == "P6:declined,P1:pending", $"Depois do 760, o de 700 (não o de 340, mais distante): {await Offers(slot)}.");
             f.Clock.Advance(TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(1)); await f.AdvanceAsync(u1);
-            Ensure(await Offers(slotCardiology) == "P1:declined,P6:expired,P3:pending", $"Vencida a oferta do 799, o de 300 recebe: {await Offers(slotCardiology)}.");
+            Ensure(await Offers(slot) == "P6:declined,P1:expired,P3:pending", $"Vencida a oferta do 700, o de 340 recebe: {await Offers(slot)}.");
             await Respond(3, false);
-            Ensure(await Offers(slotCardiology) == "P1:declined,P6:expired,P3:declined", "Todos já passaram pela vaga: ninguém a recebe de novo.");
-            var queue = await Queue();
-            Ensure(queue[Cpf(1) + "/Cardiologia"].GetProperty("points").GetInt32() == 1000 && queue[Cpf(6) + "/Cardiologia"].GetProperty("points").GetInt32() == 799 && queue[Cpf(3) + "/Cardiologia"].GetProperty("points").GetInt32() == 300, "Recusar e deixar vencer não baixam o score.");
-            Ensure(await OfferOrder("Cardiologia", 1, 6, 3) == "1,2,3" && queue.Values.Where(item => item.GetProperty("specialty").GetString() == "Cardiologia").All(item => item.GetProperty("status").GetString() == "waiting"), "Todos voltam à fila na mesma posição de oferta.");
+            Ensure(await Offers(slot) == "P6:declined,P1:expired,P3:declined", "Todos já passaram pela vaga: ninguém a recebe de novo.");
+            Ensure(await Points(6) == 760 && await Points(1) == 700 && await Points(3) == 340, "Recusar e deixar vencer não mudam o score.");
         });
 
-        await suite.Check("Prioridade: empate de pontos segue a ordem de entrada na fila; quem tem 0 ponto fica por último mesmo entrando primeiro", async () =>
+        await suite.Check("Prioridade: empate de pontos vai a quem tem a consulta mais distante; quem tem 0 ponto fica por último mesmo com a consulta mais distante de todas", async () =>
         {
             var slot = await OpenSlot("Pediatria", "10:00");
             await f.AdvanceAsync(u1);
-            Ensure(await Offers(slot) == "P10:pending", $"Entre os dois de 1000, o que entrou antes (P10), apesar do P8 ter entrado primeiro: {await Offers(slot)}.");
-            await Respond(10, false);
-            Ensure(await Offers(slot) == "P10:declined,P11:pending", "O segundo de 1000.");
+            Ensure(await Offers(slot) == "P11:pending", $"Entre os dois de 700, o da consulta mais distante (P11): {await Offers(slot)}.");
             await Respond(11, false);
-            Ensure(await Offers(slot) == "P10:declined,P11:declined,P8:pending", "O de 0 ponto só recebe depois dos de 1000.");
+            Ensure(await Offers(slot) == "P11:declined,P10:pending", "O segundo de 700.");
+            await Respond(10, false);
+            Ensure(await Offers(slot) == "P11:declined,P10:declined,P8:pending", "O de 0 ponto só recebe depois dos de 700.");
         });
 
-        await suite.Check("Chamar próximo: a prévia e a oferta seguem a mesma ordem da distribuição (mais pontos primeiro); com a oferta pendente a prévia passa ao próximo por pontos", async () =>
+        await suite.Check("Pontos mudam a ordem de verdade: comparecimentos novos sobem o paciente na ordem de oferta (o cálculo roda na própria UBS)", async () =>
         {
-            async Task<string> Preview(string startLocal)
-            {
-                using var response = await f.Admin.GetAsync($"/api/obs/units/{u1}/waiting-list/next?specialtyId={cardiology}&professionalId={ana}&startsAt={Uri.EscapeDataString(Wednesday(startLocal).ToString("O"))}"); Expect(response, 200);
-                return (await Read(response)).GetProperty("next").GetProperty("patientName").GetString()!;
-            }
-            async Task<(string Patient, JsonElement Slot)> Call(string startLocal)
-            {
-                using var response = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list/call-next", new { specialtyId = cardiology, professionalId = ana, startsAt = Wednesday(startLocal), confirmed = true }); Expect(response, 201);
-                var body = await Read(response); return (body.GetProperty("offer").GetProperty("patientName").GetString()!, body.GetProperty("slot"));
-            }
-            Ensure(await Preview("08:00") == "Paciente 1", "A prévia mostra o de 1000 pontos, não o primeiro da fila (Paciente 3).");
-            Ensure((await Call("08:00")).Patient == "Paciente 1", "A chamada oferece a quem a prévia mostrou.");
-            Ensure(await Preview("08:30") == "Paciente 6", "Com o Paciente 1 já com oferta pendente, a prévia passa ao de 799.");
-            Ensure((await Call("08:30")).Patient == "Paciente 6", "A chamada oferece a quem a prévia mostrou (799, não 300).");
-            Ensure(await Preview("09:00") == "Paciente 3", "Por último, o de 300 pontos.");
-            // Recusar a oferta do chamar próximo devolve o Paciente 1 à fila na mesma posição e com os mesmos pontos: na próxima chamada ele volta a ser o primeiro.
-            await Respond(1, false);
-            Ensure(await Preview("09:00") == "Paciente 1", "Quem recusou volta ao topo da ordem (mesmos pontos, mesma entrada).");
-        });
-
-        await suite.Check("Pontos mudam a ordem de verdade: um novo comparecimento concluído sobe, uma falta nova desce (o cálculo roda na própria UBS, sobre as consultas encerradas)", async () =>
-        {
-            // O de 300 pontos (P3) ganha 30 consultas concluídas: 33/(33+7) = 0,825 → 825 pontos, passa à frente do de 799 (P6) na Cardiologia, mas não do 1000 (P1).
-            await Seed(f, u1, 3, 30, 0, daysBack: 9);
-            var queue = await Queue();
-            Ensure(queue[Cpf(3) + "/Cardiologia"].GetProperty("points").GetInt32() == 825 && queue[Cpf(3) + "/Cardiologia"].GetProperty("band").GetString() == "excellent", "O score novo aparece na fila.");
-            Ensure(await OfferOrder("Cardiologia", 1, 3, 6) == "1,2,3", "A ordem de oferta acompanha os pontos novos.");
+            // P3 (340) ganha 6 comparecimentos depois das faltas: 340 + 60 + 70 + 80 + 90 + 100 + 100 = 840, acima do P6 (760) e do P1 (700).
+            await Seed(f, u1, 3, 6, 0, daysBack: 1);
+            Ensure(await Points(3) == 840, $"O score novo do P3 deveria ser 840: {await Points(3)}.");
+            var slot = await OpenSlot("Cardiologia", "08:00");
+            await f.AdvanceAsync(u1);
+            Ensure(await Offers(slot) == "P3:pending", $"A ordem de oferta acompanha os pontos novos: {await Offers(slot)}.");
         });
 
         // ---- P-053: equipe sem CPF ----
@@ -225,7 +181,7 @@ internal static class ClosingChecks
             Ensure(await Login("patient", Cpf(1)) == 200 && await Login("patient", "paciente1@example.test") == 200, "O paciente entra por CPF ou e-mail.");
         });
 
-        await suite.Check("P-053: POST /api/municipal/staff cria sem CPF (cpf enviado é ignorado e nada dele é gravado), recusa e-mail repetido com 409, e as respostas não trazem cpf", async () =>
+        await suite.Check("P-053: POST /api/municipal/staff cria sem CPF (cpf enviado é ignorado e nada dele é gravado), recusa e-mail repetido com 409, aceita senha curta, recusa senha vazia ou acima de 256, e as respostas não trazem cpf", async () =>
         {
             using (var created = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Administrador Novo", email = "nova@example.test", password = Password, role = "administrator" }))
             {
@@ -236,7 +192,10 @@ internal static class ClosingChecks
             Ensure(await f.Scalar<long>("SELECT count(*) FROM nora.accounts WHERE email IN ('nova@example.test','ignora@example.test') AND cpf IS NULL") == 2, "Nenhum CPF foi gravado.");
             using (var duplicate = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Outra Pessoa", email = "NOVA@example.test", password = Password, role = "attendant" })) await ExpectProblem(duplicate, 409, "conflict");
             using (var withoutEmail = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Sem Email", password = Password, role = "attendant" })) await ExpectProblem(withoutEmail, 400, "invalid-input");
-            using (var shortPassword = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Senha Curta", email = "curta@example.test", password = "curta", role = "attendant" })) await ExpectProblem(shortPassword, 400, "invalid-input");
+            // Senha sem restrições (2026-11-24): curta e sem número é aceita; vazia e acima de 256 caracteres continuam 400.
+            using (var shortPassword = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Senha Curta", email = "curta@example.test", password = "a", role = "attendant" })) Expect(shortPassword, 201);
+            using (var emptyPassword = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Senha Vazia", email = "vazia@example.test", password = "", role = "attendant" })) await ExpectProblem(emptyPassword, 400, "invalid-input");
+            using (var longPassword = await f.Municipal.PostAsJsonAsync("/api/municipal/staff", new { fullName = "Senha Longa", email = "longa@example.test", password = new string('x', 257), role = "attendant" })) await ExpectProblem(longPassword, 400, "invalid-input");
             using (var list = await f.Municipal.GetAsync("/api/municipal/staff")) { Expect(list, 200); Ensure(!(await list.Content.ReadAsStringAsync()).Contains("\"cpf\"", StringComparison.Ordinal), "A listagem da equipe não traz cpf."); }
             var service = f.Service<AccountService>();
             try { await service.ProvisionAsync("patient", "patient", new("Paciente sem CPF", "", "semcpf@example.test", Password)); throw new InvalidOperationException("Paciente sem CPF foi criado."); }
@@ -249,49 +208,8 @@ internal static class ClosingChecks
             using var blocked = await fresh.GetAsync($"/api/obs/units/{u1}/registry"); await ExpectProblem(blocked, 403, "password-change-required");
         });
 
-        // ---- P4: histórico paginado das listas ----
-        var closedRows = 12;
+        // ---- P4: histórico paginado das vagas (a paginação da fila do OBS saiu com a fila manual em 2026-11-24) ----
         await f.RegisterAsync(20, u2); await f.RegisterAsync(21, u2); await f.RegisterAsync(22, u2);
-        await suite.Check("P4: a fila do OBS devolve { items, historyCursor }; os ativos vêm sempre, o histórico em páginas com cursor, sem repetir nem pular (inclusive com a mesma data de entrada)", async () =>
-        {
-            // 12 encerradas do CPF 20 com datas de entrada repetidas de dois em dois; um ativo recente (pela API) e um ativo bem antigo (mais velho que todo o histórico).
-            await f.UnitExec(u2, "INSERT INTO nora_unit.waiting_list(cpf,specialty,entered_at,status,created_by) SELECT $1,'Cardiologia',$2::timestamptz+(g/2)*interval '1 minute',CASE WHEN g%2=0 THEN 'cancelled' ELSE 'completed' END,$3 FROM generate_series(1,$4) g", Cpf(20), RoundClock.T0.AddDays(-3), f.AdminId, closedRows);
-            await f.UnitExec(u2, "INSERT INTO nora_unit.waiting_list(cpf,specialty,entered_at,status,created_by) VALUES($1,'Neurologia',$2,'waiting',$3)", Cpf(22), RoundClock.T0.AddDays(-10), f.AdminId);
-            using (var join = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u2}/waiting-list", new { cpf = Cpf(21), specialty = "Cardiologia" })) Expect(join, 201);
-            var expected = await ClosedIds(f, u2);
-            Ensure(expected.Count == closedRows, "Pré-condição: 12 encerradas.");
-            async Task<(List<long> Active, List<long> Closed, string? Cursor)> Page(string query)
-            {
-                using var response = await f.Admin.GetAsync($"/api/obs/units/{u2}/waiting-list{query}"); Expect(response, 200);
-                var body = await Read(response); var items = body.GetProperty("items").EnumerateArray().ToList();
-                Ensure(items.All(item => item.GetProperty("points").GetInt32() == 1000 && item.GetProperty("band").GetString() == "excellent"), "Cada item traz pontos e faixa.");
-                return (items.Where(item => item.GetProperty("status").GetString() is "waiting" or "offered").Select(item => item.GetProperty("id").GetInt64()).ToList(), items.Where(item => item.GetProperty("status").GetString() is "completed" or "cancelled").Select(item => item.GetProperty("id").GetInt64()).ToList(),
-                    body.GetProperty("historyCursor").GetString());
-            }
-            var first = await Page("?historyLimit=5");
-            Ensure(first.Active.Count == 2 && first.Closed.Count == 5 && first.Cursor is not null, "Página 1: os 2 ativos (inclusive o mais antigo) e 5 encerradas.");
-            var second = await Page($"?historyLimit=5&historyBefore={Uri.EscapeDataString(first.Cursor!)}");
-            Ensure(second.Active.Count == 0 && second.Closed.Count == 5 && second.Cursor is not null, "Página 2: só encerradas, sem os ativos.");
-            var third = await Page($"?historyLimit=5&historyBefore={Uri.EscapeDataString(second.Cursor!)}");
-            Ensure(third.Active.Count == 0 && third.Closed.Count == 2 && third.Cursor is null, "Página 3: as 2 que restam e nenhum cursor.");
-            var joined = first.Closed.Concat(second.Closed).Concat(third.Closed).ToList();
-            Ensure(joined.Distinct().Count() == closedRows && joined.OrderBy(id => id).SequenceEqual(expected.OrderBy(id => id)), "As três páginas juntas têm cada encerrada exatamente uma vez.");
-            Ensure(first.Closed.ToHashSet().SetEquals(expected.Take(5)) && second.Closed.ToHashSet().SetEquals(expected.Skip(5).Take(5)) && third.Closed.ToHashSet().SetEquals(expected.Skip(10)), "Cada página traz as mais recentes que ainda não vieram (por data de entrada, depois id).");
-            // Padrão de 100 encerradas e limites.
-            await f.UnitExec(u2, "INSERT INTO nora_unit.waiting_list(cpf,specialty,entered_at,status,created_by) SELECT $1,'Cardiologia',$2::timestamptz+g*interval '1 minute','cancelled',$3 FROM generate_series(1,100) g", Cpf(20), RoundClock.T0.AddDays(-30), f.AdminId);
-            var defaults = await Page("");
-            Ensure(defaults.Closed.Count == 100 && defaults.Active.Count == 2 && defaults.Cursor is not null, "Sem historyLimit: 100 encerradas e os ativos.");
-            var rest = await Page($"?historyBefore={Uri.EscapeDataString(defaults.Cursor!)}");
-            Ensure(rest.Closed.Count == 12 && rest.Cursor is null, "O resto do histórico vem na página seguinte.");
-            foreach (var invalid in new[] { "?historyLimit=0", "?historyLimit=501", "?historyLimit=-1", "?historyBefore=nao-e-cursor", "?historyBefore=AAAA" })
-            {
-                using var response = await f.Admin.GetAsync($"/api/obs/units/{u2}/waiting-list{invalid}");
-                Ensure((int)response.StatusCode == 400, $"{invalid}: HTTP {(int)response.StatusCode}.");
-            }
-            using (var max = await f.Admin.GetAsync($"/api/obs/units/{u2}/waiting-list?historyLimit=500")) Expect(max, 200);
-            using (var unitOne = await f.Admin.GetAsync($"/api/obs/units/{u1}/waiting-list?historyLimit=1")) Expect(unitOne, 200);
-        });
-
         await suite.Check("P4: as vagas do OBS devolvem { items, historyCursor }: ativas (open, offered, awaiting_approval) sempre, encerradas (accepted, closed) em páginas com cursor, sem repetir nem pular", async () =>
         {
             // 7 encerradas (accepted e closed) com datas de criação repetidas de duas em duas, mais uma vaga aberta bem antiga.
@@ -330,10 +248,10 @@ internal static class ClosingChecks
         });
 
         // ---- P5 ----
-        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada; a versão esperada é 17 e a lista de um CPF usa o índice", async () =>
+        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada da fila (histórico); a versão esperada é a 18 (Vaga Relâmpago automática) e a lista de um CPF usa o índice", async () =>
         {
-            Ensure(UnitSchema.ExpectedVersion == 17, $"ExpectedVersion deveria ser 17, é {UnitSchema.ExpectedVersion}.");
-            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 17, "O banco da UBS criada pela API está na versão 17.");
+            Ensure(UnitSchema.ExpectedVersion == 18, $"ExpectedVersion deveria ser 18, é {UnitSchema.ExpectedVersion}.");
+            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 18, "O banco da UBS criada pela API está na versão 18.");
             Ensure(await f.UnitScalar<long>(u1, "SELECT count(*) FROM pg_indexes WHERE schemaname='nora_unit' AND indexname IN ('waiting_list_cpf_idx','waiting_list_entered_idx')") == 2, "Os dois índices existem.");
             await using var unit = await f.Router.OpenAsync(u1);
             await using var transaction = await unit.BeginTransactionAsync();
@@ -348,7 +266,7 @@ internal static class ClosingChecks
             Ensure((await Plan("SELECT id FROM nora_unit.waiting_list WHERE status IN ('completed','cancelled') ORDER BY entered_at DESC,id DESC LIMIT 100")).Contains("waiting_list_entered_idx", StringComparison.Ordinal), "A página de histórico usa o índice por data de entrada.");
         });
 
-        await suite.Check("P5: um banco de UBS na versão 16 sobe para a 17 com a migração (índices criados, dados intactos)", async () =>
+        await suite.Check("P5: um banco de UBS na versão 16 sobe para a 18 com a migração (índices criados, dados intactos)", async () =>
         {
             var legacy = await f.CreateLegacyUnitAsync(16);
             // O roteador recusa banco desatualizado (503), então a conferência usa uma conexão direta ao banco da UBS.
@@ -362,20 +280,20 @@ internal static class ClosingChecks
             }
             Ensure(await State() == (16, 0), "Pré-condição: versão 16, sem os índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (17, 2), "Depois da migração: versão 17 e os dois índices.");
+            Ensure(await State() == (18, 2), "Depois da migração: versão 18 e os dois índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (17, 2), "Migrar de novo é inofensivo.");
+            Ensure(await State() == (18, 2), "Migrar de novo é inofensivo.");
         });
 
         // ---- Medidas de P4 e P5 (antes/depois de docs/desempenho.md) ----
-        await suite.Check("MEDIDA P4 e P5: histórico grande (20.000 entradas e 5.000 vagas encerradas): primeira página contra a lista inteira; leitura por CPF com e sem o índice", async () =>
+        await suite.Check("MEDIDA P4 e P5: histórico grande (20.000 entradas antigas da fila e 5.000 vagas encerradas): primeira página das vagas contra a lista inteira; leitura por CPF da fila com e sem o índice", async () =>
         {
             await f.UnitExec(u2, "INSERT INTO nora_unit.patient_registry(cpf,full_name,email,created_by) SELECT lpad((80000000000+g)::text,11,'0'),'Paciente '||g::text,'m'||g::text||'@example.test',$1 FROM generate_series(1,2000) g", f.AdminId);
             await f.UnitExec(u2, "INSERT INTO nora_unit.waiting_list(cpf,specialty,entered_at,status,created_by) SELECT lpad((80000000000+(g%2000)+1)::text,11,'0'),'Cardiologia',$1::timestamptz-g*interval '1 minute','cancelled',$2 FROM generate_series(1,20000) g", RoundClock.T0.AddDays(-60), f.AdminId);
             await f.UnitExec(u2, "INSERT INTO nora_unit.lightning_slots(id,appointment_id,status,created_at,created_by,origin,specialty,specialty_id,professional,professional_id,room_id,starts_at,ends_at,closed_reason) " +
                 "SELECT gen_random_uuid(),NULL,'closed',$1::timestamptz-g*interval '1 minute',$2,'call-next','Cardiologia',NULL,'Dra. Ana',NULL,NULL,$1::timestamptz+g*interval '1 hour',$1::timestamptz+g*interval '1 hour'+interval '30 minutes','too-late' FROM generate_series(1,5000) g", RoundClock.T0.AddDays(-60), f.AdminId);
             await f.UnitExec(u2, "ANALYZE nora_unit.waiting_list");
-            foreach (var (route, label) in new[] { ("waiting-list", "fila"), ("lightning-slots", "vagas") })
+            foreach (var (route, label) in new[] { ("lightning-slots", "vagas") })
             {
                 async Task<(double Milliseconds, long Bytes, int Items)> Fetch(string query)
                 {
@@ -422,15 +340,6 @@ internal static class ClosingChecks
         });
     }
 
-    private static async Task<List<long>> ClosedIds(RoundFixture f, Guid unit)
-    {
-        await using var connection = await f.Router.OpenAsync(unit);
-        await using var command = new NpgsqlCommand("SELECT id FROM nora_unit.waiting_list WHERE status IN ('completed','cancelled') ORDER BY entered_at DESC,id DESC", connection);
-        await using var reader = await command.ExecuteReaderAsync(); var ids = new List<long>();
-        while (await reader.ReadAsync()) ids.Add(reader.GetInt64(0));
-        return ids;
-    }
-
     /// <summary>
     /// P3: a listagem de cadastro do OBS reaproveita a conexão central do executor. Com o pool central limitado a UMA conexão, uma segunda abertura dentro da rota ficaria esperando a primeira (que só é devolvida no
     /// fim da rota) e a requisição estouraria o tempo; com a conexão reaproveitada ela responde. Também mede quantas conexões a rota usa.
@@ -453,7 +362,7 @@ internal static class ClosingChecks
         {
             using var response = await f.Admin.GetAsync($"/api/obs/units/{u1}/registry"); Expect(response, 200);
             var rows = (await Read(response)).EnumerateArray().ToList();
-            Ensure(rows.Count == 5 && rows.Single(row => row.GetProperty("cpf").GetString() == Cpf(1)).GetProperty("attendance").GetProperty("points").GetInt32() == 750, "O cadastro e o score voltam completos.");
+            Ensure(rows.Count == 5 && rows.Single(row => row.GetProperty("cpf").GetString() == Cpf(1)).GetProperty("attendance").GetProperty("points").GetInt32() == 850, "O cadastro e o score voltam completos (falta −60, depois +60 +70 +80 → 850).");
             Ensure(rows.Count(row => row.GetProperty("isOnline").GetBoolean()) == 0, "Ninguém online sem presença.");
             using var presence = await f.Patients[2].PostAsync("/api/patient/presence", null);
             using var again = await f.Admin.GetAsync($"/api/obs/units/{u1}/registry"); Expect(again, 200);

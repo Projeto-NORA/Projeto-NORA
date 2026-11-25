@@ -32,8 +32,8 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         }
         await using (var advisory = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended(lower($1), 62419809))", connection))
         { advisory.Parameters.AddWithValue(professional); await advisory.ExecuteNonQueryAsync(ct); }
-        await using (var conflict = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE lower(professional)=lower($1) AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2) OR EXISTS(SELECT 1 FROM nora_unit.lightning_slots WHERE lower(btrim(professional))=lower(btrim($1)) AND status IN ('open','offered') AND starts_at<$3 AND ends_at>$2)", connection))
-        { conflict.Parameters.AddWithValue(professional); conflict.Parameters.AddWithValue(startsAt); conflict.Parameters.AddWithValue(endsAt); if (await conflict.ExecuteScalarAsync(ct) is true) throw new ApiConflictException(); }
+        await using (var conflict = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE lower(professional)=lower($1) AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2) OR EXISTS(SELECT 1 FROM nora_unit.lightning_slots WHERE lower(btrim(professional))=lower(btrim($1)) AND status IN ('open','offered') AND starts_at<$3 AND ends_at>$2 AND appointment_id IS DISTINCT FROM $4)", connection))
+        { conflict.Parameters.AddWithValue(professional); conflict.Parameters.AddWithValue(startsAt); conflict.Parameters.AddWithValue(endsAt); conflict.Parameters.AddWithValue(request.AppointmentId); if (await conflict.ExecuteScalarAsync(ct) is true) throw new ApiConflictException(); }
         var id = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand("INSERT INTO nora_unit.lightning_slots(id,appointment_id,status,created_at,created_by,origin,specialty,specialty_id,professional,professional_id,room_id,starts_at,ends_at) VALUES($1,$2,'open',$3,$4,'staff',$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(appointment_id) DO NOTHING", connection))
         {
@@ -42,7 +42,14 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
             insert.Parameters.AddWithValue(professional); insert.Parameters.Add(new NpgsqlParameter { Value = (object?)professionalId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Uuid });
             insert.Parameters.Add(new NpgsqlParameter { Value = (object?)roomId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Uuid });
             insert.Parameters.AddWithValue(startsAt); insert.Parameters.AddWithValue(endsAt);
-            if (await insert.ExecuteNonQueryAsync(ct) != 1) throw new ApiConflictException();
+            if (await insert.ExecuteNonQueryAsync(ct) != 1)
+            {
+                // O distribuidor já criou sozinho a vaga desta consulta (origem 'cancellation') e ela ainda está aberta ou ofertada: o pedido da equipe só adiantaria o que já aconteceu, então devolve a mesma vaga.
+                await using var existing = new NpgsqlCommand("SELECT id FROM nora_unit.lightning_slots WHERE appointment_id=$1 AND origin IN ('cancellation','rescheduled') AND status IN ('open','offered')", connection);
+                existing.Parameters.AddWithValue(request.AppointmentId);
+                if (await existing.ExecuteScalarAsync(ct) is not Guid automatic) throw new ApiConflictException();
+                id = automatic;
+            }
         }
         var slot = await ReadOneAsync(connection, id, ct); await transaction.CommitAsync(ct); return (await WithNamesAsync([slot], ct))[0];
     }
@@ -64,7 +71,7 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         var rows = new List<SlotRow>();
         if (before is null)
         {
-            await using var active = new NpgsqlCommand("SELECT " + SlotColumns + " " + SlotFrom + "WHERE s.status IN ('open','offered','awaiting_approval') ORDER BY s.created_at,s.id", connection);
+            await using var active = new NpgsqlCommand("SELECT " + SlotColumns + " " + SlotFrom + "WHERE s.status IN ('open','offered') ORDER BY s.created_at,s.id", connection);
             await using var reader = await active.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct)) rows.Add(Read(reader));
         }
@@ -88,68 +95,6 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         return Guid.TryParse(key, out var id) ? (at, id) : throw new ApiInputException();
     }
 
-    /// <summary>
-    /// Aprova a vaga que aguarda aprovação: ela passa a <c>open</c> e entra na distribuição. Falta 1 h ou menos → fecha (<c>approval-timeout</c>, gravado) e 409 <c>approval-expired</c>; o horário foi ocupado de novo (consulta ativa ou
-    /// vaga aberta/ofertada do profissional) → fecha (<c>conflict</c>, gravado) e 409 <c>slot-unavailable</c>. Não aguardando → 409; outra UBS ou inexistente → 404. O chamador redistribui depois.
-    /// </summary>
-    public async Task<UnitLightningSlot> ApproveAsync(Guid unitId, Guid actorId, Guid slotId, bool confirmed, CancellationToken ct)
-    {
-        if (slotId == Guid.Empty || actorId == Guid.Empty || !confirmed) throw new ApiInputException();
-        await using var connection = await databases.OpenAsync(unitId, ct); await using var transaction = await connection.BeginTransactionAsync(ct);
-        await UnitWaitingListDao.LockAsync(connection, ct);
-        var (status, professional, startsAt, endsAt) = await LockSlotAsync(connection, slotId, ct);
-        if (status != "awaiting_approval") throw new ApiConflictException();
-        var now = time.GetUtcNow();
-        if (startsAt <= now + UnitLightningDispatcher.ApprovalLead)
-        {
-            await CloseAsync(connection, slotId, "approval-timeout", ct); await transaction.CommitAsync(ct);
-            throw new ApiCodedException(StatusCodes.Status409Conflict, "approval-expired");
-        }
-        await using (var advisory = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended(lower($1), 62419809))", connection))
-        { advisory.Parameters.AddWithValue(professional); await advisory.ExecuteNonQueryAsync(ct); }
-        await using (var conflict = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE lower(btrim(professional))=lower(btrim($1)) AND status IN ('scheduled','called','completed','missed') AND starts_at<$3 AND ends_at>$2) OR EXISTS(SELECT 1 FROM nora_unit.lightning_slots WHERE id<>$4 AND lower(btrim(professional))=lower(btrim($1)) AND status IN ('open','offered') AND starts_at<$3 AND ends_at>$2)", connection))
-        {
-            conflict.Parameters.AddWithValue(professional); conflict.Parameters.AddWithValue(startsAt); conflict.Parameters.AddWithValue(endsAt); conflict.Parameters.AddWithValue(slotId);
-            if (await conflict.ExecuteScalarAsync(ct) is true)
-            {
-                await CloseAsync(connection, slotId, "conflict", ct); await transaction.CommitAsync(ct);
-                throw new ApiCodedException(StatusCodes.Status409Conflict, "slot-unavailable");
-            }
-        }
-        await using (var approve = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='open',decided_by=$2,decided_at=$3 WHERE id=$1", connection))
-        { approve.Parameters.AddWithValue(slotId); approve.Parameters.AddWithValue(actorId); approve.Parameters.AddWithValue(now); await approve.ExecuteNonQueryAsync(ct); }
-        var slot = await ReadOneAsync(connection, slotId, ct); await transaction.CommitAsync(ct);
-        return (await WithNamesAsync([slot], ct))[0];
-    }
-
-    /// <summary>Descarta a vaga que aguarda aprovação (<c>closed</c>, <c>discarded</c>). Não aguardando → 409; outra UBS ou inexistente → 404.</summary>
-    public async Task<UnitLightningSlot> DiscardAsync(Guid unitId, Guid actorId, Guid slotId, bool confirmed, CancellationToken ct)
-    {
-        if (slotId == Guid.Empty || actorId == Guid.Empty || !confirmed) throw new ApiInputException();
-        await using var connection = await databases.OpenAsync(unitId, ct); await using var transaction = await connection.BeginTransactionAsync(ct);
-        await UnitWaitingListDao.LockAsync(connection, ct);
-        var (status, _, _, _) = await LockSlotAsync(connection, slotId, ct);
-        if (status != "awaiting_approval") throw new ApiConflictException();
-        await using (var discard = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='closed',closed_reason='discarded',decided_by=$2,decided_at=$3 WHERE id=$1", connection))
-        { discard.Parameters.AddWithValue(slotId); discard.Parameters.AddWithValue(actorId); discard.Parameters.AddWithValue(time.GetUtcNow()); await discard.ExecuteNonQueryAsync(ct); }
-        var slot = await ReadOneAsync(connection, slotId, ct); await transaction.CommitAsync(ct);
-        return (await WithNamesAsync([slot], ct))[0];
-    }
-
-    private static async Task<(string Status, string Professional, DateTimeOffset StartsAt, DateTimeOffset EndsAt)> LockSlotAsync(NpgsqlConnection connection, Guid slotId, CancellationToken ct)
-    {
-        await using var select = new NpgsqlCommand("SELECT status,professional,starts_at,ends_at FROM nora_unit.lightning_slots WHERE id=$1 FOR UPDATE", connection);
-        select.Parameters.AddWithValue(slotId); await using var reader = await select.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) throw new ApiNotFoundException();
-        return (reader.GetString(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.GetFieldValue<DateTimeOffset>(3));
-    }
-
-    private static async Task CloseAsync(NpgsqlConnection connection, Guid slotId, string reason, CancellationToken ct)
-    {
-        await using var close = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='closed',closed_reason=$2 WHERE id=$1", connection);
-        close.Parameters.AddWithValue(slotId); close.Parameters.AddWithValue(reason); await close.ExecuteNonQueryAsync(ct);
-    }
-
     /// <summary>Preenche o nome de quem decidiu (conta central) numa consulta só por lista.</summary>
     private async Task<List<UnitLightningSlot>> WithNamesAsync(List<SlotRow> slots, CancellationToken ct)
     {
@@ -163,17 +108,17 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         return slots.Select(row => row.DecidedBy is { } id ? row.Slot with { DecidedByName = names.GetValueOrDefault(id) } : row.Slot).ToList();
     }
 
-    /// <summary>Ofertas de uma vaga em ordem cronológica (o prazo de dez minutos cresce a cada oferta), só com o nome do paciente.</summary>
+    /// <summary>Ofertas de uma vaga em ordem cronológica (o prazo de dez minutos cresce a cada oferta), só com o nome do paciente e o início da consulta que seria antecipada.</summary>
     public async Task<List<UnitSlotOffer>> ListOffersAsync(Guid unitId, Guid slotId, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT o.id,p.full_name,o.status,o.expires_at,s.id FROM nora_unit.lightning_slots s LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id LEFT JOIN nora_unit.waiting_list q ON q.id=o.entry_id LEFT JOIN nora_unit.patient_registry p ON p.cpf=q.cpf WHERE s.id=$1 ORDER BY o.expires_at,o.id", connection);
+        await using var query = new NpgsqlCommand("SELECT o.id,p.full_name,o.status,o.expires_at,s.id,r.starts_at FROM nora_unit.lightning_slots s LEFT JOIN nora_unit.lightning_offers o ON o.slot_id=s.id LEFT JOIN nora_unit.patient_registry p ON p.cpf=o.cpf LEFT JOIN nora_unit.appointments r ON r.id=o.appointment_id WHERE s.id=$1 ORDER BY o.expires_at,o.id", connection);
         query.Parameters.AddWithValue(slotId);
         await using var reader = await query.ExecuteReaderAsync(ct); var offers = new List<UnitSlotOffer>(); var slotFound = false;
         while (await reader.ReadAsync(ct))
         {
             slotFound = true;
-            if (!reader.IsDBNull(0)) offers.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3)));
+            if (!reader.IsDBNull(0)) offers.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<DateTimeOffset>(3), reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5)));
         }
         return slotFound ? offers : throw new ApiNotFoundException();
     }
@@ -181,9 +126,9 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
     public async Task<List<UnitLightningOffer>> ListForPatientAsync(Guid unitId, string cpf, CancellationToken ct, bool pendingOnly = false)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT o.id,o.slot_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE q.cpf=$1 AND (NOT $2 OR (o.status='pending' AND o.expires_at>$3)) ORDER BY o.expires_at,o.id", connection);
+        await using var query = new NpgsqlCommand("SELECT o.id,o.slot_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status,o.appointment_id,r.starts_at FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id LEFT JOIN nora_unit.appointments r ON r.id=o.appointment_id WHERE o.cpf=$1 AND (NOT $2 OR (o.status='pending' AND o.expires_at>$3)) ORDER BY o.expires_at,o.id", connection);
         query.Parameters.AddWithValue(cpf); query.Parameters.AddWithValue(pendingOnly); query.Parameters.AddWithValue(time.GetUtcNow()); await using var reader = await query.ExecuteReaderAsync(ct); var offers = new List<UnitLightningOffer>();
-        while (await reader.ReadAsync(ct)) offers.Add(new(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetFieldValue<DateTimeOffset>(4), reader.GetFieldValue<DateTimeOffset>(5), reader.GetFieldValue<DateTimeOffset>(6), reader.GetString(7)));
+        while (await reader.ReadAsync(ct)) offers.Add(ReadOffer(reader, 0));
         return offers;
     }
 
@@ -196,59 +141,74 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
     internal async Task<List<PendingOfferRow>> ListPendingForCpfsAsync(Guid unitId, string[] cpfs, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT q.cpf,p.full_name,o.id,o.slot_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id JOIN nora_unit.patient_registry p ON p.cpf=q.cpf AND p.is_active JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE q.cpf=ANY($1) AND o.status='pending' AND o.expires_at>$2 ORDER BY o.expires_at,o.id", connection);
+        await using var query = new NpgsqlCommand("SELECT o.cpf,p.full_name,o.id,o.slot_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status,o.appointment_id,r.starts_at FROM nora_unit.lightning_offers o JOIN nora_unit.patient_registry p ON p.cpf=o.cpf AND p.is_active JOIN nora_unit.lightning_slots s ON s.id=o.slot_id LEFT JOIN nora_unit.appointments r ON r.id=o.appointment_id WHERE o.cpf=ANY($1) AND o.status='pending' AND o.expires_at>$2 ORDER BY o.expires_at,o.id", connection);
         query.Parameters.AddWithValue(cpfs); query.Parameters.AddWithValue(time.GetUtcNow());
         await using var reader = await query.ExecuteReaderAsync(ct); var rows = new List<PendingOfferRow>();
-        while (await reader.ReadAsync(ct)) rows.Add(new(reader.GetString(0), reader.GetString(1), new(reader.GetGuid(2), reader.GetGuid(3), reader.GetString(4), reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6), reader.GetFieldValue<DateTimeOffset>(7), reader.GetFieldValue<DateTimeOffset>(8), reader.GetString(9))));
+        while (await reader.ReadAsync(ct)) rows.Add(new(reader.GetString(0), reader.GetString(1), ReadOffer(reader, 2)));
         return rows;
     }
 
-    /// <summary>
-    /// Cancela as ofertas pendentes do CPF (o dependente perdeu quem responda por ele): reabre as vagas, marca as ofertas como canceladas e cancela as entradas de fila que estavam 'offered' (com evento de auditoria e,
-    /// quando é o responsável quem encerra, o <c>guardian_id</c>). Entradas 'waiting' ficam como estão; sem acesso, o distribuidor as ignora. Devolve quantas ofertas foram canceladas; o chamador redistribui as vagas.
-    /// </summary>
+    /// <summary>Oferta do paciente a partir da coluna <paramref name="at"/>: id, vaga, especialidade, profissional, horário, prazo, situação e a consulta que seria antecipada.</summary>
+    private static UnitLightningOffer ReadOffer(NpgsqlDataReader r, int at) => new(r.GetGuid(at), r.GetGuid(at + 1), r.GetString(at + 2), r.GetString(at + 3), r.GetFieldValue<DateTimeOffset>(at + 4), r.GetFieldValue<DateTimeOffset>(at + 5),
+        r.GetFieldValue<DateTimeOffset>(at + 6), r.GetString(at + 7), r.IsDBNull(at + 8) ? null : r.GetGuid(at + 8), r.IsDBNull(at + 9) ? null : r.GetFieldValue<DateTimeOffset>(at + 9));
+
+    /// <summary>Cancela as ofertas pendentes do CPF (o dependente perdeu quem responda por ele): reabre as vagas e marca as ofertas como canceladas. Devolve quantas; o chamador redistribui as vagas.</summary>
     internal async Task<int> CancelPendingOffersAsync(Guid unitId, string cpf, Guid actorId, string source, Guid? guardianId, CancellationToken ct)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await UnitWaitingListDao.LockAsync(connection, ct);
-        await using (var reopen = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='open' WHERE id IN (SELECT o.slot_id FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending')", connection))
-        { reopen.Parameters.AddWithValue(cpf); await reopen.ExecuteNonQueryAsync(ct); }
-        int cancelled;
-        await using (var offers = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status='cancelled' WHERE status='pending' AND entry_id IN (SELECT id FROM nora_unit.waiting_list WHERE cpf=$1)", connection))
-        { offers.Parameters.AddWithValue(cpf); cancelled = await offers.ExecuteNonQueryAsync(ct); }
-        if (cancelled > 0)
-            await using (var queue = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.waiting_list SET status='cancelled' WHERE cpf=$1 AND status='offered' RETURNING id) INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) SELECT id,$2,'cancelled',$3,$4,$5 FROM changed", connection))
-            {
-                queue.Parameters.AddWithValue(cpf); queue.Parameters.AddWithValue(actorId); queue.Parameters.AddWithValue(time.GetUtcNow()); queue.Parameters.AddWithValue(source); queue.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value });
-                await queue.ExecuteNonQueryAsync(ct);
-            }
+        var cancelled = await CancelPendingForCpfAsync(connection, cpf, ct);
         await transaction.CommitAsync(ct);
         return cancelled;
     }
 
+    /// <summary>Na transação do chamador (com o lock da fila): reabre as vagas das ofertas pendentes do CPF e cancela essas ofertas. Usado também na desativação do cadastro e na remoção do vínculo.</summary>
+    internal static async Task<int> CancelPendingForCpfAsync(NpgsqlConnection connection, string cpf, CancellationToken ct)
+    {
+        await using (var reopen = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='open' WHERE id IN (SELECT slot_id FROM nora_unit.lightning_offers WHERE cpf=$1 AND status='pending')", connection))
+        { reopen.Parameters.AddWithValue(cpf); await reopen.ExecuteNonQueryAsync(ct); }
+        await using var offers = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status='cancelled' WHERE status='pending' AND cpf=$1", connection);
+        offers.Parameters.AddWithValue(cpf); return await offers.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// Resposta do paciente (ou do responsável). Aceite: na mesma transação a consulta antiga que a oferta antecipa é cancelada (evento com origem <c>rescheduled-lightning</c>, que não pesa no score), a consulta nova nasce no
+    /// horário da vaga (<c>booked_by='lightning'</c>) e a vaga fica <c>accepted</c>; o horário antigo vira vaga nova no próximo passe do <see cref="UnitLightningDispatcher"/> (cascata; o endpoint já chama o passe). Recusa: a vaga
+    /// volta a <c>open</c> e segue para o próximo. Oferta vencida (prazo ou horário) → 409; consulta a antecipar que já não está marcada → a oferta é cancelada e 409.
+    /// </summary>
     /// <param name="beforeInsert">Chamada no aceite, depois das conferências da própria UBS e antes de gravar a consulta, com o intervalo dela: confere consulta da mesma pessoa em outra UBS (409 <c>other-unit-overlap</c> desfaz tudo e a oferta continua pendente).</param>
     public async Task<UnitLightningResponseResult> RespondAsync(Guid unitId, Guid actorId, string cpf, Guid offerId, bool accept, CancellationToken ct, Guid? guardianId = null, Func<DateTimeOffset, DateTimeOffset, Task>? beforeInsert = null)
     {
         if (unitId == Guid.Empty || actorId == Guid.Empty || offerId == Guid.Empty || !AccountService.ValidCpf(cpf)) throw new ApiInputException();
         await using var connection = await databases.OpenAsync(unitId, ct); await using var transaction = await connection.BeginTransactionAsync(ct);
         await UnitWaitingListDao.LockAsync(connection, ct);
-        Guid slotId; long entryId; string specialty; string professional; Guid? professionalId, specialtyId, roomId; DateTimeOffset start; DateTimeOffset end; DateTimeOffset expires;
-        await using (var query = new NpgsqlCommand("SELECT o.slot_id,o.entry_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status,s.status,q.status,s.professional_id,s.specialty_id,s.room_id FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.id=$1 AND q.cpf=$2 FOR UPDATE OF o,s,q", connection))
+        Guid slotId; Guid? replacedId; string specialty; string professional; Guid? professionalId, specialtyId, roomId; DateTimeOffset start; DateTimeOffset end; DateTimeOffset expires;
+        await using (var query = new NpgsqlCommand("SELECT o.slot_id,o.appointment_id,s.specialty,s.professional,s.starts_at,s.ends_at,o.expires_at,o.status,s.status,s.professional_id,s.specialty_id,s.room_id FROM nora_unit.lightning_offers o JOIN nora_unit.lightning_slots s ON s.id=o.slot_id WHERE o.id=$1 AND o.cpf=$2 FOR UPDATE OF o,s", connection))
         {
             query.Parameters.AddWithValue(offerId); query.Parameters.AddWithValue(cpf);
             await using var reader = await query.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct)) throw new ApiNotFoundException();
-            if (reader.GetString(7) != "pending" || reader.GetString(8) != "offered" || reader.GetString(9) != "offered") throw new ApiConflictException();
-            slotId = reader.GetGuid(0); entryId = reader.GetInt64(1); specialty = reader.GetString(2); professional = reader.GetString(3);
+            if (reader.GetString(7) != "pending" || reader.GetString(8) != "offered") throw new ApiConflictException();
+            slotId = reader.GetGuid(0); replacedId = reader.IsDBNull(1) ? null : reader.GetGuid(1); specialty = reader.GetString(2); professional = reader.GetString(3);
             start = reader.GetFieldValue<DateTimeOffset>(4); end = reader.GetFieldValue<DateTimeOffset>(5); expires = reader.GetFieldValue<DateTimeOffset>(6);
-            professionalId = reader.IsDBNull(10) ? null : reader.GetGuid(10); specialtyId = reader.IsDBNull(11) ? null : reader.GetGuid(11); roomId = reader.IsDBNull(12) ? null : reader.GetGuid(12);
+            professionalId = reader.IsDBNull(9) ? null : reader.GetGuid(9); specialtyId = reader.IsDBNull(10) ? null : reader.GetGuid(10); roomId = reader.IsDBNull(11) ? null : reader.GetGuid(11);
         }
         var now = time.GetUtcNow();
         if (expires <= now || start <= now)
         {
-            await SetOfferResultAsync(connection, offerId, slotId, entryId, actorId, "expired", start <= now ? "closed" : "open", now, "system", ct, closedReason: start <= now ? "too-late" : null);
+            await SetOfferResultAsync(connection, offerId, slotId, "expired", start <= now ? "closed" : "open", ct, start <= now ? "too-late" : null);
             await transaction.CommitAsync(ct); throw new ApiConflictException();
+        }
+        if (replacedId is { } replaced)
+        {
+            await using var check = new NpgsqlCommand("SELECT status FROM nora_unit.appointments WHERE id=$1 AND cpf=$2 FOR UPDATE", connection);
+            check.Parameters.AddWithValue(replaced); check.Parameters.AddWithValue(cpf);
+            if (await check.ExecuteScalarAsync(ct) is not "scheduled")
+            {
+                await SetOfferResultAsync(connection, offerId, slotId, "cancelled", "open", ct);
+                await transaction.CommitAsync(ct); throw new ApiConflictException();
+            }
         }
         Guid? appointmentId = null;
         if (accept)
@@ -257,6 +217,15 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
             { professionalLock.Parameters.AddWithValue(professional); await professionalLock.ExecuteNonQueryAsync(ct); }
             await using (var patientLock = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended($1, 62419810))", connection))
             { patientLock.Parameters.AddWithValue(cpf); await patientLock.ExecuteNonQueryAsync(ct); }
+            // Antecipação: a consulta antiga sai antes da conferência de sobreposição (a própria consulta antecipada não conta) e o evento não pesa no score.
+            if (replacedId is { } old)
+            {
+                await using (var cancel = new NpgsqlCommand("UPDATE nora_unit.appointments SET status='cancelled' WHERE id=$1", connection))
+                { cancel.Parameters.AddWithValue(old); await cancel.ExecuteNonQueryAsync(ct); }
+                await using var cancelAudit = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,'cancelled',$3,'rescheduled-lightning',$4)", connection);
+                cancelAudit.Parameters.AddWithValue(old); cancelAudit.Parameters.AddWithValue(actorId); cancelAudit.Parameters.AddWithValue(now); cancelAudit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value });
+                await cancelAudit.ExecuteNonQueryAsync(ct);
+            }
             await using (var overlap = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM nora_unit.appointments WHERE (lower(professional)=lower($1) OR cpf=$2) AND status IN ('scheduled','called','completed','missed') AND starts_at<$4 AND ends_at>$3)", connection))
             { overlap.Parameters.AddWithValue(professional); overlap.Parameters.AddWithValue(cpf); overlap.Parameters.AddWithValue(start); overlap.Parameters.AddWithValue(end); if (await overlap.ExecuteScalarAsync(ct) is true) throw new ApiConflictException(); }
             if (beforeInsert is not null) await beforeInsert(start, end);
@@ -270,22 +239,17 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
             await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,'scheduled',$3,'patient',$4)", connection))
             { audit.Parameters.AddWithValue(appointmentId.Value); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); await audit.ExecuteNonQueryAsync(ct); }
         }
-        await SetOfferResultAsync(connection, offerId, slotId, entryId, actorId, accept ? "accepted" : "declined", accept ? "accepted" : "open", now, "patient", ct, guardianId);
+        await SetOfferResultAsync(connection, offerId, slotId, accept ? "accepted" : "declined", accept ? "accepted" : "open", ct);
         await transaction.CommitAsync(ct); return new(accept, appointmentId);
     }
 
-    private static async Task SetOfferResultAsync(NpgsqlConnection connection, Guid offerId, Guid slotId, long entryId, Guid actorId, string offerStatus, string slotStatus, DateTimeOffset now, string source, CancellationToken ct, Guid? guardianId = null, string? closedReason = null)
+    private static async Task SetOfferResultAsync(NpgsqlConnection connection, Guid offerId, Guid slotId, string offerStatus, string slotStatus, CancellationToken ct, string? closedReason = null)
     {
         await using (var update = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status=$2 WHERE id=$1", connection))
         { update.Parameters.AddWithValue(offerId); update.Parameters.AddWithValue(offerStatus); await update.ExecuteNonQueryAsync(ct); }
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status=$2,closed_reason=$3 WHERE id=$1", connection))
-        { update.Parameters.AddWithValue(slotId); update.Parameters.AddWithValue(slotStatus); update.Parameters.Add(new NpgsqlParameter { Value = (object?)closedReason ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text }); await update.ExecuteNonQueryAsync(ct); }
-        // R-030: só o aceite tira a pessoa da fila. Recusar ou deixar vencer devolve a entrada a 'waiting' com o entered_at original (mesma posição); a mesma vaga não é oferecida de novo a ela (LightningEligibility).
-        var entryStatus = offerStatus == "accepted" ? "completed" : "waiting";
-        await using (var update = new NpgsqlCommand("UPDATE nora_unit.waiting_list SET status=$2 WHERE id=$1", connection))
-        { update.Parameters.AddWithValue(entryId); update.Parameters.AddWithValue(entryStatus); await update.ExecuteNonQueryAsync(ct); }
-        await using (var audit = new NpgsqlCommand("INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source,guardian_id) VALUES($1,$2,$6,$3,$4,$5)", connection))
-        { audit.Parameters.AddWithValue(entryId); audit.Parameters.AddWithValue(actorId); audit.Parameters.AddWithValue(now); audit.Parameters.AddWithValue(source); audit.Parameters.Add(new NpgsqlParameter { Value = (object?)guardianId ?? DBNull.Value }); audit.Parameters.AddWithValue(entryStatus); await audit.ExecuteNonQueryAsync(ct); }
+        await using var slot = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status=$2,closed_reason=$3 WHERE id=$1", connection);
+        slot.Parameters.AddWithValue(slotId); slot.Parameters.AddWithValue(slotStatus); slot.Parameters.Add(new NpgsqlParameter { Value = (object?)closedReason ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
+        await slot.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>A vaga como a equipe a enxerga (sem o nome de quem decidiu), na transação do chamador.</summary>
@@ -303,9 +267,9 @@ public sealed class UnitLightningDao(UnitDatabaseRouter databases, TimeProvider 
         var status = r.GetString(6); var startsAt = r.GetFieldValue<DateTimeOffset>(4);
         var cancelledBy = r.IsDBNull(17) ? null : r.GetString(17);
         UnitSlotSource? source = r.IsDBNull(1) ? null : new(r.GetGuid(1), r.GetString(13), r.GetFieldValue<DateTimeOffset>(14), r.GetFieldValue<DateTimeOffset>(15),
-            r.IsDBNull(16) ? null : r.GetFieldValue<DateTimeOffset>(16), cancelledBy is "patient" or "staff" or "system" ? cancelledBy : null);
+            r.IsDBNull(16) ? null : r.GetFieldValue<DateTimeOffset>(16), cancelledBy is "patient" or "staff" or "system" or "rescheduled-lightning" ? cancelledBy : null);
         return new(new(r.GetGuid(0), r.IsDBNull(1) ? null : r.GetGuid(1), r.GetString(2), r.GetString(3), startsAt, r.GetFieldValue<DateTimeOffset>(5), status, r.GetFieldValue<DateTimeOffset>(7),
-            r.GetString(8), status == "awaiting_approval" ? startsAt - UnitLightningDispatcher.ApprovalLead : null, r.IsDBNull(10) ? null : r.GetFieldValue<DateTimeOffset>(10),
+            r.GetString(8), null, r.IsDBNull(10) ? null : r.GetFieldValue<DateTimeOffset>(10),
             null, r.IsDBNull(11) ? null : r.GetString(11), source), r.IsDBNull(9) ? null : r.GetGuid(9));
     }
 }

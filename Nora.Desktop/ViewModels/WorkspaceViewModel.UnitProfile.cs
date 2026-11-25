@@ -92,7 +92,7 @@ public sealed partial class WorkspaceViewModel
     private static readonly string[] ProfileNames =
     [
         nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice), nameof(ProfileSpecialtiesText), nameof(ProfileState), nameof(ProfileUpdatedLabel),
-        nameof(SlotApprovalEnabled), nameof(SlotApprovalState), nameof(SlotApprovalToggleLabel), nameof(CanToggleSlotApproval), nameof(ShowAwaitingSlots), nameof(AwaitingSlotsTitle), nameof(AwaitingSlotsState), nameof(HasAwaitingSlots), nameof(PanelAwaitingText)
+        nameof(CanEditProfile)
     ];
     private void NotifyProfile() { foreach (var name in ProfileNames) Notify(name); }
 
@@ -155,8 +155,7 @@ public sealed partial class WorkspaceViewModel
         UnitProfile? saved = null;
         await WithStepAsync(ProfileSteps, "Salvando horários…", async () => saved = await api.SaveUnitProfileAsync(unit.Id, new UnitProfileDraft([.. intervals], services)));
         if (disposed || ActiveObsUnit?.Id != unit.Id) return;
-        // A resposta traz o que ficou gravado; a aprovação das vagas não é tocada por este PUT.
-        unitProfile = saved! with { SlotApprovalRequired = unitProfile?.SlotApprovalRequired ?? false, SlotApprovalSince = unitProfile?.SlotApprovalSince };
+        unitProfile = saved;
         profileLoaded = true; profileFailed = false;
         Replace(ProfileSpecialties, saved!.Specialties.Select(item => item.Name).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         FillProfileEditors(unitProfile);
@@ -169,7 +168,7 @@ public sealed partial class WorkspaceViewModel
         unitProfile = null; profileLoaded = profileFailed = profileDirty = forceProfileEditors = false;
         EnsureOpeningDays();
         foreach (var day in OpeningDays) day.Load([]);
-        ProfileSpecialties.Clear(); ProfileSteps.Clear(); SlotApprovalSteps.Clear();
+        ProfileSpecialties.Clear(); ProfileSteps.Clear();
         unitServices = ""; servicesError = "";
         Notify(nameof(UnitServices)); Notify(nameof(ServicesCounter)); Notify(nameof(ServicesError));
         NotifyProfile();

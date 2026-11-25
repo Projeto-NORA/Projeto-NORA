@@ -145,6 +145,30 @@ internal static partial class Program
                 defaults.Navigate("unknown");
                 Require(defaults.IsHome, "Destino inexistente foi aceito.");
             });
+            Check("Navegação em dois níveis: área abre as subabas, Voltar ao menu mantém a página e a seta volta pelo histórico", () =>
+            {
+                var vm = new ShellViewModel(DesktopProfile.Operational, new PreferencesService("obs", Path.Combine(root, "two-level")), themes);
+                vm.Navigate("patients:register");
+                Require(vm.ShowingSubmenu && vm.Page == "patients" && vm.SubPage == "register" && vm.SidebarItems.Any(item => item.Id == "family"), "A área Pacientes não abriu as subabas.");
+                vm.ShowMainMenu();
+                Require(!vm.ShowingSubmenu && vm.Page == "patients" && vm.SidebarItems.Any(item => item.Id == "home"), "Voltar ao menu trocou a página ou não mostrou as áreas.");
+                vm.Navigate("queue");
+                Require(vm.Page == "slots", "A antiga Fila deveria levar ao painel da Vaga Relâmpago.");
+                vm.GoBack();
+                Require(vm.Route == "patients:register" && vm.CanGoBack, "A seta de voltar não voltou à página anterior.");
+                Require(Nora.Desktop.Views.SubPage.Matches("list,register", "register") && !Nora.Desktop.Views.SubPage.Matches("list", "register") && Nora.Desktop.Views.SubPage.Matches("list", null), "Regra de visibilidade das subabas inválida.");
+            });
+            Check("Foto de perfil é reduzida para no máximo 512 px e enviada em JPEG", () =>
+            {
+                var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(1200, 800, 96, 96, PixelFormats.Pbgra32);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using var png = new MemoryStream(); encoder.Save(png);
+                var jpeg = ProfilePhoto.PrepareJpeg(png.ToArray());
+                var frame = System.Windows.Media.Imaging.BitmapDecoder.Create(new MemoryStream(jpeg), System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+                Require(jpeg[0] == 0xFF && jpeg[1] == 0xD8 && frame.PixelWidth == 512 && frame.PixelHeight <= 512 && jpeg.Length <= NoraApiClient.MaxPhotoBytes, "A foto não foi preparada como JPEG de até 512 px.");
+                try { ProfilePhoto.PrepareJpeg([1, 2, 3]); throw new InvalidOperationException("Imagem inválida foi aceita."); }
+                catch (NoraApiException) { }
+            });
             Check("Restaurar padrões atualiza tema, interface e persistência", () =>
             {
                 var storage = new PreferencesService("municipal", Path.Combine(root, "restore"));

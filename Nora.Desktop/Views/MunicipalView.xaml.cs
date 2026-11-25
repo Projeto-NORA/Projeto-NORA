@@ -67,16 +67,22 @@ public partial class MunicipalView : UserControl
     }
     private void Metrics(params (string Title, string? Binding, string Hint)[] items)
     {
-        var grid = new UniformGrid { Columns = 3, Margin = new Thickness(-6, 0, -6, 18) };
+        var grid = new UniformGrid { Columns = 3, Margin = new Thickness(-8, 0, -8, 24) };
         foreach (var (title, binding, hint) in items)
         {
             var panel = new StackPanel(); panel.Children.Add(Text(title, 13, true));
             var value = Text("—", 29, true); value.Margin = new Thickness(0, 10, 0, 4);
             if (binding != null) value.SetBinding(TextBlock.TextProperty, new Binding(binding));
-            panel.Children.Add(value); panel.Children.Add(Text(hint, 11, false, true)); grid.Children.Add(Card(panel, new Thickness(6)));
+            panel.Children.Add(value); panel.Children.Add(Text(hint, 11, false, true));
+            panel.Margin = new Thickness(0, 0, 24, 0);
+            var chart = new Button { Style = (Style)Application.Current.FindResource("ChartButton"), Command = ChartCommands.Show, CommandParameter = title };
+            var layout = new Grid(); layout.Children.Add(panel); layout.Children.Add(chart);
+            var card = Card(layout, new Thickness(8)); card.ToolTip = hint; grid.Children.Add(card);
         }
         ContentPanel.Children.Add(grid);
     }
+    /// <summary>Parte da página que aparece só na subaba indicada (barra lateral em dois níveis).</summary>
+    private void Add(FrameworkElement part, string subPage) { var host = new ContentControl { Content = part, Focusable = false }; SubPage.SetKey(host, subPage); ContentPanel.Children.Add(host); }
     private void Box(string title, string description) => ContentPanel.Children.Add(Card(Panel(title, description), new Thickness(0, 0, 0, 18)));
     private void ExportSummary(object sender, RoutedEventArgs e)
     {
@@ -86,17 +92,17 @@ public partial class MunicipalView : UserControl
         try
         {
             File.WriteAllText(dialog.FileName, workspace.CreateSummaryCsv(), new UTF8Encoding(true));
-            MessageBox.Show(Window.GetWindow(this), "Resumo agregado exportado.", "Exportação", MessageBoxButton.OK, MessageBoxImage.Information);
+            Nora.Desktop.Services.DialogService.Success(Window.GetWindow(this), "Resumo exportado", "O arquivo CSV foi salvo no local escolhido.");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(Window.GetWindow(this), "Não foi possível salvar o arquivo. Verifique o local escolhido e tente novamente.", "Exportação", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Nora.Desktop.Services.DialogService.Error(Window.GetWindow(this), "Exportação não concluída", "Não foi possível salvar o arquivo. Confira o local escolhido e tente de novo.");
         }
     }
     private void Render()
     {
         ContentPanel.Children.Clear(); if (workspace == null) return;
-        if (!workspace.IsAuthenticated) Notice("Entre na Visão geral para consultar os dados da rede. As áreas sem dados na API continuam informando o que falta.");
+        if (!workspace.IsAuthenticated) Notice("Entre na Visão geral para ver os dados da rede.");
         switch (workspace.Section)
         {
             case "home":
@@ -106,11 +112,11 @@ public partial class MunicipalView : UserControl
                 var refresh = new Button { Content = "Atualizar dados", Style = (Style)Application.Current.FindResource("IconRefreshButton"), ToolTip = "Atualizar dados", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 18) }; System.Windows.Automation.AutomationProperties.SetName(refresh, "Atualizar dados"); refresh.SetBinding(Button.CommandProperty, new Binding(nameof(WorkspaceViewModel.RefreshCommand))); ContentPanel.Children.Add(refresh);
                 Heading("Panorama da rede", "Totais atuais da rede. Consulte a aba Indicadores para análise do período.");
                 ContentPanel.Children.Add(new NetworkOverviewView()); break;
-            case "units": Heading("Unidades de saúde", "Cadastre as UBS, confira a base de cada uma e compare o desempenho."); ContentPanel.Children.Add(new HealthUnitsView()); ContentPanel.Children.Add(new NetworkUnitsPerformanceView()); ContentPanel.Children.Add(new UnitRegistryView()); break;
-            case "specialties": Heading("Especialidades", "Lista única da rede, mantida aqui, e a demanda, a fila e a espera de cada especialidade."); ContentPanel.Children.Add(new SpecialtyCatalogView()); ContentPanel.Children.Add(new NetworkSpecialtiesView()); break;
+            case "units": Heading("Unidades de saúde", "Cadastro, base e desempenho das UBS."); Add(new HealthUnitsView(), "registry"); Add(new NetworkUnitsPerformanceView(), "performance"); Add(new UnitRegistryView(), "reference"); break;
+            case "specialties": Heading("Especialidades", "Lista da rede e demanda por especialidade."); Add(new SpecialtyCatalogView(), "catalog"); Add(new NetworkSpecialtiesView(), "demand"); break;
             case "network": Heading("Mapa da rede", "Explore o território da rede de saúde."); ContentPanel.Children.Add(new NetworkMapView()); break;
             case "indicators": Heading("Indicadores da rede", "Acompanhe acesso, produção e evolução ao longo do tempo."); ContentPanel.Children.Add(new NetworkIndicatorsView()); break;
-            case "slots": ContentPanel.Children.Add(new MunicipalLightningHeroView()); ContentPanel.Children.Add(new LightningFiltersView()); Metrics(("Vagas abertas", "LightningOpen", "Estado atual das vagas no período"), ("Ofertas aceitas", "LightningAccepted", "Ofertas das vagas no período"), ("Vagas registradas", "LightningRegistered", "Vagas criadas no período"), ("Ofertas criadas", "LightningCreated", "Não mede envio de notificações"), ("Recusadas", "LightningDeclined", "Ofertas das vagas no período"), ("Expiradas", "LightningExpired", "Ofertas das vagas no período"), ("Pendentes", "LightningPending", "Estado atual das ofertas"), ("Canceladas", "LightningCancelled", "Ofertas das vagas no período"), ("Aprovadas pela equipe", "ApprovedSlotsCount", "Liberadas pela equipe para oferta; histórico, sem o filtro de período"), ("Fechadas sem aprovação", "ApprovalTimeoutSlotsCount", "Faltou menos de 1 h para a consulta sem aprovação; histórico"), ("Taxa de reaproveitamento", null, "Aguardando definição e dados")); Box("Acompanhamento", "Aceite da oferta não equivale a atendimento confirmado. A contagem de ofertas criadas não comprova entrega de notificações. A aprovação da equipe libera a vaga para oferta; ela não confirma o atendimento. A taxa de reaproveitamento ainda não é calculada."); break;
+            case "slots": ContentPanel.Children.Add(new MunicipalLightningHeroView()); ContentPanel.Children.Add(new LightningFiltersView()); Metrics(("Vagas abertas", "LightningOpen", "Estado atual das vagas no período"), ("Ofertas aceitas", "LightningAccepted", "Ofertas das vagas no período"), ("Vagas registradas", "LightningRegistered", "Vagas criadas no período"), ("Ofertas criadas", "LightningCreated", "Não mede envio de notificações"), ("Recusadas", "LightningDeclined", "Ofertas das vagas no período"), ("Expiradas", "LightningExpired", "Ofertas das vagas no período"), ("Pendentes", "LightningPending", "Estado atual das ofertas"), ("Canceladas", "LightningCancelled", "Ofertas das vagas no período")); Box("Como ler", "A oferta é automática. Aceite não confirma o atendimento, e ofertas criadas não comprovam a entrega da notificação."); break;
             case "capacity": Heading("Capacidade da rede", "Horários ofertados pela grade, ocupados e ocupação, por UBS e região, e o cadastro de cada UBS em leitura."); ContentPanel.Children.Add(new CapacityView()); break;
             case "alerts": Heading("Central de alertas", "Fila alta, espera longa, faltas, ocupação da grade e metas fora, avaliados pela API em cada UBS."); ContentPanel.Children.Add(new NetworkAlertsView()); break;
             case "reports": Heading("Relatórios e metas", "Consulte resultados, acompanhe metas e exporte dados da rede."); ContentPanel.Children.Add(new LightningFiltersView());
@@ -119,8 +125,8 @@ public partial class MunicipalView : UserControl
                 var export = new Button { Content = "Exportar resumo em CSV", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 16, 0, 0) }; export.SetBinding(IsEnabledProperty, new Binding(nameof(WorkspaceViewModel.CanExportSummary))); export.Click += ExportSummary; report.Children.Add(export);
                 ContentPanel.Children.Add(Card(report, new Thickness(0, 0, 0, 18)));
                 ContentPanel.Children.Add(new GoalsView()); break;
-            case "communication": Heading("Comunicação", "Publique comunicados para as equipes das UBS e para os pacientes vinculados, acompanhe as leituras e encerre quando não valerem mais."); ContentPanel.Children.Add(new CommunicationView()); break;
-            case "users": Heading("Usuários e histórico", "Administre contas e acessos e acompanhe as ações realizadas."); ContentPanel.Children.Add(new StaffAccountsView()); ContentPanel.Children.Add(new StaffCreateView()); ContentPanel.Children.Add(new StaffAccessView()); ContentPanel.Children.Add(new HistoryView()); break;
+            case "communication": Heading("Comunicação", "Comunicados para equipes e pacientes, com leituras."); ContentPanel.Children.Add(new CommunicationView()); break;
+            case "users": Heading("Usuários", "Contas, acessos às UBS e histórico de ações."); Add(new StaffAccountsView(), "accounts"); Add(new StaffCreateView(), "create"); Add(new StaffAccessView(), "access"); Add(new HistoryView(), "history"); break;
         }
     }
 }

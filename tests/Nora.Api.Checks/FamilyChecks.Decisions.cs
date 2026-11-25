@@ -162,11 +162,10 @@ internal static partial class FamilyChecks
             var cancelled = await StaffBook(81, cardiology, "2026-11-25T14:30:00Z");
             using (var cancel = await f.Attendant.PatchAsJsonAsync($"/api/obs/units/{u1}/appointments/{cancelled}/status", new { status = "cancelled", confirmed = true })) Expect(cancel, 200);
             await f.UnitExec(u1, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,'Cardiologia','Dra. Ana Souza',$3,$4,'scheduled',$5,$3)", Guid.NewGuid(), Cpf(81), T0.AddDays(-1), T0.AddDays(-1).AddMinutes(30), f.AdminId);
-            foreach (var specialty in new[] { "Cardiologia", "Ortopedia" }) { using var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(81), specialty }); Expect(queue, 201); }
             var path = $"/api/patient/units/{u1}/unlink-preview";
             int appointments, entries;
             using (var preview = await p81.GetAsync(path)) { Expect(preview, 200); var body = await Read(preview); appointments = body.GetProperty("futureAppointments").GetInt32(); entries = body.GetProperty("activeWaitingEntries").GetInt32(); }
-            Require(appointments == 3 && entries == 2, $"Prévia: esperado 3 consultas futuras e 2 entradas de fila; recebido {appointments} e {entries}.");
+            Require(appointments == 3 && entries == 0, $"Prévia: esperado 3 consultas futuras e nenhuma entrada de fila (fila manual removida); recebido {appointments} e {entries}.");
             Require(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.appointments WHERE cpf=$1 AND status IN ('scheduled','called')", Cpf(81)) == 4, "A prévia não grava nada.");
             using (var anonymous = await f.Anonymous.GetAsync(path)) Expect(anonymous, 401);
             using (var staff = await f.Admin.GetAsync(path)) Expect(staff, 403);

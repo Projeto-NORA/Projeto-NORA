@@ -9,6 +9,7 @@ internal static class ApiProblems
             _ when SchedulingProblems.TryGet(customCode, out var scheduling) => scheduling,
             _ when FamilyProblems.TryGet(customCode, out var familyProblem) => familyProblem,
             _ when RoundProblems.TryGet(customCode, out var roundProblem) => roundProblem,
+            _ when PhotoProblems.TryGet(customCode, out var photoProblem) => photoProblem,
             "invalid-current-password" => ("invalid-current-password", "Senha atual incorreta", "A senha atual informada não confere."),
             "password-change-required" => ("password-change-required", "Troca de senha obrigatória", "Defina uma nova senha antes de continuar."),
             "unit-database-outdated" => ("unit-database-outdated", "Banco da UBS desatualizado", "O banco desta unidade ainda não recebeu a versão atual do schema. A equipe técnica precisa executar a migração das UBS."),
@@ -29,7 +30,7 @@ internal static class ApiProblems
 
     private static (string Code, string Title, string Detail) DefaultFor(int status) => status switch
     {
-            400 => ("invalid-input", "Dados inválidos", "Confira os campos informados. Senha deve ter de 8 a 256 caracteres e CPF deve ser válido."),
+            400 => ("invalid-input", "Dados inválidos", "Confira os campos informados. Senha não pode ser vazia e tem no máximo 256 caracteres; CPF deve ser válido."),
             401 => ("unauthorized", "Acesso necessário", "Credenciais inválidas ou sessão expirada. Entre novamente."),
             403 => ("forbidden", "Acesso não permitido", "Sua conta não pode executar esta operação."),
             409 => ("conflict", "Operação em conflito", "Cadastro já existe ou a operação não está disponível neste estado."),

@@ -311,10 +311,14 @@ internal static class ReviewChecks
                 {
                     using var booked = await h.Obs.PostAsJsonAsync($"/api/obs/units/{unit}/appointments", new { cpf = Cpf(1), specialty = "Clínica", professional = $"Prof {seed}-{offset}", startsAt = start.AddHours(offset), endsAt = start.AddHours(offset).AddMinutes(30) }); Expect(booked, 201);
                 }
-                using var queued = await h.Obs.PostAsJsonAsync($"/api/obs/units/{unit}/waiting-list", new { cpf = Cpf(1), specialty = $"Especialidade {seed}" }); Expect(queued, 201);
+                // Oferta de Vaga Relâmpago pendente para o paciente (antecipando a consulta das +2 h): a remoção do vínculo precisa cancelá-la junto (fila manual removida em 2026-11-24).
+                Require(await h.UnitScalarAsync<long>(unit, "WITH src AS (INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES(gen_random_uuid(),$1,'Clínica','Prof da vaga',$2,$2+interval '30 minutes','cancelled',gen_random_uuid(),now()) RETURNING id,starts_at,ends_at), " +
+                    "slot AS (INSERT INTO nora_unit.lightning_slots(id,appointment_id,status,created_at,origin,specialty,professional,starts_at,ends_at) SELECT gen_random_uuid(),id,'offered',now(),'cancellation','Clínica','Prof da vaga',starts_at,ends_at FROM src RETURNING id), " +
+                    "ins AS (INSERT INTO nora_unit.lightning_offers(id,slot_id,cpf,appointment_id,expires_at,status) SELECT gen_random_uuid(),slot.id,$1,(SELECT id FROM nora_unit.appointments WHERE cpf=$1 AND status='scheduled' AND professional=$3),now()+interval '10 minutes','pending' FROM slot RETURNING 1) SELECT count(*) FROM ins",
+                    Cpf(1), start.AddDays(-1), $"Prof {seed}-2") == 1, "Oferta de teste não foi criada.");
             }
             async Task<(long Scheduled, long Waiting, long Links, long Unlinked)> State() =>
-                (await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.appointments WHERE status='scheduled'"), await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.waiting_list WHERE status IN ('waiting','offered')"),
+                (await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.appointments WHERE status='scheduled'"), await h.UnitScalarAsync<long>(unit, "SELECT count(*) FROM nora_unit.lightning_offers WHERE status='pending'"),
                  await h.ScalarAsync<long>("SELECT count(*) FROM nora.patient_units WHERE patient_id=$1 AND unit_id=$2", patientId, unit), await h.ScalarAsync<long>("SELECT count(*) FROM nora.patient_unit_link_events WHERE patient_id=$1 AND unit_id=$2 AND action='unlinked'", patientId, unit));
             async Task Inject(bool deferred)
             {
@@ -330,10 +334,10 @@ internal static class ReviewChecks
             await Inject(deferred: false);
             using (var failed = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true })) Require((int)failed.StatusCode >= 500, "A falha injetada no lado central deveria falhar a requisição.");
             var afterFailure = await State();
-            Require(afterFailure.Scheduled == 2 && afterFailure.Waiting == 1 && afterFailure.Links == 1 && afterFailure.Unlinked == 0, $"Falha central antes do commit deixou a UBS alterada ou o vínculo removido (consultas {afterFailure.Scheduled}, fila {afterFailure.Waiting}, vínculos {afterFailure.Links}).");
+            Require(afterFailure.Scheduled == 2 && afterFailure.Waiting == 1 && afterFailure.Links == 1 && afterFailure.Unlinked == 0, $"Falha central antes do commit deixou a UBS alterada ou o vínculo removido (consultas {afterFailure.Scheduled}, ofertas pendentes {afterFailure.Waiting}, vínculos {afterFailure.Links}).");
             await Heal();
             using (var repeated = await patient.PostAsJsonAsync(unlinkPath, new { confirmed = true }))
-            { Expect(repeated, 200); var body = await Read(repeated); Require(body.GetProperty("cancelledAppointments").GetInt32() == 2 && body.GetProperty("cancelledEntries").GetInt32() == 1, "A repetição deveria devolver as contagens completas."); }
+            { Expect(repeated, 200); var body = await Read(repeated); Require(body.GetProperty("cancelledAppointments").GetInt32() == 2 && body.GetProperty("cancelledEntries").GetInt32() == 0, "A repetição deveria devolver as contagens completas."); }
             var concluded = await State();
             Require(concluded.Scheduled == 0 && concluded.Waiting == 0 && concluded.Links == 0 && concluded.Unlinked == 1, "A repetição não concluiu a remoção do vínculo.");
 

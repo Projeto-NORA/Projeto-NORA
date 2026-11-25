@@ -5,11 +5,9 @@ enum class ApiContext {
     GENERIC, LOGIN, PASSWORD_RESET, REGISTRATION,
     /** Lista de UBS vinculadas e pedido de novos vínculos. */
     UNIT_LIST,
-    /** Leituras dentro de uma UBS: consultas, fila e ofertas. */
+    /** Leituras dentro de uma UBS: consultas e ofertas. */
     UNIT,
     APPOINTMENT_CANCEL, OFFER_RESPOND,
-    /** Sair da fila de uma UBS. */
-    QUEUE_CANCEL,
     /** Remover o vínculo com uma UBS. */
     UNLINK,
     /** Troca de senha com a sessão aberta. */
@@ -42,12 +40,14 @@ enum class ApiContext {
     ABOUT,
     /** Registro do aparelho para o push. */
     PUSH,
+    /** Foto de perfil (ler, trocar e remover). */
+    PHOTO,
 }
 
 const val UNIT_FORBIDDEN_MESSAGE = "Seu cadastro nesta UBS está desativado ou sem vínculo. Procure a unidade."
 const val OFFER_UNAVAILABLE_MESSAGE = "Esta oportunidade não está mais disponível."
 const val LOCAL_NETWORK_DENIED_MESSAGE = "O endereço do serviço fica na rede local. Permita o acesso à rede local para o NORA nas configurações do Android e tente novamente."
-const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. Confira o endereço e sua conexão e tente novamente."
+const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. O servidor pode estar acordando (leva até 1 minuto). Confira o endereço e a conexão e tente novamente."
 const val GOOGLE_DISABLED_MESSAGE = "O acesso com Google não está habilitado nesta rede. Use o CPF ou e-mail e a senha."
 const val INCOMPATIBLE_RESPONSE_MESSAGE = "O serviço retornou uma resposta incompatível. Contate a unidade."
 
@@ -73,6 +73,10 @@ const val OTHER_UNIT_OVERLAP = "other-unit-overlap"
 /** Google desligado no servidor (503) e conta Google já vinculada a outra conta (409). */
 const val GOOGLE_DISABLED = "google-disabled"
 const val GOOGLE_ALREADY_LINKED = "google-already-linked"
+/** Foto de perfil: sem foto (404), imagem recusada (400) e grande demais (413). */
+const val PHOTO_NOT_FOUND = "photo-not-found"
+const val PHOTO_INVALID = "photo-invalid"
+const val PHOTO_TOO_LARGE = "photo-too-large"
 
 /** O responsável agiu pelo dependente e o servidor recusou (403): vínculo encerrado ou cadastro desativado. */
 const val DEPENDENT_FORBIDDEN_MESSAGE = "O vínculo com esta pessoa não está ativo nesta UBS ou o cadastro dela foi desativado. Veja a aba Família."
@@ -81,7 +85,8 @@ const val DEPENDENT_FORBIDDEN_MESSAGE = "O vínculo com esta pessoa não está a
 private val KNOWN_CODES = setOf("invalid-input", "unauthorized", "forbidden", "not-found", "conflict",
     "too-many-requests", "internal-error", "service-unavailable", INVALID_CURRENT_PASSWORD, PASSWORD_CHANGE_REQUIRED,
     BOOKING_WINDOW, SPECIALTY_LIMIT, SLOT_UNAVAILABLE, PATIENT_OVERLAP, CONFIRMATION_WINDOW,
-    FAMILY_LINK_EXISTS, FAMILY_LINK_LIMIT, FAMILY_LINK_CLOSED, DEPENDENT_INACTIVE, OTHER_UNIT_OVERLAP, GOOGLE_DISABLED, GOOGLE_ALREADY_LINKED)
+    FAMILY_LINK_EXISTS, FAMILY_LINK_LIMIT, FAMILY_LINK_CLOSED, DEPENDENT_INACTIVE, OTHER_UNIT_OVERLAP, GOOGLE_DISABLED, GOOGLE_ALREADY_LINKED,
+    PHOTO_NOT_FOUND, PHOTO_INVALID, PHOTO_TOO_LARGE)
 
 fun knownProblemCode(raw: String?): String? = raw?.takeIf { it in KNOWN_CODES }
 
@@ -103,13 +108,16 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         else -> ""
     }
     val unitScoped = context == ApiContext.UNIT || context == ApiContext.APPOINTMENT_CANCEL || context == ApiContext.OFFER_RESPOND ||
-        context == ApiContext.QUEUE_CANCEL || context == ApiContext.UNLINK || context == ApiContext.AVAILABILITY ||
+        context == ApiContext.UNLINK || context == ApiContext.AVAILABILITY ||
         context == ApiContext.BOOKING || context == ApiContext.CONFIRMATION || context == ApiContext.RECORDS || context == ApiContext.ABOUT
     return when (kind) {
         OTHER_UNIT_OVERLAP -> otherUnitOverlapMessage(context, acting, actingName)
         GOOGLE_DISABLED -> GOOGLE_DISABLED_MESSAGE
         GOOGLE_ALREADY_LINKED -> "Esta conta Google já está vinculada a outra conta do NORA. Use outra conta Google ou procure a equipe da UBS."
         INVALID_CURRENT_PASSWORD -> "A senha atual está incorreta."
+        PHOTO_NOT_FOUND -> "Você ainda não tem foto de perfil."
+        PHOTO_INVALID -> "Não conseguimos usar esta imagem. Escolha outra foto."
+        PHOTO_TOO_LARGE -> "A foto ficou grande demais. Escolha outra imagem."
         PASSWORD_CHANGE_REQUIRED -> PASSWORD_CHANGE_REQUIRED_MESSAGE
         BOOKING_WINDOW -> "Esse horário já começou ou passou. Escolha outro horário."
         SPECIALTY_LIMIT ->
@@ -125,7 +133,7 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         DEPENDENT_INACTIVE -> "O cadastro desta pessoa está desativado nesta UBS. Procure a equipe da unidade."
         CONFIRMATION_WINDOW -> "A presença só pode ser confirmada de 48 horas até 2 horas antes da consulta."
         "invalid-input" -> when (context) {
-            ApiContext.PASSWORD_CHANGE -> "A nova senha precisa ter de 8 a 256 caracteres e ser diferente da atual."
+            ApiContext.PASSWORD_CHANGE -> "Confira a nova senha: ela não pode ficar vazia nem passar de 256 caracteres."
             ApiContext.BOOKING -> "Este horário não pôde ser conferido. Atualize os horários e escolha outro."
             ApiContext.AVAILABILITY -> "Não foi possível consultar os horários desta especialidade. Escolha outra ou tente mais tarde."
             ApiContext.FAMILY_REQUEST -> "Confira o CPF e a UBS. Você não pode pedir vínculo com o seu próprio CPF."
@@ -148,7 +156,6 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         "not-found" -> when (context) {
             ApiContext.APPOINTMENT_CANCEL -> "Esta consulta não foi encontrada. Atualize a lista."
             ApiContext.OFFER_RESPOND -> "Esta oportunidade não existe mais. Atualize a lista."
-            ApiContext.QUEUE_CANCEL -> "Esta solicitação não foi encontrada."
             ApiContext.CONFIRMATION -> "Esta consulta não foi encontrada. Atualize a lista."
             ApiContext.FAMILY_REQUEST -> "Não encontramos um cadastro ativo com este CPF nesta UBS. Confira o CPF e a UBS ou procure a equipe da unidade."
             ApiContext.FAMILY -> "Este pedido não existe mais. Atualize a lista."
@@ -160,7 +167,6 @@ fun failureMessage(status: Int, code: String?, context: ApiContext, acting: Bool
         "conflict" -> when (context) {
             ApiContext.APPOINTMENT_CANCEL -> "Esta consulta já foi alterada pela unidade e não pode mais ser cancelada. Atualize a lista."
             ApiContext.OFFER_RESPOND -> OFFER_UNAVAILABLE_MESSAGE
-            ApiContext.QUEUE_CANCEL -> "Esta solicitação já foi encerrada."
             ApiContext.CONFIRMATION -> "Esta consulta já foi alterada pela unidade e não pode mais ser confirmada. Atualize a lista."
             ApiContext.REGISTRATION -> "O cadastro mudou. Confira os dados e tente novamente."
             ApiContext.EMAIL_CHANGE -> "Este e-mail já é usado por outra conta do NORA, então nada foi trocado. Procure a equipe da UBS."

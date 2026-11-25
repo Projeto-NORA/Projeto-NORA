@@ -96,7 +96,6 @@ class PatientPresenceServiceTest {
         val api = object : PatientApi {
             override suspend fun login(identifier: String, password: String) = PatientSession("lightning-token", "2026-10-11T23:00:00Z", user)
             override suspend fun units(token: String) = listOf(unit)
-            override suspend fun unitQueue(token: String, unitId: String) = emptyList<UnitQueueEntry>()
             override suspend fun appointments(token: String, unitId: String) = emptyList<PatientAppointment>()
             override suspend fun unitOffers(token: String, unitId: String) = listOf(
                 UnitOffer("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "Cardiologia", "Profissional", iso(3_600_000), iso(5_400_000), iso(600_000), status.get()))

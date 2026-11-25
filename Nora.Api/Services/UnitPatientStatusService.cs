@@ -74,14 +74,14 @@ public sealed class UnitPatientStatusService(DatabaseHelper central, UnitDatabas
             var now = time.GetUtcNow();
             if (!request.IsActive)
             {
-                await using (var reopen = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='open' WHERE id IN (SELECT o.slot_id FROM nora_unit.lightning_offers o JOIN nora_unit.waiting_list q ON q.id=o.entry_id WHERE q.cpf=$1 AND o.status='pending')", connection))
+                await using (var reopen = new NpgsqlCommand("UPDATE nora_unit.lightning_slots SET status='open' WHERE id IN (SELECT o.slot_id FROM nora_unit.lightning_offers o WHERE o.cpf=$1 AND o.status='pending')", connection))
                 { reopen.Parameters.AddWithValue(cpf); await reopen.ExecuteNonQueryAsync(ct); }
-                await using (var cancel = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status='cancelled' WHERE status='pending' AND entry_id IN (SELECT id FROM nora_unit.waiting_list WHERE cpf=$1)", connection))
+                await using (var cancel = new NpgsqlCommand("UPDATE nora_unit.lightning_offers SET status='cancelled' WHERE status='pending' AND cpf=$1", connection))
                 { cancel.Parameters.AddWithValue(cpf); await cancel.ExecuteNonQueryAsync(ct); }
                 await using (var cancelQueue = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.waiting_list SET status='cancelled' WHERE cpf=$1 AND status IN ('waiting','offered') RETURNING id) INSERT INTO nora_unit.waiting_list_events(entry_id,actor_id,status,occurred_at,source) SELECT id,$2,'cancelled',$3,'staff' FROM changed", connection))
                 { cancelQueue.Parameters.AddWithValue(cpf); cancelQueue.Parameters.AddWithValue(actorId); cancelQueue.Parameters.AddWithValue(now); await cancelQueue.ExecuteNonQueryAsync(ct); }
                 // As consultas futuras também saem da agenda, como cancelamento da unidade: origem 'staff', que não pesa no score, e o horário volta à disponibilidade.
-                // A Vaga Relâmpago a partir delas continua sendo decisão manual da equipe.
+                // Desde 2026-11-24 o distribuidor transforma esses horários em Vaga Relâmpago sozinho.
                 await using (var cancelAppointments = new NpgsqlCommand("WITH changed AS (UPDATE nora_unit.appointments SET status='cancelled' WHERE cpf=$1 AND status IN ('scheduled','called') AND starts_at>$3 RETURNING id) INSERT INTO nora_unit.appointment_events(appointment_id,actor_id,status,occurred_at,source) SELECT id,$2,'cancelled',$3,'staff' FROM changed", connection))
                 { cancelAppointments.Parameters.AddWithValue(cpf); cancelAppointments.Parameters.AddWithValue(actorId); cancelAppointments.Parameters.AddWithValue(now); await cancelAppointments.ExecuteNonQueryAsync(ct); }
             }

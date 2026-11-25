@@ -2,7 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace Nora.Api.Models;
 
-public sealed record UserInfo(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false);
+/// <summary>Conta autenticada (login e <c>GET /api/auth/me</c>). <c>CpfMasked</c> (<c>***.456.789-**</c>) só para pacientes, nulo na equipe; <c>Email</c> é o da conta (2026-11-24).</summary>
+public sealed record UserInfo(Guid Id, string FullName, string Role, string Scope, bool MustChangePassword = false, string? CpfMasked = null, string? Email = null)
+{
+    /// <summary>Acrescenta o CPF mascarado (só paciente) e o e-mail lidos da conta.</summary>
+    public UserInfo WithContact(string? cpf, string? email) => this with { CpfMasked = Scope == "patient" ? MaskCpf(cpf) : null, Email = email };
+    /// <summary><c>***.456.789-**</c>: mostra só os dígitos 4 a 9; nulo se o CPF não tem 11 dígitos.</summary>
+    public static string? MaskCpf(string? cpf) => cpf is { Length: 11 } ? $"***.{cpf[3..6]}.{cpf[6..9]}-**" : null;
+}
 public sealed record Account(UserInfo User, string Cpf, string Email, string PasswordHash);
 public sealed record LoginRequest(string Scope, string Identifier, string Password, bool? KeepSignedIn = null);
 /// <summary>KeepSignedIn e Device ficam no fim: KeepSignedIn é o que foi realmente aplicado (só vale com computador ativado); Device só aparece no login do OBS com computador reconhecido.</summary>

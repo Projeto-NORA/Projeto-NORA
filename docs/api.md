@@ -44,10 +44,10 @@ As rotas globais históricas `/api/patients`, `/api/queue`, `/api/slots`, `/api/
 | POST /api/auth/password-reset/request | Público limitado | 202 challengeId/expiresInSeconds; resposta não confirma se o CPF tem cadastro |
 | POST /api/auth/password-reset/confirm | Público limitado | 200 codeValid; código incorreto, expirado ou usado retorna `false` |
 | GET /api/address/cep/{cep} | Público limitado | 200 endereço do CEP;404 inexistente; consulta somente os oito dígitos |
-| GET /api/auth/me | Sessão | 200 id/fullName/role/scope/mustChangePassword |
+| GET /api/auth/me | Sessão | 200 id/fullName/role/scope/mustChangePassword/cpfMasked/email (os dois últimos desde 2026-11-24; `cpfMasked` = `***.456.789-**` só para paciente, nulo na equipe; o `user` do login traz os mesmos campos) |
 | POST /api/auth/logout | Sessão | 204 |
-| POST /api/auth/password | Sessão limitada (10 por 10 min por conta autenticada) | 204; corpo `currentPassword` e `newPassword` (8 a 256); senha atual incorreta → 400 `invalid-current-password`; nova igual à atual → 400; limpa a troca obrigatória e revoga as outras sessões da conta |
-| GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/address/isOnline/isActive/createdAt, por cadastro mais recente |
+| POST /api/auth/password | Sessão limitada (10 por 10 min por conta autenticada) | 204; corpo `currentPassword` e `newPassword` (não vazia, até 256 caracteres, sem tamanho mínimo nem exigência de letras ou números); senha atual incorreta → 400 `invalid-current-password`; nova igual à atual → 400; limpa a troca obrigatória e revoga as outras sessões da conta |
+| GET /api/patients | OBS | 200 lista id/fullName/cpf/email/phone/address/isOnline/isActive/createdAt, em ordem alfabética pelo nome |
 | POST /api/patients | OBS | 201; fullName/cpf/email/password validados; phone e address opcionais |
 | PATCH /api/patients/{id}/active | OBS atendente/administrador | 204; `isActive` booleano obrigatório; altera acesso e pendências atomicamente |
 | GET /api/queue | OBS | 200 ordem enteredAt/id |
@@ -352,7 +352,7 @@ Resposta da rede: `from`, `to`; `totals` (`appointments`, `waiting`, `lightning`
 
 ## Contas e troca de senha
 
-`POST /api/auth/password` (qualquer perfil) recebe `{ "currentPassword": "...", "newPassword": "..." }`. Senha atual incorreta → 400 com `code` `invalid-current-password` (não 401: os clientes encerram a sessão em 401); nova senha fora de 8 a 256 caracteres ou igual à atual → 400. Em caso de sucesso (204) grava o hash, limpa `must_change_password` e revoga as outras sessões da conta; a atual continua.
+`POST /api/auth/password` (qualquer perfil) recebe `{ "currentPassword": "...", "newPassword": "..." }`. Senha atual incorreta → 400 com `code` `invalid-current-password` (não 401: os clientes encerram a sessão em 401); nova senha vazia, acima de 256 caracteres ou igual à atual → 400. Senha não tem restrições (decisão da dona do projeto, 2026-11-24): sem tamanho mínimo e sem exigir letras ou números; só não pode ser vazia (nula ou `""`) e tem o máximo técnico de 256 caracteres. A senha não é aparada, então espaços contam como caracteres e uma senha só de espaços é aceita. A mesma regra (`AccountService.ValidPassword`) vale no cadastro pelo app (`registration/start`), na redefinição por código (`password-reset/confirm`), no cadastro do paciente pelo OBS (`POST /api/patients`), nas contas da equipe (`POST /api/municipal/staff` e `.../staff/{id}/password`) e no `--provision`. Em caso de sucesso (204) grava o hash, limpa `must_change_password` e revoga as outras sessões da conta; a atual continua.
 
 A Secretaria cria contas de atendente ou administrador em `POST /api/municipal/staff` com `{ "fullName", "email", "password", "role" }` (`role` `attendant` ou `administrator`; mesmas validações de e-mail e senha do provisionamento; um `cpf` enviado é ignorado; duplicidade de e-mail no escopo → 409). A conta nasce com `must_change_password` verdadeiro: a senha é provisória. `PATCH /api/municipal/staff/{id}/active` recebe `{ "isActive": bool, "confirmed": true }` (`confirmed` obrigatório e verdadeiro); desativar revoga as sessões e impede o login, e as concessões de UBS são preservadas. `POST /api/municipal/staff/{id}/password` recebe `{ "password": "...", "confirmed": true }`, define uma nova senha provisória e revoga as sessões; é a recuperação de contas OBS, que não têm e-mail de recuperação. Cada ação grava um evento em `staff_account_events` na mesma transação. As três rotas respondem 404 para contas que não sejam OBS.
 
@@ -704,3 +704,64 @@ Migração central **022**: `accounts.cpf` aceita nulo, o CPF de todas as contas
 - **P5:** migração de UBS **017** (`UnitSchema.ExpectedVersion` = 17): `waiting_list(cpf, entered_at, id)` para as leituras por CPF (app do paciente e responsável, agora com consulta própria `WHERE q.cpf=$1`) e `waiting_list(entered_at DESC, id DESC)` para a página de histórico. Rode `--migrate-all-units`; uma UBS sem a 017 responde 503 `unit-database-outdated`. Medições em [desempenho](desempenho.md).
 
 Testes: `ClosingChecks` (`--closing-only`).
+
+## Vaga Relâmpago automática (2026-11-24)
+
+Decisão da dona do projeto. **A fila manual acabou**: a equipe não inclui mais ninguém numa fila e não escolhe a quem oferecer. Migrações: UBS **018** (`018_lightning_automatic.sql`, `UnitSchema.ExpectedVersion` = 18) e central **024** (`024_slot_approval_off.sql`). Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`; uma UBS sem a 018 responde 503 `unit-database-outdated`.
+
+**Como funciona.** O `UnitLightningDispatcher` (worker de 15 s e depois de cada ação), sob o lock da fila da UBS:
+
+1. vence as ofertas pendentes fora do prazo (10 min ou o horário começou) e cancela as que perderam a consulta a antecipar (ela deixou de estar `scheduled`); a vaga volta a `open`;
+2. fecha (`too-late`) a vaga aberta a menos de 10 minutos do horário;
+3. **cria sozinho** uma vaga `open` para cada consulta futura cancelada (por qualquer pessoa) que ainda não tem vaga, com o horário a mais de **20 minutos** (`CreationLead` = 10 min de oferta + 10 min de antecedência mínima) e livre para o profissional (sem consulta ativa, vaga aberta/ofertada ou bloqueio do profissional ou da UBS que cruze), sob o lock do profissional (`62419809`); `origin` = `rescheduled` quando o cancelamento foi uma antecipação relâmpago, senão `cancellation`;
+4. oferece cada vaga aberta (a mais cedo primeiro) ao primeiro candidato.
+
+**Candidatos** (`LightningEligibility`): quem tem consulta **`scheduled` na mesma especialidade** (texto, sem diferenciar maiúsculas e espaços) da mesma UBS com **início posterior ao da vaga**, com qualquer profissional; conta de paciente ativa vinculada à UBS, ou dependente com Família aprovada (a oferta vai ao responsável); cadastro ativo; sem oferta pendente; sem outra consulta que cruze o horário da vaga (a própria consulta que será antecipada não conta); e quem recusou ou deixou vencer **esta** vaga não a recebe de novo. Cada CPF entra uma vez, com a sua consulta mais distante. **Ordem:** mais pontos de score; empate → a consulta mais distante (ganha mais ao antecipar); depois o id da consulta.
+
+**Aceite** (`POST .../lightning-offers/{id}/respond` com `accept:true`, paciente ou responsável): na mesma transação a consulta antiga é cancelada com evento de origem **`rescheduled-lightning`** (não pesa no score), a consulta nova nasce no horário da vaga (`booked_by='lightning'`) e a vaga fica `accepted`. A rota chama o passe em seguida: o horário antigo vira vaga `rescheduled` e segue a mesma distribuição (**cascata**). A cascata termina sozinha: quem aceita sempre vai para um horário anterior ao seu, cada consulta gera no máximo uma vaga (`appointment_id` único) e horário a 20 minutos ou menos não vira vaga. Consulta a antecipar que já não está marcada no aceite → a oferta é cancelada e 409. **Recusa ou vencimento:** a vaga volta a `open` e passa ao próximo. Locks preservados: lock da fila `62419811` → profissional `62419809` → paciente `62419810` na UBS; conferência de outra UBS no aceite (`other-unit-overlap`); commit da UBS antes do central.
+
+**Removido (410 Gone, `code` `manual-queue-removed`).** As rotas continuam mapeadas (com sessão: sem token → 401) e respondem 410: `GET/POST /api/obs/units/{unitId}/waiting-list`, `POST .../waiting-list/{id}/cancel`, `GET .../waiting-list/next`, `POST .../waiting-list/call-next`, `PUT .../slot-approval`, `POST .../lightning-slots/{slotId}/approve` e `.../discard`, `POST /api/patient/units/{unitId}/waiting-list/{id}/cancel` e `POST /api/patient/dependents/{dependentId}/units/{unitId}/waiting-list/{id}/cancel`. Foi escolhido 410 em vez de apagar as rotas para os clientes antigos receberem uma mensagem clara em vez de 404/405. A migração 018 encerra as entradas ativas da fila (`cancelled`, origem `system`), cancela as ofertas pendentes da fila antiga (as vagas voltam a `open` e seguem a regra nova), passa as vagas `awaiting_approval` a `open` (ou `closed`/`conflict` se o horário foi ocupado) e a 024 desliga a aprovação em todas as UBS (`slot_approval_since` nulo; `slotApprovalRequired` do perfil fica sempre `false`). `CallNextService`, `SlotApprovalService` e as suítes `CallNextChecks`, `SlotApprovalChecks` e `QueueReturnChecks` foram removidos. O "Gerar Vaga Relâmpago" da equipe (`POST .../lightning-slots`) continua e só adianta o que o distribuidor faria.
+
+**Leituras mantidas para o painel do OBS.** `GET /api/obs/units/{unitId}/lightning-slots` (paginado como antes; `origin` ganha o valor `rescheduled`; `source.cancelledBy` pode ser `rescheduled-lightning`; `approvalDeadline` sempre nulo) e `GET .../lightning-slots/{slotId}/offers`, cujos itens ganharam no fim `replacesStartsAt` (início da consulta que seria antecipada). Com as duas o painel mostra vagas abertas, ofertas em andamento com o prazo (`expiresAt`), aceitas, recusadas e vencidas, com nome, especialidade, profissional e horário.
+
+**O que mudou para o app.** `GET /api/patient/units/{unitId}/lightning-offers` (e a do responsável e `GET /api/patient/dependents/lightning-offers`): cada oferta ganhou no fim `replacesAppointmentId` e `replacesStartsAt` — a consulta que o aceite antecipa (o app deve dizer "antecipar sua consulta de X para Y"); nulos em ofertas antigas. `GET /api/patient/units/{unitId}/waiting-list` e a do responsável continuam respondendo 200, **sempre com `entries: []`** (mantidas só para o app antigo não quebrar; podem sair da tela). Sair da fila → 410 `manual-queue-removed`. Depois do aceite a consulta antiga aparece cancelada e a nova `scheduled` em `GET .../appointments`.
+
+**Score.** O cancelamento com origem `rescheduled-lightning` não pesa (só a origem `patient` pesa).
+
+Testes: `LightningAutoChecks` (`--lightning-only`): candidato por consulta posterior, ordem (empate → consulta mais distante; score maior vence a distância), recusa passando ao próximo, aceite com antecipação e cascata em duas voltas, vencimento, parada da cascata a menos de 20 minutos, score sem efeito da antecipação e as rotas 410.
+
+## Score por eventos (2026-11-24)
+
+Substitui o cálculo `concluídas ÷ (concluídas + faltas + pesos)` **por paciente** (2 cancelamentos derrubavam demais). Código: `AttendanceScore.Compute(eventos, agora)`, lido por `UnitMetricsDao.ReadAttendanceAsync` (registry do OBS, attendance do paciente e do responsável, ordem da Vaga Relâmpago). Sem migração.
+
+- Pontos de 0 a 1000; **começa em 700**; sem histórico na janela (12 meses pela data marcada) = 700.
+- Eventos em ordem cronológica (comparecimento e falta no horário marcado; cancelamento no instante em que foi feito), com os pontos limitados a 0–1000 a cada passo:
+  - **comparecer**: +60, mais bônus de sequência de +10 por comparecimento consecutivo anterior, até +40 (1º = 60, 2º = 70, 3º = 80, 4º = 90, 5º em diante = 100); consulta que veio do aceite de uma Vaga Relâmpago (`booked_by='lightning'`) e foi comparecida: **+20** extra;
+  - **cancelamento pelo paciente** (origem `patient`) pela antecedência: 48 h ou mais = 0; 24 a 48 h = −10; 6 a 24 h = −20; 1 a 6 h = −30; menos de 1 h ou depois do horário = −40 (cada faixa inclui o limite inferior);
+  - **falta**: −60 e a sequência volta a zero;
+  - penalidade de evento com **mais de 90 dias** conta pela metade (arredondada para baixo);
+  - cancelamento pela equipe, pelo sistema ou pela antecipação relâmpago (`rescheduled-lightning`): 0.
+- Faixas iguais: `low` < 300, `regular` < 600, `good` < 800, `excellent`.
+- Exemplos: dois cancelamentos em cima da hora a partir de 700 → **620**; três comparecimentos → 910; comparecer, faltar, comparecer → 760; uma falta há 100 dias → 670.
+
+**Contrato HTTP.** `points` (0–1000) e `band` como antes; `hasHistory` = existe ao menos um comparecimento, falta ou cancelamento pelo paciente na janela; `score` (razão) passa a ser **`points ÷ 1000`** (nulo sem histórico), coerente com os pontos; `completed`, `missed`, `cancelledByPatient` e `cancellationWeight` continuam como contagens informativas. **Mudanças visíveis:** quem não tem histórico agora vale **700** (antes 1000) e fica na faixa `good`. Os indicadores agregados da UBS e da rede (`attendanceScore` e `cancellationWeight` de `GET .../metrics`, por UBS, região e especialidade) **continuam com a razão antiga** `concluídas ÷ (concluídas + faltas + pesos)`, de propósito: o modelo por pontos é uma trajetória por pessoa (ordem cronológica, sequência, bônus da Vaga Relâmpago, metade após 90 dias, limites a cada passo) e não tem uma soma que faça sentido para um grupo de consultas de muitas pessoas numa janela de datas; a razão é uma taxa de comparecimento do serviço, que é o que o painel da UBS e a Secretaria comparam com as metas. Os campos e as metas existentes não mudam.
+
+## Foto de perfil (2026-11-24)
+
+Qualquer conta autenticada (paciente, OBS, Secretaria). Migração central **023** (`nora.account_photos`: uma linha por conta, `content bytea` até 2 MB, `content_type`, `etag` = SHA-256 hexadecimal, `updated_at`; apagar a conta apaga a foto; desativar não apaga). Grupo `/api/auth/photo` com sessão de qualquer escopo **sem** a exceção da troca de senha pendente (com `mustChangePassword` → 403 `password-change-required`).
+
+| Método e rota | Resultado |
+| --- | --- |
+| `GET /api/auth/photo` | 200 com os bytes, `Content-Type` igual ao enviado, `Cache-Control: private, no-cache` e `ETag` (`"<sha256>"`); `If-None-Match` igual → 304; sem foto → 404 `photo-not-found` |
+| `PUT /api/auth/photo` | corpo = binário cru com `Content-Type` `image/jpeg`, `image/png` ou `image/webp` (parâmetros ignorados), até 2 MB (2.097.152 bytes) → 204. Tipo não suportado, corpo vazio ou bytes mágicos que não batem com o tipo (JPEG `FF D8 FF`, PNG `89 50 4E 47 0D 0A 1A 0A`, WebP `RIFF....WEBP`) → 400 `photo-invalid`; acima de 2 MB (lido com limite, sem confiar no `Content-Length`) → 413 `photo-too-large`. 30 por 10 min por conta (somando o DELETE) |
+| `DELETE /api/auth/photo` | 204 (idempotente) |
+
+Testes: `PhotoChecks` (`--photo-only`).
+
+## Senha sem restrições (2026-11-24)
+
+Todas as senhas novas (troca, redefinição por código, primeiro acesso/cadastro pelo app, provisionamento e contas da equipe) só precisam **não ser vazias** e ter **no máximo 256 caracteres** (`AccountService.ValidPassword`). Não há mais tamanho mínimo nem exigência de letras e números. A senha não é aparada: espaços contam como caracteres.
+
+## Ordem alfabética das listagens (2026-11-24)
+
+Listas nominais vêm de A a Z pelo nome, sem diferenciar maiúsculas (`ORDER BY lower(nome), id`; o banco de teste usa `--locale=C`, então acentos seguem a ordem dos códigos depois do `lower`): UBS (`GET /api/municipal/units`, `GET /api/obs/units`, `GET /api/patient/units`, `GET /api/registration/units` e as UBS de uma conta OBS), contas OBS (`GET /api/municipal/staff`), cadastros de referência da UBS (`GET /api/obs/units/{unitId}/registry` e a da Secretaria), pacientes da rota global legada (`GET /api/patients`), profissionais e consultórios (já eram). Especialidades seguem `name_key` (sem acento, minúsculas). Dependentes da Família (`GET /api/patient/dependents`): os que têm nome por nome (pt-BR, sem diferenciar maiúsculas; desempate pela UBS e pelo id), depois os pedidos sem nome, mais recentes primeiro. Continuam cronológicas: histórico, agenda e consultas, vagas e ofertas, comunicados, Jornada e pedidos de Família na conferência da UBS. Computadores do OBS mantêm o agrupamento por situação e, dentro do grupo, o nome. Testes: `AlphabeticalChecks` (`--alphabetical-only`).

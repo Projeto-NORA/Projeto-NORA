@@ -1,4 +1,8 @@
 <Window x:Class="Nora.Desktop.Views.ShellWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="1320" Height="860" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" Background="{DynamicResource BackgroundBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="{Binding Profile.Name}">
+  <Window.CommandBindings>
+    <CommandBinding Command="{x:Static views:ChartCommands.Show}" Executed="OnShowChart" />
+  </Window.CommandBindings>
+  <Grid>
   <Grid>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="{Binding SidebarColumnWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MinWidth="208" MaxWidth="380" />
@@ -7,79 +11,61 @@
     </Grid.ColumnDefinitions>
     <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
       <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
-      <DockPanel Margin="16,24">
+      <DockPanel Margin="12,20,12,16">
         <StackPanel DockPanel.Dock="Top">
-          <Border Background="{DynamicResource BrandGradientBrush}" CornerRadius="18" Padding="14" Margin="0,0,0,22">
-            <Grid>
-              <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <Border Width="38" Height="38" CornerRadius="12" Background="#33FFFFFF" BorderBrush="#55FFFFFF" BorderThickness="1"><TextBlock Text="N" Foreground="{DynamicResource BrandTextBrush}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-              <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock Text="NORA" Foreground="{DynamicResource BrandTextBrush}" FontWeight="Bold" FontSize="15" /><TextBlock Text="{Binding WorkspaceName}" Foreground="#D9FFFFFF" FontSize="10" FontWeight="SemiBold" /></StackPanel>
-            </Grid>
-          </Border>
-          <TextBlock Text="{Binding NavigationHeading}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryBrush}" Margin="10,0,0,10" />
-
+          <!-- Marca: o "N" troca com o tema (marinho no claro, branco no escuro). -->
+          <Grid Margin="8,0,8,24" ToolTip="NORA: plataforma de acompanhamento do paciente e da rede de saúde." ToolTipService.IsEnabled="{Binding ShowSidebarTips}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Image x:Name="SidebarBrandMark" Source="{DynamicResource BrandMarkImage}" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" AutomationProperties.Name="Logotipo NORA" />
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock Text="NORA" FontWeight="Bold" FontSize="17" /><TextBlock Text="{Binding WorkspaceName}" Foreground="{DynamicResource SecondaryBrush}" FontSize="10" FontWeight="SemiBold" /></StackPanel>
+          </Grid>
+          <Button Style="{StaticResource NavBackButton}" Command="{Binding MainMenuCommand}" Visibility="{Binding ShowingSubmenu, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8" ToolTip="Volta à lista das áreas principais. A página aberta continua a mesma." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Voltar ao menu">
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE76B;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" /><TextBlock Text="Voltar ao menu" VerticalAlignment="Center" /></StackPanel>
+          </Button>
+          <TextBlock Text="{Binding SidebarHeading}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryBrush}" Margin="12,4,0,10" />
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
-          <Button Command="{Binding NavigateCommand}" CommandParameter="settings" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,8" ToolTip="Abra as configurações do software." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
-            <StackPanel Orientation="Horizontal"><TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="18" Width="24" VerticalAlignment="Center" /><TextBlock Text="Configurações" Margin="10,0,0,0" /></StackPanel>
+          <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="8,8,8,10" />
+          <Button Style="{StaticResource NavItemButton}" Command="{Binding NavigateCommand}" CommandParameter="settings" Margin="0,0,0,6" ToolTip="Aparência, atalhos, foto de perfil e preferências deste computador." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
+            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Width="22" VerticalAlignment="Center" /><TextBlock Text="Configurações" Margin="10,0,0,0" VerticalAlignment="Center" /></StackPanel>
           </Button>
-          <Button x:Name="AccountButton" Click="OnAccountMenu" HorizontalContentAlignment="Left" BorderThickness="0" Padding="6,12" ToolTip="Abra as configurações ou saia da conta." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
-            <Button.ContextMenu>
-              <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextBrush}">
-                <ContextMenu.Template><ControlTemplate TargetType="ContextMenu"><Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="5"><ItemsPresenter /></Border></ControlTemplate></ContextMenu.Template>
-                <ContextMenu.Resources><Style TargetType="MenuItem">
-                  <Setter Property="Foreground" Value="{DynamicResource TextBrush}" /><Setter Property="Padding" Value="14,10" /><Setter Property="MinWidth" Value="180" />
-                  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem"><Border x:Name="Frame" Background="Transparent" Padding="{TemplateBinding Padding}" CornerRadius="4"><ContentPresenter ContentSource="Header" RecognizesAccessKey="True" /></Border><ControlTemplate.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
-                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.45" /></Trigger>
-                  </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-                </Style></ContextMenu.Resources>
-                <MenuItem Header="Configurações" Command="{Binding NavigateCommand}" CommandParameter="settings" AutomationProperties.Name="Configurações" />
-                <MenuItem Header="Sair da conta" Command="{Binding Workspace.LogoutCommand}" AutomationProperties.Name="Sair da conta" />
-              </ContextMenu>
-            </Button.ContextMenu>
-            <Grid>
-              <Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource BrandBrush}"><TextBlock Text="{Binding Workspace.AccountInitials}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource BrandTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding Workspace.AccountName}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></StackPanel>
-            </Grid>
-          </Button>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Button x:Name="AvatarButton" Style="{StaticResource AvatarButton}" Click="OnPhotoMenu" Margin="6,0,0,0" IsEnabled="{Binding Workspace.IsAuthenticated}" ToolTip="Foto de perfil: clique para alterar ou remover." ToolTipService.ShowOnDisabled="False" AutomationProperties.Name="Foto de perfil">
+              <views:AccountAvatar DataContext="{Binding Workspace}" Size="36" />
+            </Button>
+            <Button x:Name="AccountButton" Grid.Column="1" Style="{StaticResource NavItemButton}" Click="OnAccountMenu" Padding="8,8" ToolTip="Conta conectada: abra as configurações ou saia." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
+              <Button.ContextMenu>
+                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource NoraContextMenu}">
+                  <MenuItem Header="Configurações" Command="{Binding NavigateCommand}" CommandParameter="settings" AutomationProperties.Name="Configurações" ToolTip="Abre as configurações do aplicativo."/>
+                  <MenuItem Header="Sair da conta" Command="{Binding Workspace.LogoutCommand}" AutomationProperties.Name="Sair da conta" ToolTip="Encerra a sessão desta conta."/>
+                </ContextMenu>
+              </Button.ContextMenu>
+              <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding Workspace.AccountName}" FontWeight="SemiBold" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></StackPanel>
+            </Button>
+          </Grid>
         </StackPanel>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl ItemsSource="{Binding Navigation}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl x:Name="SidebarList" ItemsSource="{Binding SidebarItems}" RenderTransformOrigin="0,0" AutomationProperties.Name="Menu de navegação">
+            <ItemsControl.RenderTransform><TranslateTransform x:Name="SidebarSlide" /></ItemsControl.RenderTransform>
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Id}" IsEnabled="{Binding Available}" HorizontalContentAlignment="Left" BorderThickness="0" Padding="10,12" Margin="0,0,0,6" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding AutomationName}">
-                  <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                      <Setter Property="ToolTip" Value="{Binding Title}" />
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding Id}" Value="home"><Setter Property="ToolTip" Value="Abra a visão geral do seu espaço de trabalho." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="patients"><Setter Property="ToolTip" Value="Consulte e cadastre pacientes da unidade." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="queue"><Setter Property="ToolTip" Value="Acompanhe e organize a fila de Vaga Relâmpago." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="agenda"><Setter Property="ToolTip" Value="Consulte a agenda da unidade em formato de calendário." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="slots"><Setter Property="ToolTip" Value="Abra e acompanhe vagas oferecidas aos pacientes." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="indicators"><Setter Property="ToolTip" Value="Consulte os indicadores agregados da rede." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="alerts"><Setter Property="ToolTip" Value="Acompanhe alertas operacionais da unidade." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Available}" Value="False"><Setter Property="ToolTip" Value="Esta área aguarda a definição das próximas funcionalidades." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="unit-settings"><Setter Property="ToolTip" Value="Cadastre profissionais, consultórios, grade de horários e bloqueios da unidade." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="family"><Setter Property="ToolTip" Value="Aprove ou recuse pedidos de vínculo entre responsáveis e dependentes." /></DataTrigger>
-                        <DataTrigger Binding="{Binding Id}" Value="announcements"><Setter Property="ToolTip" Value="Leia os comunicados da Secretaria para a equipe." /></DataTrigger>
-                        <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /></DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Button.Style>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="18" Width="24" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" />
-                    <Border Visibility="{Binding HasBadge, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource BrandBrush}" CornerRadius="10" MinWidth="22" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource BrandTextBrush}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" /></Border>
-                  </StackPanel>
+                <Button Style="{StaticResource NavItemButton}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Route}" IsEnabled="{Binding Available}" Margin="0,0,0,4" ToolTip="{Binding Tip}" ToolTipService.ShowOnDisabled="True" ToolTipService.IsEnabled="{Binding DataContext.ShowSidebarTips, RelativeSource={RelativeSource AncestorType=Window}}" AutomationProperties.Name="{Binding AutomationName}" Tag="{Binding IsSelected}">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="{Binding Icon}" FontSize="16" Width="22" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                    <Border Grid.Column="2" Visibility="{Binding HasBadge, Converter={StaticResource BoolVisibility}}" Background="{DynamicResource BrandBrush}" CornerRadius="10" MinWidth="22" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource BrandTextBrush}" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" /></Border>
+                    <TextBlock Grid.Column="3" Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="10" Opacity="0.6" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="{Binding HasChildren, Converter={StaticResource BoolVisibility}}" />
+                  </Grid>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
-          </ItemsControl></ScrollViewer>
+          </ItemsControl>
+        </ScrollViewer>
       </DockPanel>
     </Border>
-    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral.">
+    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" ToolTip="Arraste para ajustar a largura da barra lateral.">
       <GridSplitter.Style><Style TargetType="GridSplitter"><Style.Triggers><DataTrigger Binding="{Binding ShowPasswordRequired}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></GridSplitter.Style>
     </GridSplitter>
     <Grid Background="{DynamicResource BackgroundGradientBrush}">
@@ -91,21 +77,25 @@
         <RowDefinition Height="*" />
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
-      <Border Background="{DynamicResource SidebarGradientBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="32,0" Height="54">
+      <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="16,0,32,0" Height="56">
         <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <Border Grid.Column="1" Background="{DynamicResource BrandSoftBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12,6" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource SecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Workspace.IsAuthenticated}" Value="True"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="11" Foreground="{DynamicResource TextBrush}" /></StackPanel></Border>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <!-- Seta de voltar: volta para a página anterior da pilha de histórico (Alt + seta para a esquerda). -->
+          <Button x:Name="BackButton" Style="{StaticResource CircleIconButton}" Command="{Binding BackCommand}" Content="&#xE72B;" Margin="0,0,12,0" ToolTip="{Binding BackTip}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Voltar para a página anterior" />
+          <TextBlock Grid.Column="1" Text="{Binding PageLabel}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+          <Border Grid.Column="2" Background="{DynamicResource BrandSoftBrush}" CornerRadius="12" Padding="12,6" VerticalAlignment="Center" ToolTip="Unidade ou escopo da conta conectada. O ponto verde indica sessão ativa."><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource SecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Workspace.IsAuthenticated}" Value="True"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="11" Foreground="{DynamicResource TextBrush}" /></StackPanel></Border>
         </Grid>
       </Border>
-      <ProgressBar Grid.Row="0" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Background="{DynamicResource BorderBrush}" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding Workspace.ShowProgress, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Operação em andamento" />
+      <ProgressBar Grid.Row="0" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding Workspace.ShowProgress, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Operação em andamento" />
       <!-- Faixa comum de retorno: vale para todas as abas dos dois perfis e para Configurações. -->
       <StackPanel Grid.Row="1">
-        <Border AutomationProperties.Name="Retorno da ação" Padding="14,10" CornerRadius="10" BorderThickness="1" Margin="32,16,32,0" Visibility="{Binding Workspace.HasMessage, Converter={StaticResource BoolVisibility}}">
+        <Border AutomationProperties.Name="Retorno da ação" Padding="16,12" CornerRadius="12" Margin="32,16,32,0" Visibility="{Binding Workspace.HasMessage, Converter={StaticResource BoolVisibility}}">
+          <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.08" Color="#061E3B" /></Border.Effect>
           <Border.Style><Style TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InfoSurfaceBrush}" />
             <Style.Triggers>
-              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="success"><Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" /></DataTrigger>
-              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="error"><Setter Property="BorderBrush" Value="{DynamicResource ErrorBrush}" /></DataTrigger>
+              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="success"><Setter Property="Background" Value="{DynamicResource SuccessSurfaceBrush}" /></DataTrigger>
+              <DataTrigger Binding="{Binding Workspace.MessageKindName}" Value="error"><Setter Property="Background" Value="{DynamicResource ErrorSurfaceBrush}" /></DataTrigger>
             </Style.Triggers></Style></Border.Style>
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -120,10 +110,10 @@
             <TextBlock Grid.Column="1" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Workspace.Message}">
               <Run Text="{Binding Workspace.MessageKindLabel, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=": " /><Run Text="{Binding Workspace.Message, Mode=OneWay}" />
             </TextBlock>
-            <Button Grid.Column="2" Content="×" Command="{Binding Workspace.DismissMessageCommand}" FontSize="18" MinWidth="32" MinHeight="32" Padding="6,0" Margin="12,0,0,0" VerticalAlignment="Center" ToolTip="Dispensar mensagem" AutomationProperties.Name="Dispensar mensagem" />
+            <Button Grid.Column="2" Style="{StaticResource CircleIconButton}" Content="&#xE711;" Command="{Binding Workspace.DismissMessageCommand}" Margin="12,0,0,0" VerticalAlignment="Center" ToolTip="Dispensar mensagem" AutomationProperties.Name="Dispensar mensagem" />
           </Grid>
         </Border>
-        <Border Margin="32,10,32,0" Padding="14,8" CornerRadius="10" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" AutomationProperties.Name="Aviso de dados desatualizados" Visibility="{Binding Workspace.IsDataStale, Converter={StaticResource BoolVisibility}}">
+        <Border Margin="32,12,32,0" Padding="16,10" CornerRadius="12" Background="{DynamicResource WarningSurfaceBrush}" AutomationProperties.Name="Aviso de dados desatualizados" Visibility="{Binding Workspace.IsDataStale, Converter={StaticResource BoolVisibility}}">
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
@@ -132,17 +122,25 @@
         </Border>
       </StackPanel>
       <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="32,32,32,24"><Grid x:Name="PageContainer">
+        <StackPanel Margin="32,32,32,16"><Grid x:Name="PageContainer" views:SubPage.Current="{Binding SubPage}">
+          <Grid.RenderTransform><TranslateTransform x:Name="PageSlide" /></Grid.RenderTransform>
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
           <views:PasswordChangeRequiredView DataContext="{Binding Workspace}" Visibility="{Binding MustChangePassword, Converter={StaticResource BoolVisibility}}" />
         </Grid>
-        <TextBlock Text="Elaborado por: Luana Pinheiro (luana.pinheiro.cruz@gmail.com) e Mateus Todeschini (mateustodeschini123@gmail.com)" Foreground="{DynamicResource SecondaryBrush}" FontSize="11" Margin="0,28,0,0" TextWrapping="Wrap" />
+        <!-- Marca d'água discreta dos desenvolvedores, no estilo dos rodapés de softwares conhecidos. -->
+        <StackPanel x:Name="Watermark" Style="{StaticResource Watermark}">
+          <Image Source="{DynamicResource BrandMarkImage}" Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+          <TextBlock Text="Elaborado por: Luana Pinheiro (luana.pinheiro.cruz@gmail.com) e Mateus Todeschini (mateustodeschini123@gmail.com)" FontSize="10.5" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
         </StackPanel>
       </ScrollViewer>
       <Border Grid.Row="3" Background="{DynamicResource BrandSoftBrush}" Padding="24,10" Visibility="{Binding HasPreferenceError, Converter={StaticResource BoolVisibility}}">
         <TextBlock Text="{Binding Status}" Foreground="{DynamicResource ErrorBrush}" AutomationProperties.LiveSetting="Polite" />
       </Border>
     </Grid>
+  </Grid>
+  <!-- Fundo escurecido enquanto um diálogo da marca está aberto. -->
+  <Border x:Name="DialogOverlay" Background="{DynamicResource OverlayBrush}" Visibility="Collapsed" IsHitTestVisible="True" />
   </Grid>
 </Window>

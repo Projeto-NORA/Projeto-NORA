@@ -50,11 +50,12 @@ internal sealed class UnitMetricsData
     public SpecialtyData Specialty(string key) => Specialties.TryGetValue(key, out var data) ? data : Specialties[key] = new();
 }
 
-/// <summary>Contagens de comparecimento de um CPF. O valor padrão (sem consulta encerrada) vale 1000 pontos.</summary>
-internal readonly record struct PatientTally(long Completed, long Missed, long CancelledByPatient, double Weight)
+/// <summary>Contagens de comparecimento de um CPF e os pontos por eventos (<see cref="AttendanceScore.Compute(IEnumerable{AttendanceScore.Event}, DateTimeOffset)"/>). O valor padrão (sem histórico) vale 700 pontos.</summary>
+internal readonly record struct PatientTally(long Completed, long Missed, long CancelledByPatient, double Weight, int? EventPoints = null)
 {
-    public double? Score => AttendanceScore.Compute(Completed, Missed, Weight);
-    public int Points => AttendanceScore.Points(Completed, Missed, Weight);
+    /// <summary>Razão coerente com os pontos (pontos ÷ 1000); nula sem histórico.</summary>
+    public double? Score => EventPoints is { } points ? points / (double)AttendanceScore.MaxPoints : null;
+    public int Points => EventPoints ?? AttendanceScore.InitialPoints;
 }
 
 /// <summary>Leituras agregadas do banco de uma UBS. O chamador já autorizou o acesso à unidade.</summary>
@@ -182,27 +183,36 @@ public sealed partial class UnitMetricsDao
     /// </summary>
     internal static async Task<Dictionary<string, PatientTally>> ReadAttendanceAsync(NpgsqlConnection connection, DateTimeOffset from, DateTimeOffset to, string[] cpfs, CancellationToken ct)
     {
+        // Uma linha por consulta encerrada ou cancelada, com o instante do evento: o horário marcado (comparecimento e falta) ou o do cancelamento pelo paciente.
         await using var query = new NpgsqlCommand($"""
-            SELECT a.cpf, a.status, e.id IS NOT NULL, {LeadMicros}, count(*)
+            SELECT a.cpf, a.status, e.id IS NOT NULL, COALESCE({LeadMicros}, 0), a.booked_by='lightning', CASE WHEN a.status='cancelled' THEN COALESCE(e.occurred_at, a.starts_at) ELSE a.starts_at END
             FROM nora_unit.appointments a {CancelledByPatientJoin}
             WHERE a.starts_at >= $1 AND a.starts_at < $2 AND a.status IN ('completed','missed','cancelled') AND (cardinality($3::text[]) = 0 OR a.cpf = ANY($3::text[]))
-            GROUP BY 1,2,3,4
             """, connection);
         query.Parameters.AddWithValue(from.ToUniversalTime()); query.Parameters.AddWithValue(to.ToUniversalTime()); query.Parameters.AddWithValue(cpfs);
         await using var reader = await query.ExecuteReaderAsync(ct);
         var result = new Dictionary<string, PatientTally>(StringComparer.Ordinal);
+        var events = new Dictionary<string, List<AttendanceScore.Event>>(StringComparer.Ordinal);
         while (await reader.ReadAsync(ct))
         {
-            var count = reader.GetInt64(4); var cpfValue = reader.GetString(0);
+            var cpfValue = reader.GetString(0); var status = reader.GetString(1); var byPatient = reader.GetBoolean(2);
+            if (status == "cancelled" && !byPatient) continue; // cancelamento da equipe, do sistema ou da antecipação relâmpago: não pesa
             var tally = result.GetValueOrDefault(cpfValue);
-            result[cpfValue] = reader.GetString(1) switch
+            var at = reader.GetFieldValue<DateTimeOffset>(5);
+            if (!events.TryGetValue(cpfValue, out var list)) events[cpfValue] = list = [];
+            switch (status)
             {
-                "completed" => tally with { Completed = tally.Completed + count },
-                "missed" => tally with { Missed = tally.Missed + count },
-                _ when reader.GetBoolean(2) => tally with { CancelledByPatient = tally.CancelledByPatient + count, Weight = tally.Weight + count * AttendanceScore.CancellationWeight(TimeSpan.FromTicks(reader.GetInt64(3) * 10)) },
-                _ => tally
-            };
+                case "completed": result[cpfValue] = tally with { Completed = tally.Completed + 1 }; list.Add(new(at, AttendanceScore.EventKind.Attended, Lightning: reader.GetBoolean(4))); break;
+                case "missed": result[cpfValue] = tally with { Missed = tally.Missed + 1 }; list.Add(new(at, AttendanceScore.EventKind.Missed)); break;
+                default:
+                    var lead = TimeSpan.FromTicks(reader.GetInt64(3) * 10);
+                    result[cpfValue] = tally with { CancelledByPatient = tally.CancelledByPatient + 1, Weight = tally.Weight + AttendanceScore.CancellationWeight(lead) };
+                    list.Add(new(at, AttendanceScore.EventKind.PatientCancellation, lead)); break;
+            }
         }
+        // "Agora" do cálculo (penalidade com mais de 90 dias conta pela metade): a janela começa 12 meses antes dele.
+        var now = from.AddMonths(Nora.Api.Services.UnitRegistryReadService.AttendanceWindowMonths);
+        foreach (var (cpfValue, list) in events) result[cpfValue] = result[cpfValue] with { EventPoints = AttendanceScore.Compute(list, now) };
         return result;
     }
 

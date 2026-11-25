@@ -31,7 +31,6 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
         SectionCard("Entre na sua conta", "Modo Família") { MutedText("Entre na sua conta para pedir o vínculo com um dependente.") }
         return
     }
-    ActionMessage(patient.message)
     val links = patient.family.links
     val groups = remember(links) { groupFamilyLinks(links.orEmpty()) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +76,7 @@ fun FamilyScreen(patient: PatientState, actions: FamilyActions = FamilyActions()
     ending?.let { link ->
         AlertDialog(onDismissRequest = { ending = null }, containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Encerrar o vínculo?") },
-            text = { Text("Você perderá o acesso aos dados de ${dependentDisplayName(link)} na ${link.unitName}. Para voltar, solicite nova aprovação.") },
+            text = { Text("Você perde o acesso aos dados de ${dependentDisplayName(link)} na ${link.unitName}. Para voltar, peça de novo.") },
             confirmButton = { TextButton(onClick = { ending = null; actions.onEnd(link.id) }) { Text("Encerrar vínculo", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = { ending = null }) { Text("Manter vínculo") } })
     }
@@ -105,7 +104,7 @@ private fun RequestCard(patient: PatientState, actions: FamilyActions, onRegistr
     val digits = cpfDigits(cpf)
     val cpfWrong = digits.length == 11 && !isValidCpf(digits)
     SectionCard("Pedir vínculo com um dependente", "A equipe da UBS confere os documentos") {
-        MutedText("Informe o CPF da pessoa e a UBS onde ela tem cadastro. A UBS decide a idade e os documentos necessários.")
+        MutedText("CPF da pessoa e UBS onde ela tem cadastro. A UBS confere os documentos.")
         OutlinedTextField(value = cpf, onValueChange = { cpf = it.filter { char -> char in '0'..'9' || char in ".- " }.take(14) },
             label = { Text("CPF do dependente") }, placeholder = { Text("000.000.000-00") }, singleLine = true,
             enabled = !patient.busy, isError = cpfWrong, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
@@ -143,7 +142,7 @@ private fun LinkCard(link: FamilyLink, patient: PatientState, onAct: (String?) -
         MutedText("Pedido enviado em ${formatDate(link.requestedAt)}.")
         when (link.status) {
             "pending" -> {
-                MutedText("A equipe da UBS ainda vai conferir os documentos. Nenhum dado da pessoa aparece até a aprovação.")
+                MutedText("A UBS vai conferir os documentos. Os dados aparecem após a aprovação.")
                 OutlinedButton(onClick = onCancel, enabled = !patient.busy, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = .55f))) { Text("Cancelar pedido") }
@@ -201,7 +200,7 @@ fun ActingBanner(patient: PatientState, onActFor: (String?) -> Unit) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(if (link == null) "Agindo por: você" else "Agindo por: ${dependentDisplayName(link)}", style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold, color = if (link != null) colors.onTertiaryContainer else colors.onSurface)
-            if (link != null) Text("Consultas, agendamento, fila, Vaga Relâmpago e Jornada desta tela são de ${dependentDisplayName(link)} na ${link.unitName}, não suas.",
+            if (link != null) Text("Consultas, agendamento, Vaga Relâmpago e Jornada: de ${dependentDisplayName(link)} na ${link.unitName}.",
                 style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { picking = true }, enabled = !patient.busy) { Text("Trocar") }

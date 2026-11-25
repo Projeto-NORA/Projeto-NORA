@@ -14,7 +14,7 @@ public sealed partial class WorkspaceViewModel
     private string? editingObsCpf, obsRegistryIbge;
     private int obsRegistryDraftVersion;
     private bool obsRegistryDraftOpen, obsUnitSelectionOpen = true, obsUnitsLoaded;
-    private string obsRegistryStatusFilter = "Todos", obsRegistrySort = "Mais recentes";
+    private string obsRegistryStatusFilter = "Todos", obsRegistrySort = "Nome A–Z";
     private string obsRegistryPresenceFilter = "Todos";
     private string obsRegistryCep = "", obsRegistryStreet = "", obsRegistryNumber = "", obsRegistryComplement = "", obsRegistryNeighborhood = "", obsRegistryCity = "", obsRegistryState = "";
     public ObservableCollection<HealthUnit> ObsUnits { get; } = [];
@@ -190,7 +190,7 @@ public sealed partial class WorkspaceViewModel
         var unit = CandidateObsUnit ?? throw new NoraApiException("Selecione uma UBS autorizada.");
         await ActivateUnitAsync(unit);
         if (disposed || ActiveObsUnit?.Id != unit.Id) return;
-        Say(MessageKind.Success, $"UBS {unit.Name} confirmada. Cadastro, fila, vagas e agenda carregados.");
+        Say(MessageKind.Success, $"UBS {unit.Name} confirmada. Cadastro, vagas e agenda carregados.");
     });
 
     public Task LoadObsRegistryAsync() => RunAsync(async () =>
@@ -238,7 +238,7 @@ public sealed partial class WorkspaceViewModel
     private (string Cpf, DeactivationPreview Preview)? deactivationPreview;
 
     /// <summary>
-    /// Antes de desativar o cadastro selecionado: pergunta à API quantas consultas futuras seriam canceladas e quantas entradas de fila encerradas (nada é gravado).
+    /// Antes de desativar o cadastro selecionado: pergunta à API quantas consultas futuras seriam canceladas e quantas ofertas pendentes encerradas (nada é gravado).
     /// Devolve nulo se a leitura falhar (a faixa já mostra o motivo): sem o número a confirmação não pode ser feita.
     /// </summary>
     public async Task<DeactivationPreview?> PreviewObsDeactivationAsync()
@@ -260,11 +260,9 @@ public sealed partial class WorkspaceViewModel
     public static string DeactivationConfirmationText(string patientName, DeactivationPreview preview)
     {
         var appointments = preview.FutureAppointments == 0 ? "Este paciente não tem consultas futuras nesta UBS para cancelar."
-            : $"{(preview.FutureAppointments == 1 ? "1 consulta futura será cancelada" : $"{DisplayFormat.Count(preview.FutureAppointments)} consultas futuras serão canceladas")}, e o horário volta a ficar livre.";
+            : $"{(preview.FutureAppointments == 1 ? "1 consulta futura será cancelada" : $"{DisplayFormat.Count(preview.FutureAppointments)} consultas futuras serão canceladas")}, e o horário pode ser oferecido a outros pacientes como vaga relâmpago.";
         var cancellation = preview.FutureAppointments == 0 ? "" : "\n\nEsses cancelamentos contam como da unidade: não pesam no score do paciente.";
-        var queue = preview.ActiveWaitingEntries == 0 ? "Ele não tem entrada ativa na fila."
-            : $"{CountText(preview.ActiveWaitingEntries, "entrada ativa na fila será encerrada", "entradas ativas na fila serão encerradas")}, junto com as ofertas pendentes.";
-        return $"Desativar {patientName} somente nesta UBS?\n\n{appointments}{cancellation}\n\n{queue}\n\nReativar depois não restaura nada do que foi cancelado.";
+        return $"Desativar {patientName} somente nesta UBS?\n\n{appointments}{cancellation}\n\nReativar depois não restaura nada do que foi cancelado.";
     }
 
     /// <summary>
@@ -285,8 +283,8 @@ public sealed partial class WorkspaceViewModel
         var preview = !active && deactivationPreview is { } saved && saved.Cpf == patient.Cpf ? saved.Preview : null;
         deactivationPreview = null;
         await api.SetObsRegistryActiveAsync(unit.Id, patient.Cpf, active);
-        // Desativar cancela fila, ofertas e consultas futuras da UBS: cadastro, fila, vagas e agenda voltam juntos.
-        var scope = UnitScope.Registry | UnitScope.Queue | UnitScope.Slots;
+        // Desativar cancela ofertas e consultas futuras da UBS: cadastro, vagas e agenda voltam juntos.
+        var scope = UnitScope.Registry | UnitScope.Slots;
         if (!active) scope |= UnitScope.Agenda | UnitScope.Today;
         var cancelled = preview is null ? "entradas, ofertas pendentes e consultas futuras foram canceladas"
             : preview.FutureAppointments == 0 ? "entradas e ofertas pendentes foram canceladas; não havia consultas futuras"
@@ -312,10 +310,10 @@ public sealed partial class WorkspaceViewModel
         ObsRegistryCep = ObsRegistryStreet = ObsRegistryNumber = ObsRegistryComplement = ObsRegistryNeighborhood = ObsRegistryCity = ObsRegistryState = "";
     }
 
-    /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda, fila e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
+    /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices(); ClearCallNext();
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices();
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
     }
 
@@ -329,7 +327,7 @@ public sealed partial class WorkspaceViewModel
     {
         ObsUnitSelectionOpen = true;
         ObsUnits.Clear(); obsUnitsLoaded = false; Notify(nameof(HasAvailableObsUnits)); Notify(nameof(ObsUnitsLoaded));
-        ObsRegistryStatusFilter = "Todos"; ObsRegistryPresenceFilter = "Todos"; ObsRegistrySort = "Mais recentes"; CandidateObsUnit = null;
+        ObsRegistryStatusFilter = "Todos"; ObsRegistryPresenceFilter = "Todos"; ObsRegistrySort = "Nome A–Z"; CandidateObsUnit = null;
         ResetUnitState(); ActiveObsUnit = null;
     }
 }

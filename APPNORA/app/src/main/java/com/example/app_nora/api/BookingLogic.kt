@@ -112,6 +112,26 @@ private fun formatLocal(pattern: String, millis: Long): String = SimpleDateForma
 /** "quinta-feira, 19/11". */
 fun formatDayLabel(dayStart: Long): String = formatLocal("EEEE, dd/MM", dayStart)
 
+/**
+ * Os dias da faixa horizontal do agendamento: o início de cada dia do calendário do aparelho dentro de [week] (de 1 a 7 dias; a
+ * semana 0 começa hoje e a última termina no teto do servidor).
+ */
+fun weekDays(week: BookingWeek, zone: TimeZone = TimeZone.getDefault()): List<Long> {
+    val days = ArrayList<Long>(7)
+    var day = startOfDay(week.fromMillis, zone)
+    while (day < week.toMillis && days.size < 7) { days += day; day = plusDays(day, 1, zone) }
+    return days
+}
+
+/** "seg", "ter"…: o dia da semana abreviado, sem ponto, para a faixa de dias. */
+fun formatWeekdayShort(dayStart: Long): String = formatLocal("EEE", dayStart).trimEnd('.').lowercase(PT_BR)
+
+/** "19": o dia do mês. */
+fun formatDayNumber(dayStart: Long): String = formatLocal("d", dayStart)
+
+/** "nov": o mês abreviado, sem ponto. */
+fun formatMonthShort(dayStart: Long): String = formatLocal("MMM", dayStart).trimEnd('.').lowercase(PT_BR)
+
 /** "16/11 a 22/11": o primeiro e o último dia que a semana pode oferecer. */
 fun formatWeekRange(week: BookingWeek): String =
     "${formatLocal("dd/MM", week.fromMillis)} a ${formatLocal("dd/MM", week.toMillis - 1)}"

@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 import java.io.IOException
 
-/** Score por UBS, sair da fila, remover vínculo e trocar senha no controlador, com API falsa (sem rede nem Android). */
+/** Score por UBS, remover vínculo e trocar senha no controlador, com API falsa (sem rede nem Android). */
 class PatientActionsTest {
     private class MemoryStore(var address: String = "") : AddressStore {
         override fun load() = address
@@ -25,28 +25,22 @@ class PatientActionsTest {
     private class FakeApi : PatientApi {
         var units = emptyList<PatientHealthUnit>()
         var unitsFailure: Throwable? = null
-        val queues = mutableMapOf<String, List<UnitQueueEntry>>()
         val appointmentsByUnit = mutableMapOf<String, List<PatientAppointment>>()
         val offers = mutableMapOf<String, List<UnitOffer>>()
         val attendance = mutableMapOf<String, UnitAttendance>()
         val attendanceFailures = mutableMapOf<String, Throwable>()
         var attendanceCalls = 0
-        var queueCalls = 0; var appointmentCalls = 0; var offersCalls = 0
-        var cancelEntryFailure: Throwable? = null
-        val cancelledEntries = mutableListOf<Pair<String, Long>>()
+        var appointmentCalls = 0; var offersCalls = 0
         var unlinkFailure: Throwable? = null
         var unlinkResult = UnlinkResult(1, 2)
         val unlinked = mutableListOf<String>()
         var passwordFailure: Throwable? = null
         val passwordCalls = mutableListOf<Pair<String, String>>()
-        var queueFailure: Throwable? = null
+        var offersFailure: Throwable? = null
 
         override suspend fun login(identifier: String, password: String) =
             PatientSession("token-1", "2099-01-01T00:00:00Z", PatientUser("patient-id", "Paciente de teste"))
         override suspend fun units(token: String): List<PatientHealthUnit> { unitsFailure?.let { throw it }; return units }
-        override suspend fun unitQueue(token: String, unitId: String): List<UnitQueueEntry> {
-            queueCalls++; queueFailure?.let { throw it }; return queues[unitId].orEmpty()
-        }
         override suspend fun appointments(token: String, unitId: String): List<PatientAppointment> { appointmentCalls++; return appointmentsByUnit[unitId].orEmpty() }
         /** Prévia da remoção: o que o servidor diz que cancelará em cada UBS (todas as futuras, sem limite de data). */
         val previews = mutableMapOf<String, UnlinkImpact>()
@@ -55,16 +49,11 @@ class PatientActionsTest {
         override suspend fun unlinkPreview(token: String, unitId: String): UnlinkImpact {
             previewed += unitId; previewFailure?.let { throw it }; return previews[unitId] ?: UnlinkImpact(0, 0)
         }
-        override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> { offersCalls++; return offers[unitId].orEmpty() }
+        override suspend fun unitOffers(token: String, unitId: String): List<UnitOffer> { offersCalls++; offersFailure?.let { throw it }; return offers[unitId].orEmpty() }
         override suspend fun attendance(token: String, unitId: String): UnitAttendance {
             attendanceCalls++
             attendanceFailures[unitId]?.let { throw it }
             return attendance[unitId] ?: UnitAttendance(0, 0, 0, 0.0, null, 12)
-        }
-        override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) {
-            cancelEntryFailure?.let { throw it }
-            cancelledEntries += unitId to entryId
-            queues[unitId] = queues[unitId].orEmpty().map { if (it.id == entryId) it.copy(status = "cancelled") else it }
         }
         override suspend fun unlinkUnit(token: String, unitId: String): UnlinkResult {
             unlinkFailure?.let { throw it }
@@ -83,7 +72,6 @@ class PatientActionsTest {
     private val store = MemoryStore("https://nora.example.test")
     private fun controller(api: FakeApi) = PatientController(store) { api }
     private suspend fun PatientController.signIn() = login("patient@example.test", "test-only-input")
-    private fun active(id: Long, status: String = "waiting") = UnitQueueEntry(id, "Cardiologia", iso(-3600), status)
     private fun score(completed: Int, missed: Int, cancelled: Int, weight: Double, score: Double?) =
         UnitAttendance(completed, missed, cancelled, weight, score, 12)
 
@@ -148,68 +136,6 @@ class PatientActionsTest {
         assertNull(controller.state.session)
         assertTrue(controller.state.unitData.isEmpty())
         assertFalse(controller.state.attendanceLoading)
-    }
-
-    // ---- Sair da fila ---------------------------------------------------------------------------------
-
-    private suspend fun queueController(api: FakeApi): PatientController {
-        api.units = listOf(unitA)
-        api.queues[unitA.id] = listOf(active(7), active(8, "offered"), UnitQueueEntry(9, "Antiga", iso(-9999), "completed"))
-        val controller = controller(api)
-        controller.signIn()
-        return controller
-    }
-
-    @Test fun leavingTheQueueReloadsQueueAndOffers() = runBlocking {
-        val api = FakeApi()
-        val controller = queueController(api)
-        val queueBefore = api.queueCalls; val offersBefore = api.offersCalls
-        controller.cancelQueueEntry(7)
-        assertEquals(listOf(unitA.id to 7L), api.cancelledEntries)
-        assertEquals("cancelled", controller.state.unitQueue?.single { it.id == 7L }?.status)
-        assertEquals(queueBefore + 1, api.queueCalls); assertEquals(offersBefore + 1, api.offersCalls)
-        assertEquals("Você saiu da fila de Cardiologia.", controller.state.message)
-        assertFalse(controller.state.busy)
-    }
-
-    @Test fun leavingTheQueueIgnoresEntriesThatAreNotActive() = runBlocking {
-        val api = FakeApi()
-        val controller = queueController(api)
-        controller.cancelQueueEntry(9)
-        controller.cancelQueueEntry(12345)
-        assertTrue(api.cancelledEntries.isEmpty())
-    }
-
-    @Test fun leavingTheQueueNotFoundExplainsAndReloads() = runBlocking {
-        val api = FakeApi()
-        val controller = queueController(api)
-        api.cancelEntryFailure = ApiFailure(404, "texto do servidor", "not-found")
-        val before = api.queueCalls
-        controller.cancelQueueEntry(7)
-        assertEquals("Esta solicitação não foi encontrada.", controller.state.message)
-        assertEquals(before + 1, api.queueCalls)
-    }
-
-    @Test fun leavingTheQueueConflictExplainsAndShowsTheRealState() = runBlocking {
-        val api = FakeApi()
-        val controller = queueController(api)
-        api.queues[unitA.id] = listOf(active(7, "completed"), active(8, "offered"))
-        api.cancelEntryFailure = ApiFailure(409, "texto do servidor", "conflict")
-        val before = api.queueCalls
-        controller.cancelQueueEntry(7)
-        assertEquals("Esta solicitação já foi encerrada.", controller.state.message)
-        assertEquals(before + 1, api.queueCalls)
-        assertEquals("completed", controller.state.unitQueue?.first { it.id == 7L }?.status)
-        assertNotNull(controller.state.session)
-    }
-
-    @Test fun leavingTheQueueMarksTheEntryLocallyWhenTheReloadFails() = runBlocking {
-        val api = FakeApi()
-        val controller = queueController(api)
-        api.queueFailure = IOException("offline")
-        controller.cancelQueueEntry(8)
-        assertEquals("cancelled", controller.state.unitQueue?.single { it.id == 8L }?.status)
-        assertTrue(controller.state.message.orEmpty().contains("use Atualizar"))
     }
 
     // ---- Remover vínculo ------------------------------------------------------------------------------
@@ -341,9 +267,9 @@ class PatientActionsTest {
         val controller = controller(api)
         controller.signIn()
         assertFalse(controller.state.passwordChangeRequired)
-        api.queueFailure = ApiFailure(403, "x", PASSWORD_CHANGE_REQUIRED)
+        api.offersFailure = ApiFailure(403, "x", PASSWORD_CHANGE_REQUIRED)
         controller.refreshUnit()
-        // refreshUnit lê ofertas e fila; a fila respondeu 403 com o código.
+        // refreshUnit lê as ofertas; a leitura respondeu 403 com o código.
         assertTrue(controller.state.passwordChangeRequired)
         assertEquals(PASSWORD_CHANGE_REQUIRED_MESSAGE, controller.state.message)
         assertNotNull("O app não encerra a sessão: leva à troca de senha", controller.state.session)

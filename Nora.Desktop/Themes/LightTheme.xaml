@@ -24,4 +24,18 @@
   <LinearGradientBrush x:Key="BrandGradientBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#052F65" Offset="0" /><GradientStop Color="#0759A3" Offset="0.56" /><GradientStop Color="#0A70B0" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="BrandGradientHoverBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#064889" Offset="0" /><GradientStop Color="#0B6FAE" Offset="0.58" /><GradientStop Color="#0E78B3" Offset="1" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="CardGradientBrush" StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FFFFFF" Offset="0" /><GradientStop Color="#F7FBFF" Offset="1" /></LinearGradientBrush>
+  <!-- Marca: o "N" marinho no tema claro (troca com o tema, inclusive no modo Sistema). -->
+  <BitmapImage x:Key="BrandMarkImage" UriSource="pack://application:,,,/Nora.Desktop;component/Assets/nora_n_navy.png" DecodePixelWidth="128" />
+  <SolidColorBrush x:Key="OverlayBrush" Color="#590A1A2E" />
+  <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#E3F4EC" />
+  <SolidColorBrush x:Key="ErrorSurfaceBrush" Color="#FBE7EB" />
+  <SolidColorBrush x:Key="InfoSurfaceBrush" Color="#E3EEFA" />
+  <SolidColorBrush x:Key="HoverBrush" Color="#EEF3F9" />
+  <SolidColorBrush x:Key="DividerBrush" Color="#E4EBF3" />
+  <SolidColorBrush x:Key="ChartBrush1" Color="#1D6FD1" />
+  <SolidColorBrush x:Key="ChartBrush2" Color="#16A07A" />
+  <SolidColorBrush x:Key="ChartBrush3" Color="#E2A21B" />
+  <SolidColorBrush x:Key="ChartBrush4" Color="#D9475F" />
+  <SolidColorBrush x:Key="ChartBrush5" Color="#7C5CD6" />
+  <SolidColorBrush x:Key="ChartBrush6" Color="#2BA8C4" />
 </ResourceDictionary>

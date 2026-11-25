@@ -127,17 +127,17 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
         when {
             offer.status == "pending" && expired -> {
                 Text("Prazo encerrado", fontWeight = FontWeight.SemiBold)
-                MutedText("Você não pode mais responder a esta oportunidade e continua na fila, no mesmo lugar. Atualize para ver a situação atual.")
+                MutedText("Sua consulta continua na data original.")
             }
             offer.status == "pending" -> {
                 offer.expiresAtMillis?.let { OfferCountdown(it, now) }
-                MutedText("Responda até ${formatClock(offer.expiresAt)}. Ao aceitar, sua consulta será agendada; ao recusar ou deixar o prazo passar, você continua na fila.")
+                MutedText("Responda até ${formatClock(offer.expiresAt)}. Aceitar antecipa sua consulta; recusar mantém a data atual.")
                 Button(onClick = { onRespond(offer.id, true) }, enabled = !busy,
-                    modifier = Modifier.fillMaxWidth()) { Text("Aceitar oportunidade") }
+                    modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Aceitar e antecipar", fontWeight = FontWeight.Bold) }
                 OutlinedButton(onClick = { onRespond(offer.id, false) }, enabled = !busy,
-                    modifier = Modifier.fillMaxWidth()) { Text("Recusar oportunidade") }
+                    modifier = Modifier.fillMaxWidth()) { Text("Recusar") }
             }
-            offer.status == "accepted" -> MutedText("Oferta aceita. Sua consulta foi agendada.")
+            offer.status == "accepted" -> MutedText("Oferta aceita. Sua consulta foi antecipada.")
             else -> MutedText("${statusLabel(offer.status)} · Prazo: ${formatDateTime(offer.expiresAt)}")
         }
     }
@@ -146,10 +146,10 @@ private fun OfferCard(offer: UnitOffer, unitName: String?, now: State<Long>, bus
 @Composable
 fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (String) -> Unit,
     onRefresh: () -> Unit, onRespond: (String, Boolean) -> Unit) {
-    ScreenTitle("Vaga Relâmpago", "Oportunidades compatíveis enviadas pela unidade.")
-    SectionCard("Escolha uma UBS", "Somente unidades vinculadas ao seu cadastro") {
+    ScreenTitle("Vaga Relâmpago", "Antecipe sua consulta quando abrir uma vaga.")
+    SectionCard("Escolha uma UBS", "") {
         if (patient.session == null) MutedText("Entre na sua conta para consultar oportunidades.")
-        patient.units?.forEach { unit ->
+        patient.units?.sortedAlphabetically { it.name }?.forEach { unit ->
             Row(Modifier.fillMaxWidth().selectable(selected = unit.id == patient.selectedUnitId, enabled = !patient.busy, onClick = { onSelectUnit(unit.id) }, role = Role.RadioButton), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = unit.id == patient.selectedUnitId, onClick = null)
                 Text(unit.name, Modifier.padding(start = 8.dp))
@@ -158,18 +158,17 @@ fun FlashScreen(patient: PatientState, onLoadUnits: () -> Unit, onSelectUnit: (S
         if (patient.units?.isEmpty() == true) MutedText("Nenhuma UBS vinculada ao seu cadastro.")
         if (patient.session != null) OutlinedButton(onClick = onLoadUnits, enabled = !patient.busy) { Text("Atualizar unidades") }
     }
-    ActionMessage(patient.message)
     val offers = patient.unitOffers.orEmpty()
     val clock = rememberOfferClock(offers)
     val groups by remember(offers, clock) { derivedStateOf { groupOffers(offers, clock.value) } }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
     val unitName = patient.units?.find { it.id == patient.selectedUnitId }?.name
     if (patient.session == null || patient.unitOffers == null) SectionCard("Suas oportunidades", "Oportunidades compatíveis") {
-        MutedText("Escolha uma UBS e atualize o acompanhamento para consultar as oportunidades.")
+        MutedText("Escolha uma UBS para ver as vagas.")
     } else if (groups.pending.isEmpty()) SectionCard(
         if (offers.isEmpty()) "Nenhuma oportunidade no momento" else "Nenhuma oportunidade aguarda resposta",
-        "Você não precisa ficar procurando vagas") {
-        MutedText("Quando uma oportunidade estiver disponível, ela aparecerá aqui e você receberá um aviso enquanto a conexão do NORA estiver ativa.")
+        "Antecipe sua consulta") {
+        MutedText("Se abrir uma vaga antes da sua consulta, na mesma especialidade, avisamos com um alerta na tela.")
     }
     groups.pending.forEach { offer -> key(offer.id) { OfferCard(offer, unitName, clock, patient.busy, onRespond) } }
     if (groups.history.isNotEmpty()) {

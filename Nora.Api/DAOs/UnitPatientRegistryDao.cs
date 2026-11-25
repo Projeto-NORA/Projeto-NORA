@@ -104,7 +104,7 @@ public sealed class UnitPatientRegistryDao(UnitDatabaseRouter databases, Databas
     public async Task<List<UnitPatientRecord>> ListAsync(Guid unitId, CancellationToken ct = default)
     {
         await using var connection = await databases.OpenAsync(unitId, ct);
-        await using var query = new NpgsqlCommand("SELECT cpf,full_name,email,phone,cep,street,address_number,complement,neighborhood,city,state,ibge,is_active,created_at FROM nora_unit.patient_registry ORDER BY full_name,cpf", connection);
+        await using var query = new NpgsqlCommand("SELECT cpf,full_name,email,phone,cep,street,address_number,complement,neighborhood,city,state,ibge,is_active,created_at FROM nora_unit.patient_registry ORDER BY lower(full_name),cpf", connection);
         await using var reader = await query.ExecuteReaderAsync(ct);
         var result = new List<UnitPatientRecord>();
         while (await reader.ReadAsync(ct)) result.Add(Read(reader));

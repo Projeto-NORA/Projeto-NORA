@@ -7,6 +7,13 @@ using Nora.Desktop.Models;
 
 namespace Nora.Desktop.Checks;
 
+/// <summary>Entrada antiga de fila, só como dado de teste: a API ainda conta entradas nas métricas e na prévia de desativação, mas o OBS não a lê mais.</summary>
+internal sealed record WaitingSeed(long Id, string Cpf, string PatientName, string Specialty, DateTimeOffset EnteredAt, string Status, int? Points = null)
+{
+    public bool IsActive => Status is "waiting" or "offered";
+    public string StatusDisplay => Status == "closed" ? "Encerrada" : Status;
+}
+
 internal static partial class Program
 {
     /// <summary>
@@ -18,7 +25,7 @@ internal static partial class Program
         private sealed class UnitState
         {
             public List<UnitPatientRecord> Registry { get; } = [];
-            public List<UnitWaitingEntry> Waiting { get; } = [];
+            public List<WaitingSeed> Waiting { get; } = [];
             public List<UnitLightningSlot> Slots { get; } = [];
             public List<AppointmentInfo> Appointments { get; } = [];
         }
@@ -77,11 +84,9 @@ internal static partial class Program
         public (string FullName, string Email, string Role, string Password)? LastStaffCreate { get; private set; }
         /// <summary>Corpo cru do último POST /api/municipal/staff: os testes conferem que nenhum CPF foi enviado.</summary>
         public string? LastStaffCreateBody { get; private set; }
-        /// <summary>Tamanho da página de encerrados de GET .../waiting-list e .../lightning-slots (o servidor usa 100 por padrão).</summary>
+        /// <summary>Tamanho da página de encerrados de GET .../lightning-slots (o servidor usa 100 por padrão).</summary>
         public int HistoryPageSize { get; set; } = 100;
-        /// <summary>Simula a API antiga da fila: sem points, band e offerOrder (o cliente calcula a ordem).</summary>
-        public bool OmitWaitingScore { get; set; }
-        /// <summary>Leituras de GET .../waiting-list e .../lightning-slots (com a query), na ordem em que chegaram.</summary>
+        /// <summary>Leituras de GET .../lightning-slots (com a query), na ordem em que chegaram.</summary>
         public List<string> HistoryReads { get; } = [];
         public string? LastStaffPassword { get; private set; }
 
@@ -92,10 +97,10 @@ internal static partial class Program
         public UnitPatientRecord AddRegistry(Guid unitId, UnitPatientRecord record) { State(unitId).Registry.Add(record); return record; }
         public UnitPatientRecord AddRegistry(Guid unitId, string name, string cpf = "52998224725", string? email = null, string? phone = null, bool active = true)
             => AddRegistry(unitId, new UnitPatientRecord(cpf, name, email ?? $"{name.Split(' ')[0].ToLowerInvariant()}@example.test", phone, null, active, false, DateTimeOffset.UtcNow));
-        public UnitWaitingEntry AddWaiting(Guid unitId, string cpf, string name, string specialty, DateTimeOffset enteredAt, string status = "waiting", int? points = null)
+        public WaitingSeed AddWaiting(Guid unitId, string cpf, string name, string specialty, DateTimeOffset enteredAt, string status = "waiting", int? points = null)
         {
             var state = State(unitId);
-            var entry = new UnitWaitingEntry(state.Waiting.Count + 1, cpf, name, specialty, enteredAt, status, points);
+            var entry = new WaitingSeed(state.Waiting.Count + 1, cpf, name, specialty, enteredAt, status, points);
             state.Waiting.Add(entry); return entry;
         }
         public AppointmentInfo AddAppointment(Guid unitId, string status, DateTimeOffset startsAt, string cpf = "52998224725", string name = "Paciente Fixture", string specialty = "Clínica", string professional = "Profissional")
@@ -104,8 +109,8 @@ internal static partial class Program
             State(unitId).Appointments.Add(item); return item;
         }
         public UnitLightningSlot AddSlot(Guid unitId, UnitLightningSlot slot) { State(unitId).Slots.Add(slot); return slot; }
-        public void ReplaceWaiting(Guid unitId, long id, Func<UnitWaitingEntry, UnitWaitingEntry> change) { var list = State(unitId).Waiting; var index = list.FindIndex(entry => entry.Id == id); list[index] = change(list[index]); }
-        public IReadOnlyList<UnitWaitingEntry> WaitingOf(Guid unitId) => State(unitId).Waiting;
+        public void ReplaceWaiting(Guid unitId, long id, Func<WaitingSeed, WaitingSeed> change) { var list = State(unitId).Waiting; var index = list.FindIndex(entry => entry.Id == id); list[index] = change(list[index]); }
+        public IReadOnlyList<WaitingSeed> WaitingOf(Guid unitId) => State(unitId).Waiting;
         public IReadOnlyList<UnitPatientRecord> RegistryOf(Guid unitId) => State(unitId).Registry;
         public IReadOnlyList<AppointmentInfo> AppointmentsOf(Guid unitId) => State(unitId).Appointments;
         public IReadOnlyList<UnitLightningSlot> SlotsOf(Guid unitId) => State(unitId).Slots;
@@ -226,22 +231,6 @@ internal static partial class Program
                     }
                     return new(HttpStatusCode.NoContent);
                 }
-                if (route == "waiting-list")
-                {
-                    if (method == HttpMethod.Get) return WaitingPage(state, request);
-                    var cpf = payload!.RootElement.GetProperty("cpf").GetString()!; var specialty = payload.RootElement.GetProperty("specialty").GetString()!;
-                    if (state.Waiting.Any(item => item.Cpf == cpf && item.IsActive && string.Equals(item.Specialty, specialty, StringComparison.OrdinalIgnoreCase))) return Problem(HttpStatusCode.Conflict, "conflict");
-                    var name = state.Registry.Single(item => item.Cpf == cpf).FullName;
-                    var entry = new UnitWaitingEntry(state.Waiting.Count + 1, cpf, name, specialty, DateTimeOffset.UtcNow, "waiting");
-                    state.Waiting.Add(entry); return Reply(entry);
-                }
-                if (rest is ["waiting-list", var entryText, "cancel"])
-                {
-                    var id = long.Parse(entryText, CultureInfo.InvariantCulture); var index = state.Waiting.FindIndex(entry => entry.Id == id);
-                    Require(index >= 0, "Entrada de fila inexistente.");
-                    if (!state.Waiting[index].IsActive) return Problem(HttpStatusCode.Conflict, "conflict");
-                    state.Waiting[index] = state.Waiting[index] with { Status = "cancelled" }; return new(HttpStatusCode.NoContent);
-                }
                 if (route == "metrics" && method == HttpMethod.Get)
                 {
                     var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
@@ -291,26 +280,6 @@ internal static partial class Program
                 }
             }
             throw new InvalidOperationException("Rota de UBS inesperada da fixture: " + request.Method + " " + route);
-        }
-
-        /// <summary>
-        /// Simula o formato novo de GET .../waiting-list: <c>{ items, historyCursor }</c> com todas as entradas ativas e até <see cref="HistoryPageSize"/> encerradas (as mais recentes primeiro; a posição na lista
-        /// é a ordem de encerramento). Com <c>?historyBefore=</c> só as encerradas mais antigas que o cursor. Os itens saem na ordem da lista. Pontos e ordem de oferta saem como no servidor (mais pontos primeiro, empate pela entrada).
-        /// </summary>
-        private HttpResponseMessage WaitingPage(UnitState state, HttpRequestMessage request)
-        {
-            HistoryReads.Add("waiting-list" + request.RequestUri!.Query);
-            var (indexes, cursor) = HistorySlice(state.Waiting.Select((entry, index) => (entry.IsActive, index)).ToArray(), request);
-            var order = new Dictionary<long, int>(); var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in state.Waiting.Where(entry => entry.IsActive).OrderByDescending(entry => entry.Points ?? 1000).ThenBy(entry => entry.EnteredAt).ThenBy(entry => entry.Id))
-                order[entry.Id] = counters[entry.Specialty.Trim()] = counters.GetValueOrDefault(entry.Specialty.Trim()) + 1;
-            var items = indexes.Select(index => state.Waiting[index]).Select(entry =>
-            {
-                if (OmitWaitingScore) return entry with { Points = null, Band = null, OfferOrder = null };
-                var points = entry.Points ?? 1000;
-                return entry with { Points = points, Band = Nora.Desktop.Services.DisplayFormat.BandFor(points), OfferOrder = order.TryGetValue(entry.Id, out var position) ? position : null };
-            }).ToArray();
-            return Reply(new { items, historyCursor = cursor });
         }
 
         private HttpResponseMessage SlotsPage(UnitState state, HttpRequestMessage request)
@@ -444,8 +413,7 @@ internal static partial class Program
                 SummaryQueries.Add(query);
                 if (FailNetwork503) return Problem(HttpStatusCode.ServiceUnavailable, "service-unavailable");
                 var pending = units.Count(unit => unit.DatabasePending);
-                return Reply(new MunicipalSummary(1, 1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, 3, pending,
-                    ApprovalCounters?.Awaiting, ApprovalCounters?.Approved, ApprovalCounters?.Timeout, ApprovalCounters?.Discarded));
+                return Reply(new MunicipalSummary(1, 1, 0, 3, 5, 2, 1, 2, 0, [new(7, 1, 0, 1, 2, 1, 0, 1, 0), new(30, 1, 0, 2, 3, 1, 1, 1, 0), new(90, 1, 0, 3, 5, 2, 1, 2, 0)], 2, pending));
             }
             using (var schedulingBody = request.Content is null ? null : JsonDocument.Parse(await request.Content.ReadAsStringAsync(cancellationToken)))
                 if (HandleMunicipalScheduling(request, path, query, schedulingBody) is { } municipalScheduled) return municipalScheduled;

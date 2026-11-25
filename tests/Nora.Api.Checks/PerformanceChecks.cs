@@ -28,9 +28,11 @@ internal static class PerformanceChecks
         for (var number = 1; number <= 20; number++) await f.PatientAsync(number, u1);
         var specialty = await f.SpecialtyAsync("Cardiologia");
         var dispatcher = f.Service<UnitLightningDispatcher>();
+        // Candidatos da Vaga Relâmpago automática: cada paciente tem uma consulta de Cardiologia marcada mais adiante (fila manual removida em 2026-11-24).
         for (var number = 1; number <= 20; number++)
         {
-            using var join = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(number), specialty = "Cardiologia" }); Expect(join, 201);
+            var later = new DateTimeOffset(2027, 1, 4, 12, 0, 0, TimeSpan.Zero).AddHours(number);
+            await f.UnitExec(u1, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES(gen_random_uuid(),$1,'Cardiologia',$2,$3,$4,'scheduled',$5,$6)", Cpf(number), $"Agenda futura {number}", later, later.AddMinutes(30), f.AdminId, f.Clock.GetUtcNow());
         }
 
         await suite.Check("P1: passe ocioso (UBS sem vaga, oferta nem proposta) não abre transação na central, não bloqueia vínculos e gasta poucos comandos", async () =>
@@ -44,7 +46,7 @@ internal static class PerformanceChecks
             Ensure(commands <= IdlePasses * 4, $"Passe ocioso gastou {commands / (double)IdlePasses:F1} comandos (esperado até 4).");
         });
 
-        await suite.Check("P1: com trabalho a fazer o passe roda inteiro (vaga aberta recebe oferta; oferta vencida volta a fila; proposta fecha no prazo)", async () =>
+        await suite.Check("P1: com trabalho a fazer o passe roda inteiro (vaga aberta recebe oferta; oferta vencida passa ao próximo)", async () =>
         {
             var professional = await f.ProfessionalAsync(u1, "Dra. Medida", specialty); var room = await f.RoomAsync(u1, "Sala medida");
             await f.TemplateAsync(u1, professional, 3, "08:00", "10:00", 30, room, specialty);
@@ -58,9 +60,9 @@ internal static class PerformanceChecks
             Ensure(await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers WHERE status='expired'") == 1 && await f.UnitScalar<long>(u1, "SELECT count(*) FROM nora_unit.lightning_offers WHERE status='pending'") == 1, "O vencimento não passou a vaga ao próximo.");
         });
 
-        await suite.Check("P2: 5 leituras do OBS em paralelo, 40 rodadas (tempo total; o antes/depois fica em docs/desempenho.md)", async () =>
+        await suite.Check("P2: 4 leituras do OBS em paralelo (a fila manual saiu em 2026-11-24), 40 rodadas (tempo total; o antes/depois fica em docs/desempenho.md)", async () =>
         {
-            var routes = new[] { $"/api/obs/units/{u1}/registry", $"/api/obs/units/{u1}/waiting-list", $"/api/obs/units/{u1}/lightning-slots", $"/api/obs/units/{u1}/appointments?from=2026-11-01T00:00:00Z&to=2026-12-31T00:00:00Z", $"/api/obs/units/{u1}/active-rooms" };
+            var routes = new[] { $"/api/obs/units/{u1}/registry", $"/api/obs/units/{u1}/lightning-slots", $"/api/obs/units/{u1}/appointments?from=2026-11-01T00:00:00Z&to=2026-12-31T00:00:00Z", $"/api/obs/units/{u1}/active-rooms" };
             var clients = Enumerable.Range(0, 5).Select(_ => f.Admin).ToArray();
             for (var warm = 0; warm < 3; warm++) await Task.WhenAll(routes.Select(route => f.Admin.GetAsync(route)));
             var watch = Stopwatch.StartNew();
@@ -69,7 +71,7 @@ internal static class PerformanceChecks
                 var responses = await Task.WhenAll(routes.Select(route => f.Admin.GetAsync(route)));
                 foreach (var response in responses) { Expect(response, 200); response.Dispose(); }
             }
-            Console.WriteLine($"MEDIDA P2 leituras do OBS em paralelo: 40 rodadas de 5 GET em {watch.Elapsed.TotalMilliseconds:F0} ms ({watch.Elapsed.TotalMilliseconds / 40:F1} ms por rodada)");
+            Console.WriteLine($"MEDIDA P2 leituras do OBS em paralelo: 40 rodadas de 4 GET em {watch.Elapsed.TotalMilliseconds:F0} ms ({watch.Elapsed.TotalMilliseconds / 40:F1} ms por rodada)");
         });
 
         await suite.Check("P2: leitura do OBS segura a concessão só em FOR SHARE (outra leitura passa, a revogação e a escrita esperam a leitura terminar)", async () =>
@@ -77,15 +79,15 @@ internal static class PerformanceChecks
             var (staff, staffId) = await f.StaffAsync("administrator", 40, [u1]);
             await using var holder = await f.Database.OpenAsync(); await using var transaction = await holder.BeginTransactionAsync();
             await using (var share = f.Database.Command(holder, "SELECT 1 FROM nora.staff_units WHERE account_id=$1 AND unit_id=$2 FOR SHARE", staffId, u1)) Ensure(await share.ExecuteScalarAsync() is not null, "Concessão não encontrada.");
-            using (var read = await Within(staff.GetAsync($"/api/obs/units/{u1}/waiting-list"), 5000)) Expect(read, 200);
+            using (var read = await Within(staff.GetAsync($"/api/obs/units/{u1}/lightning-slots"), 5000)) Expect(read, 200);
             var revoke = f.Municipal.DeleteAsync($"/api/municipal/staff/{staffId}/units/{u1}");
-            var write = staff.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(1), specialty = "Pediatria" });
+            var write = staff.PostAsJsonAsync($"/api/obs/units/{u1}/lightning-slots", new { appointmentId = Guid.NewGuid(), confirmed = true }); // escrita do OBS: concessão em FOR UPDATE
             await Task.Delay(1500);
             Ensure(!revoke.IsCompleted, "A revogação não esperou a leitura em andamento.");
             Ensure(!write.IsCompleted, "A escrita (FOR UPDATE) não esperou a leitura em andamento.");
             await transaction.CommitAsync();
             using (var revoked = await Within(revoke, 10000)) Expect(revoked, 204);
-            using (var written = await Within(write, 10000)) Ensure((int)written.StatusCode is 201 or 403 or 401, $"Escrita depois da revogação deveria ser recusada ou ter ocorrido antes (recebido {(int)written.StatusCode}).");
+            using (var written = await Within(write, 10000)) Ensure((int)written.StatusCode is 404 or 403 or 401, $"Escrita depois da revogação deveria ser recusada ou ter rodado antes (404: consulta inexistente) (recebido {(int)written.StatusCode}).");
         });
 
         await suite.Check("P2: leitura do paciente segura o vínculo só em FOR SHARE (outra leitura passa, sair da UBS espera a leitura terminar)", async () =>

@@ -9,11 +9,9 @@ internal class PasswordGate(private val inner: PatientApi, private val onRequire
     override suspend fun appointments(token: String, unitId: String) = watch { inner.appointments(token, unitId) }
     override suspend fun dependentUnitOffers(token: String, dependentId: String, unitId: String) = watch { inner.dependentUnitOffers(token, dependentId, unitId) }
     override suspend fun cancelAppointment(token: String, unitId: String, id: String) = watch { inner.cancelAppointment(token, unitId, id) }
-    override suspend fun unitQueue(token: String, unitId: String) = watch { inner.unitQueue(token, unitId) }
     override suspend fun unitOffers(token: String, unitId: String) = watch { inner.unitOffers(token, unitId) }
     override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean) = watch { inner.respondUnitOffer(token, unitId, id, accept) }
     override suspend fun attendance(token: String, unitId: String) = watch { inner.attendance(token, unitId) }
-    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = watch { inner.cancelQueueEntry(token, unitId, entryId) }
     override suspend fun unlinkUnit(token: String, unitId: String) = watch { inner.unlinkUnit(token, unitId) }
     override suspend fun unlinkPreview(token: String, unitId: String) = watch { inner.unlinkPreview(token, unitId) }
     override suspend fun presence(token: String, online: Boolean) = watch { inner.presence(token, online) }
@@ -47,7 +45,7 @@ internal class PasswordGate(private val inner: PatientApi, private val onRequire
 }
 
 /**
- * Faz as chamadas por UBS (consultas, agendamento, presença, fila, ofertas, participação) irem pelas rotas do responsável
+ * Faz as chamadas por UBS (consultas, agendamento, presença, ofertas, participação) irem pelas rotas do responsável
  * `/api/patient/dependents/{dependentId}/units/{unitId}/...`. O controlador usa uma instância destas enquanto o responsável age por um
  * dependente; o restante (lista de UBS, senha, presença, comunicados) continua sendo do próprio responsável.
  */
@@ -59,8 +57,6 @@ internal class DependentScope(private val inner: PatientApi, private val depende
         inner.dependentBook(token, dependentId, unitId, professionalId, specialtyId, startsAt)
     override suspend fun availability(token: String, unitId: String, specialtyId: String, fromMillis: Long, toMillis: Long) =
         inner.dependentAvailability(token, dependentId, unitId, specialtyId, fromMillis, toMillis)
-    override suspend fun unitQueue(token: String, unitId: String) = inner.dependentQueue(token, dependentId, unitId)
-    override suspend fun cancelQueueEntry(token: String, unitId: String, entryId: Long) = inner.dependentCancelQueueEntry(token, dependentId, unitId, entryId)
     override suspend fun unitOffers(token: String, unitId: String) = inner.dependentUnitOffers(token, dependentId, unitId)
     override suspend fun respondUnitOffer(token: String, unitId: String, id: String, accept: Boolean) =
         inner.dependentRespondOffer(token, dependentId, unitId, id, accept)

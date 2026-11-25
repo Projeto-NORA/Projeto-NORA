@@ -4,7 +4,7 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.Models;
 
-// Contratos da rodada final de 2026-11-16 (docs/api.md): computadores do OBS, Chamar próximo, atendimento ao público e aprovação das vagas.
+// Contratos da rodada final de 2026-11-16 (docs/api.md): computadores do OBS e atendimento ao público.
 
 /// <summary>Computador ativado como a API o descreve (GET /api/obs/devices/current e o campo "device" do login).</summary>
 public sealed record DeviceSummary(Guid Id, string Name, Guid UnitId, string UnitName)
@@ -53,31 +53,14 @@ public sealed class ProgressStep(string text) : Generics.ObservableObject
     public string AutomationText => $"{Text}: {state switch { StepState.Done => "concluído", StepState.Failed => "falhou", _ => "em andamento" }}";
 }
 
-/// <summary>Horário escolhido para o "Chamar próximo": 1º da fila elegível, sem considerar o horário (GET .../waiting-list/next).</summary>
-public sealed record NextInQueue(long EntryId, string PatientName, DateTimeOffset EnteredAt)
-{
-    [JsonIgnore] public string Display => $"{ShortName(PatientName)} (desde {EnteredAt.ToLocalTime():dd/MM HH:mm})";
-    /// <summary>Nome e inicial do último sobrenome, para a tela não expor o nome completo.</summary>
-    public static string ShortName(string fullName)
-    {
-        var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length <= 1 ? fullName.Trim() : $"{parts[0]} {char.ToUpperInvariant(parts[^1][0])}.";
-    }
-}
-public sealed record NextInQueueResult(NextInQueue? Next);
-public sealed record CallNextOffer(Guid Id, string PatientName, DateTimeOffset ExpiresAt);
-public sealed record CallNextResult(UnitLightningSlot Slot, CallNextOffer Offer);
-
 public sealed record OpeningInterval(int Weekday, string Opens, string Closes);
 public sealed record ProfileSpecialty(Guid Id, string Name);
 
-/// <summary>Atendimento ao público da UBS (horário de funcionamento por dia, texto de serviços e especialidades da grade) mais o estado da aprovação das vagas.</summary>
-public sealed record UnitProfile(Guid UnitId, bool Informed, OpeningInterval[] OpeningHours, string? Services, ProfileSpecialty[] Specialties, DateTimeOffset? UpdatedAt,
-    bool SlotApprovalRequired = false, DateTimeOffset? SlotApprovalSince = null);
+/// <summary>Atendimento ao público da UBS (horário de funcionamento por dia, texto de serviços e especialidades da grade).</summary>
+public sealed record UnitProfile(Guid UnitId, bool Informed, OpeningInterval[] OpeningHours, string? Services, ProfileSpecialty[] Specialties, DateTimeOffset? UpdatedAt);
 public sealed record UnitProfileDraft(OpeningInterval[] OpeningHours, string? Services);
-public sealed record SlotApprovalState(bool Enabled, DateTimeOffset? Since = null, string? UpdatedByName = null);
 
-/// <summary>Consulta cancelada de onde a vaga veio (nula para as vagas do "Chamar próximo").</summary>
+/// <summary>Consulta cancelada de onde a vaga veio.</summary>
 public sealed record SlotSource(Guid AppointmentId, string PatientName, DateTimeOffset StartsAt, DateTimeOffset EndsAt, DateTimeOffset? CancelledAt = null, string? CancelledBy = null)
 {
     [JsonIgnore] public string Display

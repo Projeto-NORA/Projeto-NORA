@@ -142,8 +142,8 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "home");
                 var cards = vm.SummaryCards.ToDictionary(card => card.Title, card => card.Value);
-                Require(cards["Pacientes cadastrados"] == "1" && cards["Desativados"] == "2" && cards["Pacientes aguardando"] == "1" && cards["Solicitações na fila"] == "3", "Totais novos do resumo incorretos.");
-                foreach (var title in new[] { "Pacientes cadastrados", "Desativados", "Pacientes aguardando", "Solicitações na fila", "Vagas abertas", "Ofertas aceitas" }) Require(HasText(content, title), "Cartão ausente: " + title);
+                Require(cards["Pacientes cadastrados"] == "1" && cards["Desativados"] == "2", "Totais novos do resumo incorretos.");
+                foreach (var title in new[] { "Pacientes cadastrados", "Desativados", "Vagas abertas", "Ofertas aceitas" }) Require(HasText(content, title), "Cartão ausente: " + title);
                 Require(vm.UnitsWithoutDatabaseCount == 1 && VisibleTexts(content).Any(text => text.StartsWith("1 UBS está fora destes números", StringComparison.Ordinal)), "Aviso de UBS sem base não apareceu.");
                 var ready = fixture.AddUnit("UBS Nova Pronta", "Norte"); Pump(vm.LoadUnitsAsync());
                 vm.SelectedUnit = vm.Units.Single(item => item.Name == "UBS Sem Base"); Pump(vm.ProvisionSelectedUnitDatabaseAsync());
@@ -163,7 +163,7 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var wholeNetwork = vm.CreateSummaryCsv();
-                Require(wholeNetwork.Contains("Unidade;Toda a rede;") && wholeNetwork.Contains("Pacientes desativados;2;") && wholeNetwork.Contains("Solicitações na fila;3;") && wholeNetwork.Contains("UBS sem base de dados;1;"), "CSV da rede sem os campos novos: " + wholeNetwork);
+                Require(wholeNetwork.Contains("Unidade;Toda a rede;") && wholeNetwork.Contains("Pacientes desativados;2;") && !wholeNetwork.Contains("Solicitações na fila") && wholeNetwork.Contains("UBS sem base de dados;1;"), "CSV da rede sem os campos novos: " + wholeNetwork);
                 vm.SummaryUnitFilter = unit.Id; Settle(vm);
                 var csv = vm.CreateSummaryCsv();
                 Require(csv.Contains("Unidade;UBS Alfa;") && !csv.Contains(unit.Id.ToString()), "CSV deveria identificar a UBS pelo nome, nunca pelo GUID.");

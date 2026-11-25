@@ -253,7 +253,8 @@ internal static class GooglePushChecks
 
         await Check("Push — Vaga Relâmpago nova: a oferta do paciente avisa os aparelhos dele e a do dependente sem conta avisa os do responsável (com dependentId); o passe seguinte não repete", async () =>
         {
-            foreach (var cpf in new[] { 11, 21 }) { using var queue = await f.Attendant.PostAsJsonAsync($"/api/obs/units/{u1}/waiting-list", new { cpf = Cpf(cpf), specialty = "Ortopedia" }); Expect(queue, 201); }
+            // Candidatos por consulta posterior de Ortopedia (fila manual removida em 2026-11-24).
+            foreach (var cpf in new[] { 11, 21 }) await f.LaterAsync(u1, cpf, "Ortopedia");
             foreach (var start in new[] { FamilyChecks.T0.AddDays(1), FamilyChecks.T0.AddDays(1).AddHours(1) })
             {
                 var source = await StaffAppointment(31, "Dr. Bruno Lima", start);

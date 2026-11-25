@@ -87,7 +87,7 @@ internal fun UnitsMap(selectedUnit: PatientHealthUnit? = null, onLocateUnit: (Do
             Text("Mapa da região", style = MaterialTheme.typography.titleMedium)
             Text("Mova o mapa com o dedo e use + e − para aproximar ou afastar.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Usamos uma posição aproximada recente para selecionar a UBS vinculada mais próxima. Sua posição é enviada ao OpenStreetMap ao abrir o mapa da região.",
+            Text("Usamos sua posição aproximada para achar a UBS mais próxima; o mapa usa o OpenStreetMap.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedButton(onClick = {
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) locate()

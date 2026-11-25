@@ -11,10 +11,10 @@
           <TextBlock Text="Nome da especialidade (2 a 120 caracteres)" FontWeight="SemiBold" FontSize="12" />
           <TextBox Text="{Binding SpecialtyDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Nome da especialidade" />
           <TextBlock Text="{Binding SpecialtyNameError}" Style="{StaticResource FieldError}" Visibility="{Binding SpecialtyNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-          <Button Content="{Binding SpecialtySaveLabel}" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" />
+          <Button Content="{Binding SpecialtySaveLabel}" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Grava as alterações."/>
         </StackPanel>
       </Border>
-      <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar lista" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de especialidades" ToolTip="Atualizar lista de especialidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock ToolTip="Lista única da rede: as UBS escolhem dela ao cadastrar profissionais e grade, e o paciente vê só as ativas. Não existe exclusão. Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)." Text="Especialidades da rede" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel>
+      <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar lista" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de especialidades" ToolTip="Atualizar lista de especialidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock ToolTip="Lista única da rede: as UBS escolhem dela ao cadastrar profissionais e grade, e o paciente vê só as ativas. Não existe exclusão. Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)." Text="Especialidades da rede" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></DockPanel>
       <DataGrid ItemsSource="{Binding SpecialtyCatalog}" SelectedItem="{Binding SelectedSpecialty}" MaxHeight="300" MinHeight="64" CanUserSortColumns="True" AutomationProperties.Name="Lista de especialidades">
         <DataGrid.Columns>
           <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="200" />
@@ -23,9 +23,9 @@
       </DataGrid>
       <TextBlock Text="{Binding SpecialtyCatalogState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding SpecialtyCatalogState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
       <WrapPanel Margin="0,12,0,0">
-        <Button Content="Editar nome da selecionada" Click="OnEdit" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" />
-        <Button Content="{Binding SpecialtyActiveLabel}" Click="OnToggleActive" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" />
-        <Button Content="+ Nova especialidade" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" IsEnabled="{Binding CanSaveSpecialty}" Margin="0,0,8,8" />
+        <Button Content="Editar nome da selecionada" Click="OnEdit" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" ToolTip="Renomeia a especialidade selecionada."/>
+        <Button Content="{Binding SpecialtyActiveLabel}" Click="OnToggleActive" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o item selecionado."/>
+        <Button Content="+ Nova especialidade" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" IsEnabled="{Binding CanSaveSpecialty}" Margin="0,0,8,8" ToolTip="Abre o cadastro de especialidade."/>
       </WrapPanel>
 
     </StackPanel>

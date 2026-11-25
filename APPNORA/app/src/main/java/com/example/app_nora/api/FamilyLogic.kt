@@ -36,7 +36,7 @@ fun approvedLinks(links: List<FamilyLink>?): List<FamilyLink> = links.orEmpty().
 fun PatientState.actingLink(): FamilyLink? = actingFor?.let { id -> family.links?.firstOrNull { it.id == id && it.isApproved() } }
 
 /**
- * A visão que as telas de Início, Consultas, Agendamento, Fila, Vaga Relâmpago e Jornada usam: sem "agindo por" é o próprio
+ * A visão que as telas de Início, Consultas, Agendamento, Vaga Relâmpago e Jornada usam: sem "agindo por" é o próprio
  * estado; agindo por um dependente, a UBS do vínculo e os dados lidos pelas rotas do dependente ocupam o lugar dos do responsável.
  */
 fun PatientState.effective(): PatientState {

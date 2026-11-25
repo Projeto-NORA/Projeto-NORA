@@ -190,6 +190,17 @@ internal static partial class FamilyChecks
         public async Task<T> Scalar<T>(string sql, params object[] values) { await using var connection = await Database.OpenAsync(); await using var command = Database.Command(connection, sql.Replace("$schema", Schema), values); var result = await command.ExecuteScalarAsync(); return result is null or DBNull ? default! : (T)result; }
         public async Task Exec(string sql, params object[] values) { await using var connection = await Database.OpenAsync(); await using var command = Database.Command(connection, sql, values.Select(Normalize).ToArray()); await command.ExecuteNonQueryAsync(); }
         public async Task<T> UnitScalar<T>(Guid unit, string sql, params object[] values) { await using var connection = await Router.OpenAsync(unit); await using var command = new NpgsqlCommand(sql, connection); foreach (var value in values) command.Parameters.AddWithValue(Normalize(value)); var result = await command.ExecuteScalarAsync(); return result is null or DBNull ? default! : (T)result; }
+        /// <summary>
+        /// Consulta marcada posterior (gravada direto no banco da UBS) que torna o CPF candidato da Vaga Relâmpago automática da especialidade (2026-11-24: a fila manual foi removida).
+        /// Fica em 2027, uma hora por número, então quanto maior o número mais distante (e antes na ordem de oferta, com o mesmo score).
+        /// </summary>
+        public async Task<Guid> LaterAsync(Guid unit, int number, string specialty, int extraDays = 0)
+        {
+            var id = Guid.NewGuid(); var start = new DateTimeOffset(2027, 1, 1, 12, 0, 0, TimeSpan.Zero).AddHours(number).AddDays(extraDays);
+            await UnitExec(unit, "INSERT INTO nora_unit.appointments(id,cpf,specialty,professional,starts_at,ends_at,status,created_by,created_at) VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8)", id, Cpf(number), specialty, $"Agenda futura {number}", start, start.AddMinutes(30), AdminId, Clock.GetUtcNow());
+            return id;
+        }
+        public Task AdvanceAsync(Guid unit) => App.Services.GetRequiredService<UnitLightningDispatcher>().AdvanceAsync(unit, default);
         public async Task UnitExec(Guid unit, string sql, params object[] values) { await using var connection = await Router.OpenAsync(unit); await using var command = new NpgsqlCommand(sql, connection); foreach (var value in values) command.Parameters.AddWithValue(Normalize(value)); await command.ExecuteNonQueryAsync(); }
         /// <summary>Tira o banco de uma UBS do ar para quem abre a conexão pela API (a identidade do banco deixa de ser a da UBS) enquanto <paramref name="action"/> roda, e o restaura no fim.</summary>
         public async Task WithUnitDownAsync(Guid unit, Func<Task> action)

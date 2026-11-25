@@ -51,14 +51,14 @@ public sealed class SessionDao(DatabaseHelper database)
     public Task<SessionInfo?> FindAsync(string hash, DateTimeOffset now, DeviceCredential? device, CancellationToken ct) => database.UseAsync(async connection =>
     {
         await using var command = database.Command(connection,
-            "SELECT a.id,a.full_name,a.role,a.scope,a.must_change_password,s.device_id,d.unit_id FROM nora.sessions s JOIN nora.accounts a ON a.id=s.account_id " +
+            "SELECT a.id,a.full_name,a.role,a.scope,a.must_change_password,s.device_id,d.unit_id,a.cpf,a.email FROM nora.sessions s JOIN nora.accounts a ON a.id=s.account_id " +
             "LEFT JOIN nora.obs_devices d ON d.id=s.device_id " +
             "WHERE s.token_hash=$1 AND a.is_active AND s.revoked_at IS NULL AND s.expires_at>$2 " +
             "AND (s.device_id IS NULL OR (d.status='active' AND d.id=$3::uuid AND d.secret_hash=$4::text))", hash, now,
             (object?)device?.Id ?? DBNull.Value, (object?)(device is null ? null : ObsDeviceCredentials.HashSecret(device.Secret)) ?? DBNull.Value);
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)
-            ? new SessionInfo(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)), hash,
+            ? new SessionInfo(new UserInfo(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4)).WithContact(reader.IsDBNull(7) ? null : reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8)), hash,
                 reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.IsDBNull(6) ? null : reader.GetGuid(6))
             : null;
     }, ct);

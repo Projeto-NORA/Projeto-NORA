@@ -19,7 +19,7 @@ public sealed partial class WorkspaceViewModel
     private (int Year, int Month)? monthKey;
     private bool agendaLoadPending;
     private static readonly string[] AgendaActionNames =
-        [nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment), nameof(CanCreateLightning)];
+        [nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment)];
 
     private string TodayCount(params string[] statuses) => HasActiveObsUnit && todayOverview is not null && todayOverviewDate == DateTime.Today
         ? todayOverview.Count(item => statuses.Contains(item.Status, StringComparer.Ordinal)).ToString() : "—";
@@ -51,7 +51,8 @@ public sealed partial class WorkspaceViewModel
 
     public UnitPatientRecord? AppointmentPatient { get => appointmentPatient; set { appointmentPatient = value; Notify(); } }
     public AppointmentInfo? SelectedAppointment { get => selectedAppointment; set { selectedAppointment = value; Notify(); foreach (var name in AgendaActionNames) Notify(name); } }
-    public string AppointmentSpecialty { get => appointmentSpecialty; set { appointmentSpecialty = value; Notify(); } }
+    /// <summary>Escolhida na lista de especialidades cadastradas; nulo vindo do seletor (valor fora da lista) não apaga a escolha.</summary>
+    public string AppointmentSpecialty { get => appointmentSpecialty; set { if (value is null) return; appointmentSpecialty = value; Notify(); } }
     public string AppointmentProfessional { get => appointmentProfessional; set { appointmentProfessional = value; Notify(); } }
     public string AppointmentStart { get => appointmentStart; set { appointmentStart = value; Notify(); } }
     public string AppointmentEnd { get => appointmentEnd; set { appointmentEnd = value; Notify(); } }
@@ -61,7 +62,6 @@ public sealed partial class WorkspaceViewModel
     public bool CanCompleteAppointment => CanOperate && SelectedAppointment?.Status == "called";
     public bool CanMissAppointment => CanOperate && SelectedAppointment?.Status is "scheduled" or "called";
     public bool CanCancelAppointment => CanOperate && SelectedAppointment?.Status is "scheduled" or "called";
-    public bool CanCreateLightning => CanOperate && SelectedAppointment is { Status: "cancelled" } appointment && appointment.StartsAt > DateTimeOffset.Now;
 
     private (int Year, int Month) CurrentMonthKey => (selectedAgendaDate.Year, selectedAgendaDate.Month);
     private static DateTime StartOfWeek(DateTime date)
