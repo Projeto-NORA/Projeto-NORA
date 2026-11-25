@@ -429,7 +429,7 @@
           <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,8,0,4" />
           <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="11" LineHeight="16" />
         </StackPanel>
-        <Button Style="{StaticResource ChartButton}" Command="{x:Static views:ChartCommands.Show}" CommandParameter="{Binding}" />
+        <Button Style="{DynamicResource ChartButton}" Command="{x:Static views:ChartCommands.Show}" CommandParameter="{Binding}" />
       </Grid>
     </Border>
   </DataTemplate>

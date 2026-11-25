@@ -12,6 +12,13 @@ public partial class App : Application
         MainWindow = new ShellWindow(DesktopProfile.Operational, devices: new ObsDeviceStore(), compactAccess: true);
         MainWindow.Icon = BitmapFrame.Create(new Uri("pack://application:,,,/OBS-NORA;component/Assets/nora.ico"));
         UnhandledErrorHandler.Install(this, () => (MainWindow as ShellWindow)?.ViewModel.Workspace);
-        MainWindow.Show();
+        try { MainWindow.Show(); }
+        catch (Exception exception)
+        {
+            // O tratador de erros engole exceções; sem isto o programa ficava rodando sem janela e sem explicação.
+            try { System.IO.Directory.CreateDirectory(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NORA")); System.IO.File.WriteAllText(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NORA", "erro-abertura.txt"), exception.ToString()); } catch { }
+            MessageBox.Show("Não foi possível abrir o OBS-NORA." + Environment.NewLine + Environment.NewLine + exception.Message + Environment.NewLine + Environment.NewLine + "O detalhe foi salvo em erro-abertura.txt, na pasta NORA dentro de AppData/Local.", "OBS-NORA", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
 }
