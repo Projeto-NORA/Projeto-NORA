@@ -248,7 +248,7 @@ internal static class ClosingChecks
         });
 
         // ---- P5 ----
-        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada da fila (histórico); a versão esperada é a 18 (Vaga Relâmpago automática) e a lista de um CPF usa o índice", async () =>
+        await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada da fila (histórico); a versão esperada é a 19 (Vaga Relâmpago automática) e a lista de um CPF usa o índice", async () =>
         {
             Ensure(UnitSchema.ExpectedVersion == 19, $"ExpectedVersion deveria ser 19, é {UnitSchema.ExpectedVersion}.");
             Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 19, "O banco da UBS criada pela API está na versão 19.");
@@ -266,7 +266,7 @@ internal static class ClosingChecks
             Ensure((await Plan("SELECT id FROM nora_unit.waiting_list WHERE status IN ('completed','cancelled') ORDER BY entered_at DESC,id DESC LIMIT 100")).Contains("waiting_list_entered_idx", StringComparison.Ordinal), "A página de histórico usa o índice por data de entrada.");
         });
 
-        await suite.Check("P5: um banco de UBS na versão 16 sobe para a 18 com a migração (índices criados, dados intactos)", async () =>
+        await suite.Check("P5: um banco de UBS na versão 16 sobe para a 19 com a migração (índices criados, dados intactos)", async () =>
         {
             var legacy = await f.CreateLegacyUnitAsync(16);
             // O roteador recusa banco desatualizado (503), então a conferência usa uma conexão direta ao banco da UBS.
@@ -280,9 +280,9 @@ internal static class ClosingChecks
             }
             Ensure(await State() == (16, 0), "Pré-condição: versão 16, sem os índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (18, 2), "Depois da migração: versão 18 e os dois índices.");
+            Ensure(await State() == (19, 2), "Depois da migração: versão 19 e os dois índices.");
             await f.Service<UnitMigrationDao>().MigrateAsync(legacy);
-            Ensure(await State() == (18, 2), "Migrar de novo é inofensivo.");
+            Ensure(await State() == (19, 2), "Migrar de novo é inofensivo.");
         });
 
         // ---- Medidas de P4 e P5 (antes/depois de docs/desempenho.md) ----
