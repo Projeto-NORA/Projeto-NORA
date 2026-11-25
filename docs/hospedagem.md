@@ -103,7 +103,7 @@ A migração e as contas iniciais rodam do seu PC contra o Neon. O `--provision`
 
 ```powershell
 $env:ConnectionStrings__Nora = "Host=<host>;Port=5432;Database=neondb;Username=<usuario>;Password=<senha>;SSL Mode=VerifyFull;Channel Binding=Require"
-dotnet run --project Nora.Api -c Release -- --migrate            # aplica as migrações do banco central até a 025
+dotnet run --project Nora.Api -c Release -- --migrate            # aplica as migrações do banco central até a 027
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "municipal": conta da Secretaria
 dotnet run --project Nora.Api -c Release -- --provision          # escopo "obs": administrador da primeira UBS
 ```

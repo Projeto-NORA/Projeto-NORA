@@ -719,7 +719,7 @@ Testes: `ClosingChecks` (`--closing-only`).
 
 ## Vaga Relâmpago automática (2026-11-24)
 
-Decisão da dona do projeto. **A fila manual acabou**: a equipe não inclui mais ninguém numa fila e não escolhe a quem oferecer. Migrações: UBS **018** (`018_lightning_automatic.sql`, `UnitSchema.ExpectedVersion` = 18) e central **024** (`024_slot_approval_off.sql`). Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`; uma UBS sem a 018 responde 503 `unit-database-outdated`.
+Decisão da dona do projeto. **A fila manual acabou**: a equipe não inclui mais ninguém numa fila e não escolhe a quem oferecer. Migrações: UBS **019** (`019_lightning_automatic.sql`, `UnitSchema.ExpectedVersion` = 19) e central **026** (`026_account_photos.sql`) e **027** (`027_slot_approval_off.sql`). Rode `Nora.Api --migrate` e depois `Nora.Api --migrate-all-units`; uma UBS sem a 019 responde 503 `unit-database-outdated`.
 
 **Como funciona.** O `UnitLightningDispatcher` (worker de 15 s e depois de cada ação), sob o lock da fila da UBS:
 

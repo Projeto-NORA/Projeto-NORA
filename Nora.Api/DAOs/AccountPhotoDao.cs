@@ -5,7 +5,7 @@ namespace Nora.Api.DAOs;
 /// <summary>Foto de perfil guardada (conteúdo, tipo e ETag sem aspas).</summary>
 public sealed record AccountPhoto(string ContentType, byte[] Content, string ETag);
 
-/// <summary>SQL da foto de perfil (banco central, migração 023): uma linha por conta em <c>account_photos</c>.</summary>
+/// <summary>SQL da foto de perfil (banco central, migração 026): uma linha por conta em <c>account_photos</c>.</summary>
 public sealed class AccountPhotoDao(DatabaseHelper database)
 {
     public Task<AccountPhoto?> GetAsync(Guid accountId, CancellationToken ct) => database.UseAsync(async connection =>

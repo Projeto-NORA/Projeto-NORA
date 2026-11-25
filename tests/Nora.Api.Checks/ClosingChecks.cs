@@ -250,8 +250,8 @@ internal static class ClosingChecks
         // ---- P5 ----
         await suite.Check("P5: a migração de UBS 017 cria os índices por CPF e por data de entrada da fila (histórico); a versão esperada é a 18 (Vaga Relâmpago automática) e a lista de um CPF usa o índice", async () =>
         {
-            Ensure(UnitSchema.ExpectedVersion == 18, $"ExpectedVersion deveria ser 18, é {UnitSchema.ExpectedVersion}.");
-            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 18, "O banco da UBS criada pela API está na versão 18.");
+            Ensure(UnitSchema.ExpectedVersion == 19, $"ExpectedVersion deveria ser 19, é {UnitSchema.ExpectedVersion}.");
+            Ensure(await f.UnitScalar<int>(u1, "SELECT version FROM nora_unit.schema_version") == 19, "O banco da UBS criada pela API está na versão 19.");
             Ensure(await f.UnitScalar<long>(u1, "SELECT count(*) FROM pg_indexes WHERE schemaname='nora_unit' AND indexname IN ('waiting_list_cpf_idx','waiting_list_entered_idx')") == 2, "Os dois índices existem.");
             await using var unit = await f.Router.OpenAsync(u1);
             await using var transaction = await unit.BeginTransactionAsync();
