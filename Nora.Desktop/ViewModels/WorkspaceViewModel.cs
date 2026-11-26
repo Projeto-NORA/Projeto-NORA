@@ -82,7 +82,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         BuildAgendaDays(); ResetAgendaRange();
         Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
         Replace(UnitOverviewCards, BuildUnitSummaryCards(null, null, null)); RebuildPanelOverview();
-        Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(NetworkCapacityCards, BuildCapacityCards(null, ""));
+        Replace(NetworkCapacityCards, BuildCapacityCards(null, ""));
     }
 
     public string Endpoint { get => endpoint; set { endpoint = value; Notify(); } }

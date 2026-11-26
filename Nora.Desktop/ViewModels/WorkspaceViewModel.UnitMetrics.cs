@@ -76,7 +76,7 @@ public sealed partial class WorkspaceViewModel
                 unitToText = DisplayFormat.Date(DateOnly.FromDateTime(last.To.LocalDateTime.AddDays(-1)));
                 Notify(nameof(UnitFromText)); Notify(nameof(UnitToText));
             }
-            Notify(); Notify(nameof(IsUnitCustomPeriod));
+            Notify(); Notify(nameof(IsUnitCustomPeriod)); Notify(nameof(UnitMetricsStateText));
             // Personalizado só consulta ao aplicar as datas; os períodos prontos consultam na hora.
             if (value != 0) ReloadUnitMetrics();
         }
@@ -93,6 +93,8 @@ public sealed partial class WorkspaceViewModel
     public string UnitMetricsLoadingLabel => unitMetricsLoading > 0 ? "Atualizando os indicadores…" : "";
     public string UnitMetricsStateText => !IsAuthenticated ? "Entre na conta para carregar os indicadores da UBS."
         : !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os indicadores."
+        // As datas do personalizado ficam no botão Filtros: enquanto os números na tela não são os do personalizado, a tela diz onde informá-las.
+        : unitPeriodDays == 0 && appliedUnitMetrics is not { PeriodDays: 0 } && unitMetricsLoading == 0 && !unitMetricsFailed ? "Informe as datas no botão Filtros e aplique o período personalizado."
         : unitMetrics is not null ? ""
         : unitMetricsLoading > 0 ? "Carregando os indicadores…"
         : unitMetricsFailed ? "Os indicadores não puderam ser carregados. Os valores aparecem como — até uma nova tentativa."
@@ -111,7 +113,6 @@ public sealed partial class WorkspaceViewModel
     }
 
     public string PanelWaitValue => PanelData is not { } data ? "—" : DisplayFormat.Wait(data.Waiting.AverageWaitMinutes);
-    public bool PanelWaitHasError => panelFailed;
     /// <summary>A espera média do Painel olha o período escolhido; no Dia, os últimos 30 dias (um dia só quase nunca tem oferta aceita).</summary>
     public string PanelWaitHint
     {
@@ -131,7 +132,7 @@ public sealed partial class WorkspaceViewModel
     [
         nameof(HasUnitMetrics), nameof(UnitMetricsStateText), nameof(UnitMetricsScopeLabel), nameof(UnitSpecialtyState), nameof(CanFilterUnitMetrics), nameof(FilteredUnitSpecialtyPerformance), nameof(UnitChartsEmptyText)
     ];
-    private static readonly string[] PanelNames = [nameof(PanelWaitValue), nameof(PanelWaitHint), nameof(PanelWaitHasError)];
+    private static readonly string[] PanelNames = [nameof(PanelWaitValue), nameof(PanelWaitHint)];
     private void NotifyUnitMetrics() { foreach (var name in UnitMetricsNames) Notify(name); foreach (var name in PanelNames) Notify(name); }
 
     private bool UnitMetricsDue => unitMetricsAttemptedAt is null || DateTimeOffset.Now - unitMetricsAttemptedAt >= MetricsRefreshAge;
@@ -268,7 +269,7 @@ public sealed partial class WorkspaceViewModel
             .OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         var sparse = SparseDays(result.Daily);
         UnitChart.Apply(BuildAxis(sparse, DateOnly.FromDateTime(request.From.LocalDateTime), DateOnly.FromDateTime(request.To.LocalDateTime.AddDays(-1))), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
-        ApplyUnitCapacityAndGoals(result);
+        ApplyUnitGoals(result);
         RebuildUnitChartCards();
         NotifyUnitMetrics();
     }

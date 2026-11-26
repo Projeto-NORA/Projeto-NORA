@@ -83,7 +83,7 @@ public sealed partial class WorkspaceViewModel
         var queue = ordered.Where(item => item.ActiveEntries > 0).Select(item => new ChartPoint(item.Specialty, item.ActiveEntries)).ToArray();
         // Uma especialidade só não forma linha: nesse caso só a pizza da fila existe.
         if (waits.Length < 2 && queue.Length == 0) return null;
-        return new("Espera por especialidade", waits.Length < 2 ? [] : [new ChartLine("Espera média (min)", "ChartBrush3", waits)], queue,
+        return new("Espera e fila por especialidade", waits.Length < 2 ? [] : [new ChartLine("Espera média (min)", "ChartBrush3", waits)], queue,
             "A API não traz série histórica da espera: a linha mostra a espera média, em minutos, de cada especialidade.", "Pessoas aguardando agora, por especialidade.");
     }
 

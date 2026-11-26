@@ -7,6 +7,7 @@ namespace Nora.Desktop.Views;
 /// Grade de blocos (cards de indicador, painéis de gráfico) que escolhe o número de colunas pela largura disponível: quantas de <see cref="MinTileWidth"/>
 /// couberem, no máximo <see cref="MaxColumns"/> e no mínimo uma. Todos os blocos de uma linha têm a mesma largura e a altura do mais alto da linha.
 /// Quando a última linha ficaria quase vazia, usa uma coluna a menos se isso a deixar mais cheia (9 cards viram 3 x 3 em vez de 4 + 4 + 1).
+/// Com menos blocos que colunas (o que sobra de uma pesquisa), eles ficam à esquerda com a largura de uma linha cheia, sem esticar.
 /// </summary>
 public sealed class TileGridPanel : Panel
 {
@@ -23,11 +24,10 @@ public sealed class TileGridPanel : Panel
     /// <summary>Colunas para <paramref name="count"/> blocos em <paramref name="width"/> de largura (função pura, também usada pelas checagens).</summary>
     public static int ColumnsFor(int count, double width, double minTileWidth, int maxColumns)
     {
-        if (count <= 1) return 1;
         var fit = double.IsInfinity(width) ? maxColumns : (int)Math.Floor(width / Math.Max(1, minTileWidth));
         var columns = Math.Clamp(fit, 1, Math.Max(1, maxColumns));
-        columns = Math.Min(columns, count);
-        if (columns <= 2) return columns;
+        // Menos blocos que colunas (por exemplo, o que sobrou da pesquisa): cada um mantém a largura de uma linha cheia, em vez de esticar pela tela toda.
+        if (count <= columns || columns <= 2) return columns;
         // Uma coluna a menos só vale se deixar menos lugares vazios na última linha.
         var empty = columns * (int)Math.Ceiling(count / (double)columns) - count;
         var fewer = columns - 1;
@@ -54,7 +54,7 @@ public sealed class TileGridPanel : Panel
             }
             total += rowHeight;
         }
-        return new Size(double.IsInfinity(available.Width) ? tileWidth * columns : available.Width, total);
+        return new Size(double.IsInfinity(available.Width) ? tileWidth * Math.Min(columns, count) : available.Width, total);
     }
 
     protected override Size ArrangeOverride(Size finalSize)

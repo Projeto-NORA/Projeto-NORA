@@ -5,15 +5,15 @@
   <StackPanel>
     <!-- Sem UBS ativa (nenhuma concedida, várias a escolher): a orientação e o botão que abre o pop-up "Trocar perfil" ficam no lugar do antigo cartão "UBS da operação". -->
     <views:ObsUnitNoticeView />
-    <!-- Cabeçalho: pesquisa e período em linha e o alternador cards/gráficos à direita. O nome da tela fica só no cabeçalho da janela. -->
-    <views:PageFilterGroup Label="Pesquisar no painel" FilterKey="panelSearch" Inline="True">
-      <views:HeaderSearchBox Text="{Binding PanelSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar no painel" ToolTip="Filtra os cards, os gráficos e a tabela do painel pelo texto, sem diferenciar acentos nem maiúsculas." />
-    </views:PageFilterGroup>
+    <!-- Cabeçalho, em cima à direita: período e pesquisa em linha e, logo à direita da pesquisa, o alternador cards/gráficos (B2 e B3). O nome da tela fica só no cabeçalho da janela. -->
     <views:PageFilterGroup Label="Período" FilterKey="panelPeriod" Inline="True">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
         <TextBlock Text="Período" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource SecondaryBrush}" />
         <ComboBox Width="120" Height="36" ItemsSource="{x:Static vm:WorkspaceViewModel.PanelPeriodOptions}" DisplayMemberPath="Label" SelectedValuePath="Days" SelectedValue="{Binding PanelPeriodDays}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Período do painel" ToolTip="Período dos números do painel: Dia, Semana, Mês, Ano, 5 anos ou Máximo." />
       </StackPanel>
+    </views:PageFilterGroup>
+    <views:PageFilterGroup Label="Pesquisar no painel" FilterKey="panelSearch" Inline="True">
+      <views:HeaderSearchBox Text="{Binding PanelSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar no painel" ToolTip="Filtra os cards, os gráficos e a tabela do painel pelo texto, sem diferenciar acentos nem maiúsculas." />
     </views:PageFilterGroup>
     <views:PageActions>
       <views:ViewModeToggle ScreenKey="home" Mode="{Binding PanelViewMode, Mode=TwoWay}" />

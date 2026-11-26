@@ -64,6 +64,7 @@ internal static partial class Program
                 period.SelectedValue = 0; Settle(vm);
                 Require(fixture.UnitMetricsQueries.Count == count && vm.IsUnitCustomPeriod, "Escolher 'Personalizado' não deveria consultar.");
                 content = Layout(window, 1280, 900);
+                Require(vm.UnitMetricsStateText == "Informe as datas no botão Filtros e aplique o período personalizado." && HasText(content, vm.UnitMetricsStateText), "Escolher 'Personalizado' deveria dizer onde ficam as datas (o botão Filtros): " + vm.UnitMetricsStateText);
                 (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2010", "01/01/2030", "no máximo 20 anos"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
                 foreach (var (from, to, fragment) in invalid)
                 {
@@ -73,7 +74,7 @@ internal static partial class Program
                 }
                 Input(content, "Data inicial do período da UBS").Text = "01/10/2026"; Input(content, "Data final do período da UBS").Text = "31/10/2026";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado", 31);
-                Require(vm.UnitRangeError == "" && vm.UnitMetricsScopeLabel.StartsWith("Números de 01/10/2026 a 31/10/2026", StringComparison.Ordinal), "O período personalizado não foi aplicado com fim inclusivo: " + vm.UnitMetricsScopeLabel);
+                Require(vm.UnitRangeError == "" && vm.UnitMetricsScopeLabel.StartsWith("Números de 01/10/2026 a 31/10/2026", StringComparison.Ordinal) && vm.UnitMetricsStateText == "", "O período personalizado não foi aplicado com fim inclusivo: " + vm.UnitMetricsScopeLabel);
                 // O personalizado da UBS aceita até 20 anos (7.305 dias, o limite da API); a Secretaria continua em 366 dias.
                 Input(content, "Data inicial do período da UBS").Text = "01/01/2026"; Input(content, "Data final do período da UBS").Text = "01/01/2027";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado de 366 dias", 366);
@@ -148,12 +149,13 @@ internal static partial class Program
                     // Modo gráficos: a grade de ChartPanel (um por indicador com dado), sem tabela e sem os cards.
                     vm.UnitViewMode = ViewMode.Charts; content = Layout(window, 1280, 2600);
                     var panels = Descendants<ChartPanel>(content).Where(panel => panel.IsVisible).ToArray();
-                    Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Comparecimento", "Vaga Relâmpago", "Espera por especialidade", "Ocupação da agenda", "Consultas por especialidade"]), $"{mode}: grade de gráficos incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
+                    Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Comparecimento", "Vaga Relâmpago", "Espera e fila por especialidade", "Ocupação da agenda", "Consultas por especialidade"]), $"{mode}: grade de gráficos incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
                     Require(!Descendants<DataGrid>(content).Any(grid => grid.IsVisible) && !Descendants<Expander>(content).Any() && !VisibleTexts(content).Any(text => text.Contains("Valor atual") || text.Contains("em tabela")) && !Descendants<ItemsControl>(content).Any(items => items.IsVisible && AutomationProperties.GetName(items) == "Indicadores da UBS no período"), $"{mode}: o modo gráficos não deveria ter tabela nem cards.");
                     var status = panels[0]; var statusChart = Descendants<LineChartView>(status).Single();
                     Require(status.Toggle.IsVisible && status.Lines!.Count == 3 && status.Lines.All(line => line.Points.Count == days.Count), $"{mode}: a evolução deveria ter 3 linhas de {days.Count} pontos e o alternador Linha | Pizza.");
                     Require(Descendants<System.Windows.Shapes.Polyline>(statusChart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(statusChart).Count() == days.Count * 3, $"{mode}: o gráfico deveria ter 3 linhas e {days.Count * 3} pontos.");
-                    Require(status.Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Concluídas=12", "Faltas=3", "Canceladas=2"]) && status.Slices.Single(slice => slice.Label == "Canceladas").BrushKey == "StatusCancelledBrush", "A pizza deveria ter concluídas, faltas e canceladas (amarelo).");
+                    var statusSlices = status.Slices ?? [];
+                    Require(statusSlices.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Concluídas=12", "Faltas=3", "Canceladas=2"]) && statusSlices.Single(slice => slice.Label == "Canceladas").BrushKey == "StatusCancelledBrush", "A pizza deveria ter concluídas, faltas e canceladas (amarelo).");
                     Require(panels.Single(panel => panel.Title == "Vaga Relâmpago").Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Aceitas=1", "Recusadas=2", "Vencidas=1"]) && !panels.Single(panel => panel.Title == "Vaga Relâmpago").Toggle.IsVisible, "A pizza da Vaga Relâmpago está incorreta (só pizza, sem alternador).");
                     vm.UnitViewMode = ViewMode.Cards; content = Layout(window, 1280, 2600);
                     // Contraste dos textos de apoio e dos ícones de estado sobre a superfície dos cartões.
@@ -249,7 +251,9 @@ internal static partial class Program
                 Require(AutomationProperties.GetName(search) == "Pesquisar no painel" && search.Tag?.ToString() == "Pesquisar", "A pesquisa do cabeçalho deveria ter o campo Pesquisar com lupa.");
                 Require(period.Items.Cast<PeriodOption>().Select(option => option.Label + "=" + option.Days).SequenceEqual(["Dia=1", "Semana=7", "Mês=30", "Ano=365", "5 anos=1826", "Máximo=7305"]) && period.SelectedValue is 1, "O combo Período deveria ter Dia, Semana, Mês, Ano, 5 anos e Máximo, com Dia escolhido.");
                 double LeftOf(FrameworkElement element) => element.TranslatePoint(new Point(0, 0), header).X;
-                Require(LeftOf(search) < LeftOf(period) && LeftOf(period) < LeftOf(toggle) && toggle.ActualWidth > 0 && LeftOf(toggle) + toggle.ActualWidth <= header.ActualWidth + 1, "A ordem do cabeçalho deveria ser pesquisa, período e alternador (o mais à direita).");
+                // B3: o alternador fica logo à direita da pesquisa (nada entre os dois) e é o mais à direita; o período vem antes da pesquisa.
+                var gap = LeftOf(toggle) - (LeftOf(search) + search.ActualWidth);
+                Require(LeftOf(period) + period.ActualWidth <= LeftOf(search) && gap >= 0 && gap <= 32 && toggle.ActualWidth > 0 && LeftOf(toggle) + toggle.ActualWidth <= header.ActualWidth + 1, $"A ordem do cabeçalho deveria ser período, pesquisa e, logo à direita dela, o alternador (o mais à direita); espaço entre pesquisa e alternador: {gap:0}.");
                 Require(!((Button)window.FindName("FiltersButton")).IsVisible && !Descendants<Button>(page).Any(button => button.IsVisible && (AutomationProperties.GetName(button).Contains("Atualizar", StringComparison.Ordinal) || button.Content?.ToString()?.Contains("Atualizar", StringComparison.Ordinal) == true)) && !Descendants<Button>(header).Any(button => button.IsVisible && AutomationProperties.GetName(button).Contains("Atualizar", StringComparison.Ordinal)), "O Painel não deveria ter botão Filtros nem Atualizar.");
                 Require(vm.PanelCards.Select(card => card.Title).SequenceEqual(["Consultas concluídas", "Faltas", "Cancelamentos", "Consultas agendadas", "Tempo médio de espera", "Ofertas em andamento", "Pacientes cadastrados", "Na fila", "Vagas ativas"]), "Os cards do resumo e do fluxo deveriam estar no mesmo grupo: " + string.Join(" | ", vm.PanelCards.Select(card => card.Title)));
                 Require(vm.PanelCards.Select(card => card.Tone).SequenceEqual([Tone.Green, Tone.Pink, Tone.Yellow, Tone.Blue, Tone.Violet, Tone.Teal, Tone.Blue, Tone.Violet, Tone.Teal]), "Cada card deveria ter o tom do seu sentido.");
@@ -354,7 +358,7 @@ internal static partial class Program
                 InvokeButton(toggle); content = Layout(window, 1280, 1500);
                 Require(vm.PanelViewMode == ViewMode.Charts && window.ViewModel.GetViewMode("home") == ViewMode.Charts, "O alternador deveria ir para os gráficos e lembrar a escolha.");
                 var panels = Descendants<ChartPanel>(content).Where(panel => panel.IsVisible).ToArray();
-                Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Vaga Relâmpago", "Espera por especialidade", "Ocupação da agenda", "Consultas por especialidade", "Pacientes cadastrados"]), "Grade do Painel incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
+                Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Vaga Relâmpago", "Espera e fila por especialidade", "Ocupação da agenda", "Consultas por especialidade", "Pacientes cadastrados"]), "Grade do Painel incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
                 var texts = VisibleTexts(content);
                 Require(!texts.Contains("Atenção da equipe") && !texts.Contains("Consultórios ativos") && !texts.Contains("Resumo do dia") && !Descendants<DataGrid>(content).Any(grid => grid.IsVisible) && !Descendants<Expander>(content).Any() && !texts.Any(text => text.Contains("Valor atual") || text.Contains("em tabela")), "O modo gráficos não deveria ter tabela, Atenção da equipe, consultórios nem 'Valor atual'.");
                 Require(panels.Single(panel => panel.Title == "Vaga Relâmpago").Slices!.Count == 3 && panels.Single(panel => panel.Title == "Ocupação da agenda").Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Ocupados=30", "Livres=10"]), "As pizzas da Vaga Relâmpago e da ocupação estão incorretas.");
@@ -376,7 +380,7 @@ internal static partial class Program
         Check("OBS Painel e Indicadores: grade de cards e agrupamento do eixo em períodos longos", () =>
         {
             Require(TileGridPanel.ColumnsFor(9, 1050, 250, 4) == 3 && TileGridPanel.ColumnsFor(6, 1050, 250, 4) == 3 && TileGridPanel.ColumnsFor(7, 1050, 250, 4) == 4 && TileGridPanel.ColumnsFor(5, 1050, 250, 4) == 3, "A grade deveria usar uma coluna a menos quando a última linha ficaria quase vazia.");
-            Require(TileGridPanel.ColumnsFor(9, 700, 250, 4) == 2 && TileGridPanel.ColumnsFor(9, 200, 250, 4) == 1 && TileGridPanel.ColumnsFor(1, 2000, 250, 4) == 1 && TileGridPanel.ColumnsFor(4, 5000, 250, 4) == 4 && TileGridPanel.ColumnsFor(6, 1000, 460, 2) == 2, "O número de colunas deveria seguir a largura, o mínimo de 1 e o máximo configurado.");
+            Require(TileGridPanel.ColumnsFor(9, 700, 250, 4) == 2 && TileGridPanel.ColumnsFor(9, 200, 250, 4) == 1 && TileGridPanel.ColumnsFor(1, 2000, 250, 4) == 4 && TileGridPanel.ColumnsFor(2, 1050, 250, 4) == 4 && TileGridPanel.ColumnsFor(4, 5000, 250, 4) == 4 && TileGridPanel.ColumnsFor(6, 1000, 460, 2) == 2, "O número de colunas deveria seguir a largura, o mínimo de 1 e o máximo configurado.");
             var panel = new TileGridPanel { MinTileWidth = 200, MaxColumns = 3 };
             for (var index = 0; index < 5; index++) panel.Children.Add(new Border { Height = 40 + index * 10 });
             panel.Measure(new Size(700, double.PositiveInfinity)); panel.Arrange(new Rect(0, 0, 700, panel.DesiredSize.Height));

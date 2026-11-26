@@ -35,17 +35,17 @@ Painel da UBS e Indicadores no padrão novo do OBS, usando só os componentes da
 
 ### Painel da UBS (`OperationalOverviewView`)
 
-- **Cabeçalho:** `HeaderSearchBox` (campo Pesquisar com lupa, 260 px que encolhe até 140) e combo **Período** em dois `PageFilterGroup Inline`, e o `ViewModeToggle` (`ScreenKey="home"`) em `PageActions`. Não há botão Filtros nem Atualizar. O nome da tela fica só no cabeçalho da janela.
+- **Cabeçalho:** combo **Período** e `HeaderSearchBox` (campo Pesquisar com lupa, 260 px que encolhe até 140) em dois `PageFilterGroup Inline`, e o `ViewModeToggle` (`ScreenKey="home"`) em `PageActions`, logo à direita da pesquisa (B3). Não há botão Filtros nem Atualizar. O nome da tela fica só no cabeçalho da janela.
 - **Modo cards:** "Resumo do dia" (o título acompanha o período) com **nove cards coloridos no mesmo grupo**: concluídas (verde), faltas (rosa), cancelamentos (amarelo), agendadas (azul), tempo médio de espera (violeta), ofertas em andamento (turquesa) e o fluxo da unidade: pacientes cadastrados (azul), na fila (violeta) e vagas ativas (turquesa). Depois, "Consultórios ativos" (bloco turquesa), a **tabela das consultas do período** (dia, semana ou mês por linha conforme o tamanho do período; sem card em volta) e "Atenção da equipe" com o botão para a central de alertas. O card continua abrindo o pop-up do gráfico (só título e Linha | Pizza).
-- **Modo gráficos:** grade de `ChartPanel` (um por indicador que tem dado): Consultas por situação (linha com as três situações e pizza das encerradas), Vaga Relâmpago (pizza), Espera por especialidade, Ocupação da agenda (pizza), Consultas por especialidade e Pacientes cadastrados. Sem tabela, sem "Atenção da equipe", sem consultórios. O desenho escolhido (Linha ou Pizza) sobrevive ao ciclo de 20 s.
+- **Modo gráficos:** grade de `ChartPanel` (um por indicador que tem dado): Consultas por situação (linha com as três situações e pizza das encerradas), Vaga Relâmpago (pizza), Espera e fila por especialidade, Ocupação da agenda (pizza), Consultas por especialidade e Pacientes cadastrados. Sem tabela, sem "Atenção da equipe", sem consultórios. O desenho escolhido (Linha ou Pizza) sobrevive ao ciclo de 20 s.
 - **Pesquisa:** filtra cards (título, valor e dica), painéis de gráfico (título, linhas e fatias), linhas da tabela (período e números) e os blocos Consultórios ativos e Atenção da equipe (por título), sem acento e sem caixa. Sem resultado: "Nenhum item do painel corresponde à pesquisa." / "Nenhum gráfico corresponde à pesquisa.".
 - **Período:** Dia usa a lista de hoje (atualizada a cada 20 s); Semana, Mês, Ano, 5 anos e Máximo usam os indicadores da janela escolhida (uma leitura por mudança, resposta atrasada descartada, Dia e Mês compartilham os mesmos 30 dias sem nova leitura). Períodos longos agrupam o eixo por semana (até 400 dias) ou mês (`ChartData`); em janelas acima de 400 dias o eixo começa no primeiro dia com consulta.
 
 ### Indicadores > Desempenho (`UnitIndicatorsView`, hospedada por `OperationalInsightsView`)
 
-- **Cabeçalho:** combo **Período** em linha (Dia, Semana, Mês, Ano, 5 anos, Máximo, Personalizado), botão **Filtros** (datas do personalizado com Aplicar período, especialidade e situação da tabela) e `ViewModeToggle` (`ScreenKey="indicators"`). O personalizado aceita até 20 anos (7.305 dias) com limite próprio da UBS (`ValidateUnitRange`); a validação de 366 dias da Secretaria (`Metrics.cs`) não foi tocada.
+- **Cabeçalho:** combo **Período** em linha (Dia, Semana, Mês, Ano, 5 anos, Máximo, Personalizado; ao escolher Personalizado a tela diz que as datas estão no botão Filtros), botão **Filtros** (datas do personalizado com Aplicar período, especialidade e situação da tabela) e `ViewModeToggle` (`ScreenKey="indicators"`). O personalizado aceita até 20 anos (7.305 dias) com limite próprio da UBS (`ValidateUnitRange`); a validação de 366 dias da Secretaria (`Metrics.cs`) não foi tocada.
 - **Modo cards:** seis cards resumidos (comparecimento turquesa, concluídas verde, faltas rosa, cancelamentos amarelo, espera média violeta, ocupação da agenda azul), a nota "Como é calculado o comparecimento", a tabela por especialidade sem card e o bloco curto de metas da Secretaria.
-- **Modo gráficos:** Consultas por situação, Comparecimento, Vaga Relâmpago, Espera por especialidade, Ocupação da agenda e Consultas por especialidade.
+- **Modo gráficos:** Consultas por situação, Comparecimento, Vaga Relâmpago, Espera e fila por especialidade, Ocupação da agenda e Consultas por especialidade.
 - **Saíram:** o título "Indicadores da UBS" (e a linha de subtítulo), "Visão geral", os cards de Vaga Relâmpago e de capacidade, "Maior espera atual", "Série no tempo", a tabela de dados do gráfico e o `ObsMetricCard` sem uso.
 
 ### Cliente da API
@@ -57,8 +57,8 @@ Painel da UBS e Indicadores no padrão novo do OBS, usando só os componentes da
 
 - **Dia no Painel:** os quatro números de consulta vêm da lista de hoje; a espera média, a linha dos gráficos (últimos 7 dias, para dar contexto) e as pizzas de Vaga Relâmpago e por especialidade olham os últimos 30 dias, como o Painel sempre fez. Cada card ou nota diz qual janela usa.
 - **"Na fila":** o fluxo chamava `QueueWaitingCount`, que não existe (ligação quebrada, o número aparecia vazio) e o card "Ofertas em andamento" também. Agora "Ofertas em andamento" usa `OffersRunningCount` e "Na fila" usa as pessoas aguardando dos indicadores (`WaitingPatients`).
-- **Colunas dos cards:** novo painel `TileGridPanel` escolhe as colunas pela largura (mínimo de 250 px) e usa uma a menos quando a última linha ficaria quase vazia (9 cards viram 3 x 3).
-- **Espera por especialidade:** com uma especialidade só não há linha; fica só a pizza da fila.
+- **Colunas dos cards:** novo painel `TileGridPanel` escolhe as colunas pela largura (mínimo de 250 px) e usa uma a menos quando a última linha ficaria quase vazia (9 cards viram 3 x 3). Com menos blocos que colunas (o que sobra da pesquisa), eles mantêm a largura de uma linha cheia, à esquerda.
+- **Espera e fila por especialidade:** com uma especialidade só não há linha; fica só a pizza da fila.
 - **Gráficos dentro de cards:** o `ChartPanel` não tem moldura, então cada painel da grade fica num `Card` (é gráfico, não listagem).
 - **Capacidade dos Indicadores:** os três cards de capacidade viraram um (ocupação da agenda); `UnitCapacityCards` ficou sem uso (P-090).
 
@@ -84,13 +84,21 @@ Painel da UBS e Indicadores no padrão novo do OBS, usando só os componentes da
 
 ## Pendências (números reservados P-090 a P-094)
 
-- **P-090** · `UnitCapacityCards`, `BuildCapacityCards` (lado UBS) e `ApplyUnitCapacityAndGoals` (parte de capacidade) em `WorkspaceViewModel.UnitScheduling.cs`/`WorkspaceViewModel.cs` ficaram sem uso na tela, porque a ocupação da agenda agora vem do card resumido. Remover na consolidação, junto de quem for dono de `UnitScheduling.cs`.
+- **P-090** · *Resolvida na revisão (26/11/2026).* `UnitCapacityCards` e a parte de capacidade de `ApplyUnitCapacityAndGoals` ficaram sem uso quando a ocupação da agenda virou um card resumido → removidos (`ApplyUnitCapacityAndGoals` virou `ApplyUnitGoals`; `BuildCapacityCards` continua, usado pela capacidade da rede na Secretaria). Conferido por build e pelas checagens de Indicadores e de capacidade.
 - **P-091** · Teste só do usuário, ao longo do tempo: abrir o OBS e, no Painel da UBS e em Indicadores, trocar o período (inclusive 5 anos e Máximo), pesquisar, alternar cards e gráficos e olhar a janela no tamanho mínimo; observar se algum número destoa do que a Secretaria vê.
 - **P-092** · Confirmar com o usuário que "Na fila" deve mostrar as pessoas aguardando (`waitingPatients`) e não as entradas (`activeEntries`).
-- **P-093** · Os períodos de 5 anos, Máximo e personalizado acima de 366 dias só funcionam com a API que já aceita 20 anos (F9, outro grupo). Reconferir depois da implantação; com a API antiga a tela mostra o erro de período.
+- **P-093** · Os períodos de 5 anos, Máximo e personalizado acima de 366 dias só funcionam com a API que aceita 20 anos (`MetricsService.MaxWindowDays = 7305`, já nesta branch). Reconferir depois da implantação da API nova; com a API antiga publicada a tela mostra o erro de período.
 - **P-094** · Confirmar com o usuário a regra do Dia no Painel (espera e gráficos olhando os últimos 30 dias e 7 dias, ver "Decisões").
 
 ## Estado
 
 - 26/11/2026: fundação juntada (fast-forward), build da linha de base com 0 erros, pedido lido e este arquivo criado.
 - 26/11/2026: implementação das duas telas, do cabeçalho, do modo gráficos, da janela de 20 anos e do texto do erro 400; checagens adaptadas e novas; capturas conferidas nos dois temas; suíte completa com 250 PASS e 1 FAIL (P-066, preexistente). Arquivos novos: `TileGridPanel`, `HeaderSearchBox`, `UnitChartGrid`, `UnitChartCard` (modelo), `WorkspaceViewModel.PanelOverview.cs` e `WorkspaceViewModel.ChartCards.cs`.
+- 26/11/2026: **revisão crítica** do grupo (diff inteiro, pedido B1–B8/G1/F9 e itens A frase por frase, capturas abertas uma a uma). Achados e correções:
+  1. **B3 (posição):** o alternador ficava à direita do Período, não da pesquisa. O cabeçalho passou a Período → Pesquisar → alternador, com o alternador colado à pesquisa e no canto direito; a checagem do cabeçalho confere a ordem e a distância.
+  2. **Card esticado na pesquisa:** com um card só (ex.: "falt") a `TileGridPanel` esticava o card pela tela inteira. Agora, com menos blocos que colunas, cada um mantém a largura de uma linha cheia; checagem da grade adaptada.
+  3. **Personalizado sem orientação:** escolher "Personalizado" no combo do cabeçalho não mostrava nada (as datas ficam no botão Filtros). A tela passa a dizer "Informe as datas no botão Filtros e aplique o período personalizado." até o período ser aplicado; checagem nova.
+  4. **Título do gráfico de espera:** o painel "Espera por especialidade" mostra também (ou só) a pizza das pessoas na fila; virou "Espera e fila por especialidade".
+  5. **Código sem uso (regra 8):** `UnitCapacityCards` (P-090) e `PanelWaitHasError` removidos; a linha "Atualizando os indicadores…" vazia deixou de ocupar espaço; aviso de nulidade novo nas checagens corrigido.
+  - Conferido sem achado: fronteiras (as mudanças fora das telas são as indispensáveis já listadas), nenhuma checagem apagada nem afrouxada, sem botão Atualizar, cores só por chave do tema, `ObsUnitNoticeView` mantido, resposta atrasada descartada, temporizador e eventos sem registro duplo, tema escuro e janela mínima.
+  - Validação: build com 0 erros; suíte completa **250 PASS e 1 FAIL** (o P-066 da linha de base). Numa primeira volta da suíte, "Os dois desktops abrem cada tela no topo…" falhou uma vez (menu do perfil não abriu a tempo) e passou isolada e na volta seguinte: instabilidade de tempo com a máquina carregada, não ligada a este grupo. Capturas refeitas em `.build/redesenho/painel-indicadores/`.

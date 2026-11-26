@@ -5,7 +5,7 @@ using Nora.Desktop.Services;
 namespace Nora.Desktop.ViewModels;
 
 /// <summary>
-/// OBS: consultórios ativos e capacidade dos próximos 7 dias (Painel), capacidade e metas do período (Indicadores) e alertas avaliados pela API.
+/// OBS: consultórios ativos e capacidade dos próximos 7 dias (Painel), metas do período (Indicadores) e alertas avaliados pela API.
 /// Tudo vem de leituras tolerantes: se uma falhar, o cartão avisa e o resto da UBS continua funcionando.
 /// </summary>
 public sealed partial class WorkspaceViewModel
@@ -22,7 +22,6 @@ public sealed partial class WorkspaceViewModel
     public int AlertBadgeCount { get => alertBadgeCount; private set { if (alertBadgeCount == value) return; alertBadgeCount = value; Notify(); } }
     private void MarkAlertsViewed() { viewedAlertKeys.UnionWith(activeAlertKeys); AlertBadgeCount = 0; }
 
-    public ObservableCollection<MetricCard> UnitCapacityCards { get; } = [];
     public ObservableCollection<GoalCell> UnitGoalCells { get; } = [];
     public ObservableCollection<AlertRow> UnitAlerts { get; } = [];
     /// <summary>Os primeiros alertas, para o cartão "Atenção da equipe" do Painel.</summary>
@@ -123,7 +122,7 @@ public sealed partial class WorkspaceViewModel
         NotifyScheduling();
     }
 
-    // ---- Indicadores: capacidade e metas do período ----
+    // ---- Indicadores: metas do período (a ocupação da agenda é um dos cards resumidos) e capacidade da rede (Secretaria) ----
 
     public string UnitGoalsState => unitMetrics is null ? "" : UnitGoalCells.Count == 0 ? "Nenhuma meta definida pela Secretaria para esta UBS nem para a rede." : "";
 
@@ -140,9 +139,8 @@ public sealed partial class WorkspaceViewModel
         ];
     }
 
-    private void ApplyUnitCapacityAndGoals(UnitMetrics result)
+    private void ApplyUnitGoals(UnitMetrics result)
     {
-        Replace(UnitCapacityCards, BuildCapacityCards(result.Capacity, "Horários da grade com início no período"));
         Replace(UnitGoalCells, (result.Goals ?? []).Select(GoalCell.From).ToArray());
         NotifyScheduling();
     }
@@ -151,7 +149,7 @@ public sealed partial class WorkspaceViewModel
     {
         activeRooms = null; activeRoomsFailed = false; panelCapacity = null; capacityFailed = false;
         unitAlertsFailed = false; alertsAttemptedAt = alertsReadAt = null;
-        Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(UnitGoalCells, Array.Empty<GoalCell>());
+        Replace(UnitGoalCells, Array.Empty<GoalCell>());
         UnitAlerts.Clear(); UnitAlertPreview.Clear();
         activeAlertKeys.Clear(); viewedAlertKeys.Clear(); AlertBadgeCount = 0;
         ClearCatalog();

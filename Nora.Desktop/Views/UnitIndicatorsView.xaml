@@ -32,7 +32,7 @@
     <views:PageActions>
       <views:ViewModeToggle ScreenKey="indicators" Mode="{Binding UnitViewMode, Mode=TwoWay}" />
     </views:PageActions>
-    <TextBlock Text="{Binding UnitMetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+    <TextBlock Text="{Binding UnitMetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" Visibility="{Binding UnitMetricsLoadingLabel, Converter={StaticResource TextVisibility}}" />
     <TextBlock Text="{Binding UnitMetricsScopeLabel}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0" Visibility="{Binding UnitMetricsScopeLabel, Converter={StaticResource TextVisibility}}" />
     <TextBlock Text="{Binding UnitMetricsStateText}" Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,10" Visibility="{Binding UnitMetricsStateText, Converter={StaticResource TextVisibility}}" />
 
