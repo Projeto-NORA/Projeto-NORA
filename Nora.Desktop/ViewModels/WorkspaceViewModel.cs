@@ -51,7 +51,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] SectionDependents =
     [
         nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts), nameof(ShowUnitSettings), nameof(ShowAnnouncements), nameof(ShowFamily),
-        nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredTitle), nameof(AccessRequiredDescription), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage),
+        nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage),
         nameof(PageTitle), nameof(PageSubtitle)
     ];
 
@@ -150,24 +150,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public bool ShowAlerts => IsOperational && Section == "alerts";
     public bool ShowUnitSettings => IsAuthenticated && IsOperational && Section == "unit-settings";
     public bool RequiresSignInForCurrentSection => IsOperational && IsSignedOut && Section is "patients" or "slots" or "unit-settings" or "family" or "announcements";
-    public string AccessRequiredTitle => Section switch
-    {
-        "patients" => "Pacientes da unidade",
-        "slots" => "Vagas Relâmpago",
-        "unit-settings" => "Informações da UBS",
-        "family" => "Família",
-        "announcements" => "Comunicados",
-        _ => "Área da unidade"
-    };
-    public string AccessRequiredDescription => Section switch
-    {
-        "patients" => "Pesquise e consulte apenas os dados necessários para o trabalho da sua UBS.",
-        "slots" => "Painel automático das vagas e ofertas.",
-        "unit-settings" => "Profissionais, consultórios, grade de horários e bloqueios da sua UBS.",
-        "family" => "Pedidos de vínculo entre responsáveis e dependentes, decididos pela equipe da UBS.",
-        "announcements" => "Comunicados da Secretaria para a equipe das UBS desta conta.",
-        _ => "Entre na unidade para acessar os dados protegidos."
-    };
     public string AccessRequiredHint => Section switch
     {
         "patients" => "Entre no Painel da UBS para carregar os pacientes autorizados da sua unidade.",

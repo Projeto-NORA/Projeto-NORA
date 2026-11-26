@@ -9,6 +9,10 @@ namespace Nora.Desktop.Views;
 /// <summary>Senha atual, nova e confirmação. As senhas só existem nos campos: vão ao ViewModel como argumento e os campos são limpos ao concluir ou sair.</summary>
 public partial class ChangePasswordView : UserControl
 {
+    /// <summary>Conteúdo opcional à esquerda do botão primário (ex.: o botão Sair da troca obrigatória de senha).</summary>
+    public static readonly DependencyProperty SecondaryProperty = DependencyProperty.Register(nameof(Secondary), typeof(object), typeof(ChangePasswordView), new PropertyMetadata(null));
+    public object? Secondary { get => GetValue(SecondaryProperty); set => SetValue(SecondaryProperty, value); }
+
     private WorkspaceViewModel? observed;
     public ChangePasswordView()
     {

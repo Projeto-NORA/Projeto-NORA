@@ -75,7 +75,10 @@ public sealed record ExamInfo(Guid Id, string Name, string Status, DateTimeOffse
     [JsonIgnore] public bool IsVoided => Status == "voided";
     [JsonIgnore] public bool CanChangeStatus => Status == "requested";
     [JsonIgnore] public string StatusDisplay => Status switch { "requested" => "Solicitado", "done" => "Realizado", "cancelled" => "Cancelado", "voided" => "Anulado", _ => Status };
-    [JsonIgnore] public string StatusGlyph => Status switch { "requested" => "", "done" => "", "cancelled" => "", "voided" => "", _ => "" };
+    /// <summary>Tom da etiqueta de situação da lista: solicitado azul, realizado verde, cancelado amarelo, anulado neutro.</summary>
+    [JsonIgnore] public Tone TagTone => Status switch { "requested" => Tone.Blue, "done" => Tone.Green, "cancelled" => Tone.Yellow, _ => Tone.Neutral };
+    /// <summary>A linha de dados do item da lista: só o que foi informado, separado por " | ".</summary>
+    [JsonIgnore] public string MetaLine => string.Join(" | ", new[] { DateDisplay, NoteDisplay, VoidDisplay }.Where(text => text.Length > 0));
     [JsonIgnore] public string DateDisplay => Status == "done" && PerformedOn is { } done ? "Realizado em " + DisplayFormat.Date(done) : "Solicitado em " + RequestedAt.ToLocalTime().ToString("dd/MM/yyyy", DisplayFormat.Culture);
     [JsonIgnore] public string NoteDisplay => string.IsNullOrWhiteSpace(Note) ? "" : "Observação: " + Note;
     [JsonIgnore] public string VoidDisplay => !IsVoided ? "" : $"Anulado em {VoidedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture)}{(string.IsNullOrWhiteSpace(VoidReason) ? "" : " · motivo: " + VoidReason)}";
@@ -87,7 +90,10 @@ public sealed record VaccineInfo(Guid Id, string Name, string Dose, DateOnly App
 {
     [JsonIgnore] public bool IsVoided => Status == "voided";
     [JsonIgnore] public string StatusDisplay => IsVoided ? "Anulada" : "Aplicada";
-    [JsonIgnore] public string StatusGlyph => IsVoided ? "" : "";
+    /// <summary>Tom da etiqueta de situação da lista: aplicada verde, anulada neutro.</summary>
+    [JsonIgnore] public Tone TagTone => IsVoided ? Tone.Neutral : Tone.Green;
+    /// <summary>A linha de dados do item da lista: só o que foi informado, separado por " | ".</summary>
+    [JsonIgnore] public string MetaLine => string.Join(" | ", new[] { DoseDisplay, DateDisplay, NoteDisplay, VoidDisplay }.Where(text => text.Length > 0));
     [JsonIgnore] public string DoseDisplay => VaccineDose.Display(Dose);
     [JsonIgnore] public string DateDisplay => "Aplicada em " + DisplayFormat.Date(AppliedOn);
     [JsonIgnore] public string NoteDisplay => string.IsNullOrWhiteSpace(Note) ? "" : "Observação: " + Note;
