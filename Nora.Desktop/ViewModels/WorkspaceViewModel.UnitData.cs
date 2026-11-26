@@ -42,8 +42,7 @@ public sealed partial class WorkspaceViewModel
         public LightningSlotPage? Slots { get; init; }
         public AppointmentInfo[]? Today { get; init; }
         public DateTime TodayDate { get; init; }
-        public AppointmentInfo[]? Month { get; init; }
-        public (int Year, int Month) MonthKey { get; init; }
+        public AgendaRead? Month { get; init; }
         public UnitMetricsRead? Metrics { get; init; }
         public UnitMetricsRead? Panel { get; init; }
         /// <summary>Quando cada leitura de indicadores foi pedida; a troca de UBS limpa o estado depois da leitura, então a hora é regravada ao aplicar.</summary>
@@ -87,13 +86,11 @@ public sealed partial class WorkspaceViewModel
     private async Task<UnitSnapshot> FetchUnitDataAsync(HealthUnit unit, UnitScope scope)
     {
         var today = DateTime.Today;
-        var monthKey = (selectedAgendaDate.Year, selectedAgendaDate.Month);
-        var (gridStart, gridEnd) = AgendaMonthRange(selectedAgendaDate);
         var registry = scope.HasFlag(UnitScope.Registry) ? api.ObsRegistryAsync(unit.Id) : null;
         var slots = scope.HasFlag(UnitScope.Slots) ? api.UnitLightningSlotsAsync(unit.Id) : null;
         var todayList = scope.HasFlag(UnitScope.Today) ? api.AppointmentsAsync(unit.Id, new DateTimeOffset(today), new DateTimeOffset(today.AddDays(1))) : null;
-        // Uma única requisição cobre o mês inteiro do calendário; dia, semana e marcações saem dela.
-        var month = scope.HasFlag(UnitScope.Agenda) ? api.AppointmentsAsync(unit.Id, gridStart, gridEnd) : null;
+        // Uma única requisição cobre o mês inteiro do calendário (o Ano lê os meses em blocos de até 6); dia, semana e marcações saem do cache que ela alimenta.
+        var month = scope.HasFlag(UnitScope.Agenda) ? ReadAgendaAsync(unit) : null;
         // Indicadores: o do filtro e o do Painel viram uma só requisição quando pedem a mesma janela.
         Task<UnitMetricsRead>? metricsRead = null, panelRead = null;
         if (scope.HasFlag(UnitScope.Metrics) && TryBuildUnitRequest(out var filterRequest))
@@ -136,7 +133,6 @@ public sealed partial class WorkspaceViewModel
             Today = todayList is null ? null : await todayList,
             TodayDate = today,
             Month = month is null ? null : await month,
-            MonthKey = monthKey,
             Metrics = metricsRead is null ? null : await metricsRead,
             Panel = panelRead is null ? null : await panelRead,
             MetricsAt = unitMetricsAttemptedAt ?? DateTimeOffset.Now,
@@ -174,7 +170,7 @@ public sealed partial class WorkspaceViewModel
         if (data.Profile is { } unitProfileRead) ApplyProfile(unitProfileRead);
         if (data.Devices is { } deviceRead) ApplyDevices(deviceRead);
         if (data.Today is { } today) SetTodayOverview(data.TodayDate, today);
-        if (data.Month is { } month && data.MonthKey == (selectedAgendaDate.Year, selectedAgendaDate.Month)) SetMonthCache(data.MonthKey, month);
+        if (data.Month is { } month) ApplyAgenda(month);
         // Uma resposta de um filtro que já mudou não altera a tela.
         if (data.Metrics is { Data: { } read } && TryBuildUnitRequest(out var current) && current == data.Metrics.Request) { unitMetricsAttemptedAt = data.MetricsAt; ApplyUnitMetrics(read, current); }
         if (data.Panel is { } panel) { panelAttemptedAt = data.PanelAt; ApplyPanelMetrics(panel); }

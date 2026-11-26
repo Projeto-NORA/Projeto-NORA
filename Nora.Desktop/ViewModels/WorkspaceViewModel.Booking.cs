@@ -35,7 +35,7 @@ public sealed partial class WorkspaceViewModel
     public string BookingIntro => UsesCatalogBooking
         ? "Esta UBS marca pelo catálogo: escolha a especialidade, o profissional e um horário livre da grade. Os horários já ocupados, bloqueados ou fora da grade não aparecem."
         : UsesFreeTextBooking ? "Esta UBS ainda não tem profissional ativo cadastrado: informe a especialidade e o profissional em texto livre. Depois que o administrador cadastrar profissionais, a marcação passa a usar só o catálogo."
-        : BookingCatalogUnavailable ? "Não foi possível ler o cadastro de profissionais agora, por isso o agendamento fica indisponível. Atualize a agenda para tentar de novo." : "";
+        : BookingCatalogUnavailable ? "Não foi possível ler o cadastro de profissionais agora, por isso o agendamento fica indisponível. A agenda tenta de novo sozinha; aguarde alguns instantes." : "";
     public Specialty? BookingSpecialty
     {
         get => bookingSpecialty;
@@ -61,7 +61,7 @@ public sealed partial class WorkspaceViewModel
         : bookingSpecialty is null ? "Escolha a especialidade para ver os profissionais."
         : bookingProfessional is null ? (BookingProfessionals.Count == 0 ? "Nenhum profissional ativo atende esta especialidade." : "Escolha o profissional para ver os horários livres.")
         : bookingLoading > 0 ? "Buscando horários livres…"
-        : bookingSlotsFailed ? "Não foi possível buscar os horários livres. Escolha o profissional de novo ou use Atualizar agenda para tentar outra vez."
+        : bookingSlotsFailed ? "Não foi possível buscar os horários livres. A busca é repetida sozinha; ou escolha o profissional de novo."
         : bookingSlotsLoaded && BookingSlots.Count == 0 ? $"Nenhum horário livre nos próximos {BookingLookAheadDays} dias para este profissional nesta especialidade. Escolha outro dia no calendário, outro profissional ou peça ao administrador para ajustar a grade."
         : "";
 

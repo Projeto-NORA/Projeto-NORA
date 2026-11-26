@@ -1,63 +1,324 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.AgendaView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+<UserControl x:Class="Nora.Desktop.Views.AgendaView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" views:PageLayout.Fill="True">
   <UserControl.Resources>
-    <Style x:Key="AgendaSegment" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Padding" Value="16,8" /><Setter Property="MinHeight" Value="36" /><Setter Property="MinWidth" Value="76" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Background" Value="Transparent" /></Style>
-    <Style x:Key="AgendaDayButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Height" Value="70" /><Setter Property="Margin" Value="4" /><Setter Property="Padding" Value="12,8" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" /><Style.Triggers><DataTrigger Binding="{Binding IsOutsideMonth}" Value="True"><Setter Property="Opacity" Value="0.45" /></DataTrigger><DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandGradientBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></DataTrigger><DataTrigger Binding="{Binding IsToday}" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="BorderThickness" Value="2" /></DataTrigger></Style.Triggers></Style>
-  </UserControl.Resources>
-  <StackPanel>
-    <Grid Margin="0,0,0,24"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="13" Padding="4" VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><Button Content="Dia" Command="{Binding SelectAgendaDayCommand}" ToolTip="Mostra a agenda de um dia."><Button.Style><Style TargetType="Button" BasedOn="{StaticResource AgendaSegment}"><Style.Triggers><DataTrigger Binding="{Binding IsAgendaDay}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandGradientBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style></Button><Button Content="Semana" Command="{Binding SelectAgendaWeekCommand}" ToolTip="Mostra a agenda da semana."><Button.Style><Style TargetType="Button" BasedOn="{StaticResource AgendaSegment}"><Style.Triggers><DataTrigger Binding="{Binding IsAgendaWeek}" Value="True"><Setter Property="Background" Value="{DynamicResource BrandGradientBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style></Button></StackPanel></Border></Grid>
-    <views:ObsUnitNoticeView />
-    <Button Content="+ Agendar nova consulta" Style="{StaticResource ObsPrimaryButton}" Click="OnToggleBooking" HorizontalAlignment="Right" IsEnabled="{Binding HasActiveObsUnit}" Margin="0,0,0,16" AutomationProperties.Name="Agendar nova consulta" ToolTip="Abre o formulário de nova consulta."/>
-        <Border x:Name="BookingPanel" Visibility="Collapsed" Style="{StaticResource Card}" Margin="0,0,0,18" IsEnabled="{Binding HasActiveObsUnit}" ToolTip="A consulta usa o dia selecionado no calendário abaixo. Escolha um horário futuro."><StackPanel Margin="0,12,0,0">
-          <TextBlock Text="{Binding BookingIntro}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock Text="Paciente cadastrado na UBS" /><ComboBox ItemsSource="{Binding ActiveObsRegistry}" SelectedItem="{Binding AppointmentPatient}" DisplayMemberPath="FullName" AutomationProperties.Name="Paciente da consulta"  enter:EnterNavigation.Group="AgendaView.book"/>
-          <!-- UBS com profissional ativo: só o catálogo (especialidade, profissional, horário livre da grade). -->
-          <StackPanel Visibility="{Binding UsesCatalogBooking, Converter={StaticResource BoolVisibility}}">
-            <StackPanel.Resources><Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style></StackPanel.Resources>
-            <TextBlock Text="Especialidade" /><ComboBox ItemsSource="{Binding BookingSpecialties}" SelectedItem="{Binding BookingSpecialty}" DisplayMemberPath="Name" AutomationProperties.Name="Especialidade da consulta pelo catálogo"  enter:EnterNavigation.Group="AgendaView.book"/>
-            <TextBlock Text="Profissional" /><ComboBox ItemsSource="{Binding BookingProfessionals}" SelectedItem="{Binding BookingProfessional}" DisplayMemberPath="FullName" AutomationProperties.Name="Profissional da consulta pelo catálogo"  enter:EnterNavigation.Group="AgendaView.book"/>
-            <TextBlock Text="Horário livre" /><TextBlock Text="{Binding BookingWindowLabel}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,6" />
-            <ListBox ItemsSource="{Binding BookingSlots}" SelectedItem="{Binding BookingSlot}" DisplayMemberPath="Display" MinHeight="72" MaxHeight="220" AutomationProperties.Name="Horários livres" enter:EnterNavigation.Group="AgendaView.book" />
-            <TextBlock Text="{Binding BookingState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding BookingState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-            <TextBlock Text="{Binding BookingSelectionLabel}" FontWeight="SemiBold" Margin="0,8,0,8" />
-            <Button Style="{StaticResource ObsPrimaryButton}" Content="Agendar" Click="OnCreate" HorizontalAlignment="Left" IsEnabled="{Binding CanBook}" ToolTip="Marca a consulta no horário escolhido." enter:EnterNavigation.Group="AgendaView.book"/>
-          </StackPanel>
-          <!-- UBS sem profissional ativo: texto livre, como antes. -->
-          <StackPanel Visibility="{Binding UsesFreeTextBooking, Converter={StaticResource BoolVisibility}}"><TextBlock Text="Especialidade" /><ComboBox ItemsSource="{Binding ObsSpecialties}" SelectedValue="{Binding AppointmentSpecialty}" SelectedValuePath="Name" DisplayMemberPath="Name" Margin="0,6,0,12" AutomationProperties.Name="Especialidade da consulta" ToolTip="Especialidades cadastradas na rede (lista da Secretaria)."  enter:EnterNavigation.Group="AgendaView.book"/><TextBlock Text="Profissional" /><TextBox Text="{Binding AppointmentProfessional, UpdateSourceTrigger=PropertyChanged}" MaxLength="160" AutomationProperties.Name="Profissional da consulta"  enter:EnterNavigation.Group="AgendaView.book"/><TextBlock Text="Horário inicial (HH:mm)" /><TextBox Text="{Binding AppointmentStart, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário inicial da consulta"  enter:EnterNavigation.Group="AgendaView.book"/><TextBlock Text="Horário final (HH:mm)" /><TextBox Text="{Binding AppointmentEnd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Horário final da consulta"  enter:EnterNavigation.Group="AgendaView.book"/><Button Style="{StaticResource ObsPrimaryButton}" Content="Agendar" Click="OnCreate" HorizontalAlignment="Left" IsEnabled="{Binding CanBook}" ToolTip="Marca a consulta no horário escolhido." enter:EnterNavigation.Group="AgendaView.book"/></StackPanel>
-        </StackPanel></Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" ToolTip="Selecione um dia para ver os horários. Os marcadores coloridos indicam as situações das consultas."><StackPanel><Grid Margin="0,0,0,18"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Button Content="‹" MinWidth="42" Padding="8" Click="OnPrevious" ToolTip="Período anterior" AutomationProperties.Name="Período anterior" /><StackPanel Grid.Column="1" HorizontalAlignment="Center"><TextBlock Text="{Binding AgendaRangeLabel}" Style="{StaticResource SectionTitle}" HorizontalAlignment="Center" /></StackPanel><Button Grid.Column="2" Content="›" MinWidth="42" Padding="8" Click="OnNext" ToolTip="Próximo período" AutomationProperties.Name="Próximo período" /></Grid>
-      <WrapPanel Margin="0,0,0,12" ToolTip="As cores indicam as situações das consultas em cada dia; um dia pode ter mais de uma situação." AutomationProperties.Name="Legenda das situações da agenda">
-        <TextBlock Text="Legenda:" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" Margin="0,0,10,8" />
-        <Border Background="#E8D8FF" CornerRadius="8" Padding="10,5" Margin="0,0,8,8"><TextBlock Text="Agendada" Foreground="#5B21B6" /></Border>
-        <Border Background="#FFF2C6" CornerRadius="8" Padding="10,5" Margin="0,0,8,8"><TextBlock Text="Chamada" Foreground="#754B00" /></Border>
-        <Border Background="#DCF4E5" CornerRadius="8" Padding="10,5" Margin="0,0,8,8"><TextBlock Text="Concluída" Foreground="#137A52" /></Border>
-        <Border Background="#FFE4D2" CornerRadius="8" Padding="10,5" Margin="0,0,8,8"><TextBlock Text="Falta" Foreground="#B54708" /></Border>
-        <Border Background="#FFE0E5" CornerRadius="8" Padding="10,5" Margin="0,0,8,8"><TextBlock Text="Cancelada" Foreground="#B4233E" /></Border>
-      </WrapPanel>
-      <UniformGrid Columns="7" Margin="0,0,0,8"><TextBlock Text="Seg" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Ter" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Qua" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Qui" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Sex" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Sáb" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Dom" FontWeight="SemiBold" TextAlignment="Center" /></UniformGrid>
-      <ItemsControl ItemsSource="{Binding AgendaDays}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Command="{Binding DataContext.SelectCalendarDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource AgendaDayButton}" ToolTip="{Binding AutomationLabel}" AutomationProperties.Name="{Binding AutomationLabel}"><StackPanel><TextBlock Text="{Binding DayNumber}" Style="{StaticResource SectionTitle}" /><StackPanel Orientation="Horizontal" Margin="0,5,0,0"><Ellipse Width="9" Height="9" Fill="#8053D6" Margin="0,0,4,0" Visibility="{Binding HasScheduled, Converter={StaticResource BoolVisibility}}" /><Ellipse Width="9" Height="9" Fill="#D89700" Margin="0,0,4,0" Visibility="{Binding HasCalled, Converter={StaticResource BoolVisibility}}" /><Ellipse Width="9" Height="9" Fill="#137A52" Margin="0,0,4,0" Visibility="{Binding HasCompleted, Converter={StaticResource BoolVisibility}}" /><Ellipse Width="9" Height="9" Fill="#CF5B12" Margin="0,0,4,0" Visibility="{Binding HasMissed, Converter={StaticResource BoolVisibility}}" /><Ellipse Width="9" Height="9" Fill="#B4233E" Visibility="{Binding HasCancelled, Converter={StaticResource BoolVisibility}}" /></StackPanel></StackPanel></Button></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-      <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="12" Padding="14" Margin="0,18,0,0"><StackPanel IsEnabled="{Binding CanEditDraft}"><TextBlock Text="{Binding SelectedAgendaDateLabel}" FontWeight="SemiBold" /><StackPanel Margin="0,4,0,8"><TextBlock Text="{Binding ActiveObsUnitLabel}" /><TextBlock Text="{Binding ActiveObsUnitRegion}" Style="{StaticResource Muted}" FontSize="12" /></StackPanel><Button Style="{StaticResource IconRefreshButton}" Click="OnLoad" HorizontalAlignment="Right" IsEnabled="{Binding HasActiveObsUnit}" AutomationProperties.Name="Atualizar agenda" ToolTip="Atualizar agenda" />
-        <views:PageFilterGroup Label="Consultas do período" SearchFields="PatientName,Specialty,Professional,StatusDisplay" ItemsTarget="{Binding ElementName=AppointmentsFilterList}" />
-        <ListBox x:Name="AppointmentsFilterList" ItemsSource="{Binding Appointments}" SelectedItem="{Binding SelectedAppointment}" AutomationProperties.Name="Consultas da UBS" MinHeight="65" MaxHeight="320" Margin="0,12,0,0" MouseDoubleClick="OnAppointmentDoubleClick" PreviewKeyDown="OnAppointmentKeyDown" ToolTip="Duplo clique ou Enter abre a ficha da consulta.">
-          <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.ItemContainerStyle><ListBox.ItemTemplate><DataTemplate><Border CornerRadius="10" Padding="14" Margin="2,3" TextElement.Foreground="#102A43">
-            <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="#E8D8FF" /><Style.Triggers><DataTrigger Binding="{Binding Status}" Value="called"><Setter Property="Background" Value="#FFF2C6" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="completed"><Setter Property="Background" Value="#DCF4E5" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="missed"><Setter Property="Background" Value="#FFE4D2" /></DataTrigger><DataTrigger Binding="{Binding Status}" Value="cancelled"><Setter Property="Background" Value="#FFE0E5" /></DataTrigger></Style.Triggers></Style></Border.Style>
-            <StackPanel>
-            <TextBlock Text="{Binding PatientName}" Style="{StaticResource SectionTitle}" Foreground="#102A43" />
-            <WrapPanel Margin="0,7,0,0"><TextBlock Text="{Binding AgendaDayDisplay, StringFormat='Dia: {0}'}" FontWeight="SemiBold" Margin="0,0,22,4" Foreground="#102A43" /><TextBlock Text="{Binding AgendaTimeDisplay, StringFormat='Horário: {0}'}" FontWeight="Bold" Foreground="#102A43" /></WrapPanel>
-            <TextBlock Text="{Binding FormattedCpf, StringFormat='CPF: {0}'}" Foreground="#102A43" /><TextBlock Text="{Binding Specialty, StringFormat='Especialidade: {0}'}" Foreground="#102A43" /><TextBlock Text="{Binding Professional, StringFormat='Profissional: {0}'}" Foreground="#102A43" /><TextBlock Text="{Binding StatusDisplay, StringFormat='Situação: {0}'}" FontWeight="Bold" Foreground="#102A43" />
-            <TextBlock Text="{Binding BookedByDisplay, StringFormat='Marcada por: {0}'}" Foreground="#34445A" FontSize="12" />
-            <!-- Confirmação de presença: o ícone acompanha o texto, nunca é o único sinal. -->
-            <StackPanel Orientation="Horizontal" Margin="0,2,0,0" Visibility="{Binding HasConfirmationInfo, Converter={StaticResource BoolVisibility}}">
-              <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,2,6,0" VerticalAlignment="Center">
-                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE7BA;" /><Setter Property="Foreground" Value="{DynamicResource WarningBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsConfirmed}" Value="True"><Setter Property="Text" Value="&#xE73E;" /><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-              </TextBlock>
-              <TextBlock Text="{Binding ConfirmationDisplay}" Foreground="#102A43" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+    <views:AppointmentTextConverter x:Key="AppointmentText" />
+    <views:AppointmentToneConverter x:Key="AppointmentTone" />
+    <views:WideBlockConverter x:Key="WideBlock" />
+    <Geometry x:Key="ChevronLeftGeometry">M 10.5,3.5 L 5,9 L 10.5,14.5</Geometry>
+    <Geometry x:Key="ChevronRightGeometry">M 7.5,3.5 L 13,9 L 7.5,14.5</Geometry>
+
+    <!-- Dia do calendário do mês: o número dentro de um círculo; selecionado = fundo azul bem claro na célula e círculo azul bebê no número; hoje = contorno; fora do mês = esmaecido; embaixo, uma bolinha por situação. -->
+    <Style x:Key="AgendaDayButton" TargetType="Button">
+      <Setter Property="Height" Value="50" /><Setter Property="Margin" Value="2" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Cell" CornerRadius="10" Background="Transparent" BorderBrush="Transparent" BorderThickness="1.6">
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Grid Width="30" Height="30" HorizontalAlignment="Center">
+              <Ellipse x:Name="Disc" Fill="Transparent" Stroke="Transparent" StrokeThickness="1.2" />
+              <TextBlock Text="{Binding DayNumber}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Height="8" Margin="0,2,0,0">
+              <Ellipse Width="7" Height="7" Margin="1.5,0" Fill="{DynamicResource StatusScheduledBrush}" Visibility="{Binding HasScheduled, Converter={StaticResource BoolVisibility}}" />
+              <Ellipse Width="7" Height="7" Margin="1.5,0" Fill="{DynamicResource StatusCalledBrush}" Visibility="{Binding HasCalled, Converter={StaticResource BoolVisibility}}" />
+              <Ellipse Width="7" Height="7" Margin="1.5,0" Fill="{DynamicResource StatusCompletedBrush}" Visibility="{Binding HasCompleted, Converter={StaticResource BoolVisibility}}" />
+              <Ellipse Width="7" Height="7" Margin="1.5,0" Fill="{DynamicResource StatusMissedBrush}" Visibility="{Binding HasMissed, Converter={StaticResource BoolVisibility}}" />
+              <Ellipse Width="7" Height="7" Margin="1.5,0" Fill="{DynamicResource StatusCancelledBrush}" Visibility="{Binding HasCancelled, Converter={StaticResource BoolVisibility}}" />
             </StackPanel>
-          </StackPanel></Border></DataTemplate></ListBox.ItemTemplate></ListBox>
-        <TextBlock Text="{Binding AgendaStateText}" Style="{StaticResource Muted}" Margin="0,8,0,0" />
-        <WrapPanel Margin="0,12,0,0"><Button Style="{StaticResource ObsPrimaryButton}" Content="Chamar" Tag="called" Click="OnStatus" IsEnabled="{Binding CanCallAppointment}" Margin="0,0,8,8" ToolTip="Chama o paciente para o atendimento."/><Button Style="{StaticResource ObsPrimaryButton}" Content="Concluir" Tag="completed" Click="OnStatus" IsEnabled="{Binding CanCompleteAppointment}" Margin="0,0,8,8" ToolTip="Registra a consulta como concluída."/><Button Style="{StaticResource ObsPrimaryButton}" Content="Registrar falta" Tag="missed" Click="OnStatus" IsEnabled="{Binding CanMissAppointment}" Margin="0,0,8,8" ToolTip="Registra que o paciente faltou."/><Button Style="{StaticResource ObsPrimaryButton}" Content="Cancelar consulta" Tag="cancelled" Click="OnStatus" IsEnabled="{Binding CanCancelAppointment}" Margin="0,0,8,8" ToolTip="Cancela a consulta e libera o horário."/></WrapPanel>
+          </StackPanel>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+          <DataTrigger Binding="{Binding IsSelected}" Value="True">
+            <Setter TargetName="Cell" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" />
+            <Setter TargetName="Disc" Property="Fill" Value="{DynamicResource ButtonHoverBrush}" />
+            <Setter TargetName="Disc" Property="Stroke" Value="{DynamicResource ListItemFocusBrush}" />
+          </DataTrigger>
+          <DataTrigger Binding="{Binding IsToday}" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></DataTrigger>
+          <DataTrigger Binding="{Binding IsOutsideMonth}" Value="True"><Setter Property="Opacity" Value="0.45" /></DataTrigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
 
-      </StackPanel></Border>
-    </StackPanel></Border>
+    <!-- Dia do mini-calendário do ano: o fundo fica mais forte com a quantidade de consultas (1-2, 3-5, 6 ou mais); dia de fora do mês fica em branco. -->
+    <Style x:Key="AgendaMiniDayButton" TargetType="Button">
+      <Setter Property="Height" Value="21" /><Setter Property="Margin" Value="0.5" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Cell" CornerRadius="11" Background="Transparent" BorderBrush="Transparent" BorderThickness="1.4">
+          <TextBlock x:Name="Number" Text="{Binding DayNumber}" FontSize="12" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></Trigger>
+          <DataTrigger Binding="{Binding Intensity}" Value="1"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          <DataTrigger Binding="{Binding Intensity}" Value="2"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ListItemFocusBrush}" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource BrandTextBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          <DataTrigger Binding="{Binding Intensity}" Value="3"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource StatusScheduledBrush}" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource BrandTextBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="Bold" /></DataTrigger>
+          <DataTrigger Binding="{Binding IsToday}" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></DataTrigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding IsOutsideMonth}" Value="True"><Setter Property="Visibility" Value="Hidden" /></DataTrigger>
+      </Style.Triggers>
+    </Style>
 
-  </StackPanel>
+    <!-- Título do mês no mini-calendário: um botão (abre a visão Mês nele). -->
+    <Style x:Key="AgendaMonthTitleButton" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Frame" CornerRadius="6" Background="Transparent" Padding="8,3" HorizontalAlignment="Left">
+          <TextBlock x:Name="Label" Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></Trigger>
+          <DataTrigger Binding="{Binding IsCurrent}" Value="True"><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource AccentTextBrush}" /></DataTrigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+
+    <!-- Cabeçalho da grade da semana: dia da semana e número; um clique abre a visão Dia nele. -->
+    <Style x:Key="AgendaWeekHeaderButton" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{x:Null}" /><Setter Property="Margin" Value="1,0" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Frame" CornerRadius="8" Background="Transparent" Padding="4,5">
+          <StackPanel HorizontalAlignment="Center">
+            <TextBlock Text="{Binding WeekdayLabel}" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" HorizontalAlignment="Center" />
+            <Grid Width="28" Height="28" Margin="0,2,0,0">
+              <Ellipse x:Name="Disc" Fill="Transparent" />
+              <TextBlock x:Name="Number" Text="{Binding DayNumber}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Grid>
+          </StackPanel>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+          <DataTrigger Binding="{Binding IsToday}" Value="True"><Setter TargetName="Disc" Property="Fill" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource BrandTextBrush}" /></DataTrigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+
+    <!-- A grade da semana é uma lista de seleção: o painel é o AgendaWeekPanel e a rolagem é a da lista. -->
+    <Style x:Key="AgendaWeekList" TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="0" />
+      <Setter Property="SelectionMode" Value="Extended" /><Setter Property="IsSynchronizedWithCurrentItem" Value="False" />
+      <Setter Property="ScrollViewer.CanContentScroll" Value="False" /><Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBox">
+        <ScrollViewer x:Name="PART_Scroll" Focusable="False" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsPresenter /></ScrollViewer>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+
+    <!-- O bloco da consulta na grade: colorido pela situação (fundo do tom e faixa na cor viva), com o nome e o horário. -->
+    <Style x:Key="AgendaBlockItem" TargetType="ListBoxItem">
+      <Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{x:Null}" /><Setter Property="Padding" Value="0" />
+      <Setter Property="AutomationProperties.Name" Value="{Binding ., Converter={StaticResource AppointmentText}, ConverterParameter=summary}" />
+      <Setter Property="ToolTip" Value="{Binding ., Converter={StaticResource AppointmentText}, ConverterParameter=summary}" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+        <Grid>
+          <Border x:Name="Frame" CornerRadius="6" Background="{DynamicResource ToneBlueSurfaceBrush}" ClipToBounds="True">
+            <Grid>
+              <Border x:Name="Accent" Width="4" HorizontalAlignment="Left" Background="{DynamicResource StatusScheduledBrush}" />
+              <StackPanel Margin="9,1,3,0" VerticalAlignment="Top" ClipToBounds="True">
+                <TextBlock Text="{Binding PatientName}" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                <TextBlock Text="{Binding ., Converter={StaticResource AppointmentText}, ConverterParameter=grid}" Visibility="{Binding ActualWidth, ElementName=Frame, Converter={StaticResource WideBlock}}" FontSize="10.5" Foreground="{DynamicResource SecondaryBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border x:Name="Ring" CornerRadius="6" BorderThickness="1.6" BorderBrush="Transparent" IsHitTestVisible="False" />
+        </Grid>
+        <ControlTemplate.Triggers>
+          <DataTrigger Binding="{Binding Status}" Value="called"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneVioletSurfaceBrush}" /><Setter TargetName="Accent" Property="Background" Value="{DynamicResource StatusCalledBrush}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Status}" Value="completed"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneGreenSurfaceBrush}" /><Setter TargetName="Accent" Property="Background" Value="{DynamicResource StatusCompletedBrush}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Status}" Value="missed"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource TonePinkSurfaceBrush}" /><Setter TargetName="Accent" Property="Background" Value="{DynamicResource StatusMissedBrush}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Status}" Value="cancelled"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneYellowSurfaceBrush}" /><Setter TargetName="Accent" Property="Background" Value="{DynamicResource StatusCancelledBrush}" /></DataTrigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource ListItemFocusBrush}" /><Setter TargetName="Ring" Property="BorderThickness" Value="1.2" /></Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource ListItemFocusBrush}" /><Setter TargetName="Ring" Property="BorderThickness" Value="1.4" /></Trigger>
+          <Trigger Property="IsSelected" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource ListItemSelectedBorderBrush}" /><Setter TargetName="Ring" Property="BorderThickness" Value="2" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+
+    <!-- Ações do balão por situação: o nome da ação é o Content e a situação que ela grava é o Tag. -->
+    <Style x:Key="AgendaCallAction" TargetType="Button" BasedOn="{StaticResource ListActionButton}">
+      <Setter Property="Content" Value="Chamar" /><Setter Property="Tag" Value="called" />
+      <Setter Property="views:ListAction.Icon" Value="{StaticResource IconBellGeometry}" />
+      <Setter Property="ToolTip" Value="Chama o paciente para o atendimento." /><Setter Property="AutomationProperties.Name" Value="Chamar" />
+    </Style>
+    <Style x:Key="AgendaCompleteAction" TargetType="Button" BasedOn="{StaticResource ListActionButton}">
+      <Setter Property="Content" Value="Concluir" /><Setter Property="Tag" Value="completed" />
+      <Setter Property="views:ListAction.Icon" Value="{StaticResource IconCheckGeometry}" />
+      <Setter Property="ToolTip" Value="Registra a consulta como concluída." /><Setter Property="AutomationProperties.Name" Value="Concluir" />
+    </Style>
+    <Style x:Key="AgendaMissAction" TargetType="Button" BasedOn="{StaticResource ListActionButton}">
+      <Setter Property="Content" Value="Registrar falta" /><Setter Property="Tag" Value="missed" />
+      <Setter Property="views:ListAction.Icon" Value="{StaticResource IconWarningGeometry}" />
+      <Setter Property="ToolTip" Value="Registra que o paciente faltou." /><Setter Property="AutomationProperties.Name" Value="Registrar falta" />
+    </Style>
+    <Style x:Key="AgendaCancelAction" TargetType="Button" BasedOn="{StaticResource ListActionDangerButton}">
+      <Setter Property="Content" Value="Cancelar" /><Setter Property="Tag" Value="cancelled" />
+      <Setter Property="ToolTip" Value="Cancela a consulta e libera o horário." /><Setter Property="AutomationProperties.Name" Value="Cancelar consulta" />
+    </Style>
+
+    <Style x:Key="AgendaLegendText" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11.5" /><Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="AgendaWeekdayText" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <!-- Uma linha da lista do dia: paciente, o horário e, à direita, a situação em etiqueta colorida. -->
+    <DataTemplate x:Key="AgendaRowTemplate">
+      <Grid AutomationProperties.Name="{Binding ., Converter={StaticResource AppointmentText}, ConverterParameter=summary}">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="{Binding PatientName}" Style="{StaticResource ItemTitleText}" />
+          <TextBlock Text="{Binding ., Converter={StaticResource AppointmentText}}" Style="{StaticResource ItemMetaText}" />
+        </StackPanel>
+        <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding Status, Converter={StaticResource AppointmentTone}}" Margin="12,0,0,0" />
+      </Grid>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <views:ObsUnitNoticeView />
+
+    <!-- Cabeçalho da janela: pesquisa e período em linha e o botão de agendar à direita. Na janela principal tudo isto sobe para o cabeçalho; fora dela aparece aqui. -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal">
+      <views:PageFilterGroup Label="Consultas do período" SearchFields="PatientName,Specialty,Professional,StatusDisplay" ItemsTarget="{Binding ElementName=DayList}">
+        <views:PageFilterGroup.Style><Style TargetType="views:PageFilterGroup"><Style.Triggers><DataTrigger Binding="{Binding IsAgendaYear}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></views:PageFilterGroup.Style>
+      </views:PageFilterGroup>
+      <views:PageFilterGroup Label="Período da agenda" Inline="True">
+        <views:SegmentedToggle x:Name="PeriodToggle" ItemsSource="{Binding AgendaPeriods}" SelectedItem="{Binding AgendaViewMode, Mode=TwoWay}" AutomationProperties.Name="Período da agenda" ToolTip="Mostra a agenda por dia, semana, mês ou ano.">
+          <views:SegmentedToggle.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource SegmentedToggleItem}"><Setter Property="Padding" Value="10,0" /></Style></views:SegmentedToggle.ItemContainerStyle>
+        </views:SegmentedToggle>
+      </views:PageFilterGroup>
+      <views:PageActions>
+        <Button Style="{StaticResource NewItemButton}" Padding="12,0" Content="Agendar nova consulta" Click="OnNewAppointment" IsEnabled="{Binding HasActiveObsUnit}" AutomationProperties.Name="Agendar nova consulta" ToolTip="Abre o agendamento de uma nova consulta." />
+      </views:PageActions>
+    </StackPanel>
+
+    <!-- Período: anterior, rótulo, próximo e Hoje; ao lado, a legenda das cores (só onde há cor de situação). -->
+    <Grid Grid.Row="2" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Button Style="{StaticResource CircleIconButton}" Click="OnPrevious" ToolTip="Período anterior" AutomationProperties.Name="Período anterior">
+          <Path Data="{StaticResource ChevronLeftGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+        </Button>
+        <TextBlock Text="{Binding AgendaRangeLabel}" MinWidth="176" Margin="6,0" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Período mostrado" AutomationProperties.LiveSetting="Polite" />
+        <Button Style="{StaticResource CircleIconButton}" Click="OnNext" ToolTip="Próximo período" AutomationProperties.Name="Próximo período">
+          <Path Data="{StaticResource ChevronRightGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+        </Button>
+        <Button Content="Hoje" Click="OnToday" Margin="10,0,0,0" Padding="14,0" MinHeight="32" MinWidth="0" ToolTip="Volta para hoje." AutomationProperties.Name="Ir para hoje" />
+      </StackPanel>
+      <Viewbox Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0" Stretch="Uniform" StretchDirection="DownOnly" AutomationProperties.Name="Legenda das situações da agenda" ToolTip="As cores indicam as situações das consultas; um dia pode ter mais de uma situação.">
+        <Viewbox.Style><Style TargetType="Viewbox"><Style.Triggers><DataTrigger Binding="{Binding ShowsAgendaLegend}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Viewbox.Style>
+        <StackPanel Orientation="Horizontal">
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource StatusScheduledBrush}" Margin="10,0,5,0" VerticalAlignment="Center" /><TextBlock Text="Agendada" Style="{StaticResource AgendaLegendText}" />
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource StatusCalledBrush}" Margin="10,0,5,0" VerticalAlignment="Center" /><TextBlock Text="Chamada" Style="{StaticResource AgendaLegendText}" />
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource StatusCompletedBrush}" Margin="10,0,5,0" VerticalAlignment="Center" /><TextBlock Text="Concluída" Style="{StaticResource AgendaLegendText}" />
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource StatusMissedBrush}" Margin="10,0,5,0" VerticalAlignment="Center" /><TextBlock Text="Falta" Style="{StaticResource AgendaLegendText}" />
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource StatusCancelledBrush}" Margin="10,0,5,0" VerticalAlignment="Center" /><TextBlock Text="Cancelada" Style="{StaticResource AgendaLegendText}" />
+        </StackPanel>
+      </Viewbox>
+    </Grid>
+
+    <!-- Dia e Mês: a lista das consultas do dia; no Mês, o calendário vem em cima. -->
+    <Grid Grid.Row="3">
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding ShowsAgendaDayList}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <StackPanel x:Name="MonthCalendar" Margin="0,0,0,6" AutomationProperties.Name="Calendário do mês">
+        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsAgendaMonth}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+        <UniformGrid Columns="7" Margin="2,0,2,4">
+          <TextBlock Text="Seg" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Ter" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Qua" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Qui" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Sex" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Sáb" Style="{StaticResource AgendaWeekdayText}" /><TextBlock Text="Dom" Style="{StaticResource AgendaWeekdayText}" />
+        </UniformGrid>
+        <ItemsControl ItemsSource="{Binding AgendaDays}">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate><DataTemplate>
+            <Button Command="{Binding DataContext.SelectCalendarDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource AgendaDayButton}" ToolTip="{Binding AutomationLabel}" AutomationProperties.Name="{Binding AutomationLabel}" />
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <Grid Grid.Row="1">
+        <ListBox x:Name="DayList" Style="{StaticResource OpenList}" ItemsSource="{Binding Appointments}" ItemTemplate="{StaticResource AgendaRowTemplate}" AutomationProperties.Name="Consultas da UBS"
+                 views:ListingBehavior.Balloon="{Binding ElementName=DayBalloon}" views:ListingBehavior.LabelPath="PatientName" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.PluralName="consultas" views:ListingBehavior.Feminine="True" />
+        <StackPanel x:Name="DayState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,16" Visibility="Collapsed" IsHitTestVisible="False">
+          <ProgressBar x:Name="DayProgress" IsIndeterminate="True" Width="160" Height="3" Margin="0,0,0,10" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" AutomationProperties.Name="Lendo a agenda" />
+          <TextBlock x:Name="DayStateText" Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+        <views:SelectionBalloon x:Name="DayBalloon">
+          <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource AgendaCallAction}" Click="OnStatus" IsEnabled="{Binding CanCallAppointment}" />
+            <Button Style="{StaticResource AgendaCompleteAction}" Click="OnStatus" IsEnabled="{Binding CanCompleteAppointment}" />
+            <Button Style="{StaticResource AgendaMissAction}" Click="OnStatus" IsEnabled="{Binding CanMissAppointment}" />
+            <Button Style="{StaticResource AgendaCancelAction}" Click="OnStatus" IsEnabled="{Binding CanCancelAppointment}" />
+          </StackPanel>
+        </views:SelectionBalloon>
+      </Grid>
+    </Grid>
+
+    <!-- Semana: os sete dias no topo, as horas na lateral e cada consulta como um bloco no seu dia e horário. -->
+    <Grid Grid.Row="3">
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsAgendaWeek}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+      <Grid Margin="0,0,0,4">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="WeekHeaderSpacer" Width="0" /></Grid.ColumnDefinitions>
+        <ItemsControl Grid.Column="1" ItemsSource="{Binding AgendaWeekDays}" AutomationProperties.Name="Dias da semana">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate><DataTemplate>
+            <Button Command="{Binding DataContext.SelectCalendarDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource AgendaWeekHeaderButton}" ToolTip="Abrir o dia" AutomationProperties.Name="{Binding AutomationLabel}" />
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+      <Grid Grid.Row="1">
+        <ListBox x:Name="WeekList" Style="{StaticResource AgendaWeekList}" ItemsSource="{Binding Appointments}" ItemContainerStyle="{StaticResource AgendaBlockItem}" AutomationProperties.Name="Consultas da semana"
+                 views:ListingBehavior.Balloon="{Binding ElementName=WeekBalloon}" views:ListingBehavior.LabelPath="PatientName" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.PluralName="consultas" views:ListingBehavior.Feminine="True">
+          <ListBox.ItemsPanel><ItemsPanelTemplate>
+            <views:AgendaWeekPanel WeekStart="{Binding AgendaWeekStart}" FirstHour="{Binding AgendaWeekFirstHour}" LastHour="{Binding AgendaWeekLastHour}"
+                                   LineBrush="{DynamicResource BorderBrush}" TextBrush="{DynamicResource SecondaryBrush}" TodayBrush="{DynamicResource ToneBlueSurfaceBrush}" />
+          </ItemsPanelTemplate></ListBox.ItemsPanel>
+        </ListBox>
+        <StackPanel x:Name="WeekState" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,16" Visibility="Collapsed" IsHitTestVisible="False">
+          <ProgressBar x:Name="WeekProgress" IsIndeterminate="True" Width="160" Height="3" Margin="0,0,0,10" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" AutomationProperties.Name="Lendo a agenda" />
+          <TextBlock x:Name="WeekStateText" Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+        <views:SelectionBalloon x:Name="WeekBalloon">
+          <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource AgendaCallAction}" Click="OnStatus" IsEnabled="{Binding CanCallAppointment}" />
+            <Button Style="{StaticResource AgendaCompleteAction}" Click="OnStatus" IsEnabled="{Binding CanCompleteAppointment}" />
+            <Button Style="{StaticResource AgendaMissAction}" Click="OnStatus" IsEnabled="{Binding CanMissAppointment}" />
+            <Button Style="{StaticResource AgendaCancelAction}" Click="OnStatus" IsEnabled="{Binding CanCancelAppointment}" />
+          </StackPanel>
+        </views:SelectionBalloon>
+      </Grid>
+    </Grid>
+
+    <!-- Ano: os 12 meses em grade 4x3, cada um um mini-calendário; o mês abre a visão Mês e o dia abre a visão Dia. -->
+    <Grid Grid.Row="3">
+      <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsAgendaYear}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <ItemsControl ItemsSource="{Binding AgendaMonths}" AutomationProperties.Name="Meses do ano">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate><DataTemplate>
+            <StackPanel Margin="8,2,8,6" AutomationProperties.Name="{Binding AutomationLabel}">
+              <Button Style="{StaticResource AgendaMonthTitleButton}" Click="OnOpenMonth" Margin="0,0,0,4" ToolTip="Abrir o mês" AutomationProperties.Name="{Binding AutomationLabel}" />
+              <UniformGrid Columns="7" Margin="0,0,0,2">
+                <TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="T" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="Q" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="Q" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="D" Style="{StaticResource AgendaWeekdayText}" FontSize="11" />
+              </UniformGrid>
+              <ItemsControl ItemsSource="{Binding Days}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="7" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate><DataTemplate>
+                  <Button Command="{Binding DataContext.SelectCalendarDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource AgendaMiniDayButton}" ToolTip="{Binding AutomationLabel}" AutomationProperties.Name="{Binding AutomationLabel}" />
+                </DataTemplate></ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <StackPanel x:Name="YearState" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8" Visibility="Collapsed" IsHitTestVisible="False">
+        <ProgressBar IsIndeterminate="True" Width="160" Height="3" Margin="0,0,0,6" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" AutomationProperties.Name="Lendo a agenda" />
+        <TextBlock x:Name="YearStateText" Style="{StaticResource Muted}" TextAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+    </Grid>
+  </Grid>
 </UserControl>

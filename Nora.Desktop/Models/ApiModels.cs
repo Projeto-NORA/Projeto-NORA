@@ -88,7 +88,6 @@ public sealed record AppointmentInfo(Guid Id, string Cpf, string PatientName, st
     private static readonly TimeSpan ConfirmationHorizon = TimeSpan.FromHours(48);
     public string TimeDisplay => $"{StartsAt.ToLocalTime():dd/MM/yyyy HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string AgendaDayDisplay => StartsAt.ToLocalTime().ToString("dddd, dd/MM/yyyy");
-    public string AgendaTimeDisplay => $"{StartsAt.ToLocalTime():HH:mm} – {EndsAt.ToLocalTime():HH:mm}";
     public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string PatientDisplay => $"{PatientName} · CPF {FormattedCpf}";
     public string StatusDisplay => Status switch { "scheduled" => "Agendada", "called" => "Chamada", "completed" => "Concluída", "missed" => "Falta", "cancelled" => "Cancelada", _ => Status };

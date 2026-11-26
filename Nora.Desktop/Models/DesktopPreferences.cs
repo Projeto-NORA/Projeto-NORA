@@ -17,6 +17,8 @@ public sealed class DesktopPreferences
     public Dictionary<string, string> Shortcuts { get; set; } = new(StringComparer.Ordinal);
     /// <summary>Como cada tela com cards e gráficos aparece: rota da tela → "cards" ou "charts". Tela fora da lista abre em cards.</summary>
     public Dictionary<string, string> ViewModes { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>A visão da Agenda do OBS ("Dia", "Semana", "Mês" ou "Ano"); valor desconhecido vale como "Mês".</summary>
+    public string AgendaPeriod { get; set; } = "Mês";
 }
 
 public sealed record DesktopProfile(string Id, string Name, bool IsMunicipal)

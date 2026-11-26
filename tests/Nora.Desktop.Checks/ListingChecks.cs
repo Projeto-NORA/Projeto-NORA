@@ -28,9 +28,9 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 foreach (var (route, visibleText, hiddenText) in new[]
                 {
-                    ("home", "Resumo do dia", "+ Agendar nova consulta"),
-                    ("agenda", "+ Agendar nova consulta", "Resumo do dia"),
-                    ("patients", "Pacientes", "+ Agendar nova consulta"),
+                    ("home", "Resumo do dia", "Seg"),
+                    ("agenda", "Hoje", "Resumo do dia"),
+                    ("patients", "Pacientes", "Seg"),
                     ("slots", "Vaga Relâmpago", "Fila"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
                     ("alerts", "Central de alertas", "Indicadores da UBS"),
@@ -72,7 +72,7 @@ internal static partial class Program
             }
             finally { window.Close(); }
         });
-        Check("Agenda OBS: seleção de data é clicável e atualiza a visão diária", () =>
+        Check("Agenda OBS: seleção de data é clicável, escolhe o dia no Mês e atualiza o resumo", () =>
         {
             var window = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "agenda-calendar-selection"));
             try
@@ -87,7 +87,7 @@ internal static partial class Program
                 var expected = (AgendaCalendarDay)dayButton.DataContext;
                 InvokeButton(dayButton);
                 Layout(window, 1280, 740);
-                Require(expected.IsSelected && window.ViewModel.Workspace.IsAgendaDay, "Clique no dia não selecionou a data ou não abriu a visão diária.");
+                Require(expected.IsSelected && window.ViewModel.Workspace.IsAgendaMonth, "Clique no dia não selecionou a data (a visão Mês continua aberta, com a lista do dia embaixo).");
                 Require(window.ViewModel.Workspace.SelectedAgendaDateLabel.Contains(expected.Date.ToString("yyyy"), StringComparison.Ordinal), "Resumo da agenda não acompanhou a data selecionada.");
             }
             finally { window.Close(); }
