@@ -59,9 +59,9 @@ internal static partial class Program
                     ("agenda", "Agenda", false),
                     ("indicators", "Indicadores da UBS", false),
                     ("alerts", "Central de alertas", false),
-                    ("patients", "Pacientes da unidade", false),
-                    ("slots", "Vagas Relâmpago", false),
-                    ("unit-settings", "Informações da UBS", false)
+                    ("patients", "Entre no Painel da UBS para carregar os pacientes autorizados da sua unidade.", false),
+                    ("slots", "Entre no Painel da UBS para carregar as vagas e seus estados.", false),
+                    ("unit-settings", "Entre no Painel da UBS para carregar o cadastro de profissionais, consultórios e grade.", false)
                 })
                 {
                     window.ViewModel.Navigate(route);

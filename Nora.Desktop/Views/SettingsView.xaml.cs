@@ -30,7 +30,7 @@ public partial class SettingsView : UserControl
         Grid.SetColumn(ShortcutCard, stacked ? 0 : 1);
         Grid.SetRow(ShortcutCard, stacked ? 1 : 0);
         PreferencesColumn.Margin = new Thickness(0, 0, stacked ? 0 : 10, 0);
-        ShortcutCard.Margin = new Thickness(stacked ? 0 : 10, 0, 0, 16);
+        ShortcutCard.Margin = new Thickness(stacked ? 0 : 10, 0, 0, 24);
     }
 
     private void OnRequestRestore(object sender, RoutedEventArgs args)

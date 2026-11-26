@@ -1,4 +1,5 @@
 <UserControl x:Class="Nora.Desktop.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" SizeChanged="OnLayoutSizeChanged">
+  <!-- Configurações: sem título repetido (o nome da tela fica no cabeçalho da janela) e sem card. Cada seção tem um título discreto e um fio; só as escolhas de tema continuam como blocos. -->
   <UserControl.Resources>
     <Style x:Key="AppearanceOption" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -34,7 +35,7 @@
             </DockPanel>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PreferenceRow" Property="Background" Value="{DynamicResource SurfaceAltBrush}" /></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PreferenceRow" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
             <Trigger Property="IsChecked" Value="True"><Setter TargetName="Track" Property="Background" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" /><Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource BrandTextBrush}" /></Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="PreferenceRow" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" /></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter TargetName="PreferenceRow" Property="Opacity" Value="0.6" /></Trigger>
@@ -42,89 +43,83 @@
         </ControlTemplate>
       </Setter.Value></Setter>
     </Style>
-    <Style x:Key="SettingsHeading" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="19" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
-      <Setter Property="Margin" Value="0,0,0,5" />
-    </Style>
+    <Style x:Key="SectionHeading" TargetType="TextBlock"><Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /></Style>
+    <Style x:Key="SectionRule" TargetType="Border"><Setter Property="Height" Value="1" /><Setter Property="Background" Value="{DynamicResource DividerBrush}" /><Setter Property="Margin" Value="0,6,0,12" /></Style>
   </UserControl.Resources>
   <StackPanel>
     <!-- Foto de perfil: o mesmo menu do avatar da barra lateral ("Alterar foto" / "Remover foto"). -->
-    <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16" AutomationProperties.Name="Foto de perfil" Visibility="{Binding Workspace.IsAuthenticated, Converter={StaticResource BoolVisibility}}">
+    <StackPanel Margin="0,0,0,24" AutomationProperties.Name="Foto de perfil" Visibility="{Binding Workspace.IsAuthenticated, Converter={StaticResource BoolVisibility}}">
+      <TextBlock Text="Foto de perfil" Style="{StaticResource SectionHeading}" />
+      <Border Style="{StaticResource SectionRule}" />
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <Button x:Name="SettingsAvatar" Style="{StaticResource AvatarButton}" Click="OnPhotoMenu" ToolTip="Clique para alterar ou remover a foto." AutomationProperties.Name="Alterar foto de perfil"><views:AccountAvatar DataContext="{Binding Workspace}" Size="64" /></Button>
-        <StackPanel Grid.Column="1" Margin="20,0,0,0" VerticalAlignment="Center"><TextBlock Text="Foto de perfil" Style="{StaticResource SectionTitle}" Margin="0,0,0,4" /><TextBlock Text="{Binding Workspace.PhotoStateLabel}" Style="{StaticResource Muted}" /></StackPanel>
+        <TextBlock Grid.Column="1" Margin="20,0,12,0" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding Workspace.PhotoStateLabel}" Style="{StaticResource Muted}" />
         <Button Grid.Column="2" Content="Alterar foto / Remover foto" Click="OnPhotoMenu" VerticalAlignment="Center" ToolTip="JPG, PNG ou WebP; a imagem é reduzida para 512 px e enviada em JPEG." />
       </Grid>
-    </Border>
+    </StackPanel>
     <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition x:Name="ShortcutColumn" /></Grid.ColumnDefinitions>
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
       <StackPanel x:Name="PreferencesColumn" Margin="0,0,10,0">
-        <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
-          <StackPanel>
-            <TextBlock Style="{StaticResource SettingsHeading}" Text="◐  Aparência" />
-            <TextBlock Style="{StaticResource Muted}" Text="Escolha como o NORA aparece no seu computador." Margin="0,0,0,12" />
-            <UniformGrid Columns="3">
-              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="0,0,5,0" IsChecked="{Binding LightSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Light" AutomationProperties.Name="Aparência clara">
-                <StackPanel><TextBlock Text="☀" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource WarningBrush}" /><TextBlock Text="Claro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo claro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
-              </RadioButton>
-              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="3,0" IsChecked="{Binding DarkSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Dark" AutomationProperties.Name="Aparência escura">
-                <StackPanel><TextBlock Text="☾" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Escuro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo escuro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
-              </RadioButton>
-              <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="5,0,0,0" IsChecked="{Binding SystemSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="System" AutomationProperties.Name="Aparência do sistema">
-                <StackPanel><TextBlock Text="◐" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Sistema" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Segue o Windows" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
-              </RadioButton>
-            </UniformGrid>
-          </StackPanel>
-        </Border>
-        <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
-          <StackPanel>
-            <TextBlock Style="{StaticResource SettingsHeading}" Text="☷  Preferências da interface" Margin="0,0,0,10" />
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ShowSidebarTips}" AutomationProperties.Name="Mostrar dicas na barra lateral"><StackPanel><TextBlock Text="Mostrar dicas na barra lateral" FontWeight="SemiBold" /><TextBlock Text="Mostra ajuda ao passar o mouse no menu." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ConfirmClose}" AutomationProperties.Name="Confirmar antes de fechar o aplicativo"><StackPanel><TextBlock Text="Confirmar antes de fechar o aplicativo" FontWeight="SemiBold" /><TextBlock Text="Pede confirmação antes de fechar a janela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding SaveNavigation}" AutomationProperties.Name="Retomar a última tela ao abrir"><StackPanel><TextBlock Text="Retomar a última tela ao abrir" FontWeight="SemiBold" /><TextBlock Text="Volta à seção que estava aberta." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding Animations}" AutomationProperties.Name="Usar animações suaves ao navegar"><StackPanel><TextBlock Text="Usar animações suaves ao navegar" FontWeight="SemiBold" /><TextBlock Text="Aplica uma transição ao trocar de tela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding RememberSidebar}" AutomationProperties.Name="Lembrar a largura da barra lateral"><StackPanel><TextBlock Text="Lembrar a largura da barra lateral" FontWeight="SemiBold" /><TextBlock Text="Restaura a largura escolhida neste computador." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-            <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding FullScreen}" AutomationProperties.Name="Usar tela cheia"><StackPanel><TextBlock Text="Usar tela cheia" FontWeight="SemiBold" /><TextBlock Text="Ocupa toda a área do monitor." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
-          </StackPanel>
-        </Border>
-        <views:RetentionSettingsView DataContext="{Binding Workspace}" />
-      </StackPanel>
-      <Border x:Name="ShortcutCard" Grid.Column="1" Style="{StaticResource Card}" Padding="18" Margin="10,0,0,16" VerticalAlignment="Top">
-        <StackPanel>
-          <TextBlock Style="{StaticResource SettingsHeading}" Text="⌨  Avançado: teclas de atalho" />
-          <TextBlock Style="{StaticResource Muted}" Text="Clique numa combinação editável e pressione o novo atalho." Margin="0,0,0,10" />
-          <TextBlock x:Name="ShortcutFeedback" Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,5" Visibility="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource TextVisibility}}" />
-          <Grid Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions><TextBlock Text="Ação" FontWeight="SemiBold" /><TextBlock Text="Atalho" Grid.Column="1" FontWeight="SemiBold" /></Grid>
-          <ItemsControl ItemsSource="{Binding ShortcutRows}">
-            <ItemsControl.ItemTemplate><DataTemplate>
-              <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <Button Grid.Column="1" Content="{Binding Combination}" AutomationProperties.Name="{Binding Label}" Padding="8,5" MinHeight="34" Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}" Click="OnCaptureShortcut" PreviewKeyDown="OnShortcutKeyDown" LostKeyboardFocus="OnShortcutFocusLost" />
-                <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="8,5" MinHeight="34"
-                        Visibility="{Binding Editable, Converter={StaticResource InverseBoolVisibility}}">
-                  <TextBlock Text="{Binding Combination}" Foreground="{DynamicResource SecondaryBrush}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-              </Grid>
-            </DataTemplate></ItemsControl.ItemTemplate>
-          </ItemsControl>
+        <StackPanel Margin="0,0,0,24">
+          <TextBlock Style="{StaticResource SectionHeading}" Text="Aparência" />
+          <Border Style="{StaticResource SectionRule}" />
+          <UniformGrid Columns="3">
+            <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="0,0,5,0" IsChecked="{Binding LightSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Light" AutomationProperties.Name="Aparência clara">
+              <StackPanel><TextBlock Text="☀" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource WarningBrush}" /><TextBlock Text="Claro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo claro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+            </RadioButton>
+            <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="3,0" IsChecked="{Binding DarkSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="Dark" AutomationProperties.Name="Aparência escura">
+              <StackPanel><TextBlock Text="☾" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Escuro" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Fundo escuro" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+            </RadioButton>
+            <RadioButton GroupName="NoraAppearance" Style="{StaticResource AppearanceOption}" Margin="5,0,0,0" IsChecked="{Binding SystemSelected, Mode=OneWay}" Checked="OnAppearanceSelected" CommandParameter="System" AutomationProperties.Name="Aparência do sistema">
+              <StackPanel><TextBlock Text="◐" FontSize="27" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Text="Sistema" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="Segue o Windows" Style="{StaticResource Muted}" TextAlignment="Center" /></StackPanel>
+            </RadioButton>
+          </UniformGrid>
         </StackPanel>
-      </Border>
+        <StackPanel Margin="0,0,0,24">
+          <TextBlock Style="{StaticResource SectionHeading}" Text="Preferências da interface" />
+          <Border Style="{StaticResource SectionRule}" Margin="0,6,0,8" />
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ShowSidebarTips}" AutomationProperties.Name="Mostrar dicas na barra lateral"><StackPanel><TextBlock Text="Mostrar dicas na barra lateral" FontWeight="SemiBold" /><TextBlock Text="Mostra ajuda ao passar o mouse no menu." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding ConfirmClose}" AutomationProperties.Name="Confirmar antes de fechar o aplicativo"><StackPanel><TextBlock Text="Confirmar antes de fechar o aplicativo" FontWeight="SemiBold" /><TextBlock Text="Pede confirmação antes de fechar a janela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding SaveNavigation}" AutomationProperties.Name="Retomar a última tela ao abrir"><StackPanel><TextBlock Text="Retomar a última tela ao abrir" FontWeight="SemiBold" /><TextBlock Text="Volta à seção que estava aberta." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding Animations}" AutomationProperties.Name="Usar animações suaves ao navegar"><StackPanel><TextBlock Text="Usar animações suaves ao navegar" FontWeight="SemiBold" /><TextBlock Text="Aplica uma transição ao trocar de tela." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding RememberSidebar}" AutomationProperties.Name="Lembrar a largura da barra lateral"><StackPanel><TextBlock Text="Lembrar a largura da barra lateral" FontWeight="SemiBold" /><TextBlock Text="Restaura a largura escolhida neste computador." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+          <ToggleButton Style="{StaticResource PreferenceSwitch}" IsChecked="{Binding FullScreen}" AutomationProperties.Name="Usar tela cheia"><StackPanel><TextBlock Text="Usar tela cheia" FontWeight="SemiBold" /><TextBlock Text="Ocupa toda a área do monitor." Style="{StaticResource Muted}" /></StackPanel></ToggleButton>
+        </StackPanel>
+      </StackPanel>
+      <StackPanel x:Name="ShortcutCard" Grid.Column="1" Margin="10,0,0,24" VerticalAlignment="Top">
+        <TextBlock Style="{StaticResource SectionHeading}" Text="Atalhos do teclado" />
+        <Border Style="{StaticResource SectionRule}" />
+        <TextBlock Style="{StaticResource Muted}" Text="Clique numa combinação editável e pressione o novo atalho." Margin="0,0,0,10" TextWrapping="Wrap" />
+        <TextBlock x:Name="ShortcutFeedback" Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,5" TextWrapping="Wrap" Visibility="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource TextVisibility}}" />
+        <Grid Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions><TextBlock Text="Ação" FontWeight="SemiBold" /><TextBlock Text="Atalho" Grid.Column="1" FontWeight="SemiBold" /></Grid>
+        <ItemsControl ItemsSource="{Binding ShortcutRows}">
+          <ItemsControl.ItemTemplate><DataTemplate>
+            <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="114" /></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding Label}" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button Grid.Column="1" Content="{Binding Combination}" AutomationProperties.Name="{Binding Label}" Padding="8,5" MinHeight="34" Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}" Click="OnCaptureShortcut" PreviewKeyDown="OnShortcutKeyDown" LostKeyboardFocus="OnShortcutFocusLost" />
+              <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="8" Padding="8,5" MinHeight="34"
+                      Visibility="{Binding Editable, Converter={StaticResource InverseBoolVisibility}}">
+                <TextBlock Text="{Binding Combination}" Foreground="{DynamicResource SecondaryBrush}" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+          </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <views:RetentionSettingsView DataContext="{Binding Workspace}" Margin="0,28,0,0" />
+      </StackPanel>
     </Grid>
-    <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,12">
-      <StackPanel>
-        <DockPanel>
-          <Button DockPanel.Dock="Right" Content="Restaurar padrões" Click="OnRequestRestore" Margin="12,0,0,0" VerticalAlignment="Center" />
-          <StackPanel><TextBlock Style="{StaticResource SettingsHeading}" Text="↶  Restaurar preferências padrão" /><TextBlock Style="{StaticResource Muted}" Text="Volta a aparência, as preferências de interface e os atalhos aos padrões." /></StackPanel>
-        </DockPanel>
-        <StackPanel x:Name="RestoreConfirmation" Visibility="Collapsed" Margin="0,12,0,0">
-          <TextBlock Text="Restaurar as preferências deste aplicativo?" AutomationProperties.LiveSetting="Polite" />
-          <WrapPanel Margin="0,8,0,0"><Button Content="Confirmar restauração" x:Name="ConfirmRestore" Command="{Binding RestoreCommand}" Click="OnCancelRestore" Style="{StaticResource PrimaryButton}" Margin="0,0,8,4" /><Button Content="Cancelar" Click="OnCancelRestore" Margin="0,0,0,4" /></WrapPanel>
-        </StackPanel>
+    <StackPanel Margin="0,0,0,12">
+      <TextBlock Style="{StaticResource SectionHeading}" Text="Restaurar preferências padrão" />
+      <Border Style="{StaticResource SectionRule}" />
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Restaurar padrões" Click="OnRequestRestore" Margin="12,0,0,0" VerticalAlignment="Center" />
+        <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Text="Volta a aparência, as preferências de interface e os atalhos aos padrões." />
+      </DockPanel>
+      <StackPanel x:Name="RestoreConfirmation" Visibility="Collapsed" Margin="0,12,0,0">
+        <TextBlock Text="Restaurar as preferências deste aplicativo?" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,8,0,0"><Button Content="Confirmar restauração" x:Name="ConfirmRestore" Command="{Binding RestoreCommand}" Click="OnCancelRestore" Style="{StaticResource PrimaryButton}" Margin="0,0,8,4" /><Button Content="Cancelar" Click="OnCancelRestore" Margin="0,0,0,4" /></WrapPanel>
       </StackPanel>
-    </Border>
+    </StackPanel>
   </StackPanel>
 </UserControl>

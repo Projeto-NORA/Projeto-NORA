@@ -167,8 +167,7 @@ internal static partial class Program
                 return Reply(new StaffSelfProfile(name, "equipe@example.test", Scope == "obs" ? ObsRole : "manager", Scope,
                     Scope == "municipal" ? "São José dos Campos" : null, units.Select(unit => new StaffUnitOption(unit.Id, unit.Name)).ToArray()));
             }
-            if (path.EndsWith("/retention", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
-                return Reply(new RetentionOverview(new(null), []));
+            if (await HandleRetentionAsync(request, path, cancellationToken) is { } retentionResponse) return retentionResponse;
             if (path == "/api/auth/logout") { LogoutCalled = true; return FailLogout ? new(HttpStatusCode.InternalServerError) { Content = new StringContent("private-server-secret") } : new(HttpStatusCode.NoContent); }
             // As próximas leituras da Jornada ficam retidas até o teste liberá-las (ignoram o cancelamento, como um servidor lento).
             if (HoldNextHealthQueries > 0 && request.Method == HttpMethod.Post && path.EndsWith("/health-records/query", StringComparison.Ordinal))

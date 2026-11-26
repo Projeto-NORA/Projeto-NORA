@@ -163,6 +163,7 @@ internal static partial class Program
                 finally { CloseWindow(window); }
             }
         });
+        RunConfigAccessChecks(application, storageRoot, args);
     }
 }
 

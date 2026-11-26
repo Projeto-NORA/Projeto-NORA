@@ -7,6 +7,9 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
+/// <summary>O que a aba mostra: as duas listas, um dos formulários (no lugar das listas: a ficha já é um pop-up e só pode haver um por vez) ou a ficha em linhas de um registro.</summary>
+public enum HealthPanel { Lists, NewExam, NewVaccine, ExamDone, Void, Detail }
+
 /// <summary>
 /// Aba "Exames e vacinas" da ficha do paciente (OBS): lista a Jornada do paciente na UBS e permite registrar exame (solicitado), marcar como realizado ou cancelado,
 /// registrar vacina com dose e data e anular com motivo. Cada operação lê de novo o que ficou gravado. As validações repetem as do servidor (docs/api.md, "Jornada").
@@ -47,9 +50,12 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public bool IsBusy => busy || loading;
     private void SetBusy(bool value) { busy = value; NotifyBusy(); }
     private void SetLoading(bool value) { loading = value; NotifyBusy(); }
+    /// <summary>Pode reler agora (nenhuma gravação nem leitura em andamento): a releitura automática de 20 s só roda assim.</summary>
     public bool CanRefresh => !IsBusy;
+    /// <summary>Um formulário ou uma ação do balão pode ser acionado: o cadastro é ativo e nada está em andamento.</summary>
+    public bool CanSubmit => CanRegister && !IsBusy;
     private void NotifyBusy() { Notify(nameof(IsBusy)); Notify(nameof(CanRefresh)); foreach (var name in ActionNames) Notify(name); }
-    private static readonly string[] ActionNames = [nameof(CanCreateExam), nameof(CanCreateVaccine), nameof(CanMarkExamDone), nameof(CanCancelExam), nameof(CanVoid)];
+    private static readonly string[] ActionNames = [nameof(CanSubmit), nameof(CanCreateExam), nameof(CanCreateVaccine), nameof(CanMarkExamDone), nameof(CanCancelExam), nameof(CanVoid)];
 
     public string Message => message;
     public bool HasMessage => message.Length > 0;
@@ -65,8 +71,8 @@ public sealed class HealthRecordsViewModel : ObservableObject
 
     public string RegisterNotice => CanRegister ? "" : "O cadastro deste paciente está desativado nesta UBS: a Jornada só pode ser consultada. Reative o cadastro para registrar exames e vacinas.";
     public bool HasRegisterNotice => !CanRegister;
-    public string ListState => !loaded ? (failed ? "Não foi possível ler a Jornada agora. Use Atualizar para tentar de novo." : "Carregando a Jornada…")
-        : failed && loadedWithVoided != includeVoided ? $"A leitura com o filtro novo não concluiu: a lista abaixo ainda é a da leitura anterior, que {(loadedWithVoided ? "inclui os anulados" : "não inclui os anulados")}. Use Atualizar para tentar de novo."
+    public string ListState => !loaded ? (failed ? "Não foi possível ler a Jornada agora. O NORA tenta de novo sozinho." : "Carregando a Jornada…")
+        : failed && loadedWithVoided != includeVoided ? $"A leitura com o filtro novo não concluiu: a lista abaixo ainda é a da leitura anterior, que {(loadedWithVoided ? "inclui os anulados" : "não inclui os anulados")}. O NORA tenta de novo sozinho."
         : Exams.Count + Vaccines.Count == 0 ? (loadedWithVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Os registros anulados ficam ocultos: marque \"Mostrar anulados\" para vê-los.") : "";
     public string ExamsState => loaded && Exams.Count == 0 ? "Nenhum exame." : "";
     public string VaccinesState => loaded && Vaccines.Count == 0 ? "Nenhuma vacina." : "";
@@ -79,16 +85,22 @@ public sealed class HealthRecordsViewModel : ObservableObject
 
     // ---- Leitura ----
 
-    /// <summary>Primeira leitura (ao abrir a aba); as seguintes vêm do botão Atualizar, do "Mostrar anulados" e de cada ação.</summary>
+    /// <summary>Primeira leitura (ao abrir a aba); as seguintes vêm do ciclo de 20 s (<see cref="AutoRefreshAsync"/>), do "Mostrar anulados" e de cada ação. Não há botão Atualizar.</summary>
     public Task EnsureLoadedAsync() => loaded || loadCts is not null ? Task.CompletedTask : ReloadAsync();
 
+    /// <summary>Releitura automática da aba (a cada 20 s enquanto ela está à vista): só com as listas à mostra e a ficha livre, e sem mensagem de erro a cada falha (a lista na tela continua valendo).</summary>
+    public Task AutoRefreshAsync() => (loaded || failed) && CanRefresh && panel == HealthPanel.Lists ? ReloadAsync(quiet: true) : Task.CompletedTask;
+
+    public Task ReloadAsync() => ReloadAsync(quiet: false);
+
     /// <summary>Uma requisição por leitura: a anterior é cancelada e só a mais nova altera a tela.</summary>
-    public async Task ReloadAsync()
+    private async Task ReloadAsync(bool quiet)
     {
         var cancellation = new CancellationTokenSource();
         Interlocked.Exchange(ref loadCts, cancellation)?.Cancel();
         var version = ++loadVersion;
-        SetLoading(true);
+        // A releitura automática (quiet) não liga o indicador de leitura: os botões do balão não podem piscar desabilitados a cada 20 s. Ela só começa com a ficha livre e qualquer leitura ou gravação nova a cancela.
+        if (!quiet) SetLoading(true);
         try
         {
             var withVoided = includeVoided;
@@ -101,17 +113,19 @@ public sealed class HealthRecordsViewModel : ObservableObject
         {
             if (version != loadVersion) return;
             failed = true; Notify(nameof(ListState));
-            Say(MessageKind.Error, error.Message); onApiError?.Invoke(error);
+            if (!quiet) Say(MessageKind.Error, error.Message);
+            onApiError?.Invoke(error);
         }
-        finally { if (version == loadVersion) SetLoading(false); }
+        finally { if (!quiet && version == loadVersion) SetLoading(false); }
     }
 
     private void Apply(HealthRecords records, bool withVoided)
     {
         loadedWithVoided = withVoided;
         var examId = selectedExam?.Id; var vaccineId = selectedVaccine?.Id;
-        Exams.Clear(); foreach (var exam in records.Exams) Exams.Add(exam);
-        Vaccines.Clear(); foreach (var vaccine in records.Vaccines) Vaccines.Add(vaccine);
+        // A lista só é refeita quando mudou: a releitura de 20 s não pode piscar nem derrubar a seleção e o balão.
+        if (!Exams.SequenceEqual(records.Exams)) { Exams.Clear(); foreach (var exam in records.Exams) Exams.Add(exam); }
+        if (!Vaccines.SequenceEqual(records.Vaccines)) { Vaccines.Clear(); foreach (var vaccine in records.Vaccines) Vaccines.Add(vaccine); }
         loaded = true; failed = false;
         SelectedExam = examId is null ? null : Exams.FirstOrDefault(item => item.Id == examId);
         SelectedVaccine = vaccineId is null ? null : Vaccines.FirstOrDefault(item => item.Id == vaccineId);
@@ -142,6 +156,100 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public string SelectedRecordLabel => selectedExam is { } exam ? $"Exame selecionado: {exam.Name} ({exam.StatusDisplay})"
         : selectedVaccine is { } vaccine ? $"Vacina selecionada: {vaccine.Name}, {vaccine.DoseDisplay} ({vaccine.StatusDisplay})" : "Nenhum registro selecionado.";
 
+    // ---- Painel da aba: listas, formulários e ficha em linhas ----
+
+    private HealthPanel panel;
+    private string detailTitle = "", detailSubtitle = "";
+    private IReadOnlyList<DetailField> detailFields = [];
+    private TaskCompletionSource? detailClosed;
+    private static readonly string[] PanelNames = [nameof(Panel), nameof(ShowLists), nameof(ShowExamForm), nameof(ShowVaccineForm), nameof(ShowDoneForm), nameof(ShowVoidForm), nameof(ShowDetail), nameof(ShowForm), nameof(PanelTitle), nameof(PanelPrimary)];
+
+    public HealthPanel Panel { get => panel; private set { if (panel == value) return; panel = value; foreach (var name in PanelNames) Notify(name); } }
+    public bool ShowLists => panel == HealthPanel.Lists;
+    public bool ShowExamForm => panel == HealthPanel.NewExam;
+    public bool ShowVaccineForm => panel == HealthPanel.NewVaccine;
+    public bool ShowDoneForm => panel == HealthPanel.ExamDone;
+    public bool ShowVoidForm => panel == HealthPanel.Void;
+    public bool ShowDetail => panel == HealthPanel.Detail;
+    /// <summary>Um dos quatro formulários está aberto (o primário e o Cancelar do rodapé valem para ele).</summary>
+    public bool ShowForm => panel is HealthPanel.NewExam or HealthPanel.NewVaccine or HealthPanel.ExamDone or HealthPanel.Void;
+    public string PanelTitle => panel switch
+    {
+        HealthPanel.NewExam => "Novo exame", HealthPanel.NewVaccine => "Nova vacina", HealthPanel.ExamDone => "Marcar exame como realizado",
+        HealthPanel.Void => "Anular registro", HealthPanel.Detail => detailTitle, _ => ""
+    };
+    /// <summary>Texto do botão primário do formulário aberto (à direita do rodapé).</summary>
+    public string PanelPrimary => panel switch
+    {
+        HealthPanel.NewExam => "Registrar exame", HealthPanel.NewVaccine => "Registrar vacina", HealthPanel.ExamDone => "Marcar como realizado", HealthPanel.Void => "Anular registro", _ => ""
+    };
+    public string DetailSubtitle => detailSubtitle;
+    /// <summary>As linhas da ficha do registro aberto pelo duplo clique (rótulo à esquerda, valor à direita).</summary>
+    public IReadOnlyList<DetailField> DetailFields => detailFields;
+
+    /// <summary>Abre um dos formulários no lugar das listas. Marcar como realizado e Anular pedem o registro certo selecionado; sem cadastro ativo nada abre.</summary>
+    public bool OpenForm(HealthPanel target)
+    {
+        if (IsBusy || target is HealthPanel.Lists or HealthPanel.Detail) return false;
+        if (!CanRegister) { Say(MessageKind.Error, "O cadastro deste paciente está desativado nesta UBS: não é possível registrar exames nem vacinas."); return false; }
+        if (target == HealthPanel.ExamDone && !CanMarkExamDone) { Say(MessageKind.Error, "Selecione um exame solicitado."); return false; }
+        if (target == HealthPanel.Void && !CanVoid) { Say(MessageKind.Error, "Selecione o exame ou a vacina que será anulado."); return false; }
+        Say(MessageKind.Info, "");
+        ResetDrafts();
+        Panel = target;
+        return true;
+    }
+
+    /// <summary>Volta às listas descartando o que foi digitado; fecha também a ficha em linhas e libera a fila de fichas que esperava por ela.</summary>
+    public void CloseForm()
+    {
+        ResetDrafts();
+        Panel = HealthPanel.Lists;
+        Interlocked.Exchange(ref detailClosed, null)?.TrySetResult();
+    }
+
+    /// <summary>A ficha em linhas de um exame ou de uma vacina (duplo clique, segundo clique ou Enter). Só termina quando a ficha fecha: com vários selecionados as fichas abrem uma por vez.</summary>
+    public Task OpenDetailAsync(object item)
+    {
+        if (panel != HealthPanel.Lists) return Task.CompletedTask;
+        static string Moment(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) ?? "—";
+        var fields = new List<DetailField>();
+        void Add(string label, string? value) { if (!string.IsNullOrWhiteSpace(value)) fields.Add(new DetailField(label, value)); }
+        switch (item)
+        {
+            case ExamInfo exam:
+                detailTitle = exam.Name; detailSubtitle = "Exame";
+                Add("Situação", exam.StatusDisplay); Add("Solicitado em", Moment(exam.RequestedAt));
+                if (exam.PerformedOn is { } done) Add("Realizado em", DisplayFormat.Date(done));
+                Add("Observação", exam.Note);
+                if (exam.IsVoided) { Add("Anulado em", Moment(exam.VoidedAt)); Add("Motivo da anulação", exam.VoidReason); }
+                break;
+            case VaccineInfo vaccine:
+                detailTitle = vaccine.Name; detailSubtitle = "Vacina";
+                Add("Situação", vaccine.StatusDisplay); Add("Dose", vaccine.DoseDisplay); Add("Aplicada em", DisplayFormat.Date(vaccine.AppliedOn));
+                Add("Observação", vaccine.Note);
+                if (vaccine.IsVoided) { Add("Anulada em", Moment(vaccine.VoidedAt)); Add("Motivo da anulação", vaccine.VoidReason); }
+                break;
+            default: return Task.CompletedTask;
+        }
+        detailFields = fields;
+        Notify(nameof(DetailFields)); Notify(nameof(DetailSubtitle));
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        detailClosed = closed;
+        Panel = HealthPanel.Detail;
+        return closed.Task;
+    }
+
+    /// <summary>Descarta os rascunhos dos formulários (nome, observação, data, dose e motivo) e os avisos de campo.</summary>
+    private void ResetDrafts()
+    {
+        examName = examNote = examDoneDate = vaccineName = vaccineDate = vaccineNote = voidReason = "";
+        vaccineDose = VaccineDose.Options[0];
+        submittedExam = submittedVaccine = submittedVoid = submittedDone = false;
+        foreach (var name in new[] { nameof(ExamName), nameof(ExamNote), nameof(ExamDoneDate), nameof(VaccineName), nameof(VaccineDate), nameof(VaccineNote), nameof(VaccineDoseChoice), nameof(VoidReason),
+            nameof(ExamNameError), nameof(ExamNoteError), nameof(ExamDoneError), nameof(VaccineNameError), nameof(VaccineDateError), nameof(VaccineNoteError), nameof(VaccineDoseError), nameof(VoidReasonError) }) Notify(name);
+    }
+
     // ---- Exames ----
 
     public string ExamName { get => examName; set { examName = value ?? ""; Notify(); Notify(nameof(ExamNameError)); } }
@@ -154,7 +262,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public bool CanMarkExamDone => CanRegister && !IsBusy && selectedExam is { CanChangeStatus: true };
     public bool CanCancelExam => CanRegister && !IsBusy && selectedExam is { CanChangeStatus: true };
 
-    public Task CreateExamAsync() => RunAsync(async () =>
+    public Task<bool> CreateExamAsync() => RunThenCloseAsync(async () =>
     {
         if (!CanRegister) throw new NoraApiException("O cadastro deste paciente está desativado nesta UBS: não é possível registrar exames.");
         submittedExam = true; Notify(nameof(ExamNameError)); Notify(nameof(ExamNoteError));
@@ -167,7 +275,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
         SelectedExam = Exams.FirstOrDefault(item => item.Id == created.Id);
     });
 
-    public Task MarkExamDoneAsync() => RunAsync(async () =>
+    public Task<bool> MarkExamDoneAsync() => RunThenCloseAsync(async () =>
     {
         var exam = selectedExam ?? throw new NoraApiException("Selecione um exame solicitado.");
         if (!exam.CanChangeStatus) throw new NoraApiException("Só um exame solicitado pode ser marcado como realizado.");
@@ -179,7 +287,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
         await ReloadAfterChangeAsync($"Exame \"{exam.Name}\" marcado como realizado em {DisplayFormat.Date(DateOnly.FromDateTime(date))}.");
     });
 
-    public Task CancelExamAsync() => RunAsync(async () =>
+    public Task<bool> CancelExamAsync() => RunAsync(async () =>
     {
         var exam = selectedExam ?? throw new NoraApiException("Selecione um exame solicitado.");
         if (!exam.CanChangeStatus) throw new NoraApiException("Só um exame solicitado pode ser cancelado.");
@@ -199,7 +307,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public string VaccineDoseError => submittedVaccine && vaccineDose is null ? "Escolha a dose." : "";
     public bool CanCreateVaccine => CanRegister && !IsBusy;
 
-    public Task CreateVaccineAsync() => RunAsync(async () =>
+    public Task<bool> CreateVaccineAsync() => RunThenCloseAsync(async () =>
     {
         if (!CanRegister) throw new NoraApiException("O cadastro deste paciente está desativado nesta UBS: não é possível registrar vacinas.");
         submittedVaccine = true;
@@ -228,7 +336,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
         return VoidReasonError.Length == 0;
     }
 
-    public Task VoidSelectedAsync() => RunAsync(async () =>
+    public Task<bool> VoidSelectedAsync() => RunThenCloseAsync(async () =>
     {
         if (selectedExam is null && selectedVaccine is null) throw new NoraApiException("Selecione o exame ou a vacina que será anulado.");
         if (selectedExam is { IsVoided: true } || selectedVaccine is { IsVoided: true }) throw new NoraApiException("Este registro já foi anulado.");
@@ -245,13 +353,13 @@ public sealed class HealthRecordsViewModel : ObservableObject
     // ---- Apoio ----
 
     /// <summary>Uma operação de escrita por vez; a falha vira mensagem dentro da ficha e, se a sessão acabou, avisa a janela principal.</summary>
-    private async Task RunAsync(Func<Task> operation)
+    private async Task<bool> RunAsync(Func<Task> operation)
     {
-        if (IsBusy) return;
+        if (IsBusy) return false;
         SetBusy(true);
         Say(MessageKind.Info, "");
-        var reload = false;
-        try { await operation(); }
+        var reload = false; var done = false;
+        try { await operation(); done = true; }
         catch (NoraApiException error)
         {
             Say(MessageKind.Error, error.Message); onApiError?.Invoke(error);
@@ -260,6 +368,15 @@ public sealed class HealthRecordsViewModel : ObservableObject
         }
         finally { SetBusy(false); }
         if (reload) await ReloadSilentlyAsync();
+        return done;
+    }
+
+    /// <summary>Roda a operação de um formulário: dando certo, o formulário aberto se fecha e a aba volta às listas; dando erro, ele continua aberto com os avisos dos campos.</summary>
+    private async Task<bool> RunThenCloseAsync(Func<Task> operation)
+    {
+        var done = await RunAsync(operation);
+        if (done && panel != HealthPanel.Lists) CloseForm();
+        return done;
     }
 
     private async Task ReloadSilentlyAsync()
@@ -286,7 +403,7 @@ public sealed class HealthRecordsViewModel : ObservableObject
         catch (NoraApiException error) when (!error.Unauthorized)
         {
             failed = true; Notify(nameof(ListState));
-            Say(MessageKind.Success, success + " Não foi possível atualizar a lista; use Atualizar.");
+            Say(MessageKind.Success, success + " A lista será lida de novo em instantes.");
         }
         catch (OperationCanceledException) { }
         finally { if (version == loadVersion) SetLoading(false); }

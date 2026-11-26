@@ -217,7 +217,7 @@ internal static partial class Program
                 Require(fixture.Count("PATCH", "/status") == 1 && health.Message.Contains("exame solicitado", StringComparison.Ordinal), "A transição inválida (realizado → realizado ou cancelado) deveria ser recusada sem chamar a API.");
                 // Cancelar pela tela, com confirmação.
                 health.ExamName = "Ultrassom"; Pump(health.CreateExamAsync()); popup.UpdateLayout();
-                answer = false; asked.Clear(); InvokeButton(ButtonIn(popup, "Cancelar exame")); PumpUntil(() => !health.IsBusy);
+                PumpFrames(2); answer = false; asked.Clear(); InvokeButton(ButtonIn(popup, "Cancelar exame")); PumpUntil(() => !health.IsBusy);
                 Require(asked.Count == 1 && asked[0].Title == "Cancelar exame" && fixture.Count("PATCH", "/status") == 1 && health.SelectedExam?.Status == "requested", "Recusar a confirmação não deveria cancelar o exame.");
                 answer = true; InvokeButton(ButtonIn(popup, "Cancelar exame")); PumpUntil(() => !health.IsBusy);
                 Require(fixture.Count("PATCH", "/status") == 2 && fixture.HealthBodies.Last(item => item.Action == "exam-status").Body.GetProperty("status").GetString() == "cancelled" && health.Exams.First(item => item.Name == "Ultrassom").StatusDisplay == "Cancelado", "Confirmar deveria cancelar o exame.");
@@ -248,10 +248,10 @@ internal static partial class Program
                 health.SelectedVaccine = health.Vaccines.First(item => item.Name == "Hepatite B"); Require(health.SelectedExam is null && health.CanVoid, "Selecionar uma vacina deveria soltar o exame e liberar Anular.");
                 health.VoidReason = "ab"; Pump(health.VoidSelectedAsync());
                 Require(health.VoidReasonError.Contains("3 a 280") && fixture.Count("POST", "/void") == 0, "Motivo curto demais foi enviado.");
-                health.VoidReason = "Aplicada no paciente errado"; popup.UpdateLayout();
-                answer = false; asked.Clear(); InvokeButton(ButtonIn(popup, "Anular registro selecionado")); PumpUntil(() => !health.IsBusy);
+                popup.UpdateLayout(); PumpFrames(2); InvokeButton(ButtonIn(popup, "Anular")); popup.UpdateLayout(); Require(health.Panel == HealthPanel.Void, "Anular, no balão, deveria abrir o formulário do motivo no lugar das listas."); health.VoidReason = "Aplicada no paciente errado";
+                answer = false; asked.Clear(); InvokeButton(ButtonIn(popup, "Anular registro")); PumpUntil(() => !health.IsBusy);
                 Require(asked.Count == 1 && asked[0].Title == "Anular registro" && asked[0].Text.Contains("Hepatite B", StringComparison.Ordinal) && fixture.Count("POST", "/void") == 0, "A anulação deveria pedir confirmação citando o registro, e recusar não anula.");
-                answer = true; InvokeButton(ButtonIn(popup, "Anular registro selecionado")); PumpUntil(() => !health.IsBusy);
+                answer = true; InvokeButton(ButtonIn(popup, "Anular registro")); PumpUntil(() => !health.IsBusy);
                 var voidBody = fixture.HealthBodies.Last(item => item.Action == "vaccine-void").Body;
                 Require(fixture.Count("POST", "/void") == 1 && voidBody.GetProperty("confirmed").GetBoolean() && voidBody.GetProperty("reason").GetString() == "Aplicada no paciente errado" && health.Vaccines.All(item => item.Name != "Hepatite B") && health.VoidReason == "", "Confirmar deveria anular com o motivo e tirar da lista.");
                 health.IncludeVoided = true; PumpUntil(() => !health.IsBusy);
@@ -264,7 +264,7 @@ internal static partial class Program
                 // Aparência: a aba nos temas claro e escuro, página inteira.
                 health.IncludeVoided = false; PumpUntil(() => !health.IsBusy);
                 popup.UpdateLayout();
-                Require(Descendants<DataGrid>(popup).Any(grid => AutomationProperties.GetName(grid) == "Exames do paciente") && Descendants<DataGrid>(popup).Any(grid => AutomationProperties.GetName(grid) == "Vacinas do paciente"), "A aba deveria ter as duas listas.");
+                Require(Descendants<ListBox>(popup).Any(list => AutomationProperties.GetName(list) == "Exames do paciente") && Descendants<ListBox>(popup).Any(list => AutomationProperties.GetName(list) == "Vacinas do paciente"), "A aba deveria ter as duas listas.");
                 SavePopupScrolled(popup, Path.Combine(previewRoot, "obs-ficha-exames-vacinas-light"));
                 window.ViewModel.SetAppearance(Appearance.Dark); popup.UpdateLayout();
                 SavePopupScrolled(popup, Path.Combine(previewRoot, "obs-ficha-exames-vacinas-dark"));
