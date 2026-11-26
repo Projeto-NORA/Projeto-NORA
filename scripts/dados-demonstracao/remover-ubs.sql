@@ -6,8 +6,14 @@
 CREATE TEMP TABLE _antes AS SELECT * FROM pg_temp.contar();
 
 \echo E|Vagas relâmpago e ofertas
-DELETE FROM nora_unit.lightning_offers WHERE pg_temp.is_demo(id) OR slot_id IN (SELECT id FROM nora_unit.lightning_slots WHERE pg_temp.is_demo(id));
-DELETE FROM nora_unit.lightning_slots WHERE pg_temp.is_demo(id);
+-- Vaga fictícia que a API ofereceu a um paciente REAL e que ele aceitou ou recusou fica (com as ofertas e a consulta a que ela aponta): é uma decisão de
+-- verdade. As ofertas reais em que o paciente não fez nada (venceu, foi cancelada ou ainda está pendente) saem junto com a vaga fictícia.
+CREATE TEMP TABLE _rm_slot AS
+SELECT s.id FROM nora_unit.lightning_slots s
+WHERE pg_temp.is_demo(s.id)
+  AND NOT EXISTS (SELECT 1 FROM nora_unit.lightning_offers o WHERE o.slot_id = s.id AND NOT pg_temp.is_demo(o.id) AND o.status IN ('accepted', 'declined'));
+DELETE FROM nora_unit.lightning_offers WHERE slot_id IN (SELECT id FROM _rm_slot);   -- toda oferta fictícia é de uma vaga fictícia
+DELETE FROM nora_unit.lightning_slots WHERE id IN (SELECT id FROM _rm_slot);
 
 \echo E|Consultas e eventos
 -- Consulta fictícia que ficou ligada a uma oferta ou vaga REAL (ex.: o distribuidor da API ofereceu a vaga a quem tem uma consulta fictícia) é mantida.
@@ -61,6 +67,7 @@ DELETE FROM nora_unit.rooms WHERE id IN (SELECT id FROM _rm_room);
 \echo E|Conferindo que só o que é da demonstração saiu
 -- O que a demonstração tinha criado e continua aqui por ter ganho ligação real (informado ao usuário).
 SELECT 'K|consultas|' || count(*) FROM nora_unit.appointments WHERE pg_temp.is_demo(id) HAVING count(*) > 0;
+SELECT 'K|vagas relâmpago|' || count(*) FROM nora_unit.lightning_slots WHERE pg_temp.is_demo(id) HAVING count(*) > 0;
 SELECT 'K|pacientes|' || count(*) FROM nora_unit.patient_registry WHERE created_by = pg_temp.demo_actor() HAVING count(*) > 0;
 SELECT 'K|profissionais|' || count(*) FROM nora_unit.professionals WHERE pg_temp.is_demo(id) HAVING count(*) > 0;
 SELECT 'K|consultórios|' || count(*) FROM nora_unit.rooms WHERE pg_temp.is_demo(id) HAVING count(*) > 0;

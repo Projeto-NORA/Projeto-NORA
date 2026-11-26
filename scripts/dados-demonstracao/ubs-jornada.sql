@@ -103,7 +103,28 @@ FROM _exrow x JOIN _eins i ON i.id = x.id WHERE x.status <> 'requested';
 -- ---------------------------------------------------------------------------------------------------------------------------------
 -- 12. Fechamento: nenhuma tabela pode ter perdido linhas; o que foi criado sai em linhas "T|tabela|antes|depois" para o PowerShell.
 -- ---------------------------------------------------------------------------------------------------------------------------------
-\echo E|Conferindo que nenhuma tabela perdeu linhas
+\echo E|Conferindo a folga da agenda e que nenhuma tabela perdeu linhas
+-- Folga da agenda (a simulação na escola usa esta UBS): de hoje em diante, em cada especialidade e dia em que há consulta fictícia, as consultas reais
+-- e as fictícias juntas ocupam no máximo 40% dos horários (pelo menos 60% livres). Se esta execução acrescentou consulta num dia e especialidade
+-- que passaram disso, nada é gravado. (Uma repetição que não acrescenta nada não é recusada por uma mudança que a própria equipe fez na grade.)
+CREATE TEMP TABLE _folga AS
+SELECT c.day, c.spec_id, c.offered, c.taken, count(x.id) AS demo, count(i.id) AS novos,
+       CASE WHEN c.offered > 0 THEN (c.taken + count(x.id))::numeric / c.offered END AS ocupacao
+FROM _capf c CROSS JOIN _p p
+LEFT JOIN nora_unit.appointments x ON pg_temp.is_demo(x.id) AND x.specialty_id = c.spec_id AND x.status IN ('scheduled', 'called', 'completed', 'missed')
+                                   AND (x.starts_at AT TIME ZONE p.zone)::date = c.day
+LEFT JOIN _ins i ON i.id = x.id
+GROUP BY c.day, c.spec_id, c.offered, c.taken;
+DO $$
+DECLARE r record;
+BEGIN
+    SELECT * INTO r FROM _folga WHERE novos > 0 AND (offered = 0 OR ocupacao > 0.40) ORDER BY ocupacao DESC NULLS FIRST LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'A agenda do dia % ficaria com menos de 60%% dos horários livres numa especialidade (% de % ocupados). Nada foi gravado.', r.day, r.taken + r.demo, r.offered;
+    END IF;
+END
+$$;
+SELECT 'R|agenda de hoje em diante|maior ocupação de uma especialidade num dia (consultas reais e fictícias)|' || COALESCE(round(100 * max(ocupacao), 1)::text || '%', 'sem consultas') FROM _folga WHERE demo > 0;
 SELECT pg_temp.conferir();
 SELECT 'T|' || d.t || '|' || COALESCE(a.n, 0) || '|' || d.n FROM _depois d LEFT JOIN _antes a ON a.t = d.t WHERE d.n <> COALESCE(a.n, 0) ORDER BY d.t;
 SELECT 'R|consultas|' || status || '|' || count(*) FROM nora_unit.appointments WHERE pg_temp.is_demo(id) GROUP BY status ORDER BY status;

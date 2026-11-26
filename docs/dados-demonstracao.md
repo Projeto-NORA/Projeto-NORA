@@ -8,9 +8,9 @@ Pedido do usuário em 26/11/2026; decisão dele: os dados entram no banco de pro
 
 - **Os dados aparecem para todo mundo** que abrir o OBS, o Painel Municipal ou o app ligado a esse banco, inclusive os alunos e os funcionários da simulação na escola. Pacientes, médicos, consultas, comunicados e metas fictícios ficam misturados com os reais.
 - **Não rode no dia da simulação** sem querer. Se rodar antes, apague com `-Remover` quando terminar as capturas (ou pelo menos antes do ensaio).
-- **A agenda da simulação continua com folga.** Das consultas de hoje em diante, o script deixa **pelo menos 60% dos horários livres, por especialidade, em cada dia** (na prática, no máximo 35% ocupados, contando as consultas reais que já existirem). Dá para marcar normalmente pelo app e pelo OBS.
+- **A agenda da simulação continua com folga.** Das consultas de hoje em diante, o script deixa **pelo menos 60% dos horários livres, por especialidade, em cada dia** (na prática, no máximo 35% ocupados, contando as consultas reais que já existirem e a grade de **todos** os profissionais da especialidade, não só os do catálogo). Se uma execução fosse passar disso, o banco desfaz tudo e nada é gravado. No fim, o script mostra a maior ocupação encontrada ("maior ocupação de uma especialidade num dia"). Dá para marcar normalmente pelo app e pelo OBS; as consultas reais marcadas **depois** ocupam o resto, como deve ser.
 - **Comunicados:** se já houver celulares com o app instalado e vinculados à UBS, o comunicado fictício "Campanha de vacinação contra a gripe" pode chegar como **uma notificação** nesses aparelhos. Para evitar, rode com `-SemAvisoPaciente` (os comunicados ficam só para a equipe e o app dos pacientes não mostra nada novo).
-- **Vagas Relâmpago "em andamento"** (2, de amanhã) valem 10 minutos (é a regra do sistema). Tire essa captura logo depois de rodar. Quando o prazo acaba, a API as trata como trata qualquer vaga: se ninguém real puder receber, a vaga fica aberta (segurando aquele horário de amanhã) até faltarem 10 minutos para ele e então fecha sozinha. Para não criar nenhuma, use `-SemVagaAgora`.
+- **Vagas Relâmpago "em andamento"** (2, de amanhã) valem 10 minutos (é a regra do sistema). Tire essa captura logo depois de rodar. Quando o prazo acaba, a API as trata como trata qualquer vaga: oferece a quem tem **conta no app**, vínculo com a UBS e consulta marcada depois, na mesma especialidade (por exemplo, o seu paciente de teste do `-CpfApp` ou um aluno da simulação, que recebe a oferta e a notificação de verdade). Se ninguém puder receber, a vaga fica aberta (segurando aquele horário de amanhã) até faltarem 10 minutos para ele e então fecha sozinha. Para não criar nenhuma, use `-SemVagaAgora` (recomendado se já houver alunos com o app instalado).
 - O script **fotografa o dia em que roda** (o que já passou está concluído; as consultas de hoje e dos próximos dias estão agendadas). Rode **num dia útil, entre 9h e 16h** e logo antes das capturas: fora desse horário o "hoje" fica com menos consultas concluídas ou chamadas. Para renovar outro dia, use `-Remover` e rode de novo (o script avisa e não deixa rodar por cima de dados de outro dia).
 
 ## O que ele cria
@@ -84,11 +84,11 @@ Opcionais:
 
 - **Só acrescenta.** O script não tem `UPDATE` nem `DELETE` sobre dado existente. A única exceção é preencher horário de atendimento e serviços da UBS **quando os dois estão vazios**; o `-Remover` só desfaz isso se o texto ainda for o do script.
 - **Conta as linhas de todas as tabelas, em todos os bancos, antes e depois.** Dentro de cada transação o banco confere (no mesmo retrato dos dados) que nenhuma tabela perdeu linha e, se perdeu, desfaz tudo. Depois, o PowerShell repete a conta. Tabela que o script não escreve e que diminuiu por conta da própria API (por exemplo, sessões vencidas apagadas pela manutenção) vira um aviso, não um erro.
-- **Repetir não duplica.** Todo registro nasce de um identificador calculado a partir de uma semente fixa. Rodar de novo no mesmo dia cria **0 linhas**.
+- **Repetir não duplica.** Todo registro nasce de um identificador calculado a partir de uma semente fixa. Rodar de novo no mesmo dia cria **0 linhas**. Se a agenda real mudou entre uma execução e outra (alguém marcou ou cancelou consultas), a repetição só acrescenta consulta fictícia no espaço que sobra dentro dos 35%, nunca põe um paciente fictício em dois lugares ao mesmo tempo e não cria Vaga Relâmpago a partir de consulta que já estava gravada (a vaga mudaria a situação de uma consulta existente, e o script não faz `UPDATE`).
 - **Tudo é identificável:** todo id criado começa com `de0de0de-`; os pacientes fictícios têm o cadastro criado por um ator fixo e e-mail `@email.example` (domínio reservado, que nunca entrega mensagem); os telefones começam com `1290` (formato de celular de DDD 12 com um começo que não costuma ser usado).
 - **Nenhuma conta com senha utilizável.** As únicas contas criadas são as dos responsáveis da Família: **inativas** e com um valor no lugar da senha que nenhuma senha produz. A API recusa o login antes mesmo de olhar a senha.
 - **Sem dados reais.** Nomes sorteados de listas comuns; CPFs gerados com dígitos verificadores válidos e conferidos contra todos os CPFs da rede (contas, cadastros de todas as UBS e Família).
-- **A conexão nunca é gravada.** A URI é pedida com entrada oculta, vive só em variáveis do processo (apagadas no fim) e o certificado do Neon é verificado por completo (`verify-full`), como no `implantar-neon.ps1`. Arquivos temporários só têm dados fictícios e são apagados.
+- **A conexão nunca é gravada nem mostrada.** A URI é pedida com entrada oculta, vive só em variáveis do processo (que voltam ao que eram no fim, mesmo se o script for chamado de dentro de uma janela já aberta), uma URI mal colada é recusada sem repetir o texto na tela, e o certificado do Neon é verificado por completo (`verify-full`), como no `implantar-neon.ps1`. Arquivos temporários só têm dados fictícios e são apagados.
 - **Banco local:** `-Local -Porta N` usa um PostgreSQL em `127.0.0.1` sem senha, para testes. O script recusa qualquer outro endereço nesse modo.
 
 ## Como funciona (para quem for mexer)
@@ -101,7 +101,7 @@ Arquivos:
 | --- | --- |
 | `scripts/popular-dados-demonstracao.ps1` | Pede a conexão, reconhece a rede e a UBS, gera as pessoas, monta as entradas, roda os SQL, conta antes e depois, `-Simular` e `-Remover`. |
 | `scripts/dados-demonstracao/pessoas.ps1` | Nomes, CPFs, endereços, catálogo de especialidades e UBS extras (tudo determinístico). |
-| `scripts/dados-demonstracao/funcoes.sql` | Funções temporárias: número estável por semente, identificador `de0de0de-…`, contagem e conferência de linhas. |
+| `scripts/dados-demonstracao/funcoes.sql` | Funções temporárias: número estável por semente, identificador `de0de0de-…`, contagem e conferência de linhas, o horário de atendimento fictício e a busca de ligações reais com as UBS fictícias. |
 | `scripts/dados-demonstracao/central-1.sql` | Banco central: especialidades que faltam, UBS extras e índice central de CPFs. |
 | `scripts/dados-demonstracao/ubs.sql`, `ubs-agenda.sql`, `ubs-jornada.sql` | Banco da UBS: cadastro, grade, bloqueios, consultas, Vaga Relâmpago, exames e vacinas. |
 | `scripts/dados-demonstracao/central-2.sql` | Banco central: responsáveis, Família, comunicados, metas e atendimento ao público. |
@@ -111,7 +111,14 @@ Como o banco de cada UBS é encontrado: o nome é `nora_ubs_` + o id da UBS sem 
 
 Ordem de gravação (cada banco numa transação `REPEATABLE READ`): central (especialidades e UBS extras) → bancos das UBS extras (criados e migrados como a API faz) → UBS principal e extras → central (índice de CPFs a partir do que ficou gravado, Família, comunicados, metas, atendimento). O índice central de CPFs entra **depois** dos cadastros, ao contrário da API: só tem CPF fictício e assim uma execução interrompida nunca deixa índice sem cadastro.
 
-O que o `-Remover` preserva: uma linha fictícia que ganhou ligação com algo **real** (por exemplo, uma consulta marcada de verdade com um médico fictício, ou uma oferta real da API que apontou para uma consulta fictícia) **não é apagada**; o script avisa o que ficou.
+O que o `-Remover` preserva: uma linha fictícia que ganhou ligação com algo **real** **não é apagada**; o script avisa o que ficou ("Mantido por ter ganho ligação com algo real"). Em detalhe:
+
+- **Consulta, paciente, médico e consultório fictícios** ficam se algo real aponta para eles: uma consulta marcada de verdade com um médico fictício, uma vaga real criada pela API a partir de uma consulta fictícia, uma alteração da equipe no cadastro de um paciente fictício.
+- **Vaga Relâmpago fictícia** fica (com as ofertas e as consultas a que aponta) se a API a ofereceu a um paciente real e ele **aceitou ou recusou**. As ofertas reais em que a pessoa não fez nada (vencidas, canceladas ou pendentes) saem com a vaga.
+- **UBS fictícia extra** fica inteira, com o banco dela, se ganhou ligação real no banco central: acesso dado a alguém da equipe, paciente vinculado pelo app, comunicado real para ela, aparelho do OBS, alteração do atendimento ao público. O aviso diz a tabela e quantas linhas a seguram. Os **registros de leitura** dela (quem da equipe abriu o cadastro ou a agenda da UBS fictícia) saem junto, como as leituras dos comunicados fictícios: eles só registram que alguém olhou dados fictícios, e mantê-los impediria remover qualquer UBS fictícia que aparecesse numa captura.
+- **Conta de responsável fictícia** fica se foi reativada ou se qualquer tabela passou a apontar para ela (a conferência olha toda chave estrangeira para `nora.accounts`).
+- **Atendimento ao público** da UBS real só volta a "não informado" se o texto de serviços **e** o horário ainda forem exatamente os que o script gravou; se alguém editou um dos dois, fica tudo como está.
+- O que a própria API gravou **sobre** os dados fictícios sai com eles: leituras dos comunicados fictícios, eventos de consulta, exame e vacina (por exemplo, a equipe chamou um paciente fictício no OBS) e ofertas sem resposta.
 
 ## Limites conhecidos
 
@@ -161,3 +168,30 @@ Leitura pelas rotas que as telas usam (todas HTTP 200, 0 rotas com erro), com as
 - O trabalhador de Vaga Relâmpago da API, ligado durante o teste, venceu as duas ofertas em andamento no prazo e deixou as vagas abertas, sem nenhum erro no log.
 
 Suíte da API (`tests/validar-postgres-descartavel.ps1 -Port 55472 -IncludeUnitDatabases`): todos os grupos passaram (285 verificações, 0 falhas), nenhuma base de uso acessada.
+
+## Revisão crítica (2026-11-26)
+
+Uma segunda IA revisou o script e corrigiu oito defeitos (registro em `docs/tarefas/2026-11-26-revisao-dados-demonstracao.md`):
+
+1. Uma URI mal colada aparecia inteira, **com a senha**, na mensagem de erro (a conversão `[Uri]` repete o texto). Agora a URI é lida com `TryCreate` e o erro não repete nada.
+2. As variáveis `PGHOST`, `PGUSER`, `PGSSLMODE` e outras ficavam no ambiente depois do script; agora todas voltam ao que eram.
+3. Repetir depois de a agenda real mudar podia acrescentar consultas fictícias além do teto de 35% e pôr um paciente fictício em dois lugares ao mesmo tempo. Agora o teto conta as consultas fictícias já gravadas e a grade de todos os profissionais da especialidade, e a consulta nova não pode cair em cima de outra do mesmo paciente.
+4. Na mesma situação, a repetição criava uma **Vaga Relâmpago "ofertada" para uma consulta que continuava marcada** (vaga e consulta ocupando o mesmo horário). Agora a vaga só nasce entre consultas que a própria execução grava.
+5. A folga de 60% passou a ser conferida no fim, dentro da transação: se a execução acrescentasse consulta num dia e especialidade acima de 40% ocupados, nada seria gravado.
+6. O `-Remover` falhava (erro de chave estrangeira, nada removido) quando alguém tinha aberto o cadastro de uma UBS fictícia no Painel, dado acesso a ela ou vinculado um paciente. Agora ele apaga os registros de leitura dela e mantém, com aviso, só a UBS fictícia que ganhou ligação real.
+7. O `-Remover` apagava uma Vaga Relâmpago fictícia que um paciente real tinha aceitado ou recusado (e a oferta dele). Agora ela fica.
+8. O `-Remover` desfazia o horário de atendimento mesmo se a equipe o tivesse editado (só comparava o texto de serviços) e podia falhar ao apagar uma conta de responsável que alguma tabela passou a referenciar. Agora compara o horário inteiro e confere todas as chaves estrangeiras.
+
+Validação da revisão, num PostgreSQL 18 descartável (porta 55476), com a UBS e as contas do `--demo-bootstrap`:
+
+| Verificação | Resultado |
+| --- | --- |
+| `-Simular -UbsExtras 3 -CpfApp …` | 6 s; contagens das 55 tabelas idênticas depois |
+| Aplicar (`-UbsExtras 3 -CpfApp …`) | 18 s; 18.108 linhas em 5 bancos; maior ocupação futura 29,2% na UBS real |
+| Repetir o mesmo comando | 37 s; **0 linhas**; contagens idênticas |
+| 24 consultas reais acrescentadas nos 3 próximos dias úteis e repetir | 0 linhas novas; nenhuma vaga ativa com a consulta ainda marcada (antes da correção 4: 1 vaga e 1 oferta indevidas) |
+| `-Remover` com acesso de equipe dado a uma UBS fictícia | essa UBS ficou, com aviso ("nora.staff_units: 1"); as outras duas saíram e os bancos delas foram apagados |
+| Tirar o acesso, registrar uma leitura da UBS fictícia e `-Remover` de novo | saiu tudo; contagens idênticas às de antes de tudo (55 tabelas, 2 bancos) |
+| Oferta real recusada numa vaga fictícia e `-Remover` | a vaga, 2 consultas, 1 paciente, 2 médicos, 2 consultórios e 2 especialidades ficaram, com aviso; a vaga com oferta real só vencida saiu |
+| API real (Release) lendo 36 rotas do OBS, do Painel e do app | 36 com HTTP 200, 0 erros no log da API; 27 consultas no app do paciente de teste; responsável fictício recusado com 401 |
+| Repetir depois da API e `-Remover` | 0 linhas; voltou às contagens de antes, com diferença só em `nora.sessions` (3 → 12) e `nora.unit_access_events` (0 → 3), gravadas pela API nas leituras |

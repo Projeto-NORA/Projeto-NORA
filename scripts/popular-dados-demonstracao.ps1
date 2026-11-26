@@ -110,8 +110,9 @@ function Write-Warn([string] $Texto) { Write-Host "      ! $Texto" -ForegroundCo
 # Conexão (a mesma lógica do scripts/implantar-neon.ps1: URI oculta, nunca gravada, certificado verificado por completo)
 # ---------------------------------------------------------------------------------------------------------------------------------
 function ConvertTo-Conexao([string] $Uri) {
-    $parsed = [Uri]$Uri.Trim()
-    if ($parsed.Scheme -notin 'postgres', 'postgresql') { throw 'Isso não parece uma URI do Neon (postgresql://...).' }
+    # TryCreate em vez de [Uri]$texto: a conversão direta, quando falha, repete o texto inteiro (com a senha) na mensagem de erro.
+    $parsed = $null
+    if (-not [Uri]::TryCreate(([string]$Uri).Trim(), [UriKind]::Absolute, [ref]$parsed) -or $parsed.Scheme -notin 'postgres', 'postgresql') { throw 'Isso não parece uma URI do Neon (postgresql://...). Copie de novo a conexão direta.' }
     if ($parsed.Host -like '*-pooler*') { throw 'Use a conexão direta: no Neon, desligue "Connection pooling" e copie de novo.' }
     $user, $password = $parsed.UserInfo.Split(':', 2) | ForEach-Object { [Uri]::UnescapeDataString($_) }
     $database = $parsed.AbsolutePath.TrimStart('/')
@@ -173,6 +174,23 @@ function ConvertTo-CaminhoSql([string] $Caminho) { $Caminho.Replace('\', '/').Re
 # Uma linha de VALUES (...) a partir de uma lista de valores.
 function Get-LinhaValores([object[]] $Valores) { $partes = foreach ($v in $Valores) { Q $v }; '(' + ($partes -join ', ') + ')' }
 
+# UBS fictícias extras com ligação real no banco central (pg_temp.ligacoes_reais, em funcoes.sql): id -> "tabela: n; ...".
+function Get-LigacoesReais([string] $Central, [string[]] $Ids) {
+    $mapa = @{}
+    if (-not $Ids -or $Ids.Count -eq 0) { return $mapa }
+    $arquivo = Join-Path $script:Tmp ('ligacoes-' + [guid]::NewGuid().ToString('N') + '.sql')
+    $lista = 'ARRAY[' + (($Ids | ForEach-Object { "$(Q $_)::uuid" }) -join ',') + ']'
+    [IO.File]::WriteAllText($arquivo, "\i '$(ConvertTo-CaminhoSql (Join-Path $script:PastaSql 'funcoes.sql'))'`nSELECT unit_id, tabela, n FROM pg_temp.ligacoes_reais($lista) ORDER BY 1, 2;`n", [Text.UTF8Encoding]::new($false))
+    try {
+        foreach ($linha in (Invoke-Psql $Central @('-f', $arquivo))) {
+            $c = $linha.Split("`t")
+            $mapa[$c[0]] = (@($mapa[$c[0]], "$($c[1]): $($c[2])") | Where-Object { $_ }) -join '; '
+        }
+    }
+    finally { Remove-Item -LiteralPath $arquivo -Force -ErrorAction SilentlyContinue }
+    $mapa
+}
+
 function Get-ContagemTabelas([string] $Database) {
     $sql = @"
 SELECT table_schema||'.'||table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name), false, true, '')))[1]::text
@@ -215,13 +233,15 @@ $(if ($Desfazer) { 'ROLLBACK;' } else { 'COMMIT;' })
 }
 
 # Soma as linhas "T|tabela|antes|depois" de uma execução no total do relatório e devolve as demais ("R|", "K|").
-function Add-Resultado($Linhas) {
+# Com -Rotulo (nome da UBS), as linhas de resumo "R|" dizem de qual UBS são.
+function Add-Resultado($Linhas, [string] $Rotulo) {
     foreach ($linha in $Linhas) {
         if ($linha -like 'T|*') {
             $c = $linha.Split('|')
             $delta = [long]$c[3] - [long]$c[2]
             if ($delta -ne 0) { $script:Criado[$c[1]] = [long]($script:Criado[$c[1]] ?? 0) + $delta }
         }
+        elseif ($linha -like 'R|*' -and $Rotulo) { $script:Relatorio.Add("R|$Rotulo · " + $linha.Substring(2)) }
         elseif ($linha -match '^[RK]\|') { $script:Relatorio.Add($linha) }
     }
 }
@@ -332,6 +352,9 @@ function Compare-ContagemRede($Antes, $Depois, [string] $Contexto) {
 # ---------------------------------------------------------------------------------------------------------------------------------
 if ($MyInvocation.InvocationName -eq '.') { return }   # permite carregar só as funções para teste
 
+$script:VariaveisPg = 'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGSSLMODE', 'PGCHANNELBINDING', 'PGSSLROOTCERT', 'PGCLIENTENCODING'
+$script:AmbienteAntigo = @{}
+foreach ($nome in $script:VariaveisPg) { $script:AmbienteAntigo[$nome] = [Environment]::GetEnvironmentVariable($nome) }
 $script:Tmp = Join-Path ([IO.Path]::GetTempPath()) ("nora-demo-$([guid]::NewGuid().ToString('N'))")
 New-Item -ItemType Directory -Path $script:Tmp | Out-Null
 $saidaAntiga = [Console]::OutputEncoding
@@ -386,6 +409,11 @@ try {
         # REMOVER
         # ------------------------------------------------------------------------------------------------------------------------
         Write-Step 'Procurando o que o script criou'
+        # UBS fictícia que ganhou ligação real (acesso dado a alguém da equipe, paciente vinculado, comunicado real...) fica inteira, com o banco dela.
+        $presas = Get-LigacoesReais $central @($extrasExistentes | ForEach-Object { $_.Id })
+        $mantidas = @($extrasExistentes | Where-Object { $presas.ContainsKey($_.Id) })
+        $extrasExistentes = @($extrasExistentes | Where-Object { -not $presas.ContainsKey($_.Id) })
+        foreach ($m in $mantidas) { Write-Warn "A UBS fictícia '$($m.Nome)' fica (com o banco dela), porque ganhou ligação real: $($presas[$m.Id]). Desfaça essa ligação e rode o -Remover de novo." }
         $alvos = @(@{ Unidade = $script:Principal; Banco = $nomeUbs; Extra = $false }) + @($extrasExistentes | ForEach-Object { @{ Unidade = $_; Banco = (Get-NomeBancoUbs $_ $false); Extra = $true } })
         $resumo = [System.Collections.Generic.List[string]]::new(); $achou = $false
         foreach ($alvo in $alvos) {
@@ -399,7 +427,7 @@ try {
         }
         $centralDemo = [long](Get-Scalar $central "SELECT (SELECT count(*) FROM nora.announcements WHERE id::text LIKE 'de0de0de-%') + (SELECT count(*) FROM nora.accounts WHERE id::text LIKE 'de0de0de-%') + (SELECT count(*) FROM nora.specialties WHERE id::text LIKE 'de0de0de-%') + (SELECT count(*) FROM nora.family_links WHERE id::text LIKE 'de0de0de-%') + (SELECT count(*) FROM nora.goals WHERE id::text LIKE 'de0de0de-%')")
         if ($centralDemo -gt 0) { $achou = $true }
-        if (-not $achou -and $extrasExistentes.Count -eq 0) { Write-Done 'Não há dados de demonstração neste banco. Nada a remover.'; return }
+        if (-not $achou -and $extrasExistentes.Count -eq 0) { Write-Done $(if ($mantidas.Count) { 'Nada mais a remover: só ficou o que ganhou ligação real (veja o aviso acima).' } else { 'Não há dados de demonstração neste banco. Nada a remover.' }); return }
         foreach ($linha in $resumo) { Write-Note $linha }
         Write-Note "No banco central: $centralDemo registros fictícios (comunicados, contas de responsáveis, Família, metas, especialidades)."
         Write-Done 'Encontrado.'
@@ -446,9 +474,10 @@ try {
         $emUso = [System.Collections.Generic.HashSet[string]]::new()
         if ($espFicticias.Count -gt 0) {
             $lista = "ARRAY[" + (($espFicticias | ForEach-Object { "'$_'::uuid" }) -join ',') + "]"
-            foreach ($u in ($unidades | Where-Object { $_.Pronta -and -not $_.Ficticia })) {
+            foreach ($u in @($unidades | Where-Object { $_.Pronta -and -not $_.Ficticia }) + $mantidas) {
                 $nome = Get-NomeBancoUbs $u ($u.Id -eq $script:Principal.Id)
                 if ((Get-Scalar $central "SELECT 1 FROM pg_database WHERE datname = $(Q $nome)") -ne '1') { continue }
+                if ((Get-Scalar $nome "SELECT to_regclass('nora_unit.professional_specialties') IS NOT NULL") -ne 't') { continue }
                 foreach ($id in (Invoke-Sql $nome "SELECT specialty_id::text FROM nora_unit.professional_specialties WHERE specialty_id = ANY($lista) UNION SELECT specialty_id::text FROM nora_unit.schedule_templates WHERE specialty_id = ANY($lista) UNION SELECT specialty_id::text FROM nora_unit.appointments WHERE specialty_id = ANY($lista) UNION SELECT specialty_id::text FROM nora_unit.lightning_slots WHERE specialty_id = ANY($lista)")) { [void]$emUso.Add($id) }
             }
         }
@@ -478,7 +507,7 @@ try {
             # Aqui as tabelas DEVEM perder linhas (é a remoção); o que não pode é perder fora do que o script escreve.
             foreach ($banco in $antes.Keys) {
                 if (-not $depois.ContainsKey($banco)) { continue }
-                foreach ($tabela in $antes[$banco].Keys) { if ($depois[$banco][$tabela] -lt $antes[$banco][$tabela] -and $tabela -notin $script:TabelasDoScript) { Write-Warn "Mudou fora do que este script escreve: $banco / ${tabela}: $($antes[$banco][$tabela]) -> $($depois[$banco][$tabela])" } }
+                foreach ($tabela in $antes[$banco].Keys) { if ($depois[$banco][$tabela] -lt $antes[$banco][$tabela] -and $tabela -notin $script:TabelasDoScript -and $tabela -ne 'nora.unit_access_events') { Write-Warn "Mudou fora do que este script escreve: $banco / ${tabela}: $($antes[$banco][$tabela]) -> $($depois[$banco][$tabela])" } }
             }
             Write-Done 'Remoção concluída.'
         }
@@ -616,7 +645,7 @@ try {
     $volume = @{ Historico = 365; Escala = 1; Faltas = 1; Vaga = (-not $SemVagaAgora); PorDia = $ConsultasPorDia; Enxuta = $false }
     $entradasUbs = New-EntradasUbs $script:Principal.Id $pessoas $catalogo $volume
     $linhasUbs = Invoke-Driver $nomeUbs $entradasUbs 'ubs.sql' ([bool]$Simular)
-    Add-Resultado $linhasUbs
+    Add-Resultado $linhasUbs $script:Principal.Nome
     Write-Done $(if ($Simular) { 'Simulado (desfeito).' } else { 'UBS gravada.' })
 
     # Extras: um conjunto menor de dados em cada UBS fictícia.
@@ -634,7 +663,7 @@ try {
             }
             Write-Note "$($pl.Extra.Nome):"
             $vol = @{ Historico = 180; Escala = 0.30; Faltas = $pl.Extra.Faltas; Vaga = $false; PorDia = $ConsultasPorDia; Enxuta = $true }
-            Add-Resultado (Invoke-Driver $banco (New-EntradasUbs $pl.Id $pl.Pessoas $cat $vol) 'ubs.sql' $false)
+            Add-Resultado (Invoke-Driver $banco (New-EntradasUbs $pl.Id $pl.Pessoas $cat $vol) 'ubs.sql' $false) $pl.Extra.Nome
         }
     }
 
@@ -708,7 +737,8 @@ catch {
 }
 finally {
     [Console]::OutputEncoding = $saidaAntiga
-    Remove-Item Env:PGPASSWORD, Env:PGSSLROOTCERT, Env:PGCLIENTENCODING -ErrorAction SilentlyContinue
+    # O ambiente volta a ser o de antes (a senha nunca fica para trás, mesmo quando o script é chamado de dentro de uma janela do PowerShell já aberta).
+    foreach ($nome in $script:VariaveisPg) { [Environment]::SetEnvironmentVariable($nome, $script:AmbienteAntigo[$nome]) }
     if ($script:Raizes) { Remove-Item -LiteralPath $script:Raizes -Force -ErrorAction SilentlyContinue }
     if ($script:Tmp -and (Test-Path -LiteralPath $script:Tmp)) { Remove-Item -LiteralPath $script:Tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }

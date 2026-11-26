@@ -30,10 +30,37 @@ UPDATE _slot s SET
          OR EXISTS (SELECT 1 FROM nora_unit.lightning_slots l WHERE NOT pg_temp.is_demo(l.id) AND l.status IN ('open', 'offered')
                       AND lower(btrim(l.professional)) = lower(btrim(s.prof_name)) AND l.starts_at < s.e AND l.ends_at > s.s);
 
--- Oferta e ocupação real por especialidade e dia (base da regra "no mínimo 60% dos horários livres nos dias futuros").
+-- Oferta e ocupação real por especialidade e dia nos horários dos médicos do catálogo (base do sorteio de quais horários viram consulta).
 CREATE TEMP TABLE _cap AS
 SELECT day, spec_id, count(*) FILTER (WHERE NOT blocked) AS offered, count(*) FILTER (WHERE NOT blocked AND taken) AS taken, count(*) FILTER (WHERE NOT blocked AND NOT taken) AS free
 FROM _slot GROUP BY day, spec_id;
+
+-- Base da regra "no mínimo 60% dos horários livres por especialidade em cada dia de hoje em diante": a oferta e a ocupação real de TODOS os
+-- profissionais ativos da especialidade (inclusive os que não são do catálogo), como a agenda pública os vê.
+CREATE TEMP TABLE _capf AS
+WITH sl AS (
+    SELECT t.specialty_id AS spec_id, d.day, x.id AS prof_id, x.full_name,
+           (d.day + t.start_time + g.k * t.slot_minutes * interval '1 minute') AT TIME ZONE p.zone AS s,
+           (d.day + t.start_time + (g.k + 1) * t.slot_minutes * interval '1 minute') AT TIME ZONE p.zone AS e
+    FROM _p p
+    CROSS JOIN LATERAL (SELECT p.today + i AS day FROM generate_series(0, p.fut_days) i) d
+    JOIN nora_unit.schedule_templates t ON t.weekday = extract(dow FROM d.day)::int AND (t.valid_from IS NULL OR t.valid_from <= d.day) AND (t.valid_until IS NULL OR t.valid_until >= d.day)
+    JOIN nora_unit.professionals x ON x.id = t.professional_id AND x.is_active
+    JOIN nora_unit.rooms r ON r.id = t.room_id AND r.is_active
+    CROSS JOIN LATERAL generate_series(0, (extract(epoch FROM (t.end_time - t.start_time))::int / 60 / t.slot_minutes) - 1) g(k)
+    WHERE t.specialty_id IN (SELECT spec_id FROM _cat)
+      AND EXISTS (SELECT 1 FROM nora_unit.professional_specialties ps WHERE ps.professional_id = x.id AND ps.specialty_id = t.specialty_id)
+), m AS (
+    SELECT sl.day, sl.spec_id,
+           EXISTS (SELECT 1 FROM nora_unit.schedule_blocks b WHERE (b.professional_id IS NULL OR b.professional_id = sl.prof_id) AND b.starts_at < sl.e AND b.ends_at > sl.s) AS blocked,
+           EXISTS (SELECT 1 FROM nora_unit.appointments a WHERE NOT pg_temp.is_demo(a.id) AND a.status IN ('scheduled', 'called', 'completed', 'missed')
+                     AND lower(btrim(a.professional)) = lower(btrim(sl.full_name)) AND a.starts_at < sl.e AND a.ends_at > sl.s)
+        OR EXISTS (SELECT 1 FROM nora_unit.lightning_slots l WHERE NOT pg_temp.is_demo(l.id) AND l.status IN ('open', 'offered')
+                     AND lower(btrim(l.professional)) = lower(btrim(sl.full_name)) AND l.starts_at < sl.e AND l.ends_at > sl.s) AS taken
+    FROM sl
+)
+SELECT day, spec_id, count(*) FILTER (WHERE NOT blocked) AS offered, count(*) FILTER (WHERE NOT blocked AND taken) AS taken
+FROM m GROUP BY day, spec_id;
 
 -- Meta de consultas de cada dia: sazonalidade semanal (segunda cheia, sexta mais vazia), leve crescimento no ano, inverno mais movimentado,
 -- ruído diário e, nos dias futuros, menos agendamentos quanto mais longe.
@@ -88,14 +115,30 @@ DELETE FROM _a1 a USING _a1 b WHERE a.prof_id = b.prof_id AND a.s = b.s AND a.cp
 -- O mesmo paciente não fica em dois lugares ao mesmo tempo (o mais cedo vence), nem em cima de uma consulta real dele.
 DELETE FROM _a1 a USING _a1 b WHERE a.cpf = b.cpf AND (b.s, b.prof_id) < (a.s, a.prof_id) AND b.s < a.e AND b.e > a.s;
 DELETE FROM _a1 a WHERE EXISTS (SELECT 1 FROM nora_unit.appointments x WHERE x.cpf = a.cpf AND NOT pg_temp.is_demo(x.id) AND x.status IN ('scheduled', 'called', 'completed', 'missed') AND x.starts_at < a.e AND x.ends_at > a.s);
+-- Nem em cima de uma consulta fictícia dele que já está gravada em outro horário (repetição depois de a agenda real mudar, ou -Completar).
+-- Sem mudança no banco, toda consulta fictícia gravada tem o mesmo id de uma linha de _a1, então a repetição continua não criando nada.
+DELETE FROM _a1 a WHERE EXISTS (SELECT 1 FROM nora_unit.appointments x WHERE x.cpf = a.cpf AND pg_temp.is_demo(x.id) AND x.status IN ('scheduled', 'called', 'completed', 'missed')
+                                  AND x.id <> pg_temp.did('ap:' || a.prof_id || ':' || extract(epoch FROM a.s)) AND x.starts_at < a.e AND x.ends_at > a.s);
 
 -- Hoje e os próximos dias: a agenda real da simulação precisa de folga. As consultas fictícias, somadas às reais, ficam em no máximo _p.teto da
--- oferta de cada especialidade em cada dia (teto 0,35 = pelo menos 65% dos horários livres; a promessa é 60%).
+-- oferta de cada especialidade em cada dia (teto 0,35 = pelo menos 65% dos horários livres; a promessa é 60%). Entram na conta a oferta de todos os
+-- profissionais da especialidade (_capf) e TODAS as consultas fictícias já gravadas naquele dia: uma consulta nova só entra no espaço que sobra.
+-- As que já estão gravadas continuam em _a1 (o resto do cálculo as enxerga como na execução anterior); a repetição sem mudança não acrescenta nada.
+CREATE TEMP TABLE _a1_novo AS
+SELECT a.prof_id, a.s FROM _a1 a WHERE NOT EXISTS (SELECT 1 FROM nora_unit.appointments x WHERE x.id = pg_temp.did('ap:' || a.prof_id || ':' || extract(epoch FROM a.s)));
+CREATE TEMP TABLE _demo_dia AS
+SELECT (x.starts_at AT TIME ZONE p.zone)::date AS day, x.specialty_id AS spec_id, count(*) AS n
+FROM nora_unit.appointments x CROSS JOIN _p p
+WHERE pg_temp.is_demo(x.id) AND x.status IN ('scheduled', 'called', 'completed', 'missed') AND x.starts_at >= (p.today::timestamp AT TIME ZONE p.zone)
+GROUP BY 1, 2;
 DELETE FROM _a1 a USING (
-    SELECT a2.prof_id, a2.s, row_number() OVER (PARTITION BY a2.day, a2.spec_id ORDER BY pg_temp.u('cap:' || a2.prof_id || ':' || extract(epoch FROM a2.s))) AS rn, c.offered, c.taken
-    FROM _a1 a2 JOIN _cap c ON c.day = a2.day AND c.spec_id = a2.spec_id WHERE a2.day >= (SELECT today FROM _p)
+    SELECT a2.prof_id, a2.s, row_number() OVER (PARTITION BY a2.day, a2.spec_id ORDER BY pg_temp.u('cap:' || a2.prof_id || ':' || extract(epoch FROM a2.s))) AS rn,
+           COALESCE(c.offered, 0) AS offered, COALESCE(c.taken, 0) AS taken, COALESCE(o.n, 0) AS gravadas
+    FROM _a1 a2 JOIN _a1_novo nv ON nv.prof_id = a2.prof_id AND nv.s = a2.s
+    LEFT JOIN _capf c ON c.day = a2.day AND c.spec_id = a2.spec_id LEFT JOIN _demo_dia o ON o.day = a2.day AND o.spec_id = a2.spec_id
+    WHERE a2.day >= (SELECT today FROM _p)
 ) z
-WHERE a.prof_id = z.prof_id AND a.s = z.s AND z.rn > GREATEST(0, floor((SELECT teto FROM _p) * z.offered) - z.taken);
+WHERE a.prof_id = z.prof_id AND a.s = z.s AND z.rn > GREATEST(0, floor((SELECT teto FROM _p) * z.offered) - z.taken - z.gravadas);
 
 -- ---------------------------------------------------------------------------------------------------------------------------------
 -- 6. O que aconteceu com cada consulta (situação, quem marcou, quando, confirmação) e os instantes dos eventos
@@ -174,16 +217,22 @@ CREATE INDEX ON _apt (cpf, s);
 --    (a consulta antiga do aceitante é cancelada com origem 'rescheduled-lightning', que não pesa no score; a nova nasce com booked_by='lightning')
 -- ---------------------------------------------------------------------------------------------------------------------------------
 \echo E|Vaga Relâmpago do histórico
+-- Só nasce Vaga Relâmpago entre consultas que ESTA execução grava: a vaga e a antecipação mudam a situação das duas consultas, e uma consulta que já
+-- está gravada não muda mais (o script não faz UPDATE). Na primeira execução vale para todas; numa repetição, para nenhuma das que já existem.
+CREATE TEMP TABLE _apt_novo AS SELECT a.id FROM _apt a WHERE NOT EXISTS (SELECT 1 FROM nora_unit.appointments x WHERE x.id = a.id);
+CREATE UNIQUE INDEX ON _apt_novo (id);
+
 CREATE TEMP TABLE _lx_x AS
 SELECT a.id, a.cpf, a.spec_id, a.spec_name, a.prof_id, a.prof_name, a.room_id, a.s, a.e, a.cancel_ts, a.cancel_ts + interval '20 seconds' AS slot_ts
 FROM _apt a CROSS JOIN _p p
-WHERE a.outcome = 'cancelled_p' AND a.day < p.today AND a.lead_h >= 1.0 AND pg_temp.u('lx:' || a.id) < p.lightning_rate;
+WHERE a.outcome = 'cancelled_p' AND a.day < p.today AND a.lead_h >= 1.0 AND pg_temp.u('lx:' || a.id) < p.lightning_rate
+  AND a.id IN (SELECT id FROM _apt_novo);
 
 CREATE TEMP TABLE _lx_c AS
 SELECT x.id AS x_id, y.id AS y_id, y.cpf AS y_cpf, pg_temp.u('ly:' || x.id || ':' || y.id) AS h
 FROM _lx_x x
 JOIN _apt y ON y.spec_id = x.spec_id AND y.cpf <> x.cpf AND y.outcome = 'completed' AND y.s >= x.s + interval '2 hours' AND y.s <= x.s + interval '21 days'
-           AND y.created_at < x.cancel_ts - interval '5 minutes' AND y.day < (SELECT today FROM _p)
+           AND y.created_at < x.cancel_ts - interval '5 minutes' AND y.day < (SELECT today FROM _p) AND y.id IN (SELECT id FROM _apt_novo)
 WHERE NOT EXISTS (SELECT 1 FROM _apt z WHERE z.cpf = y.cpf AND z.id <> y.id AND z.outcome IN ('completed', 'missed', 'scheduled', 'called') AND z.s < x.e AND z.e > x.s);
 
 -- Quem aceitou: uma consulta por vaga e uma vaga por consulta (cerca de 80% das vagas acham quem aceite).
@@ -240,7 +289,8 @@ SELECT x.id AS x_id, x.cpf AS x_cpf, x.spec_id, y.id AS y_id, y.cpf AS y_cpf, pg
 FROM _apt x CROSS JOIN _p p
 JOIN _apt y ON y.spec_id = x.spec_id AND y.cpf <> x.cpf AND y.outcome = 'scheduled' AND y.s >= x.s + interval '3 hours'
 WHERE p.live AND x.outcome = 'scheduled' AND x.day > p.today AND x.day <= p.today + 3
-  AND x.cpf NOT IN (SELECT cpf FROM _pat WHERE app) AND y.cpf NOT IN (SELECT cpf FROM _pat WHERE app);
+  AND x.cpf NOT IN (SELECT cpf FROM _pat WHERE app) AND y.cpf NOT IN (SELECT cpf FROM _pat WHERE app)
+  AND x.id IN (SELECT id FROM _apt_novo) AND y.id IN (SELECT id FROM _apt_novo);
 CREATE TEMP TABLE _lv AS
 WITH k1 AS (SELECT * FROM _lv_pares ORDER BY h LIMIT 1),
 k2 AS (SELECT q.* FROM _lv_pares q, k1 WHERE q.spec_id <> k1.spec_id AND q.x_cpf NOT IN (k1.x_cpf, k1.y_cpf) AND q.y_cpf NOT IN (k1.x_cpf, k1.y_cpf)

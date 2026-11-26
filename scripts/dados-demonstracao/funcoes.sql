@@ -23,6 +23,30 @@ $$ SELECT table_schema || '.' || table_name,
 CREATE OR REPLACE FUNCTION pg_temp.demo_actor() RETURNS uuid LANGUAGE sql IMMUTABLE AS
 $$ SELECT 'de0de0de-0000-4000-8000-000000000001'::uuid $$;
 
+-- Horário de atendimento que o script grava numa UBS que ainda não informou nenhum (o -Remover só o desfaz se continuar exatamente este).
+CREATE OR REPLACE FUNCTION pg_temp.horario_demo() RETURNS TABLE(weekday int, opens_at time, closes_at time) LANGUAGE sql IMMUTABLE AS
+$$ SELECT d, a::time, f::time FROM (VALUES (1, '07:00', '12:00'), (1, '13:00', '17:00'), (2, '07:00', '12:00'), (2, '13:00', '17:00'), (3, '07:00', '12:00'), (3, '13:00', '17:00'),
+                                         (4, '07:00', '12:00'), (4, '13:00', '17:00'), (5, '07:00', '12:00'), (5, '13:00', '16:00'), (6, '08:00', '12:00')) h(d, a, f) $$;
+
+-- Ligações reais com UBS fictícias extras, no banco central: toda linha de qualquer tabela que aponte para a UBS e que o -Remover NÃO apaga
+-- (o registro da própria criação, o índice de CPFs fictícios, os registros de leitura e as metas, a Família e os comunicados fictícios).
+-- Uma UBS fictícia com ligação real (acesso dado a alguém da equipe, paciente vinculado, comunicado real, aparelho do OBS...) é mantida.
+CREATE OR REPLACE FUNCTION pg_temp.ligacoes_reais(ids uuid[]) RETURNS TABLE(unit_id uuid, tabela text, n bigint) LANGUAGE plpgsql AS
+$$
+DECLARE r record; filtro text;
+BEGIN
+    FOR r IN SELECT c.conrelid::regclass::text AS t, a.attname::text AS col
+             FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+             WHERE c.contype = 'f' AND c.confrelid = 'nora.health_units'::regclass AND array_length(c.conkey, 1) = 1
+             ORDER BY 1, 2 LOOP
+        CONTINUE WHEN r.t IN ('nora.unit_database_events', 'nora.unit_registry_index', 'nora.unit_access_events');
+        filtro := CASE r.t WHEN 'nora.goals' THEN ' AND NOT pg_temp.is_demo(id)' WHEN 'nora.family_links' THEN ' AND NOT pg_temp.is_demo(id)'
+                           WHEN 'nora.announcement_units' THEN ' AND NOT pg_temp.is_demo(announcement_id)' ELSE '' END;
+        RETURN QUERY EXECUTE format('SELECT %I, %L::text, count(*) FROM %s WHERE %I = ANY($1)%s GROUP BY 1', r.col, r.t, r.t, r.col, filtro) USING ids;
+    END LOOP;
+END
+$$;
+
 -- Fecha uma execução: confere que nenhuma tabela perdeu linhas (compara com _antes, criada no começo). Quem lê o resultado
 -- é o PowerShell, pelas linhas "T|tabela|antes|depois" do SELECT que vem depois (ver ubs.sql). Se alguma tabela perdeu linhas,
 -- a transação inteira é desfeita. As tabelas listadas em permitir_perda são as que o -Remover apaga de propósito.

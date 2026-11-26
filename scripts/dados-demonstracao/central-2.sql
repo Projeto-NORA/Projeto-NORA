@@ -66,9 +66,7 @@ CREATE TEMP TABLE _preencher AS
 SELECT u.id FROM nora.health_units u JOIN _c c ON c.unit_id = u.id
 WHERE u.profile_updated_at IS NULL AND u.services_text IS NULL AND NOT EXISTS (SELECT 1 FROM nora.unit_opening_hours h WHERE h.unit_id = u.id);
 INSERT INTO nora.unit_opening_hours(unit_id, weekday, opens_at, closes_at)
-SELECT p.id, h.d, h.a::time, h.f::time FROM _preencher p
-CROSS JOIN (VALUES (1, '07:00', '12:00'), (1, '13:00', '17:00'), (2, '07:00', '12:00'), (2, '13:00', '17:00'), (3, '07:00', '12:00'), (3, '13:00', '17:00'),
-                   (4, '07:00', '12:00'), (4, '13:00', '17:00'), (5, '07:00', '12:00'), (5, '13:00', '16:00'), (6, '08:00', '12:00')) h(d, a, f) ON CONFLICT DO NOTHING;
+SELECT p.id, h.weekday, h.opens_at, h.closes_at FROM _preencher p CROSS JOIN pg_temp.horario_demo() h ON CONFLICT DO NOTHING;
 UPDATE nora.health_units u SET services_text = c.servicos, profile_updated_at = c.now_ts
 FROM _c c WHERE u.id IN (SELECT id FROM _preencher) AND u.id = c.unit_id AND u.profile_updated_at IS NULL AND u.services_text IS NULL;
 
