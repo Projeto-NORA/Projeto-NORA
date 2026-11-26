@@ -2,8 +2,12 @@ using System.Windows.Controls;
 
 namespace Nora.Desktop.Views;
 
-/// <summary>Tabela "Desempenho por unidade" (byUnit), ordenável por qualquer coluna.</summary>
+/// <summary>Desempenho de cada UBS no período (Secretaria): tabela de números com a pesquisa do cabeçalho.</summary>
 public partial class NetworkUnitsPerformanceView : UserControl
 {
-    public NetworkUnitsPerformanceView() => InitializeComponent();
+    public NetworkUnitsPerformanceView()
+    {
+        InitializeComponent();
+        new NetworkSearchBinding(this, SearchEmpty).Watch(UnitsGrid, "Name,Region");
+    }
 }

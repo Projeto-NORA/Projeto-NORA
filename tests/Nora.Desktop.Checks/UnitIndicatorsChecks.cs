@@ -61,7 +61,7 @@ internal static partial class Program
                 period.SelectedValue = 0; Settle(vm);
                 Require(fixture.UnitMetricsQueries.Count == count && vm.IsUnitCustomPeriod, "Escolher 'Personalizado' não deveria consultar.");
                 content = Layout(window, 1280, 900);
-                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2026", "03/01/2027", "no máximo 366 dias"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
+                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2000", "01/01/2021", "no máximo 20 anos"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
                 foreach (var (from, to, fragment) in invalid)
                 {
                     Input(content, "Data inicial do período da UBS").Text = from; Input(content, "Data final do período da UBS").Text = to;
@@ -71,7 +71,7 @@ internal static partial class Program
                 Input(content, "Data inicial do período da UBS").Text = "01/10/2026"; Input(content, "Data final do período da UBS").Text = "31/10/2026";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado", 31);
                 Require(vm.UnitRangeError == "" && vm.UnitMetricsScopeLabel.StartsWith("Números de 01/10/2026 a 31/10/2026", StringComparison.Ordinal), "O período personalizado não foi aplicado com fim inclusivo: " + vm.UnitMetricsScopeLabel);
-                // Intervalo máximo de 366 dias é aceito.
+                // Um intervalo de 366 dias continua aceito (o limite agora é de 20 anos).
                 Input(content, "Data inicial do período da UBS").Text = "01/01/2026"; Input(content, "Data final do período da UBS").Text = "01/01/2027";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado de 366 dias", 366);
             }

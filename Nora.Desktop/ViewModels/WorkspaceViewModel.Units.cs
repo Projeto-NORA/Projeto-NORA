@@ -104,7 +104,7 @@ public sealed partial class WorkspaceViewModel
     public Task LoadMunicipalAppointmentsAsync() => RunAsync(async () =>
     {
         if (!IsMunicipal || !IsAuthenticated || SelectedUnit is not { } unit) throw new NoraApiException("Selecione uma UBS para consultar a agenda.");
-        var error = ValidateDateRange(UnitAgendaFromText, UnitAgendaToText, out var from, out var to);
+        var error = ValidateDateRange(UnitAgendaFromText, UnitAgendaToText, out var from, out var to, MaxListRangeDays);
         UnitAgendaRangeError = error;
         if (error.Length > 0) return;
         // Datas inclusivas: o fim vai até a meia-noite seguinte; a API aceita no máximo 366 dias.

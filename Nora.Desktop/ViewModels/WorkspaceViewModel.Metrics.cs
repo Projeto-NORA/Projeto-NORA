@@ -17,7 +17,8 @@ public sealed record MetricsRequest(DateTimeOffset From, DateTimeOffset To, Guid
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
-    private const int MaxRangeDays = 366;
+    /// <summary>Limite do período personalizado e do período "Máximo": 20 anos (7.305 dias), o mesmo da API.</summary>
+    private const int MaxRangeDays = 7305;
     private int metricsPeriodDays = 30;
     private string metricsFromText = "", metricsToText = "", metricsRangeError = "", metricsRegion = "", metricsSpecialty = "";
     private (DateTime From, DateTime To)? appliedCustomRange;
@@ -28,8 +29,9 @@ public sealed partial class WorkspaceViewModel
     private CancellationTokenSource? networkCts;
     private readonly SortedSet<string> knownSpecialties = new(StringComparer.CurrentCultureIgnoreCase);
 
+    /// <summary>Períodos do cabeçalho: janelas que terminam hoje (dia, semana, mês, ano, 5 anos e o máximo de 20 anos) e, por último, o intervalo personalizado (0).</summary>
     public static IReadOnlyList<PeriodOption> PeriodOptions { get; } =
-        [new(7, "Últimos 7 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias"), new(0, "Personalizado")];
+        [new(1, "Dia"), new(7, "Semana"), new(30, "Mês"), new(365, "Ano"), new(1826, "5 anos"), new(MaxRangeDays, "Máximo"), new(0, "Personalizado")];
     public ObservableCollection<FilterOption> RegionOptions { get; } = [new("", "Todas as regiões")];
     public ObservableCollection<FilterOption> SpecialtyOptions { get; } = [new("", "Todas as especialidades")];
     public ObservableCollection<MetricCard> OverviewCards { get; } = [];
@@ -53,12 +55,18 @@ public sealed partial class WorkspaceViewModel
                 metricsToText = DisplayFormat.Date(DateOnly.FromDateTime(last.To.LocalDateTime.AddDays(-1)));
                 Notify(nameof(MetricsFromText)); Notify(nameof(MetricsToText));
             }
-            Notify(); Notify(nameof(IsCustomPeriod));
+            Notify(); Notify(nameof(IsCustomPeriod)); Notify(nameof(PeriodSummaryTitle));
             // Personalizado só consulta ao aplicar as datas; os períodos prontos consultam na hora.
             if (value != 0) ReloadNetwork(includeSummary: false);
         }
     }
     public bool IsCustomPeriod => metricsPeriodDays == 0;
+    /// <summary>Título do bloco dos números do período; acompanha a janela escolhida ("Resumo da semana", "Resumo do mês"…).</summary>
+    public string PeriodSummaryTitle => metricsPeriodDays switch
+    {
+        1 => "Resumo do dia", 7 => "Resumo da semana", 30 => "Resumo do mês", 365 => "Resumo do ano", 1826 => "Resumo dos últimos 5 anos",
+        MaxRangeDays => "Resumo de todo o período", 0 => "Resumo do período personalizado", _ => "Resumo do período"
+    };
     public string MetricsFromText { get => metricsFromText; set { metricsFromText = value ?? ""; Notify(); ClearRangeError(); } }
     public string MetricsToText { get => metricsToText; set { metricsToText = value ?? ""; Notify(); ClearRangeError(); } }
     public string MetricsRangeError { get => metricsRangeError; private set { if (metricsRangeError == value) return; metricsRangeError = value; Notify(); Notify(nameof(HasMetricsRangeError)); } }
@@ -102,7 +110,7 @@ public sealed partial class WorkspaceViewModel
     private static readonly string[] MetricsNames =
     [
         nameof(MetricsScopeLabel), nameof(HasMetrics), nameof(MetricsStateText), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice),
-        nameof(ChartDays), nameof(ChartState), nameof(HasChartData)
+        nameof(ChartDays), nameof(ChartState), nameof(HasChartData), nameof(NetworkChartsState)
     ];
     private void NotifyMetrics() { foreach (var name in MetricsNames) Notify(name); }
 
@@ -117,13 +125,19 @@ public sealed partial class WorkspaceViewModel
         ReloadNetwork(includeSummary: false);
     }
 
-    /// <summary>Datas inicial e final (inclusivas) em dd/mm/aaaa: início ≤ fim e no máximo 366 dias.</summary>
-    internal static string ValidateDateRange(string fromText, string toText, out DateTime from, out DateTime to)
+    /// <summary>Datas inicial e final (inclusivas) em dd/mm/aaaa: início ≤ fim e no máximo 20 anos (7.305 dias).</summary>
+    internal static string ValidateDateRange(string fromText, string toText, out DateTime from, out DateTime to) => ValidateDateRange(fromText, toText, out from, out to, MaxRangeDays);
+
+    /// <summary>Limite das listas de consultas e de bloqueios da API: continua em 366 dias (só os indicadores aceitam 20 anos).</summary>
+    internal const int MaxListRangeDays = 366;
+
+    /// <summary>Mesma validação com um limite de dias próprio (a lista de consultas de uma UBS usa <see cref="MaxListRangeDays"/>).</summary>
+    internal static string ValidateDateRange(string fromText, string toText, out DateTime from, out DateTime to, int maxDays)
     {
         to = default;
         if (!DisplayFormat.TryParseDate(fromText, out from) || !DisplayFormat.TryParseDate(toText, out to)) return "Informe as duas datas no formato dd/mm/aaaa.";
         if (from > to) return "A data inicial não pode ser posterior à data final.";
-        if ((to - from).TotalDays + 1 > MaxRangeDays) return "O período pode ter no máximo 366 dias.";
+        if ((to - from).TotalDays + 1 > maxDays) return maxDays == MaxRangeDays ? "O período pode ter no máximo 20 anos (7.305 dias)." : $"O período pode ter no máximo {maxDays} dias.";
         return "";
     }
 
@@ -137,7 +151,11 @@ public sealed partial class WorkspaceViewModel
             start = range.From; endExclusive = range.To.AddDays(1);
         }
         else { endExclusive = DateTime.Today.AddDays(1); start = endExclusive.AddDays(-metricsPeriodDays); }
-        request = new(new DateTimeOffset(start), new DateTimeOffset(endExclusive), summaryUnitFilter == Guid.Empty ? null : summaryUnitFilter, metricsRegion, metricsSpecialty, metricsPeriodDays);
+        var from = new DateTimeOffset(start); var to = new DateTimeOffset(endExclusive);
+        // A API mede a janela em tempo absoluto: uma janela de 20 anos que atravessa um horário de verão antigo ganharia 1 h e passaria do limite.
+        var longest = TimeSpan.FromDays(MaxRangeDays);
+        if (to - from > longest) from = to - longest;
+        request = new(from, to, summaryUnitFilter == Guid.Empty ? null : summaryUnitFilter, metricsRegion, metricsSpecialty, metricsPeriodDays);
         return true;
     }
 
@@ -176,7 +194,7 @@ public sealed partial class WorkspaceViewModel
         }
     }
 
-    private void NotifyLoading() { Notify(nameof(IsBusy)); Notify(nameof(ShowProgress)); Notify(nameof(MetricsLoading)); Notify(nameof(MetricsLoadingLabel)); Notify(nameof(MetricsStateText)); }
+    private void NotifyLoading() { Notify(nameof(IsBusy)); Notify(nameof(ShowProgress)); Notify(nameof(MetricsLoading)); Notify(nameof(MetricsLoadingLabel)); Notify(nameof(MetricsStateText)); Notify(nameof(NetworkChartsState)); }
 
     /// <summary>Falha de uma consulta pedida por filtro: sempre aparece na faixa comum e marca os números anteriores como desatualizados.</summary>
     private void ReportNetworkFailure(NoraApiException error)
@@ -210,6 +228,7 @@ public sealed partial class WorkspaceViewModel
         Replace(SpecialtyPerformance, result.BySpecialty.Select(item => new PerformanceRow(item.Specialty, "", item.AttendanceScore, item.Completed, item.Missed, item.Cancelled, item.ActiveEntries, item.AverageWaitMinutes)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         var sparse = SparseDays(result.Daily);
         NetworkChart.Apply(BuildChartDays(sparse, request.From, request.To), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
+        RebuildNetworkCharts();
         if (request.Specialty.Length == 0) CollectSpecialties(result);
         ApplyNetworkScheduling(result);
         NotifyMetrics();
@@ -240,15 +259,15 @@ public sealed partial class WorkspaceViewModel
         static string Number(long? value) => value is { } number ? DisplayFormat.Count(number) : "—";
         return
         [
-            new("Consultas concluídas", Number(appointments?.Completed), "Consultas com data marcada no período"),
-            new("Faltas", Number(appointments?.Missed), "Consultas registradas como falta"),
-            new("Cancelamentos", Number(appointments?.Cancelled), appointments is null ? "Aguardando os indicadores" : appointments.CancelledByPatient == 1 ? "1 feito pelo paciente" : $"{DisplayFormat.Count(appointments.CancelledByPatient)} feitos pelo paciente"),
+            new("Consultas concluídas", Number(appointments?.Completed), "Consultas com data marcada no período", Tone.Green),
+            new("Faltas", Number(appointments?.Missed), "Consultas registradas como falta", Tone.Pink),
+            new("Cancelamentos", Number(appointments?.Cancelled), appointments is null ? "Aguardando os indicadores" : appointments.CancelledByPatient == 1 ? "1 feito pelo paciente" : $"{DisplayFormat.Count(appointments.CancelledByPatient)} feitos pelo paciente", Tone.Yellow),
             new("Comparecimento", appointments is null ? "—" : DisplayFormat.Percent(appointments.AttendanceScore),
-                appointments is null ? "Aguardando os indicadores" : appointments.AttendanceScore is null ? "Sem consulta encerrada no período para calcular." : "Concluídas ÷ (concluídas + faltas + cancelamentos do paciente ponderados)"),
+                appointments is null ? "Aguardando os indicadores" : appointments.AttendanceScore is null ? "Sem consulta encerrada no período para calcular." : "Concluídas ÷ (concluídas + faltas + cancelamentos do paciente ponderados)", Tone.Blue),
             new("Espera média da fila", waiting is null ? "—" : DisplayFormat.Wait(waiting.AverageWaitMinutes),
-                waiting is null ? "Aguardando os indicadores" : waiting.AverageWaitMinutes is null ? "Nenhuma entrada saiu da fila por oferta aceita no período." : "Da entrada na fila até a oferta aceita"),
+                waiting is null ? "Aguardando os indicadores" : waiting.AverageWaitMinutes is null ? "Nenhuma entrada saiu da fila por oferta aceita no período." : "Da entrada na fila até a oferta aceita", Tone.Violet),
             new("Maior espera atual", waiting is null ? "—" : DisplayFormat.Wait(waiting.LongestActiveWaitMinutes),
-                waiting is null ? "Aguardando os indicadores" : waiting.LongestActiveWaitMinutes is null ? "Nenhuma entrada ativa na fila agora." : "Maior espera entre as entradas ativas agora")
+                waiting is null ? "Aguardando os indicadores" : waiting.LongestActiveWaitMinutes is null ? "Nenhuma entrada ativa na fila agora." : "Maior espera entre as entradas ativas agora", Tone.Violet)
         ];
     }
 
@@ -256,14 +275,14 @@ public sealed partial class WorkspaceViewModel
     {
         Interlocked.Exchange(ref networkCts, null)?.Cancel();
         networkVersion++;
-        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; NetworkChart.Clear("Sem indicadores carregados.");
+        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; NetworkChart.Clear("Sem indicadores carregados."); networkSearch = "";
         metricsPeriodDays = 30; metricsRegion = ""; metricsSpecialty = ""; metricsFromText = ""; metricsToText = ""; metricsRangeError = "";
         knownSpecialties.Clear();
         Replace(OverviewCards, BuildOverviewCards()); Replace(UnitPerformance, Array.Empty<PerformanceRow>()); Replace(RegionPerformance, Array.Empty<PerformanceRow>());
         Replace(SpecialtyPerformance, Array.Empty<PerformanceRow>());
         Replace(SpecialtyOptions, new[] { new FilterOption("", "Todas as especialidades") });
-        ClearNetworkScheduling();
-        foreach (var name in new[] { nameof(MetricsPeriodDays), nameof(IsCustomPeriod), nameof(MetricsRegion), nameof(MetricsSpecialty), nameof(MetricsFromText), nameof(MetricsToText), nameof(MetricsRangeError), nameof(HasMetricsRangeError), nameof(CanFilterNetwork) }) Notify(name);
+        ClearNetworkScheduling(); RebuildNetworkCharts();
+        foreach (var name in new[] { nameof(NetworkSearch), nameof(MetricsPeriodDays), nameof(IsCustomPeriod), nameof(PeriodSummaryTitle), nameof(MetricsRegion), nameof(MetricsSpecialty), nameof(MetricsFromText), nameof(MetricsToText), nameof(MetricsRangeError), nameof(HasMetricsRangeError), nameof(CanFilterNetwork) }) Notify(name);
         NotifyMetrics();
     }
 }

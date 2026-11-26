@@ -92,7 +92,8 @@ internal static partial class Program
                 Require(fixture.Goals.Any(goal => goal.Metric == GoalMetric.AverageWait && goal.UnitId == alfa.Id && goal.Target == 60m) && vm.GoalUnitRows.Single(row => row.Name == "UBS Alfa").Wait is { Status: "off" } && vm.GoalUnitRows.Single(row => row.Name == "UBS Beta").Wait.Status == "met", "A meta própria da UBS deveria valer só nela.");
                 content = Layout(window, 1280, 3000);
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-metas-light.png"), 1280, 900);
-                var remove = Descendants<Button>(content).Single(button => AutomationProperties.GetName(button) == "Remover meta de Espera média da fila"); Require(remove.IsEnabled, "Remover deveria estar habilitado com meta gravada.");
+                var goalList = Descendants<ListBox>(content).Single(list => AutomationProperties.GetName(list) == "Metas editáveis"); goalList.SelectedItem = Editor(GoalMetric.AverageWait); content = Layout(window, 1280, 3000);
+                var remove = Descendants<Button>(content).Single(button => button.IsVisible && AutomationProperties.GetName(button) == "Remover meta"); Require(remove.IsEnabled, "Remover (a lixeira do balão) deveria estar disponível com meta gravada.");
                 InvokeButton(remove); Settle(vm);
                 Require(asked.Contains("Remover meta") && !fixture.Goals.Any(goal => goal.UnitId == alfa.Id) && vm.GoalUnitRows.Single(row => row.Name == "UBS Alfa").Wait.Status == "met" && fixture.Count("DELETE", "/goals/average_wait_minutes") == 1, "Remover a sobrescrita deveria pedir confirmação e voltar à meta da rede.");
                 vm.GoalScope = Guid.Empty;
@@ -151,10 +152,11 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "alerts", 1280, 1700);
                 Require(fixture.NetworkAlertQueries.Count == 2 && vm.NetworkAlerts.Count == 3 && fixture.NetworkAlertQueries[^1]["unitId"] is null && fixture.NetworkAlertQueries[^1]["region"] is null, "O login deve avaliar o aviso e abrir Alertas deve ler a lista da rede.");
-                var grid = GridNamed(content, "Alertas da rede");
-                Require(grid.Columns.Select(column => column.Header?.ToString()).SequenceEqual(["UBS", "Tipo", "Especialidade", "Valor", "Limite", "Desde"]), "Colunas da tabela de alertas divergem do esperado.");
-                var cells = VisibleTexts(grid);
-                Require(new[] { "UBS Alfa", "UBS Beta", "Fila alta", "Espera longa", "Ocupação da grade acima do limite", "Cardiologia", "23 pessoas", "20 pessoas", "45 dias", "97,0%", "95,0%" }.All(cells.Contains), "A tabela não mostra tipo, valor e limite de cada alerta: " + string.Join(" | ", cells));
+                var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Alertas da rede");
+                Require(list.Items.Count == 3 && list.Items.Cast<NetworkAlertEntry>().All(row => row.MetaLine.StartsWith(row.UnitName, StringComparison.Ordinal)), "A lista de alertas deveria ter uma linha por alerta, com a UBS na linha de dados.");
+                var cells = VisibleTexts(list);
+                Require(new[] { "Fila alta | Cardiologia", "Espera longa | Pediatria", "Ocupação da grade acima do limite", "UBS Alfa | 23 pessoas | limite 20 pessoas", "Fila", "Espera", "Ocupação" }.All(cells.Contains) && cells.Any(text => text.StartsWith("UBS Alfa | 45 dias | limite 30 dias | desde ", StringComparison.Ordinal)) && cells.Any(text => text == "UBS Beta | 97,0% | limite 95,0%"), "A lista não mostra tipo, especialidade, valor e limite de cada alerta: " + string.Join(" | ", cells));
+                Require(!Descendants<DataGrid>(content).Any(grid => grid.IsVisible) && !Descendants<Button>(content).Any(button => button.IsVisible && (button.Content?.ToString() ?? "").StartsWith("Atualizar", StringComparison.Ordinal)), "Alertas é uma listagem aberta, sem tabela e sem botão de atualizar.");
                 Require(!FullTexts(content).Any(text => text.Contains("Nenhum alerta é avaliado ainda", StringComparison.Ordinal)), "Sobrou o texto antigo de critérios.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-alertas-light.png"), 1280, 900);
                 var reads = fixture.NetworkAlertQueries.Count;

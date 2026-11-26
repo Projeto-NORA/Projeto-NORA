@@ -259,9 +259,9 @@ internal static partial class Program
                     var content = Layout(window, 980, 640);
                     if (profile.IsMunicipal)
                     {
-                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Panorama da Secretaria não renderizou.");
+                        Require(Descendants<TextBlock>(content).Any(text => text.Text == "Rede agora") && !Descendants<TextBlock>(content).Any(text => text.Text == "Panorama da rede"), "Os totais de agora da Secretaria não renderizaram (e o título repetido saiu).");
                         Require(Descendants<TextBlock>(content).Any(text => text.Text == "Pacientes cadastrados"), "Total de pacientes cadastrados não apareceu na Visão geral.");
-                        // A Visão geral tem apenas o seletor de UBS; os demais filtros ficam em Indicadores.
+                        // A Visão geral tem os filtros da rede no botão Filtros (UBS, região e especialidade); o período fica em linha no cabeçalho.
                         var filters = OpenPageFilters(window);
                         var unitFilter = Descendants<ComboBox>(filters).Single(box => AutomationProperties.GetName(box) == "Filtrar por UBS");
                         Require(unitFilter.IsEnabled, "O filtro de UBS da Visão geral deveria estar habilitado.");
@@ -304,7 +304,7 @@ internal static partial class Program
                     Require(Descendants<Button>(mapContent).Any(button => button.Content?.ToString() == "Mostrar no mapa"), "Mapa não oferece localização da UBS.");
                     window.ViewModel.Navigate("reports");
                     var reportContent = Layout(window, 980, 640);
-                    Require(Descendants<Button>(reportContent).Single(button => button.Content?.ToString() == "Exportar resumo em CSV").IsEnabled, "Exportação não foi habilitada após o carregamento.");
+                    Require(Descendants<Button>(reportContent).Single(button => AutomationProperties.GetName(button) == "Exportar resumo em CSV").IsEnabled, "Exportação não foi habilitada após o carregamento.");
                     var legacyCsv = Nora.Desktop.Services.MunicipalCsv.Create(new MunicipalSummary(1, 1, 1, 0), DateTimeOffset.Now);
                     Require(legacyCsv.Contains("Ofertas criadas;Indisponível;"), "API antiga apresentou dados ausentes como zero.");
                 }
@@ -331,6 +331,7 @@ internal static partial class Program
         RunMessageChecks(application, storageRoot, args);
         RunSecretariaChecks(application, storageRoot, args);
         RunSecretariaMetricsChecks(application, storageRoot, args);
+        RunMunicipalPanelsChecks(application, storageRoot, args);
         RunPasswordChecks(application, storageRoot, args);
         RunSecretariaCycleChecks(application, storageRoot, args);
         RunPatientInterfaceChecks(application, storageRoot, args);

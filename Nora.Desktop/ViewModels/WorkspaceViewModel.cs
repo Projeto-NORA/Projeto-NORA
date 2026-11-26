@@ -81,7 +81,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         SelectAgendaWeekCommand = new RelayCommand(_ => AgendaViewMode = "Semana");
         SelectCalendarDayCommand = new RelayCommand(day => SelectCalendarDay(day as AgendaCalendarDay));
         BuildAgendaDays(); ResetAgendaRange();
-        Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
+        Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards()); Replace(NetworkLightningCards, BuildNetworkLightningCards());
         Replace(UnitOverviewCards, BuildCards(null, null)); Replace(UnitLightningCards, BuildLightningCards(null));
         Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(NetworkCapacityCards, BuildCapacityCards(null, ""));
     }
@@ -194,10 +194,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public System.Collections.ObjectModel.ObservableCollection<MetricCard> SummaryCards { get; } = [];
     private MetricCard[] BuildSummaryCards() =>
     [
-        new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo em alguma UBS (CPF contado uma vez)"),
-        new("Desativados", InactiveCount, "Pessoas que só têm cadastro desativado"),
-        new("Vagas abertas", SlotCount, "Vagas abertas ou ofertadas agora"),
-        new("Ofertas aceitas", AcceptedCount, "Total histórico; não confirma o atendimento")
+        new("Pacientes cadastrados", PatientCount, "Pessoas com cadastro ativo em alguma UBS (CPF contado uma vez)", Tone.Blue),
+        new("Desativados", InactiveCount, "Pessoas que só têm cadastro desativado", Tone.Neutral),
+        new("Vagas abertas", SlotCount, "Vagas abertas ou ofertadas agora", Tone.Teal),
+        new("Ofertas aceitas", AcceptedCount, "Total histórico; não confirma o atendimento", Tone.Green)
     ];
     public string SlotCount => summary?.OpenSlots.ToString() ?? "—";
     public string AcceptedCount => summary?.AcceptedOffers.ToString() ?? "—";
@@ -233,7 +233,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         [nameof(CanFilterLightning), nameof(LightningOpen), nameof(LightningAccepted), nameof(LightningRegistered), nameof(LightningCreated), nameof(LightningDeclined), nameof(LightningExpired), nameof(LightningPending), nameof(LightningCancelled)];
     private static readonly string[] SummaryNames =
         [nameof(PatientCount), nameof(InactiveCount), nameof(AppliedSummaryUnitLabel), nameof(SummaryExportNote), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice), nameof(SlotCount), nameof(AcceptedCount), nameof(RegisteredSlotsCount), nameof(CreatedOffersCount), nameof(DeclinedOffersCount), nameof(ExpiredOffersCount), nameof(PendingOffersCount), nameof(CancelledOffersCount), nameof(CanExportSummary), nameof(SummaryReceivedLabel)];
-    private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); }
+    private void NotifyLightning() { foreach (var name in LightningNames) Notify(name); Replace(NetworkLightningCards, BuildNetworkLightningCards()); }
     public bool CanExportSummary => IsAuthenticated && summary != null;
     public string SummaryReceivedLabel => summaryReceivedAt is { } time ? $"Recebido em {time.ToLocalTime():dd/MM/yyyy HH:mm:ss}" : "Nenhum resumo carregado";
     public string CreateSummaryCsv()
@@ -246,6 +246,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         NotifyLightning();
         foreach (var name in SummaryNames) Notify(name);
         Replace(SummaryCards, BuildSummaryCards());
+        RebuildNetworkCharts();
     }
     public ICommand RefreshCommand { get; }
     public ICommand LogoutCommand { get; }

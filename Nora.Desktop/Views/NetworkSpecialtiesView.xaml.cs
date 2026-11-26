@@ -2,8 +2,12 @@ using System.Windows.Controls;
 
 namespace Nora.Desktop.Views;
 
-/// <summary>Tabela por especialidade (bySpecialty) com os mesmos números da tabela por unidade.</summary>
+/// <summary>Demanda por especialidade no período (Secretaria): tabela de números com a pesquisa do cabeçalho.</summary>
 public partial class NetworkSpecialtiesView : UserControl
 {
-    public NetworkSpecialtiesView() => InitializeComponent();
+    public NetworkSpecialtiesView()
+    {
+        InitializeComponent();
+        new NetworkSearchBinding(this, SearchEmpty).Watch(SpecialtiesGrid, "Name");
+    }
 }
