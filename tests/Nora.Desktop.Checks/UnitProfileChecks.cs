@@ -116,7 +116,7 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "unit-settings:profile", 1280, 900);
                 var tuesday = vm.OpeningDays[2]; var wednesday = vm.OpeningDays[3];
-                Require(tuesday.IsOpen && tuesday.Opens == "07:00" && tuesday.Closes == "17:30" && tuesday.GapNotice.Contains("intervalo do meio é desconsiderado", StringComparison.Ordinal) && wednesday.GapNotice == "" && vm.ProfileNotInformedNotice == "", "O dia com dois intervalos deveria mostrar o primeiro início e o último fim e avisar do meio: " + tuesday.GapNotice);
+                Require(tuesday.IsOpen && tuesday.Opens == "07:00" && tuesday.Closes == "17:30" && tuesday.GapNotice.Contains("intervalo do meio será desconsiderado", StringComparison.Ordinal) && wednesday.GapNotice == "" && vm.ProfileNotInformedNotice == "", "O dia com dois intervalos deveria mostrar o primeiro início e o último fim e avisar do meio: " + tuesday.GapNotice);
                 Require(FullTexts(content).Contains(tuesday.GapNotice) && !FullTexts(content).Contains(wednesday.Label + ": gap"), "O aviso discreto deveria aparecer na linha do dia.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-atendimento-intervalo-do-meio-light.png"), 1280, 900);
                 tuesday.IsClosed = true; Require(tuesday.GapNotice == "", "Dia fechado não mostra o aviso do meio."); tuesday.IsClosed = false;

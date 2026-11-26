@@ -67,8 +67,32 @@ public partial class UnitSettingsView : UserControl
     /// <summary>Mensagem do pop-up quando o motivo da recusa já aparece escrito junto dos campos (o aviso do 409 ou o erro do campo): a barra do pop-up não repete o texto.</summary>
     private const string FieldsHighlighted = "Corrija o que está destacado e salve de novo.";
 
-    private void ShowForm(WorkspaceViewModel vm, string title, string template, Func<Task<bool>> save, string primary, Func<string?>? error = null) =>
-        DialogService.ShowForm(Window.GetWindow(this), title, new ContentControl { Content = vm, ContentTemplate = (DataTemplate)Resources[template], Focusable = false }, save, primary, error: error ?? (() => vm.FormError));
+    /// <summary>
+    /// Abre o pop-up de cadastro. Como a ficha, ele fecha sozinho se a sessão termina (o ciclo de 20 s ou o próprio salvar recebeu 401) ou se a UBS ativa muda: o rascunho era daquela
+    /// sessão e daquela UBS. Durante um salvamento o pop-up não fecha; nesse caso o fechamento espera o salvamento terminar.
+    /// </summary>
+    private void ShowForm(WorkspaceViewModel vm, string title, string template, Func<Task<bool>> save, string primary, Func<string?> error)
+    {
+        var owner = Window.GetWindow(this);
+        var form = new ContentControl { Content = vm, ContentTemplate = (DataTemplate)Resources[template], Focusable = false };
+        var initialUnit = vm.ActiveObsUnit?.Id;
+        bool Stale() => !vm.IsAuthenticated || vm.ActiveObsUnit?.Id != initialUnit;
+        void CloseForms() { foreach (var dialog in Application.Current.Windows.OfType<FormDialog>().Where(item => ReferenceEquals(item.Request.Content, form)).ToArray()) dialog.Close(); }
+        PropertyChangedEventHandler closeOnChange = (_, changed) =>
+        {
+            if (changed.PropertyName is nameof(WorkspaceViewModel.IsAuthenticated) or nameof(WorkspaceViewModel.ActiveObsUnit) && Stale()) CloseForms();
+        };
+        async Task<bool> SaveAndCheck()
+        {
+            var saved = await save();
+            // Sessão recusada no meio do salvamento: o pop-up estava ocupado e não fechou; fecha logo depois que ele volta a ficar livre.
+            if (!saved && Stale()) _ = Dispatcher.InvokeAsync(CloseForms, System.Windows.Threading.DispatcherPriority.Background);
+            return saved;
+        }
+        vm.PropertyChanged += closeOnChange;
+        try { DialogService.ShowForm(owner, title, form, SaveAndCheck, primary, error: error); }
+        finally { vm.PropertyChanged -= closeOnChange; }
+    }
 
     // ---- Profissionais ----
 

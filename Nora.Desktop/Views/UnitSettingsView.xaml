@@ -93,7 +93,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="96" /><ColumnDefinition Width="*" /><ColumnDefinition Width="72" /></Grid.ColumnDefinitions>
             <TextBlock Text="Sigla" Style="{StaticResource Muted}" FontSize="11" /><TextBlock Grid.Column="1" Text="Número" Style="{StaticResource Muted}" FontSize="11" /><TextBlock Grid.Column="2" Text="UF" Style="{StaticResource Muted}" FontSize="11" />
           </Grid>
-          <TextBlock Style="{StaticResource HintText}" Text="O conselho profissional é o órgão que registra cada profissão da saúde: CRM (médicos), CRO (dentistas), COREN (enfermagem), CRP (psicologia)… Informe sigla, número e UF juntos. O NORA não confere o registro." />
+          <TextBlock Style="{StaticResource HintText}" Text="O conselho profissional é o órgão que registra a profissão, como o CRM (medicina) ou o COREN (enfermagem). Informe sigla, número e UF juntos." />
           <TextBlock Text="{Binding CouncilError}" Style="{StaticResource InlineError}" Visibility="{Binding CouncilError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
         <StackPanel views:FormGrid.FullRow="True">
@@ -208,7 +208,7 @@
         <DockPanel Margin="0,4,0,0"><TextBlock DockPanel.Dock="Right" Text="{Binding ServicesCounter}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.Name="Contador de caracteres dos serviços" />
           <TextBlock Text="{Binding ServicesError}" Style="{StaticResource FieldError}" Margin="0" Visibility="{Binding ServicesError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" /></DockPanel>
         <DockPanel Margin="0,16,0,0">
-          <Button DockPanel.Dock="Right" Content="Salvar" Click="OnSaveProfile" IsEnabled="{Binding CanSaveProfile}" Style="{StaticResource ObsPrimaryButton}" MinWidth="120" ToolTip="Grava horários e serviços de uma vez." ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Salvar" views:EnterNavigation.Group="UnitSettingsView.profile" />
+          <Button DockPanel.Dock="Right" Content="Salvar" Click="OnSaveProfile" IsEnabled="{Binding CanSaveProfile}" Style="{StaticResource ObsPrimaryButton}" MinWidth="120" ToolTip="Grava horários e serviços de uma vez." ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Salvar atendimento ao público" views:EnterNavigation.Group="UnitSettingsView.profile" />
           <TextBlock Text="{Binding ProfileUpdatedLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Visibility="{Binding ProfileUpdatedLabel, Converter={StaticResource TextVisibility}}" />
         </DockPanel>
         <ItemsControl ItemsSource="{Binding ProfileSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do salvamento" />
@@ -249,7 +249,7 @@
         </TextBlock>
         <views:SelectionBalloon x:Name="RoomsBalloon">
           <StackPanel Orientation="Horizontal">
-            <Button x:Name="RoomEditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Renomear" Click="OnEditRoom" IsEnabled="{Binding CanEditCatalog}" ToolTip="Renomeia o consultório selecionado." AutomationProperties.Name="Renomear consultório" />
+            <Button x:Name="RoomEditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Editar" Click="OnEditRoom" IsEnabled="{Binding CanEditCatalog}" ToolTip="Edita o nome do consultório selecionado." AutomationProperties.Name="Editar consultório" />
             <Button x:Name="RoomRestoreButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivateRooms" IsEnabled="{Binding CanEditCatalog}" ToolTip="Reativa o consultório selecionado." AutomationProperties.Name="Reativar consultório" />
             <Button x:Name="RoomDeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivateRooms" IsEnabled="{Binding CanEditCatalog}" ToolTip="Pede confirmação. Os horários dele saem da disponibilidade." AutomationProperties.Name="Desativar consultório" />
           </StackPanel>

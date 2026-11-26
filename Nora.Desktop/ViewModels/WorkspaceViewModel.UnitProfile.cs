@@ -23,7 +23,7 @@ public sealed class OpeningDayEditor(int weekday, Action changed) : ObservableOb
     public string Closes { get => closes; set { closes = value ?? ""; Touched(nameof(Closes)); } }
     public string Error { get => error; private set { error = value; Notify(); } }
     /// <summary>Linha discreta quando o dia foi gravado com dois intervalos; some quando o dia fica fechado.</summary>
-    public string GapNotice => hadGap && !closed ? "Este dia tinha dois intervalos gravados. Ao salvar, vale um só, do primeiro horário de abrir ao último de fechar, e o intervalo do meio é desconsiderado." : "";
+    public string GapNotice => hadGap && !closed ? "Havia dois intervalos gravados neste dia; ao salvar, o intervalo do meio será desconsiderado." : "";
     private void Touched(string property) { Notify(property); Notify(nameof(GapNotice)); if (error.Length > 0) { error = ""; Notify(nameof(Error)); } changed(); }
 
     /// <summary>Preenche o editor pelo que a API devolveu (sem marcar como editado).</summary>

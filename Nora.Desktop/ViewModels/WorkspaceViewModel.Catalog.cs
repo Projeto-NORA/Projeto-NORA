@@ -303,9 +303,9 @@ public sealed partial class WorkspaceViewModel
     private Guid? editingRoomId;
     private bool roomSubmitted;
     private string roomName = "", roomServerError = "";
-    /// <summary>O consultório sobre o qual a ação do balão atua (e que "Renomear" abre no pop-up).</summary>
+    /// <summary>O consultório sobre o qual a ação do balão atua (e que "Editar" abre no pop-up).</summary>
     public Room? SelectedRoom { get => selectedRoom; set { selectedRoom = value; Notify(); } }
-    public string RoomDraftTitle => editingRoomId is null ? "Cadastrar consultório" : "Renomear consultório";
+    public string RoomDraftTitle => editingRoomId is null ? "Cadastrar consultório" : "Editar consultório";
     public string RoomName { get => roomName; set { roomName = value; roomServerError = ""; Notify(); Notify(nameof(RoomNameError)); } }
     public string RoomNameError => roomServerError.Length > 0 ? roomServerError : (roomSubmitted || roomName.Length > 0) && roomName.Trim().Length is < 1 or > 80 ? "Informe o nome do consultório, de 1 a 80 caracteres." : "";
     public void NewRoomDraft() { editingRoomId = null; roomSubmitted = false; roomName = roomServerError = ""; Notify(nameof(RoomName)); Notify(nameof(RoomNameError)); Notify(nameof(RoomDraftTitle)); }
@@ -573,7 +573,7 @@ public sealed partial class WorkspaceViewModel
         [
             new("Dia", row.WeekdayDisplay, Group: "Horário"), new("Horário", row.RangeDisplay, Group: "Horário"), new("Duração do atendimento", row.SlotDisplay, Group: "Horário"),
             new("Profissional", row.ProfessionalName, Group: "Atendimento"), new("Especialidade", row.SpecialtyName, Group: "Atendimento"), new("Consultório", row.RoomName, Group: "Atendimento"),
-            new("Vigência", row.ValidityDisplay, Group: "Vigência")
+            new("Vigência", row.ValidityDisplay, Group: "Horário")
         ]),
         ScheduleBlock block => new(block.Reason, "Bloqueio da agenda",
         [

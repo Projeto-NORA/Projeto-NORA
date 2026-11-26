@@ -45,8 +45,6 @@ internal static partial class Program
         public bool ObsComputersEnabled { get; set; }
         /// <summary>A expiração devolvida pelo login "manter conectado" (30 dias) e a do login comum (1 hora na fixture).</summary>
         public DateTimeOffset? LastLoginExpiresAt { get; private set; }
-        /// <summary>Todas as leituras de computadores e do atendimento falham (500) sem derrubar o resto da UBS.</summary>
-        public bool FailDevices { get; set; }
         /// <summary>A conferência do computador (GET /devices/current) responde 500, como uma API instável na abertura do OBS.</summary>
         public bool FailDeviceCurrent { get; set; }
         /// <summary>O login ignora o cabeçalho do computador (device nulo), como no servidor com a exigência desligada para uma atendente sem acesso à UBS dele; o computador continua ativo.</summary>
@@ -126,7 +124,6 @@ internal static partial class Program
                 // ---- Computadores ----
                 case ["devices"] when method == HttpMethod.Get:
                     if (AdministratorOnly() is { } notAdmin) return notAdmin;
-                    if (FailDevices) return Problem(HttpStatusCode.InternalServerError, "internal-error");
                     var thisDevice = DeviceFromHeader(request);
                     return Reply(new { devices = Devices.Where(item => item.UnitId == unitId).OrderBy(item => item.Status switch { "active" => 0, "pending" => 1, _ => 2 }).ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).Select(item => ToApi(item, thisDevice?.Id == item.Id)).ToArray() });
                 case ["devices"] when method == HttpMethod.Post:

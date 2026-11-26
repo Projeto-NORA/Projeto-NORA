@@ -44,6 +44,14 @@ internal static partial class Program
         var seen = false;
         InspectModal<ItemDetailsWindow>(window, details => { seen = true; inspect(details); }, () => { PressKey(list, Key.Enter); PumpUntil(() => seen); });
     }
+    /// <summary>Captura o pop-up depois da animação de entrada (opacidade e zoom de até 180 ms); antes disso a imagem sai esmaecida.</summary>
+    private static void SaveDialog(Window dialog, string path)
+    {
+        var until = DateTime.UtcNow.AddMilliseconds(400);
+        PumpUntil(() => DateTime.UtcNow >= until);
+        dialog.UpdateLayout();
+        SavePreview(dialog, path);
+    }
     private static Rect BoundsIn(FrameworkElement element, FrameworkElement root) => new(element.TranslatePoint(new Point(0, 0), root), new Size(element.ActualWidth, element.ActualHeight));
 
     private static void RunUnitInformationChecks(string storageRoot, string[] args)
@@ -163,7 +171,7 @@ internal static partial class Program
                     var boxes = Descendants<CheckBox>(dialog).Where(box => box.IsVisible).ToArray();
                     Require(boxes.Select(box => box.Content?.ToString()).SequenceEqual(["Cardiologia", "Pediatria"]) && boxes.All(box => BoundsIn(Descendants<Border>(box).First(), dialog).Left < BoundsIn(Descendants<TextBlock>(box).First(item => item.Text == (string)box.Content), dialog).Left), "Só as especialidades ativas, com a caixa à esquerda do nome.");
                     Require(!Descendants<Border>(dialog).Any(border => FindAncestor<TextBox>(border) is null && FindAncestor<CheckBox>(border) is null && border.Background is SolidColorBrush brush && brush.Color == ThemeBrush(Application.Current, "SurfaceAltBrush").Color && border.CornerRadius.TopLeft >= 8 && border.ActualWidth > 300 && border.ActualHeight > 60), "Não deveria haver card dentro do pop-up.");
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-light.png"));
                     // Sem nome nem especialidade: o pop-up continua aberto com os erros nos campos e a mensagem dentro dele.
                     SubmitUnitForm(dialog, "Salvar profissional");
                     Require(dialog.IsVisible && !dialog.Saved && dialog.ErrorMessage == "Corrija o que está destacado e salve de novo." && FullTexts(dialog).Contains("Marque ao menos uma especialidade.") && FullTexts(dialog).Any(text => text.StartsWith("Informe o nome do profissional", StringComparison.Ordinal)) && fixture.Count("POST", "/professionals") == 0, "Sem nome nem especialidade o pop-up deveria ficar aberto, mostrando os erros: " + dialog.ErrorMessage);
@@ -175,7 +183,7 @@ internal static partial class Program
                     number.Text = "4321"; state.Text = "sp";
                     SubmitUnitForm(dialog, "Salvar profissional");
                     Require(dialog.IsVisible && FullTexts(dialog).Count(text => text.Contains("Já existe", StringComparison.Ordinal)) == 1 && fixture.ProfessionalsOf(unit.Id).Count == 1, "O 409 de nome repetido deveria aparecer dentro do pop-up, que continua aberto: " + dialog.ErrorMessage + " / " + vm.ProfessionalNameError);
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-erro-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-erro-light.png"));
                     name.Text = "Dr. Bruno Alves";
                     SubmitUnitForm(dialog, "Salvar profissional");
                     PumpUntil(() => !dialog.IsVisible);
@@ -199,13 +207,13 @@ internal static partial class Program
                     Require(dialog.Saved && fixture.Count("PUT", "/professionals/" + ana.Id) == 1 && vm.Professionals.Any(item => item.FullName == "Dra. Ana Lima Souza"), "Salvar a edição deveria gravar o PUT e fechar o pop-up.");
                 });
                 window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 900);
-                OpenUnitForm(window, content, "Novo profissional", dialog => SavePreview(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-dark.png")));
+                OpenUnitForm(window, content, "Novo profissional", dialog => SaveDialog(dialog, Path.Combine(previewRoot, "obs-profissional-cadastro-dark.png")));
                 window.ViewModel.SetAppearance(Appearance.Light);
             }
             finally { CloseWindow(window); }
         });
 
-        Check("Consultórios: listagem aberta com etiqueta, \"+ Novo consultório\" abre o pop-up, balão com Renomear, Desativar ou Reativar e o 409 dentro do pop-up", () =>
+        Check("Consultórios: listagem aberta com etiqueta, \"+ Novo consultório\" abre o pop-up, balão com Editar, Desativar ou Reativar e o 409 dentro do pop-up", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Consultórios", "Centro");
@@ -220,12 +228,14 @@ internal static partial class Program
                 Require(window.ViewModel.PageLabel == "Consultórios • Informações da UBS" && texts.Contains("Consultório 1") && texts.Contains("Ativo") && texts.Contains("Desativado") && FindActionButton(content, "Novo consultório").IsEnabled, "A listagem de consultórios deveria mostrar nome e etiqueta e o botão novo no cabeçalho.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-consultorios-light.png"), 1280, 900);
                 content = SelectUnitRows<Room>(window, "Consultórios da UBS", item => item.Id == sala1.Id);
-                Require(VisibleBalloon(content).Label == "Consultório 1" && FindActionButton(content, "Renomear consultório").IsVisible && FindActionButton(content, "Desativar consultório").IsVisible, "O balão do consultório ativo deveria ter Renomear e Desativar.");
+                Require(VisibleBalloon(content).Label == "Consultório 1" && FindActionButton(content, "Editar consultório").IsVisible && FindActionButton(content, "Desativar consultório").IsVisible, "O balão do consultório ativo deveria ter Editar e Desativar.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-consultorios-balao-light.png"), 1280, 900);
-                OpenUnitForm(window, content, "Renomear consultório", dialog =>
+                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 900); SaveScrolled(window, Path.Combine(previewRoot, "obs-consultorios-balao-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
+                content = Layout(window, 1280, 900);
+                OpenUnitForm(window, content, "Editar consultório", dialog =>
                 {
                     var name = DialogInput(dialog, "Nome do consultório");
-                    Require(dialog.Title == "Renomear consultório" && name.Text == "Consultório 1" && !FullTexts(dialog).Any(text => text.Contains("Nome do consultório") && text != "Nome do consultório"), "Renomear deveria abrir o pop-up com o nome atual.");
+                    Require(dialog.Title == "Editar consultório" && name.Text == "Consultório 1" && !FullTexts(dialog).Any(text => text.Contains("Nome do consultório") && text != "Nome do consultório"), "Editar deveria abrir o pop-up com o nome atual.");
                     name.Text = "consultório 2"; SubmitUnitForm(dialog, "Salvar consultório");
                     Require(dialog.IsVisible && FullTexts(dialog).Any(text => text.Contains("Já existe", StringComparison.Ordinal)), "O nome repetido deveria ser recusado dentro do pop-up: " + dialog.ErrorMessage);
                     name.Text = "Sala Azul"; SubmitUnitForm(dialog, "Salvar consultório"); PumpUntil(() => !dialog.IsVisible);
@@ -235,16 +245,41 @@ internal static partial class Program
                 Click(window, content, "Desativar consultório", 1280, 900);
                 Require(asked.SequenceEqual(["Desativar consultório"]) && !fixture.RoomsOf(unit.Id).Single(item => item.Id == sala1.Id).IsActive && FindActionButton(Layout(window, 1280, 900), "Reativar consultório").IsVisible, "Desativar deveria pedir confirmação e, com a seleção mantida, o balão passar a Reativar.");
                 content = SelectUnitRows<Room>(window, "Consultórios da UBS", _ => true);
-                Require(VisibleBalloon(content).Label == "2 consultórios selecionados" && FindActionButton(content, "Reativar consultório").IsVisible && !Descendants<Button>(content).Any(button => button.IsVisible && (AutomationProperties.GetName(button) ?? "") is "Renomear consultório" or "Desativar consultório"), "Com dois consultórios desativados juntos só Reativar vale (sem Renomear nem Desativar).");
+                Require(VisibleBalloon(content).Label == "2 consultórios selecionados" && FindActionButton(content, "Reativar consultório").IsVisible && !Descendants<Button>(content).Any(button => button.IsVisible && (AutomationProperties.GetName(button) ?? "") is "Editar consultório" or "Desativar consultório"), "Com dois consultórios desativados juntos só Reativar vale (sem Editar nem Desativar).");
                 OpenUnitForm(window, content, "Novo consultório", dialog =>
                 {
                     Require(dialog.Title == "Cadastrar consultório" && DialogInput(dialog, "Nome do consultório").Text == "", "Novo consultório deveria abrir o pop-up vazio.");
                     SubmitUnitForm(dialog, "Salvar consultório");
                     Require(dialog.IsVisible && FullTexts(dialog).Any(text => text.StartsWith("Informe o nome do consultório", StringComparison.Ordinal)), "Sem nome o pop-up deveria ficar aberto com o erro no campo.");
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-consultorio-cadastro-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-consultorio-cadastro-light.png"));
                 });
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
+        });
+
+        Check("Informações da UBS: o pop-up de cadastro fecha sozinho, sem gravar, quando a sessão termina com ele aberto (como a ficha)", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Sessão", "Centro");
+            fixture.AddRoom(unit.Id, "Consultório 1");
+            var window = OpenOperational(fixture, storageRoot, "unit-info-form-session", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "unit-settings:rooms", 1280, 900);
+                FormDialog? seen = null;
+                OpenUnitForm(window, content, "Novo consultório", dialog =>
+                {
+                    seen = dialog;
+                    DialogInput(dialog, "Nome do consultório").Text = "Sala nova";
+                    fixture.UnauthorizedReads = true;
+                    Pump(vm.RefreshAutomaticallyAsync());
+                    PumpUntil(() => !dialog.IsVisible);
+                });
+                fixture.UnauthorizedReads = false;
+                Require(seen is { Saved: false } && !vm.IsAuthenticated && fixture.RoomsOf(unit.Id).Count == 1, "Com a sessão encerrada o pop-up deveria fechar sozinho, sem gravar.");
+            }
+            finally { fixture.UnauthorizedReads = false; CloseWindow(window); }
         });
 
         Check("Grade semanal: sete botões de dia com segunda ao abrir, listagem do dia, \"+ Novo horário\" com o dia já escolhido, Editar e Remover (lote) no balão", () =>
@@ -270,6 +305,12 @@ internal static partial class Program
                 Require(list.Items.Count == 2 && texts.Contains("08:00 às 12:00 · atendimentos de 20 min") && texts.Contains("Dra. Ana Lima | Cardiologia | Consultório 1") && texts.Contains("13:00 às 17:00 · atendimentos de 30 min") && texts.Contains("Dr. Bruno Alves | Pediatria | Consultório 2 | A partir de 10/01/2030"), "A listagem de segunda deveria ter título e dados como o pedido: " + string.Join(" | ", texts));
                 Require(!texts.Any(text => text is "Grade semanal de horários" or "Segunda-feira") && BoundsIn(toggle, content).Bottom < BoundsIn(list, content).Top, "Os botões de dia ficam acima da lista, sem título repetido.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-grade-light.png"), 1280, 900);
+                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 900); SaveScrolled(window, Path.Combine(previewRoot, "obs-grade-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
+                // Janela mínima (980): os sete botões de dia cabem sem cortar.
+                content = Layout(window, 980, 640); toggle = Descendants<SegmentedToggle>(content).Single(item => AutomationProperties.GetName(item) == "Dia da semana da grade");
+                Require(BoundsIn(toggle, content).Right <= content.ActualWidth && BoundsIn(FindActionButton(content, "Novo horário"), content).Right <= content.ActualWidth, "No tamanho mínimo os botões de dia e o botão novo deveriam caber.");
+                SaveScrolled(window, Path.Combine(previewRoot, "obs-grade-janela-minima-light.png"), 980, 640);
+                content = Layout(window, 1280, 900);
                 toggle.SelectedIndex = 2; content = Layout(window, 1280, 900); list = UnitList(content, "Grade semanal da UBS");
                 Require(vm.ScheduleDay.Day == 3 && list.Items.Count == 1 && FullTexts(content).Contains("09:00 às 11:00 · atendimentos de 30 min"), "Quarta deveria mostrar só o horário da quarta.");
                 toggle.SelectedIndex = 1; content = Layout(window, 1280, 900);
@@ -285,7 +326,7 @@ internal static partial class Program
                     Require(!Descendants<Border>(dialog).Any(border => FindAncestor<TextBox>(border) is null && FindAncestor<ComboBox>(border) is null && FindAncestor<Button>(border) is null && border.Background is SolidColorBrush brush && brush.Color == ThemeBrush(Application.Current, "SurfaceAltBrush").Color && border.CornerRadius.TopLeft >= 8 && border.ActualWidth > 300), "Não deveria haver card dentro do pop-up.");
                     SubmitUnitForm(dialog, "Salvar horário na grade");
                     Require(dialog.IsVisible && dialog.ErrorMessage == "Corrija o que está destacado e salve de novo." && FullTexts(dialog).Count(text => text == "Escolha o profissional.") == 1, "Sem profissional o motivo deveria aparecer uma vez, junto dos campos: " + dialog.ErrorMessage);
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-grade-cadastro-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-grade-cadastro-light.png"));
                     vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.Id == bruno.Id); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Id == sala1.Id); vm.ScheduleStart = "14:00"; vm.ScheduleEnd = "18:00";
                     SubmitUnitForm(dialog, "Salvar horário na grade"); PumpUntil(() => !dialog.IsVisible);
                     Require(dialog.Saved && fixture.ScheduleOf(unit.Id).Any(row => row.Weekday == 2 && row.StartTime == "14:00") && vm.Message == "Horário adicionado à grade.", "O horário deveria ser gravado na terça: " + vm.Message);
@@ -298,7 +339,7 @@ internal static partial class Program
                     vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.Id == bruno.Id); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Id == sala1.Id); vm.ScheduleStart = "15:00"; vm.ScheduleEnd = "16:00";
                     SubmitUnitForm(dialog, "Salvar horário na grade");
                     Require(dialog.IsVisible && vm.ScheduleOverlapError.StartsWith("Sobreposição", StringComparison.Ordinal) && Descendants<Border>(dialog).Any(border => AutomationProperties.GetName(border) == "Aviso de sobreposição na grade" && border.IsVisible) && FullTexts(dialog).Contains(vm.ScheduleOverlapError), "O aviso de sobreposição deveria aparecer no pop-up: " + vm.ScheduleOverlapError);
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-grade-sobreposicao-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-grade-sobreposicao-light.png"));
                 });
                 // Editar (pop-up preenchido) e Remover (lixeira, com confirmação; vários = uma confirmação).
                 toggle.SelectedIndex = 0; content = SelectUnitRows<ScheduleTemplate>(window, "Grade semanal da UBS", row => row.Id == tarde.Id);
@@ -310,12 +351,21 @@ internal static partial class Program
                 });
                 content = SelectUnitRows<ScheduleTemplate>(window, "Grade semanal da UBS", _ => true);
                 Require(VisibleBalloon(content).Label == "2 horários selecionados" && !Descendants<Button>(content).Any(button => button.IsVisible && AutomationProperties.GetName(button) == "Editar horário") && ReferenceEquals(FindActionButton(content, "Remover horário").Style, (Style)Application.Current.FindResource("ListActionDangerButton")), "Com dois horários o balão só traz Remover, em lixeira vermelha.");
+                SaveScrolled(window, Path.Combine(previewRoot, "obs-grade-balao-lote-light.png"), 1280, 900);
                 Click(window, content, "Remover horário", 1280, 900);
                 Require(asked.SequenceEqual(["Remover horários da grade"]) && fixture.ScheduleOf(unit.Id).All(row => row.Weekday != 1) && vm.Message == "2 horários removidos da grade. Consultas já marcadas não foram afetadas." && fixture.ScheduleOf(unit.Id).Any(row => row.Id == quarta.Id), "Remover dois horários deveria pedir uma confirmação só: " + vm.Message);
                 Require(FullTexts(Layout(window, 1280, 900)).Contains("Nenhum horário na grade de segunda-feira."), "Depois de remover a segunda deveria dizer que não há horário.");
                 // Ficha em linhas do horário (Enter).
                 toggle.SelectedIndex = 2; content = SelectUnitRows<ScheduleTemplate>(window, "Grade semanal da UBS", row => row.Id == quarta.Id);
-                OpenDetailsByEnter(window, UnitList(content, "Grade semanal da UBS"), details => Require(details.Title == "Quarta-feira · 09:00–11:00" && Descendants<TextBlock>(details).Any(text => text.Text == "Consultório 1"), "A ficha do horário deveria listar dia, horário, profissional e consultório."));
+                OpenDetailsByEnter(window, UnitList(content, "Grade semanal da UBS"), details =>
+                {
+                    Require(details.Title == "Quarta-feira · 09:00–11:00" && Descendants<TextBlock>(details).Any(text => text.Text == "Consultório 1"), "A ficha do horário deveria listar dia, horário, profissional e consultório.");
+                    SavePreview(details, Path.Combine(previewRoot, "obs-grade-ficha-light.png"));
+                });
+                // Pop-up da grade no tema escuro.
+                window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 900);
+                OpenUnitForm(window, content, "Novo horário", dialog => SaveDialog(dialog, Path.Combine(previewRoot, "obs-grade-cadastro-dark.png")));
+                window.ViewModel.SetAppearance(Appearance.Light);
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });
@@ -343,7 +393,7 @@ internal static partial class Program
                     Require(times.Length == 2 && times.All(box => !box.IsEnabled), "Com dia inteiro os horários ficam desabilitados.");
                     SubmitUnitForm(dialog, "Cadastrar bloqueio");
                     Require(dialog.IsVisible && FullTexts(dialog).Any(text => text.Contains("motivo do bloqueio", StringComparison.Ordinal)) && fixture.Count("POST", "/schedule-blocks") == 0, "Sem motivo o erro deveria aparecer no pop-up.");
-                    SavePreview(dialog, Path.Combine(previewRoot, "obs-bloqueio-cadastro-light.png"));
+                    SaveDialog(dialog, Path.Combine(previewRoot, "obs-bloqueio-cadastro-light.png"));
                     DialogInput(dialog, "Motivo do bloqueio").Text = "Reunião da equipe"; DialogInput(dialog, "Data inicial do bloqueio").Text = DateText(DateTime.Today.AddDays(5));
                     SubmitUnitForm(dialog, "Cadastrar bloqueio"); PumpUntil(() => !dialog.IsVisible);
                     Require(dialog.Saved && fixture.BlocksOf(unit.Id).Count == 3 && vm.ScheduleBlocks.Any(block => block.Reason == "Reunião da equipe"), "O bloqueio deveria ser cadastrado e fechar o pop-up.");
@@ -351,6 +401,14 @@ internal static partial class Program
                 content = SelectUnitRows<ScheduleBlock>(window, "Bloqueios da UBS", block => block.Id == feriado.Id);
                 Require(VisibleBalloon(content).Label == "Feriado municipal" && Descendants<Button>(content).Count(button => button.IsVisible && ReferenceEquals(button.Style, (Style)Application.Current.FindResource("ListActionDangerButton"))) == 1, "O balão do bloqueio só tem Remover (lixeira).");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-bloqueios-balao-light.png"), 1280, 900);
+                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 900); SaveScrolled(window, Path.Combine(previewRoot, "obs-bloqueios-balao-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
+                content = Layout(window, 1280, 900);
+                OpenDetailsByEnter(window, UnitList(content, "Bloqueios da UBS"), details =>
+                {
+                    Require(details.Title == "Feriado municipal" && Descendants<TextBlock>(details).Any(text => text.Text == "UBS inteira"), "A ficha do bloqueio deveria listar motivo, quem atinge e o período.");
+                    SavePreview(details, Path.Combine(previewRoot, "obs-bloqueios-ficha-light.png"));
+                });
+                content = Layout(window, 1280, 900);
                 Click(window, content, "Remover bloqueio", 1280, 900);
                 Require(asked.SequenceEqual(["Remover bloqueio"]) && fixture.BlocksOf(unit.Id).All(block => block.Id != feriado.Id) && vm.Message == "Bloqueio removido.", "Remover deveria pedir confirmação e remover: " + vm.Message);
                 content = SelectUnitRows<ScheduleBlock>(window, "Bloqueios da UBS", _ => true);
