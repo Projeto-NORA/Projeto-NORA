@@ -44,7 +44,7 @@ internal static partial class Program
                 Require(vm.Appointments.Count == 2, "Agenda da semana não foi carregada já no login.");
                 Require(fixture.Count("GET", "/registry") == 1 && fixture.Count("GET", "/lightning-slots") == 1 && fixture.Count("GET", "/appointments") == 2, "O login deveria ler cada parte uma única vez, sem esperar o temporizador.");
                 var content = Layout(window, 1280, 740);
-                Require(VisibleTexts(content).Count(text => text == "UBS Única") >= 2, "Nome da UBS ativa ausente da barra lateral ou do Painel.");
+                Require(VisibleTexts(content).Count(text => text == "UBS Única") >= 1 && !VisibleTexts(content).Contains("UBS da operação"), "Nome da UBS ativa ausente do cartão do perfil (o Painel não repete mais a UBS num banner).");
                 window.ViewModel.Navigate("settings"); content = Layout(window, 1280, 740);
                 var texts = VisibleTexts(content);
                 Require(texts.Contains("UBS Única") && texts.Contains("Operador Fixture") && !texts.Contains("Perfil da conta"), "Configurações devem mostrar o menu da conta e manter o formulário de perfil separado.");

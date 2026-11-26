@@ -103,7 +103,7 @@ public sealed partial class WorkspaceViewModel
         }
         if (scope.HasFlag(UnitScope.PanelMetrics))
         {
-            var panelRequestNow = BuildPanelRequest(); panelAttemptedAt = DateTimeOffset.Now;
+            var panelRequestNow = BuildPanelRequest(panelPeriodDays); panelAttemptedAt = DateTimeOffset.Now;
             panelRead = metricsRead is not null && TryBuildUnitRequest(out var sameRequest) && sameRequest == panelRequestNow
                 ? SharePanelAsync(metricsRead, panelRequestNow) : ReadPanelMetricsAsync(unit, panelRequestNow);
         }
@@ -177,7 +177,8 @@ public sealed partial class WorkspaceViewModel
         if (data.Month is { } month && data.MonthKey == (selectedAgendaDate.Year, selectedAgendaDate.Month)) SetMonthCache(data.MonthKey, month);
         // Uma resposta de um filtro que já mudou não altera a tela.
         if (data.Metrics is { Data: { } read } && TryBuildUnitRequest(out var current) && current == data.Metrics.Request) { unitMetricsAttemptedAt = data.MetricsAt; ApplyUnitMetrics(read, current); }
-        if (data.Panel is { } panel) { panelAttemptedAt = data.PanelAt; ApplyPanelMetrics(panel); }
+        // Uma leitura do Painel de um período que já mudou não altera a tela (a do período novo vem em seguida).
+        if (data.Panel is { } panel && panel.Request.PeriodDays == PanelWindow(panelPeriodDays)) { panelAttemptedAt = data.PanelAt; ApplyPanelMetrics(panel); }
         if (data.Specialties is not null || data.Professionals is not null || data.Rooms is not null || data.Schedule is not null || data.Blocks is not null) ApplyCatalog(data);
         if (data.ActiveRooms is { } activeRooms) ApplyActiveRooms(activeRooms);
         if (data.Capacity is { } capacity) ApplyPanelCapacity(capacity);
@@ -210,6 +211,8 @@ public sealed partial class WorkspaceViewModel
     {
         Notify(nameof(PatientTotalCount)); Notify(nameof(OffersRunningCount)); Notify(nameof(SlotOpenCount));
         Notify(nameof(HasNoUnitSlots));
+        // Os números de agora (lista de hoje, cadastros, vagas) mudaram: o Painel refaz cards, gráficos e tabela, trocando só o que mudou.
+        RebuildPanelOverview();
     }
 
     /// <summary>

@@ -32,8 +32,8 @@ internal static partial class Program
                     ("agenda", "+ Agendar nova consulta", "Resumo do dia"),
                     ("patients", "Pacientes", "+ Agendar nova consulta"),
                     ("slots", "Vaga Relâmpago", "Fila"),
-                    ("indicators", "Indicadores da UBS", "Central de alertas"),
-                    ("alerts", "Central de alertas", "Indicadores da UBS"),
+                    ("indicators", "Por especialidade", "O que passou do limite"),
+                    ("alerts", "O que passou do limite", "Por especialidade"),
                     ("unit-settings", "Informações da UBS", "Resumo do dia")
                 })
                 {
@@ -57,8 +57,8 @@ internal static partial class Program
                 foreach (var (route, visibleText, repeatedLogin) in new[]
                 {
                     ("agenda", "Agenda", false),
-                    ("indicators", "Indicadores da UBS", false),
-                    ("alerts", "Central de alertas", false),
+                    ("indicators", "Entre na conta para carregar os indicadores da UBS.", false),
+                    ("alerts", "Entre na conta para consultar os alertas.", false),
                     ("patients", "Pacientes da unidade", false),
                     ("slots", "Vagas Relâmpago", false),
                     ("unit-settings", "Informações da UBS", false)

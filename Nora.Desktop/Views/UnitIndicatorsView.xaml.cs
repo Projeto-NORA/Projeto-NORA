@@ -4,7 +4,7 @@ using Nora.Desktop.ViewModels;
 
 namespace Nora.Desktop.Views;
 
-/// <summary>Indicadores da UBS ativa (OBS): período, cartões, Vaga Relâmpago, tabela por especialidade e série no tempo.</summary>
+/// <summary>Indicadores da UBS ativa (OBS): período em linha, cards resumidos, tabela por especialidade, metas e a grade de gráficos (alternador cards/gráficos no cabeçalho).</summary>
 public partial class UnitIndicatorsView : UserControl
 {
     public UnitIndicatorsView() => InitializeComponent();

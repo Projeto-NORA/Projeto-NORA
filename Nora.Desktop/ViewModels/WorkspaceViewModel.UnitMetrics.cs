@@ -14,12 +14,14 @@ public sealed record UnitMetricsRead(UnitMetrics? Data, UnitMetricsRequest Reque
 /// <summary>
 /// Indicadores da UBS ativa (GET /api/obs/units/{id}/metrics). Duas leituras independentes:
 /// a aba Indicadores, com o filtro de período do usuário (uma requisição por mudança, a anterior é cancelada e resposta atrasada é descartada),
-/// e o Painel, com os últimos 30 dias fixos (espera média) e a série dos últimos 7 dias, lidos na troca de UBS, na atualização manual
-/// e, no ciclo de 20 s, só quando a seção está aberta e a última tentativa tem mais de 5 minutos.
+/// e o Painel, com o período do cabeçalho (os últimos 30 dias no Dia) e a série do gráfico, lidos na troca de UBS, na mudança de período
+/// (<see cref="ReloadPanelMetrics"/>) e, no ciclo de 20 s, só quando a seção está aberta e a última tentativa tem mais de 5 minutos.
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
     private const int PanelDays = 30, PanelChartDays = 7;
+    /// <summary>Intervalo máximo do período personalizado dos Indicadores da UBS: 20 anos, o limite da API (a validação de 366 dias de <c>Metrics.cs</c> é da Secretaria).</summary>
+    private const int UnitMaxRangeDays = 7305;
     private static readonly TimeSpan MetricsRefreshAge = TimeSpan.FromMinutes(5);
 
     private int unitPeriodDays = 30;
@@ -35,18 +37,29 @@ public sealed partial class WorkspaceViewModel
     private UnitMetricsRequest? panelRequest;
     private bool panelFailed;
     private DateTimeOffset? panelAttemptedAt;
+    private ViewMode unitViewMode = ViewMode.Cards;
+    private readonly Dictionary<string, ChartKind> unitChartKinds = [];
 
     public static IReadOnlyList<PeriodOption> UnitPeriodOptions { get; } =
-        [new(1, "Hoje"), new(7, "Últimos 7 dias"), new(14, "Últimos 14 dias"), new(30, "Últimos 30 dias"), new(90, "Últimos 90 dias"), new(180, "Últimos 180 dias"), new(365, "Últimos 365 dias"), new(0, "Personalizado")];
+        [new(1, "Dia"), new(7, "Semana"), new(30, "Mês"), new(365, "Ano"), new(1826, "5 anos"), new(7305, "Máximo"), new(0, "Personalizado")];
+    /// <summary>Os seis cards resumidos dos Indicadores: comparecimento, concluídas, faltas, canceladas, espera média e ocupação da agenda.</summary>
     public ObservableCollection<MetricCard> UnitOverviewCards { get; } = [];
-    public ObservableCollection<MetricCard> UnitLightningCards { get; } = [];
+    /// <summary>A grade do modo gráficos dos Indicadores.</summary>
+    public ObservableCollection<UnitChartCard> UnitChartCards { get; } = [];
     public ObservableCollection<PerformanceRow> UnitSpecialtyPerformance { get; } = [];
+    /// <summary>Cards ou gráficos nos Indicadores (o <c>ViewModeToggle</c> do cabeçalho liga aqui nos dois sentidos).</summary>
+    public ViewMode UnitViewMode
+    {
+        get => unitViewMode;
+        set { if (unitViewMode == value) return; unitViewMode = value; Notify(); Notify(nameof(ShowUnitCards)); Notify(nameof(ShowUnitCharts)); }
+    }
+    public bool ShowUnitCards => unitViewMode == ViewMode.Cards;
+    public bool ShowUnitCharts => unitViewMode == ViewMode.Charts;
+    public string UnitChartsEmptyText => UnitChartCards.Count > 0 || unitMetrics is null ? "" : "Nenhum gráfico para mostrar neste período.";
     public static string[] UnitSpecialtyFilterOptions { get; } = ["Todas", "Com pessoas na fila", "Com faltas"];
     public string UnitSpecialtySearch { get => unitSpecialtySearch; set { unitSpecialtySearch = value ?? ""; Notify(); Notify(nameof(FilteredUnitSpecialtyPerformance)); Notify(nameof(UnitSpecialtyState)); } }
     public string UnitSpecialtyFilter { get => unitSpecialtyFilter; set { unitSpecialtyFilter = value ?? "Todas"; Notify(); Notify(nameof(FilteredUnitSpecialtyPerformance)); Notify(nameof(UnitSpecialtyState)); } }
     public IEnumerable<PerformanceRow> FilteredUnitSpecialtyPerformance => UnitSpecialtyPerformance.Where(row => row.Name.Contains(UnitSpecialtySearch.Trim(), StringComparison.CurrentCultureIgnoreCase) && (UnitSpecialtyFilter switch { "Com pessoas na fila" => row.ActiveEntries > 0, "Com faltas" => row.Missed > 0, _ => true }));
-    public UnitMetrics? UnitMetricsData => unitMetrics;
-    public bool HasUnitOutcomeData => unitMetrics is { Appointments: var a } && a.Completed + a.Missed + a.Cancelled > 0;
     public ChartSeries UnitChart { get; } = new();
     public ChartSeries PanelChart { get; } = new();
 
@@ -97,17 +110,26 @@ public sealed partial class WorkspaceViewModel
         }
     }
 
-    public string PanelWaitValue => panelMetrics is null ? "—" : DisplayFormat.Wait(panelMetrics.Waiting.AverageWaitMinutes);
+    public string PanelWaitValue => PanelData is not { } data ? "—" : DisplayFormat.Wait(data.Waiting.AverageWaitMinutes);
     public bool PanelWaitHasError => panelFailed;
-    public string PanelWaitHint => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
-        : panelMetrics is null ? (panelFailed ? "Não foi possível ler os indicadores agora." : "Aguardando a leitura dos indicadores")
-        : panelMetrics.Waiting.AverageWaitMinutes is null ? $"Nenhuma entrada saiu da fila por oferta aceita nos últimos {PanelDays} dias."
-        : panelFailed ? "A última leitura não concluiu; este é o valor da leitura anterior."
-        : $"Média dos últimos {PanelDays} dias, da entrada na fila até a oferta aceita";
+    /// <summary>A espera média do Painel olha o período escolhido; no Dia, os últimos 30 dias (um dia só quase nunca tem oferta aceita).</summary>
+    public string PanelWaitHint
+    {
+        get
+        {
+            var span = panelPeriodDays == 1 ? $"nos últimos {PanelDays} dias" : "no período";
+            return !HasActiveObsUnit ? "Aguardando a escolha da UBS"
+                : panelMetrics is null ? (panelFailed ? "Não foi possível ler os indicadores agora." : "Aguardando a leitura dos indicadores")
+                : PanelData is not { } data ? (panelFailed ? "Não foi possível ler os indicadores agora." : "Atualizando o período…")
+                : data.Waiting.AverageWaitMinutes is null ? $"Nenhuma entrada saiu da fila por oferta aceita {span}."
+                : panelFailed ? "A última leitura não concluiu; este é o valor da leitura anterior."
+                : panelPeriodDays == 1 ? $"Média dos últimos {PanelDays} dias, da entrada na fila até a oferta aceita" : "Média do período, da entrada na fila até a oferta aceita";
+        }
+    }
 
     private static readonly string[] UnitMetricsNames =
     [
-        nameof(HasUnitMetrics), nameof(UnitMetricsStateText), nameof(UnitMetricsScopeLabel), nameof(UnitSpecialtyState), nameof(CanFilterUnitMetrics), nameof(UnitMetricsData), nameof(HasUnitOutcomeData), nameof(FilteredUnitSpecialtyPerformance)
+        nameof(HasUnitMetrics), nameof(UnitMetricsStateText), nameof(UnitMetricsScopeLabel), nameof(UnitSpecialtyState), nameof(CanFilterUnitMetrics), nameof(FilteredUnitSpecialtyPerformance), nameof(UnitChartsEmptyText)
     ];
     private static readonly string[] PanelNames = [nameof(PanelWaitValue), nameof(PanelWaitHint), nameof(PanelWaitHasError)];
     private void NotifyUnitMetrics() { foreach (var name in UnitMetricsNames) Notify(name); foreach (var name in PanelNames) Notify(name); }
@@ -144,11 +166,21 @@ public sealed partial class WorkspaceViewModel
     public void ApplyUnitCustomPeriod()
     {
         if (!CanFilterUnitMetrics) return;
-        var error = ValidateDateRange(unitFromText, unitToText, out var from, out var to);
+        var error = ValidateUnitRange(unitFromText, unitToText, out var from, out var to);
         UnitRangeError = error;
         if (error.Length > 0) return;
         appliedUnitRange = (from, to);
         ReloadUnitMetrics();
+    }
+
+    /// <summary>Datas inicial e final (inclusivas) em dd/mm/aaaa: início ≤ fim e no máximo 20 anos (o limite da API para os indicadores).</summary>
+    internal static string ValidateUnitRange(string fromText, string toText, out DateTime from, out DateTime to)
+    {
+        to = default;
+        if (!DisplayFormat.TryParseDate(fromText, out from) || !DisplayFormat.TryParseDate(toText, out to)) return "Informe as duas datas no formato dd/mm/aaaa.";
+        if (from > to) return "A data inicial não pode ser posterior à data final.";
+        if ((to - from).TotalDays + 1 > UnitMaxRangeDays) return "O período pode ter no máximo 20 anos.";
+        return "";
     }
 
     private bool TryBuildUnitRequest(out UnitMetricsRequest request)
@@ -161,15 +193,17 @@ public sealed partial class WorkspaceViewModel
             start = range.From; endExclusive = range.To.AddDays(1);
         }
         else { endExclusive = DateTime.Today.AddDays(1); start = endExclusive.AddDays(-unitPeriodDays); }
-        request = new(new DateTimeOffset(start), new DateTimeOffset(endExclusive), unitPeriodDays);
+        var from = new DateTimeOffset(start); var to = new DateTimeOffset(endExclusive);
+        request = new(ClampWindowStart(from, to), to, unitPeriodDays);
         return true;
     }
 
-    private static UnitMetricsRequest BuildPanelRequest()
-    {
-        var end = DateTime.Today.AddDays(1);
-        return new(new DateTimeOffset(end.AddDays(-PanelDays)), new DateTimeOffset(end), PanelDays);
-    }
+    /// <summary>
+    /// A API recusa janela maior que 7.305 dias em tempo corrido. Meia-noite local de 20 anos atrás pode ter um deslocamento diferente do de hoje (horário de verão
+    /// antigo), e a janela passaria de 7.305 dias por uma hora: nesse caso o início é recuado/avançado para valer exatamente o limite.
+    /// </summary>
+    internal static DateTimeOffset ClampWindowStart(DateTimeOffset from, DateTimeOffset to) =>
+        to - from > TimeSpan.FromDays(UnitMaxRangeDays) ? to.AddDays(-UnitMaxRangeDays) : from;
 
     /// <summary>Uma requisição por mudança de filtro: a anterior é cancelada e só a mais nova pode alterar a tela.</summary>
     private void ReloadUnitMetrics()
@@ -229,54 +263,82 @@ public sealed partial class WorkspaceViewModel
         appliedUnitMetrics = request; unitMetricsFailed = false;
         if (!scopeChanged && !contentChanged) return;
         unitMetrics = result;
-        Replace(UnitOverviewCards, BuildCards(result.Appointments, result.Waiting));
-        Replace(UnitLightningCards, BuildLightningCards(result.Lightning));
+        Replace(UnitOverviewCards, BuildUnitSummaryCards(result.Appointments, result.Waiting, result.Capacity));
         Replace(UnitSpecialtyPerformance, result.BySpecialty.Select(item => new PerformanceRow(item.Specialty, "", item.AttendanceScore, item.Completed, item.Missed, item.Cancelled, item.ActiveEntries, item.AverageWaitMinutes))
             .OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         var sparse = SparseDays(result.Daily);
-        UnitChart.Apply(BuildChartDays(sparse, request.From, request.To), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
+        UnitChart.Apply(BuildAxis(sparse, DateOnly.FromDateTime(request.From.LocalDateTime), DateOnly.FromDateTime(request.To.LocalDateTime.AddDays(-1))), sparse, result.Daily.Length == 0 ? "Nenhuma consulta com data marcada no período." : "");
         ApplyUnitCapacityAndGoals(result);
+        RebuildUnitChartCards();
         NotifyUnitMetrics();
     }
 
-    private static MetricCard[] BuildLightningCards(LightningMetrics? lightning)
+    /// <summary>
+    /// Os seis cards resumidos dos Indicadores, cada um no seu tom: comparecimento (turquesa), concluídas (verde), faltas (rosa), canceladas (amarelo),
+    /// espera média (violeta) e ocupação da agenda (azul). Sem leitura, todos mostram — e a razão.
+    /// </summary>
+    private static MetricCard[] BuildUnitSummaryCards(AppointmentMetrics? appointments, WaitingMetrics? waiting, CapacityMetrics? capacity)
     {
         static string Number(long? value) => value is { } number ? DisplayFormat.Count(number) : "—";
-        var hint = lightning is null ? "Aguardando os indicadores" : "Vagas criadas no período";
         return
         [
-            new("Vagas registradas", Number(lightning?.RegisteredSlots), hint),
-            new("Ofertas aceitas", Number(lightning?.AcceptedOffers), lightning is null ? hint : "Aceite não confirma o atendimento"),
-            new("Ofertas recusadas", Number(lightning?.DeclinedOffers), hint),
-            new("Ofertas expiradas", Number(lightning?.ExpiredOffers), lightning is null ? hint : "Sem resposta dentro do prazo")
+            new("Comparecimento", appointments is null ? "—" : DisplayFormat.Percent(appointments.AttendanceScore),
+                appointments is null ? "Aguardando os indicadores" : appointments.AttendanceScore is null ? "Sem consulta encerrada no período para calcular." : "Concluídas ÷ (concluídas + faltas + cancelamentos do paciente ponderados)", Tone.Teal),
+            new("Consultas concluídas", Number(appointments?.Completed), "Consultas com data marcada no período", Tone.Green),
+            new("Faltas", Number(appointments?.Missed), "Consultas registradas como falta", Tone.Pink),
+            new("Cancelamentos", Number(appointments?.Cancelled), appointments is null ? "Aguardando os indicadores" : appointments.CancelledByPatient == 1 ? "1 feito pelo paciente" : $"{DisplayFormat.Count(appointments.CancelledByPatient)} feitos pelo paciente", Tone.Yellow),
+            new("Espera média da fila", waiting is null ? "—" : DisplayFormat.Wait(waiting.AverageWaitMinutes),
+                waiting is null ? "Aguardando os indicadores" : waiting.AverageWaitMinutes is null ? "Nenhuma entrada saiu da fila por oferta aceita no período." : "Da entrada na fila até a oferta aceita", Tone.Violet),
+            new("Ocupação da agenda", capacity is null ? "—" : DisplayFormat.Percent(capacity.Occupancy),
+                capacity is null ? "Aguardando os indicadores" : capacity.Occupancy is null ? "Sem horários ofertados para calcular" : "Horários ocupados ÷ ofertados no período", Tone.Blue)
         ];
+    }
+
+    /// <summary>Monta a grade do modo gráficos dos Indicadores com o que a API devolveu para o período.</summary>
+    private void RebuildUnitChartCards()
+    {
+        var cards = new List<UnitChartCard>();
+        if (unitMetrics is { } data)
+        {
+            const string span = "no período";
+            cards.Add(AppointmentsChartCard(UnitChart.Days, data.Appointments.Completed, data.Appointments.Missed, data.Appointments.Cancelled,
+                "Consultas pela data marcada, por situação.", "Composição das consultas encerradas no período.", UnitChart.State.Length > 0 ? UnitChart.State : "Nenhuma consulta com data marcada no período."));
+            if (AttendanceChartCard(UnitChart.Days) is { } attendance) cards.Add(attendance);
+            if (LightningChartCard(data.Lightning, span) is { } lightning) cards.Add(lightning);
+            if (WaitChartCard(data.BySpecialty) is { } wait) cards.Add(wait);
+            if (OccupancyChartCard(data.Capacity, "Horários da grade com início no período.") is { } occupancy) cards.Add(occupancy);
+            if (SpecialtyTotalsChartCard(data.BySpecialty, span) is { } bySpecialty) cards.Add(bySpecialty);
+        }
+        ReplaceChartCards(UnitChartCards, cards, unitChartKinds);
+        Notify(nameof(UnitChartsEmptyText));
     }
 
     /// <summary>
     /// Leitura tolerante do Painel: se só os indicadores falharem (por exemplo, base sem a migração mais nova), a UBS ainda abre e o cartão avisa.
     /// Sessão encerrada e troca obrigatória de senha continuam subindo como erro.
     /// </summary>
-    private async Task<UnitMetricsRead> ReadPanelMetricsAsync(HealthUnit unit, UnitMetricsRequest request)
+    private async Task<UnitMetricsRead> ReadPanelMetricsAsync(HealthUnit unit, UnitMetricsRequest request, CancellationToken cancellation = default)
     {
-        try { return new(await api.UnitMetricsAsync(unit.Id, request.From, request.To), request); }
+        try { return new(await api.UnitMetricsAsync(unit.Id, request.From, request.To, cancellation), request); }
         catch (NoraApiException error) when (!error.Unauthorized && error.Code != "password-change-required") { return new(null, request, true); }
     }
 
     private static async Task<UnitMetricsRead> ShareAsync(Task<UnitMetrics> read, UnitMetricsRequest request) => new(await read, request);
     private static async Task<UnitMetricsRead> SharePanelAsync(Task<UnitMetricsRead> shared, UnitMetricsRequest request) => (await shared) with { Request = request };
 
-    /// <summary>Guarda os últimos 30 dias do Painel e a série dos últimos 7 (tirada da mesma resposta, sem outra requisição).</summary>
+    /// <summary>Guarda os indicadores do Painel (a janela do período) e refaz a série, a tabela, os cards e os gráficos a partir da mesma resposta, sem outra requisição.</summary>
     private void ApplyPanelMetrics(UnitMetricsRead read)
     {
-        if (read.Data is not { } data) { panelFailed = true; NotifyUnitMetrics(); return; }
-        var unchanged = panelRequest == read.Request && panelMetrics is not null && JsonSerializer.Serialize(panelMetrics) == JsonSerializer.Serialize(data);
-        panelFailed = false;
-        if (unchanged) { NotifyUnitMetrics(); return; }
-        panelMetrics = data; panelRequest = read.Request;
-        var last = DateOnly.FromDateTime(read.Request.To.LocalDateTime.AddDays(-1)); var first = last.AddDays(1 - PanelChartDays);
-        var sparse = SparseDays(data.Daily).Where(point => point.Date >= first && point.Date <= last).ToArray();
-        PanelChart.Apply(ChartSeries.Dense(sparse, first, last), sparse, sparse.Length == 0 ? $"Nenhuma consulta com data marcada nos últimos {PanelChartDays} dias." : "");
+        if (read.Data is not { } data) panelFailed = true;
+        else
+        {
+            var unchanged = panelRequest == read.Request && panelMetrics is not null && JsonSerializer.Serialize(panelMetrics) == JsonSerializer.Serialize(data);
+            panelFailed = false;
+            if (!unchanged) { panelMetrics = data; panelRequest = read.Request; }
+        }
+        RebuildPanelSeries();
         NotifyUnitMetrics();
+        RebuildPanelOverview();
     }
 
     private void ClearUnitMetrics()
@@ -286,9 +348,11 @@ public sealed partial class WorkspaceViewModel
         unitMetrics = null; appliedUnitMetrics = null; appliedUnitRange = null; unitMetricsFailed = false; unitMetricsAttemptedAt = null;
         panelMetrics = null; panelRequest = null; panelFailed = false; panelAttemptedAt = null;
         unitPeriodDays = 30; unitFromText = unitToText = unitRangeError = "";
-        Replace(UnitOverviewCards, BuildCards(null, null)); Replace(UnitLightningCards, BuildLightningCards(null)); Replace(UnitSpecialtyPerformance, Array.Empty<PerformanceRow>());
+        Replace(UnitOverviewCards, BuildUnitSummaryCards(null, null, null)); Replace(UnitSpecialtyPerformance, Array.Empty<PerformanceRow>());
         UnitChart.Clear("Sem indicadores carregados."); PanelChart.Clear("Sem indicadores carregados.");
+        RebuildUnitChartCards();
         foreach (var name in new[] { nameof(UnitPeriodDays), nameof(IsUnitCustomPeriod), nameof(UnitFromText), nameof(UnitToText), nameof(UnitRangeError), nameof(HasUnitRangeError) }) Notify(name);
         NotifyUnitMetrics();
+        ClearPanelOverview();
     }
 }

@@ -9,7 +9,7 @@ public sealed partial class WorkspaceViewModel
     {
         AppointmentMetrics? appointments; WaitingMetrics? waiting; LightningMetrics? lightning; DailyMetrics[] daily; SpecialtyMetrics[] specialties; CapacityMetrics? capacity;
         if (IsMunicipal && metrics is { } network) { appointments = network.Totals.Appointments; waiting = network.Totals.Waiting; lightning = network.Totals.Lightning; daily = network.Daily; specialties = network.BySpecialty; capacity = network.Capacity; }
-        else if ((Section == "home" ? panelMetrics : unitMetrics) is { } unit) { appointments = unit.Appointments; waiting = unit.Waiting; lightning = unit.Lightning; daily = unit.Daily; specialties = unit.BySpecialty; capacity = unit.Capacity; }
+        else if ((Section == "home" ? PanelData ?? panelMetrics : unitMetrics) is { } unit) { appointments = unit.Appointments; waiting = unit.Waiting; lightning = unit.Lightning; daily = unit.Daily; specialties = unit.BySpecialty; capacity = unit.Capacity; }
         else { appointments = null; waiting = null; lightning = null; daily = []; specialties = []; capacity = null; }
 
         var key = title.ToLowerInvariant();
@@ -25,8 +25,8 @@ public sealed partial class WorkspaceViewModel
         IReadOnlyList<ChartPoint> line; string lineNote;
         if (measure is not null && daily.Length > 0)
         {
-            line = daily.OrderBy(d => d.Date, StringComparer.Ordinal).Select(d => new ChartPoint(ShortDate(d.Date), measure(d))).ToArray();
-            lineNote = "Evolução diária no período do filtro.";
+            line = DailyLine(daily, measure, out var grouping);
+            lineNote = grouping == ChartGrouping.Day ? "Evolução diária no período do filtro." : $"Evolução no período do filtro. {ChartData.StepNote(grouping)}";
         }
         else
         {
@@ -58,6 +58,28 @@ public sealed partial class WorkspaceViewModel
         else { pie = []; pieNote = "Sem dados para a composição."; }
         if (pie.All(p => p.Value <= 0)) pie = [];
         return new IndicatorChart(title, line, lineNote, pie, pie.Count == 0 ? "Sem dados para a composição." : pieNote);
+    }
+
+    /// <summary>
+    /// A linha do indicador no tempo. Um ponto por dia até 92 dias; acima disso os dias são somados por semana ou por mês (<see cref="ChartData.For"/>) e a medida é calculada
+    /// sobre a soma, para a razão de comparecimento continuar certa.
+    /// </summary>
+    private static ChartPoint[] DailyLine(DailyMetrics[] daily, Func<DailyMetrics, double> measure, out ChartGrouping grouping)
+    {
+        var ordered = daily.OrderBy(day => day.Date, StringComparer.Ordinal).ToArray();
+        var dates = ordered.Select(day => DateOnly.TryParse(day.Date, out var date) ? date : (DateOnly?)null).ToArray();
+        var known = dates.OfType<DateOnly>().ToArray();
+        grouping = known.Length < 2 ? ChartGrouping.Day : ChartData.For(known[^1].DayNumber - known[0].DayNumber + 1);
+        if (grouping == ChartGrouping.Day) return ordered.Select(day => new ChartPoint(ShortDate(day.Date), measure(day))).ToArray();
+        var mode = grouping;
+        return ordered.Select((day, index) => (day, date: dates[index])).Where(item => item.date is not null)
+            .GroupBy(item => mode == ChartGrouping.Week ? item.date!.Value.AddDays(-(((int)item.date.Value.DayOfWeek + 6) % 7)) : new DateOnly(item.date!.Value.Year, item.date.Value.Month, 1))
+            .Select(group =>
+            {
+                var sum = new DailyMetrics(group.Key.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), group.Sum(item => item.day.Scheduled), group.Sum(item => item.day.Completed), group.Sum(item => item.day.Missed), group.Sum(item => item.day.Cancelled));
+                var label = mode == ChartGrouping.Month ? group.Key.ToString("MMM/yy", Services.DisplayFormat.Culture) : group.Key.ToString("dd/MM", Services.DisplayFormat.Culture);
+                return new ChartPoint(label, measure(sum));
+            }).ToArray();
     }
 
     private static string ShortDate(string iso) => DateOnly.TryParse(iso, out var date) ? date.ToString("dd/MM", Services.DisplayFormat.Culture) : iso;

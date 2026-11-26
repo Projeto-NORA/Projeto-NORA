@@ -51,8 +51,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private static readonly string[] SectionDependents =
     [
         nameof(ShowMunicipal), nameof(ShowDashboard), nameof(ShowPatients), nameof(ShowAgenda), nameof(ShowSlots), nameof(ShowIndicators), nameof(ShowAlerts), nameof(ShowUnitSettings), nameof(ShowAnnouncements), nameof(ShowFamily),
-        nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredTitle), nameof(AccessRequiredDescription), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage),
-        nameof(PageTitle), nameof(PageSubtitle)
+        nameof(RequiresSignInForCurrentSection), nameof(AccessRequiredTitle), nameof(AccessRequiredDescription), nameof(AccessRequiredHint), nameof(IsIndicatorsPage), nameof(IsAlertsPage)
     ];
 
     /// <param name="devices">Armazenamento local da sessão no Windows e da identificação do computador do OBS.</param>
@@ -82,7 +81,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         SelectCalendarDayCommand = new RelayCommand(day => SelectCalendarDay(day as AgendaCalendarDay));
         BuildAgendaDays(); ResetAgendaRange();
         Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
-        Replace(UnitOverviewCards, BuildCards(null, null)); Replace(UnitLightningCards, BuildLightningCards(null));
+        Replace(UnitOverviewCards, BuildUnitSummaryCards(null, null, null)); RebuildPanelOverview();
         Replace(UnitCapacityCards, BuildCapacityCards(null, "")); Replace(NetworkCapacityCards, BuildCapacityCards(null, ""));
     }
 
@@ -179,10 +178,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     };
     public bool IsIndicatorsPage => ShowIndicators;
     public bool IsAlertsPage => ShowAlerts;
-    public string PageTitle => Section == "alerts" ? "Central de alertas" : "Indicadores da UBS";
-    public string PageSubtitle => Section == "alerts"
-        ? "Situações que pedem atenção, avaliadas pela API."
-        : "Espera, produção, comparecimento e Vaga Relâmpago da UBS.";
     public string PatientTotalCount => HasActiveObsUnit ? ObsRegistry.Count.ToString() : "—";
     /// <summary>Ofertas de Vaga Relâmpago correndo agora.</summary>
     public string OffersRunningCount => HasActiveObsUnit && unitSlotsLoaded ? UnitLightningSlots.Count(slot => slot.Status == "offered").ToString() : "—";
