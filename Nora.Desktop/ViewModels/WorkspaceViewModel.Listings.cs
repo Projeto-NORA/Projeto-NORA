@@ -100,10 +100,18 @@ public sealed partial class WorkspaceViewModel
         return fields;
     }
 
+    private const string AppointmentPatientGroup = "Paciente", AppointmentVisitGroup = "Consulta", AppointmentRecordGroup = "Registro";
+    /// <summary>
+    /// A ficha da consulta, em três seções: o paciente, a consulta (especialidade, profissional, data, horário e situação) e o registro (quem marcou e a confirmação de presença).
+    /// A API não informa o consultório da consulta nem um histórico de mudanças de situação, então esses dois campos não aparecem.
+    /// </summary>
     private static ItemDetails BuildAppointmentDetails(AppointmentInfo appointment) => new(appointment.PatientName, "Consulta da UBS", [
-        new("Paciente", appointment.PatientName, true), new("CPF", appointment.FormattedCpf, true), new("Especialidade", appointment.Specialty), new("Profissional", appointment.Professional),
-        new("Horário", appointment.TimeDisplay), new("Situação", appointment.StatusDisplay), new("Marcada por", appointment.BookedByDisplay),
-        new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação: a confirmação só vale para consulta agendada, de 48 h até 2 h antes.")]);
+        new("Nome", appointment.PatientName, true, AppointmentPatientGroup), new("CPF", appointment.FormattedCpf, true, AppointmentPatientGroup),
+        new("Especialidade", appointment.Specialty, Group: AppointmentVisitGroup), new("Profissional", appointment.Professional, Group: AppointmentVisitGroup),
+        new("Data", appointment.AgendaDayDisplay, Group: AppointmentVisitGroup), new("Horário", $"{appointment.StartsAt.ToLocalTime():HH:mm} às {appointment.EndsAt.ToLocalTime():HH:mm}", Group: AppointmentVisitGroup),
+        new("Situação", appointment.StatusDisplay, Group: AppointmentVisitGroup),
+        new("Marcada por", appointment.BookedByDisplay, Group: AppointmentRecordGroup),
+        new("Confirmação de presença", appointment.HasConfirmationInfo ? appointment.ConfirmationDisplay : "Sem informação: a confirmação só vale para consulta agendada, de 48 h até 2 h antes.", Group: AppointmentRecordGroup)]);
 
     private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
     {

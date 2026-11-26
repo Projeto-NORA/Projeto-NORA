@@ -306,7 +306,6 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
-                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
                 vm.BookingSpecialty = vm.BookingSpecialties.Single(item => item.Name == "Clínica geral");
                 vm.BookingProfessional = vm.BookingProfessionals.Single(item => item.FullName == "Dr. Bruno"); Settle(vm);
                 vm.BookingSlot = vm.BookingSlots[1]; vm.AppointmentPatient = vm.ObsRegistry.Single(); content = Layout(window, 1280, 1600);
@@ -318,7 +317,6 @@ internal static partial class Program
                 // Um profissional novo cadastrado em outro computador muda a contagem da lista: a escolha continua.
                 fixture.AddProfessional(unit.Id, "Dr. Carlos", [clinica.Id]); vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
                 Require(vm.BookingProfessionals.Count == 3 && vm.BookingProfessional?.FullName == "Dr. Bruno" && vm.BookingSlot?.StartsAt == chosenStart, "Um profissional novo na lista apagou a escolha em andamento.");
-                SaveScrolled(window, Path.Combine(previewRoot, "revisao-agenda-escolhas-light.png"), 1280, 900);
                 Pump(vm.CreateAppointmentAsync()); Settle(vm);
                 Require(vm.MessageKind == MessageKind.Success && fixture.AppointmentsOf(unit.Id).Single().ProfessionalId == bruno.Id, "Agendar depois de atualizar deveria funcionar: " + vm.Message);
             }
@@ -362,7 +360,7 @@ internal static partial class Program
                 // 8: outro computador cadastra o primeiro profissional; o texto livre recebe catalog-required e a tela passa ao catálogo.
                 var ana = fixture.AddProfessional(unit.Id, "Dra. Ana", [cardio.Id]); var room = fixture.AddRoom(unit.Id, "Consultório 1");
                 var day = DateTime.Today.AddDays(3); fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 9)); fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 10));
-                vm.SelectAgendaDayCommand.Execute(null); vm.MoveAgenda(1); Settle(vm);
+                vm.AgendaViewMode = "Dia"; vm.MoveAgenda(1); Settle(vm);
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); vm.AppointmentSpecialty = "Cardiologia"; vm.AppointmentProfessional = "Dra. Ana"; vm.AppointmentStart = "09:00"; vm.AppointmentEnd = "09:30";
                 var reads = fixture.Count("GET", "/professionals");
                 Pump(vm.CreateAppointmentAsync()); Settle(vm);
@@ -372,7 +370,7 @@ internal static partial class Program
             finally { CloseWindow(window); }
         });
 
-        Check("Revisão 9a: \"Atualizar agenda\" relê o cadastro quando a leitura dele falhou, sem esperar o ciclo de 5 minutos", () =>
+        Check("Revisão 9a: a agenda relê o cadastro sozinha quando a leitura dele falhou, sem esperar o ciclo de 5 minutos", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Agenda Atualiza 2", "Centro");
@@ -383,16 +381,15 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
                 fixture.FailCatalogUnits.Add(unit.Id); vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
-                Require(vm.BookingCatalogUnavailable && !vm.CanBook && vm.BookingIntro.Contains("Atualize a agenda", StringComparison.Ordinal), "Com a leitura falha o agendamento deveria ficar indisponível, mandando atualizar a agenda.");
-                SaveScrolled(window, Path.Combine(previewRoot, "revisao-agenda-indisponivel-light.png"), 1280, 900);
+                Require(vm.BookingCatalogUnavailable && !vm.CanBook && vm.BookingIntro.Contains("tenta de novo sozinha", StringComparison.Ordinal), "Com a leitura falha o agendamento deveria ficar indisponível, dizendo que a agenda tenta de novo sozinha.");
                 fixture.FailCatalogUnits.Clear();
-                Pump(vm.LoadAppointmentsAsync()); Settle(vm); content = Layout(window, 1280, 1600);
-                Require(vm.UsesCatalogBooking && !vm.BookingCatalogUnavailable && vm.CanBook && vm.MessageKind == MessageKind.Success, "\"Atualizar agenda\" deveria reler o cadastro e liberar o agendamento: " + vm.Message);
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 1600);
+                Require(vm.UsesCatalogBooking && !vm.BookingCatalogUnavailable && vm.CanBook, "O ciclo da agenda deveria reler o cadastro e liberar o agendamento: " + vm.Message);
             }
             finally { CloseWindow(window); }
         });
 
-        Check("Revisão 9b: \"Atualizar agenda\" busca de novo os horários livres quando a busca falhou", () =>
+        Check("Revisão 9b: a agenda busca de novo os horários livres sozinha quando a busca falhou", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Agenda Atualiza 3", "Centro");
@@ -407,8 +404,8 @@ internal static partial class Program
                 fixture.FailAvailability = true; vm.BookingProfessional = null; vm.BookingSpecialty = null; vm.BookingSpecialty = vm.BookingSpecialties.Single(); Settle(vm);
                 Require(vm.BookingSlots.Count == 0 && vm.BookingState.Contains("Não foi possível buscar os horários livres", StringComparison.Ordinal), "Com a busca falha a lista de horários deveria avisar: " + vm.BookingState);
                 fixture.FailAvailability = false; var queries = fixture.AvailabilityQueries.Count;
-                Pump(vm.LoadAppointmentsAsync()); Settle(vm);
-                Require(vm.BookingSlots.Count == 2 && fixture.AvailabilityQueries.Count > queries && vm.BookingState == "", $"\"Atualizar agenda\" deveria buscar os horários livres de novo ({vm.BookingSlots.Count} horários, estado \"{vm.BookingState}\").");
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                Require(vm.BookingSlots.Count == 2 && fixture.AvailabilityQueries.Count > queries && vm.BookingState == "", $"O ciclo da agenda deveria buscar os horários livres de novo ({vm.BookingSlots.Count} horários, estado \"{vm.BookingState}\").");
             }
             finally { CloseWindow(window); }
         });

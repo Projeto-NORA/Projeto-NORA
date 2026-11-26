@@ -177,8 +177,11 @@ internal static partial class Program
                 var content = Show(window, "agenda", 1280, 1600);
                 Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && fixture.AvailabilityQueries.Count == 0, "Sem escolhas, nenhum horário deveria ter sido buscado.");
                 Require(vm.BookingSpecialties.Select(item => item.Name).SequenceEqual(["Cardiologia", "Clínica geral"]), "As especialidades do agendamento deveriam ser as que algum profissional ativo atende.");
-                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
-                Require(Descendants<TextBox>(content).All(box => AutomationProperties.GetName(box) is not ("Especialidade da consulta" or "Profissional da consulta") || !box.IsVisible), "O texto livre não deveria aparecer numa UBS com profissional ativo.");
+                InspectBooking(window, dialog =>
+                {
+                    Require(Descendants<TextBox>(dialog).All(box => AutomationProperties.GetName(box) is not ("Horário inicial da consulta" or "Horário final da consulta" or "Profissional da consulta") || !box.IsVisible), "O texto livre não deveria aparecer numa UBS com profissional ativo.");
+                    Require(Descendants<ComboBox>(dialog).Count(box => box.IsVisible) == 3 && Descendants<ListBox>(dialog).Any(box => AutomationProperties.GetName(box) == "Horários livres" && box.IsVisible), "O pop-up do catálogo deveria ter paciente, especialidade, profissional e a lista de horários livres.");
+                });
                 int Requests() => fixture.AvailabilityQueries.Count;
                 var before = Requests();
                 vm.BookingSpecialty = vm.BookingSpecialties.Single(item => item.Name == "Cardiologia"); Settle(vm);
@@ -198,8 +201,7 @@ internal static partial class Program
                 Require(Requests() == beforeDay + 1 && DateTimeOffset.Parse(fixture.AvailabilityQueries[^1].Query["from"]!, CultureInfo.InvariantCulture).LocalDateTime == day.Date, "Trocar o dia deveria buscar uma vez, a partir do dia escolhido.");
                 Require(vm.BookingWindowLabel.Contains(DateText(day)), "O rótulo da janela não mostra o dia escolhido.");
                 // Marcar: corpo com professionalId e specialtyId; o horário sai da lista.
-                content = Layout(window, 1280, 1600);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-agenda-catalogo-light.png"), 1280, 900);
+                InspectBooking(window, dialog => { WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-catalogo-light.png")); });
                 vm.AppointmentPatient = vm.ObsRegistry.Single(item => item.Cpf == "52998224725"); vm.BookingSlot = vm.BookingSlots[0];
                 var beforeBook = Requests(); Pump(vm.CreateAppointmentAsync()); Settle(vm);
                 var body = fixture.AppointmentBodies.Last();
@@ -220,9 +222,11 @@ internal static partial class Program
                 // Validações locais.
                 vm.AppointmentPatient = null; Pump(vm.CreateAppointmentAsync()); Require(vm.Message.Contains("Selecione o paciente"), "Sem paciente a marcação foi aceita.");
                 vm.AppointmentPatient = vm.ObsRegistry.First(); vm.BookingSlot = null; Pump(vm.CreateAppointmentAsync()); Require(vm.Message.Contains("Escolha um horário livre"), "Sem horário escolhido a marcação foi aceita.");
-                content = Layout(window, 1280, 1600);
-                Require(FindActionButton(content, "Agendar").IsVisible && Descendants<ListBox>(content).Any(box => AutomationProperties.GetName(box) == "Horários livres" && box.IsVisible), "O agendamento pelo catálogo não aparece.");
-                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1600); SaveScrolled(window, Path.Combine(previewRoot, "obs-agenda-catalogo-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
+                InspectBooking(window, dialog =>
+                {
+                    Require(Descendants<Button>(dialog).Any(button => button.IsVisible && button.Content?.ToString() == "Agendar") && Descendants<ListBox>(dialog).Any(box => AutomationProperties.GetName(box) == "Horários livres" && box.IsVisible), "O agendamento pelo catálogo não aparece.");
+                    window.ViewModel.SetAppearance(Appearance.Dark); WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-catalogo-dark.png")); window.ViewModel.SetAppearance(Appearance.Light);
+                });
             }
             finally { CloseWindow(window); }
         });
@@ -235,21 +239,27 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1600);
-                Click(window, content, "+ Agendar nova consulta", 1280, 1600); content = Layout(window, 1280, 1600);
-                Require(vm.UsesFreeTextBooking && !vm.UsesCatalogBooking && Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "Especialidade da consulta").IsVisible && FindActionButton(content, "Agendar").IsVisible, "Sem profissional ativo o texto livre deveria aparecer.");
-                Require(Descendants<ComboBox>(content).All(box => AutomationProperties.GetName(box) != "Especialidade da consulta pelo catálogo" || !box.IsVisible), "O catálogo não deveria aparecer sem profissional ativo.");
+                InspectBooking(window, dialog =>
+                {
+                    Require(vm.UsesFreeTextBooking && !vm.UsesCatalogBooking && Descendants<ComboBox>(dialog).Single(box => AutomationProperties.GetName(box) == "Especialidade da consulta").IsVisible && Descendants<Button>(dialog).Any(button => button.IsVisible && button.Content?.ToString() == "Agendar"), "Sem profissional ativo o texto livre deveria aparecer.");
+                    Require(Descendants<ComboBox>(dialog).All(box => AutomationProperties.GetName(box) != "Especialidade da consulta pelo catálogo" || !box.IsVisible), "O catálogo não deveria aparecer sem profissional ativo.");
+                    WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-texto-livre-light.png"));
+                });
                 var cardio = fixture.AddSpecialty("Cardiologia"); fixture.AddProfessional(unit.Id, "Dra. Nova", [cardio.Id]);
-                vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
-                Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && !Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) == "Especialidade da consulta" && box.IsVisible), "Com profissional ativo só o catálogo deveria valer.");
-                fixture.FailCatalogUnits.Add(unit.Id); vm.RefreshCommand.Execute(null); Settle(vm); content = Layout(window, 1280, 1600);
-                Require(vm.BookingCatalogUnavailable && !vm.CanBook && vm.HasActiveObsUnit && vm.ObsRegistry.Count == 1 && FullTexts(content).Any(text => text.Contains("indisponível", StringComparison.Ordinal)), "A falha do catálogo deveria explicar e manter a UBS aberta.");
+                vm.RefreshCommand.Execute(null); Settle(vm);
+                InspectBooking(window, dialog => Require(vm.UsesCatalogBooking && !vm.UsesFreeTextBooking && !Descendants<ComboBox>(dialog).Any(box => AutomationProperties.GetName(box) == "Especialidade da consulta" && box.IsVisible), "Com profissional ativo só o catálogo deveria valer."));
+                fixture.FailCatalogUnits.Add(unit.Id); vm.RefreshCommand.Execute(null); Settle(vm);
+                InspectBooking(window, dialog =>
+                {
+                    Require(vm.BookingCatalogUnavailable && !vm.CanBook && vm.HasActiveObsUnit && vm.ObsRegistry.Count == 1 && FullTexts(dialog).Any(text => text.Contains("indisponível", StringComparison.Ordinal)), "A falha do catálogo deveria explicar e manter a UBS aberta.");
+                    WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-catalogo-indisponivel-light.png"));
+                });
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); Pump(vm.CreateAppointmentAsync());
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("cadastro de profissionais") && fixture.Count("POST", "/appointments") == 0, "Sem o catálogo a marcação não deveria sair: " + vm.Message);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-agenda-catalogo-indisponivel-light.png"), 1280, 900);
             }
             finally { CloseWindow(window); }
         });
-        Check("Agenda OBS: mostra quem marcou (equipe, paciente pelo aplicativo, Vaga Relâmpago) e a confirmação de presença nas próximas 48 h, com texto além do ícone", () =>
+        Check("Agenda OBS: a ficha da consulta mostra quem marcou (equipe, paciente pelo aplicativo, Vaga Relâmpago) e a confirmação de presença nas próximas 48 h, e a lista não repete esses dados", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Presença", "Centro");
@@ -269,29 +279,36 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "agenda", 1280, 1400);
-                // A lista rola (altura máxima): só as primeiras linhas são desenhadas, então cada leitura mostra duas consultas.
-                foreach (var item in new[] { unconfirmed, confirmedToday }) vm.Appointments.Add(item);
+                foreach (var item in new[] { unconfirmed, confirmedToday, confirmedBefore, farAway }) vm.Appointments.Add(item);
                 content = Layout(window, 1280, 1400);
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Consultas da UBS");
                 var texts = VisibleTexts(list);
-                Require(texts.Contains("Sem confirmação") && texts.Contains(confirmedToday.ConfirmationDisplay) && texts.Contains("Marcada por: Equipe da UBS") && texts.Contains("Marcada por: Paciente pelo aplicativo"), "A lista não mostra quem marcou e a confirmação: " + string.Join(" | ", texts));
-                Require(texts.Count(text => text == "Sem confirmação") == 1 && texts.Count(text => text.StartsWith("Presença confirmada", StringComparison.Ordinal)) == 1, "Só consultas dentro das 48 h (ou já confirmadas) mostram a confirmação.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-agenda-presenca-light.png"), 1280, 900);
-                vm.Appointments.Clear(); foreach (var item in new[] { confirmedBefore, farAway }) vm.Appointments.Add(item);
-                content = Layout(window, 1280, 1400); texts = VisibleTexts(Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Consultas da UBS"));
-                Require(texts.Contains("Marcada por: Vaga Relâmpago") && texts.Contains(confirmedBefore.ConfirmationDisplay) && !texts.Contains("Sem confirmação") && texts.Count(text => text.StartsWith("Presença", StringComparison.Ordinal)) == 1, "A Vaga Relâmpago confirmada ou a consulta distante foram mal exibidas: " + string.Join(" | ", texts));
-                vm.Appointments.Clear(); foreach (var item in new[] { unconfirmed, confirmedToday }) vm.Appointments.Add(item);
-                content = Layout(window, 1280, 1400);
-                vm.Appointments.Add(farAway); var details = vm.BuildDetails(unconfirmed)!;
+                Require(texts.Contains("Sem Confirmação") && texts.Contains("Confirmada Hoje") && !texts.Any(text => text.StartsWith("Marcada por", StringComparison.Ordinal) || text.StartsWith("Presença confirmada", StringComparison.Ordinal) || text == "Sem confirmação"), "A lista só traz nome, horário e situação; quem marcou e a confirmação ficam na ficha: " + string.Join(" | ", texts));
+                var details = vm.BuildDetails(unconfirmed)!;
                 Require(details.Fields.Single(field => field.Label == "Marcada por").Value == "Equipe da UBS" && details.Fields.Single(field => field.Label == "Confirmação de presença").Value == "Sem confirmação" && details.Title == "Sem Confirmação", "A ficha da consulta não traz quem marcou e a confirmação.");
                 Require(vm.BuildDetails(farAway)!.Fields.Single(field => field.Label == "Confirmação de presença").Value.StartsWith("Sem informação", StringComparison.Ordinal), "Fora da janela a ficha deveria explicar a ausência da informação.");
-                window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 1400);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-agenda-presenca-dark.png"), 1280, 900);
-                var surface = ((System.Windows.Media.SolidColorBrush)application.FindResource("SurfaceBrush")).Color;
-                Require(Contrast(((System.Windows.Media.SolidColorBrush)application.FindResource("WarningBrush")).Color, surface) >= 3 && Contrast(((System.Windows.Media.SolidColorBrush)application.FindResource("SuccessBrush")).Color, surface) >= 3, "Os ícones de confirmação perdem contraste no tema escuro.");
+                Require(vm.BuildDetails(confirmedToday)!.Fields.Single(field => field.Label == "Marcada por").Value == "Paciente pelo aplicativo" && vm.BuildDetails(confirmedToday)!.Fields.Single(field => field.Label == "Confirmação de presença").Value == confirmedToday.ConfirmationDisplay, "A ficha da consulta confirmada pelo paciente está errada.");
+                Require(vm.BuildDetails(confirmedBefore)!.Fields.Single(field => field.Label == "Marcada por").Value == "Vaga Relâmpago" && vm.BuildDetails(confirmedBefore)!.Fields.Single(field => field.Label == "Confirmação de presença").Value.StartsWith("Presença confirmada em ", StringComparison.Ordinal), "A ficha da Vaga Relâmpago confirmada está errada.");
+                // A ficha em linhas mostra as três seções com os textos (o ícone antigo não existe mais: o estado é dito em palavras).
+                foreach (var item in new[] { unconfirmed, confirmedToday })
+                    InspectModal<ItemDetailsWindow>(window, dialog =>
+                    {
+                        var shown = FullTexts(dialog);
+                        Require(new[] { "Paciente", "Consulta", "Registro", "Marcada por", item.BookedByDisplay, "Confirmação de presença", item.ConfirmationDisplay, "Situação", "Agendada" }.All(shown.Contains), "A ficha não mostra as seções e os textos da consulta: " + string.Join(" | ", shown));
+                        WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, item == unconfirmed ? "obs-agenda-ficha-light.png" : "obs-agenda-ficha-confirmada-light.png"));
+                        if (item == unconfirmed) { window.ViewModel.SetAppearance(Appearance.Dark); dialog.UpdateLayout(); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-ficha-dark.png")); window.ViewModel.SetAppearance(Appearance.Light); }
+                    }, () => window.OpenItemDetails(item));
             }
             finally { CloseWindow(window); }
         });
+    }
+
+    /// <summary>Abre o pop-up "Agendar nova consulta" pelo botão do cabeçalho e roda <paramref name="inspect"/> dentro dele; o pop-up fecha sem salvar.</summary>
+    private static void InspectBooking(ShellWindow window, Action<FormDialog> inspect)
+    {
+        var content = Layout(window, 1280, 900);
+        InspectModal<FormDialog>(window, dialog => { Require(dialog.Title == "Agendar nova consulta", "O pop-up deveria se chamar Agendar nova consulta."); inspect(dialog); }, () => InvokeButton(FindActionButton(content, "Agendar nova consulta")));
+        window.ViewModel.Workspace.DismissMessageCommand.Execute(null);
     }
 
 }
