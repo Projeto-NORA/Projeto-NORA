@@ -288,6 +288,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         _ = LoadAccountPhotoAsync();
         if (IsMunicipal) await LoadMunicipalAsync(); else await Task.WhenAll(InitializeObsUnitsAsync(), ReadAnnouncementsAsync(full: true));
         MarkFresh();
+        // Várias UBS e nenhuma ativa: a janela principal abre sozinha o pop-up "Trocar perfil".
+        if (!IsMunicipal) RequestProfileChoiceIfNeeded();
     }
 
     private async Task LogoutAsync()

@@ -25,6 +25,8 @@ internal static partial class Program
         checkFilter = filterArgument >= 0 && filterArgument + 1 < args.Length ? args[filterArgument + 1] : null;
         var root = Path.Combine(AppContext.BaseDirectory, "check-data", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        // O pop-up "Trocar perfil" que abre sozinho depois do login é modal: as janelas de teste não podem ficar presas nele. Só as checagens do próprio pop-up ligam de novo.
+        Nora.Desktop.Views.ShellWindow.AutoOpenProfileChoice = false;
         try
         {
             Check("Primeira abertura usa Sistema e preferências padrão", () =>
@@ -191,6 +193,7 @@ internal static partial class Program
             RunListingComponentsChecks(application, themes, root, args);
             RunChartAndDialogChecks(application, themes, root, args);
             RunDesktopAccessChecks(root, args);
+            RunProfileChecks(application, themes, root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);
             RunRoundEndToEndChecks(root, args);

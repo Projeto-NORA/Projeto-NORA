@@ -81,9 +81,10 @@ public sealed partial class WorkspaceViewModel
             devices?.SaveDevice(enrollment);
             NotifyDevice();
         }
-        if (session.KeepSignedIn)
-            devices?.SaveSession(new StoredSession(api.EndpointAddress!, session.Token, session.ExpiresAt));
-        else devices?.DeleteSession();
+        // Login salvo: a sessão é sempre gravada, com o vencimento que a API devolveu (24 h sem a caixa, 30 dias com "Manter conectado por 30 dias").
+        // Fechar o programa não a apaga; só "Sair da conta", o vencimento ou a recusa da API. Com a ativação do computador ligada a API continua amarrando a sessão ao
+        // computador e a reabertura confere o computador de novo, então gravar a sessão de 24 h não enfraquece essa exigência.
+        devices?.SaveSession(new StoredSession(api.EndpointAddress!, session.Token, session.ExpiresAt));
         ShowStoreWarning();
         await CompleteDesktopAccessAsync(session.User);
     }

@@ -1,0 +1,50 @@
+<Window x:Class="Nora.Desktop.Views.SwitchProfileDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" Width="560" SizeToContent="Height" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="Trocar perfil">
+  <!-- Pop-up "Trocar perfil" (mesmo padrão do FormDialog): sem moldura do Windows, cantos arredondados, o fundo da janela principal escurece. Título e X no topo, a lista das UBS que a conta pode acessar
+       no corpo e, no rodapé, "Sugerir pela localização" à esquerda do primário "Trocar". Sem card dentro do pop-up: o pop-up já é o card. -->
+  <Border x:Name="Frame" Margin="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16" RenderTransformOrigin="0.5,0.5" Opacity="0" AutomationProperties.Name="Trocar perfil">
+    <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.22" Color="#061E3B" /></Border.Effect>
+    <Border.RenderTransform><ScaleTransform x:Name="Zoom" ScaleX="0.96" ScaleY="0.96" /></Border.RenderTransform>
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid Margin="24,18,14,8" Background="Transparent" MouseLeftButtonDown="OnDrag">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock Text="Trocar perfil" Style="{StaticResource SectionTitle}" FontSize="20" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+        <Button x:Name="CloseButton" Grid.Column="1" Style="{StaticResource CircleIconButton}" IsCancel="True" Click="OnClose" ToolTip="Fechar sem trocar" AutomationProperties.Name="Fechar sem trocar">
+          <Path Data="{StaticResource IconCloseGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+        </Button>
+      </Grid>
+      <ProgressBar x:Name="Progress" Grid.Row="1" Height="3" IsIndeterminate="True" Margin="24,0" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="Collapsed" AutomationProperties.Name="Operação em andamento" />
+      <StackPanel Grid.Row="2" Margin="24,10,24,6">
+        <TextBlock x:Name="IntroText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" Text="Escolha a UBS em que você vai trabalhar. Setas e Enter também funcionam." />
+        <TextBlock x:Name="BusyText" Margin="0,0,0,12" Foreground="{DynamicResource SecondaryBrush}" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
+        <ListBox x:Name="UnitList" Style="{StaticResource OpenList}" SelectionMode="Single" MaxHeight="300" SelectionChanged="OnSelectionChanged" AutomationProperties.Name="UBS que esta conta pode acessar">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid AutomationProperties.Name="{Binding AutomationLabel}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitleText}" />
+                  <TextBlock Text="{Binding Region}" Style="{StaticResource ItemMetaText}" />
+                </StackPanel>
+                <views:StatusTag Grid.Column="1" Text="{Binding Tag}" Tone="Green" Margin="12,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock x:Name="EmptyText" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryBrush}" Visibility="Collapsed" AutomationProperties.Name="Nenhuma UBS na lista" />
+        <TextBlock x:Name="HintText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+      <Border x:Name="ErrorBox" Grid.Row="3" Margin="24,4,24,0" Padding="12,9" CornerRadius="8" Background="{DynamicResource ErrorSurfaceBrush}" BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1" Visibility="Collapsed" AutomationProperties.LiveSetting="Assertive" AutomationProperties.Name="Erro ao trocar de perfil">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Path Data="{StaticResource IconWarningGeometry}" Width="18" Height="18" Stretch="None" VerticalAlignment="Top" Margin="0,1,10,0" Stroke="{DynamicResource ErrorBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <TextBlock x:Name="ErrorText" Grid.Column="1" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+        </Grid>
+      </Border>
+      <StackPanel Grid.Row="4" Margin="24,14,24,20" Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button x:Name="SuggestButton" Content="Sugerir pela localização" MinHeight="40" Margin="0,0,10,0" Click="OnSuggest" ToolTip="Sugere, na lista, a UBS autorizada mais próxima deste computador." AutomationProperties.Name="Sugerir pela localização" />
+        <Button x:Name="SwitchButton" Content="Trocar" MinWidth="132" MinHeight="40" IsDefault="True" Style="{StaticResource ObsPrimaryButton}" Click="OnSwitch" ToolTip="Troca para a UBS escolhida e carrega os dados dela." AutomationProperties.Name="Trocar" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

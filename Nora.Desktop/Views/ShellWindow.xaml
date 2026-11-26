@@ -39,20 +39,27 @@
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom">
           <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="8,8,8,10" />
-          <Button Style="{StaticResource NavItemButton}" Command="{Binding NavigateCommand}" CommandParameter="settings" Margin="0,0,0,6" ToolTip="Aparência, atalhos, foto de perfil e preferências deste computador." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Configurações">
-            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" Width="22" VerticalAlignment="Center" /><TextBlock Text="Configurações" Margin="10,0,0,0" VerticalAlignment="Center" /></StackPanel>
-          </Button>
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <Button x:Name="AvatarButton" Style="{StaticResource AvatarButton}" Click="OnPhotoMenu" Margin="6,0,0,0" IsEnabled="{Binding Workspace.IsAuthenticated}" ToolTip="Foto de perfil: clique para alterar ou remover." ToolTipService.ShowOnDisabled="False" AutomationProperties.Name="Foto de perfil">
               <views:AccountAvatar DataContext="{Binding Workspace}" Size="36" />
             </Button>
-            <Button x:Name="AccountButton" Grid.Column="1" Style="{StaticResource NavItemButton}" Click="OnAccountMenu" Padding="8,8" ToolTip="Conta conectada: abra as configurações ou saia." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
+            <Button x:Name="AccountButton" Grid.Column="1" Style="{StaticResource NavItemButton}" Click="OnAccountMenu" Padding="8,8" ToolTip="Conta conectada: troque de perfil, abra as configurações, veja os dados do perfil ou saia." ToolTipService.IsEnabled="{Binding ShowSidebarTips}" AutomationProperties.Name="Menu da conta NORA">
               <Button.ContextMenu>
                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Style="{StaticResource NoraContextMenu}">
-                  <MenuItem Header="Configurações" Command="{Binding NavigateCommand}" CommandParameter="settings" AutomationProperties.Name="Configurações" ToolTip="Abre as configurações do aplicativo."/>
-                  <MenuItem Header="Dados do perfil" Click="OnOpenProfile" IsEnabled="{Binding Workspace.IsAuthenticated}" AutomationProperties.Name="Dados do perfil" ToolTip="Mostra e altera o nome da conta."/>
-                  <MenuItem Header="Sair da conta" Command="{Binding Workspace.LogoutCommand}" AutomationProperties.Name="Sair da conta" ToolTip="Encerra a sessão desta conta."/>
+                  <!-- Menu do perfil, de cima para baixo: Trocar perfil (só no OBS; a janela tira o item na Secretaria), Configurações, Dados do perfil e Sair da conta. Ícones desenhados (Path), nunca fonte. -->
+                  <MenuItem x:Name="SwitchProfileItem" Header="Trocar perfil" Click="OnSwitchProfile" IsEnabled="{Binding Workspace.IsAuthenticated}" AutomationProperties.Name="Trocar perfil" ToolTip="Escolhe outra UBS entre as que esta conta pode acessar.">
+                    <MenuItem.Icon><Path Data="{StaticResource IconSwapGeometry}" Width="18" Height="18" Stretch="None" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Configurações" Command="{Binding NavigateCommand}" CommandParameter="settings" AutomationProperties.Name="Configurações" ToolTip="Abre as configurações do aplicativo.">
+                    <MenuItem.Icon><Path Data="{StaticResource IconGearGeometry}" Width="18" Height="18" Stretch="None" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Dados do perfil" Click="OnOpenProfile" IsEnabled="{Binding Workspace.IsAuthenticated}" AutomationProperties.Name="Dados do perfil" ToolTip="Mostra e altera o nome da conta.">
+                    <MenuItem.Icon><Path Data="{StaticResource IconPersonGeometry}" Width="18" Height="18" Stretch="None" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Sair da conta" Command="{Binding Workspace.LogoutCommand}" AutomationProperties.Name="Sair da conta" ToolTip="Encerra a sessão desta conta.">
+                    <MenuItem.Icon><Path Data="{StaticResource IconLogoutGeometry}" Width="18" Height="18" Stretch="None" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" /></MenuItem.Icon>
+                  </MenuItem>
                 </ContextMenu>
               </Button.ContextMenu>
               <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding Workspace.AccountName}" FontWeight="SemiBold" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="10" Foreground="{DynamicResource SecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></StackPanel>

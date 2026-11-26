@@ -135,7 +135,7 @@ internal static partial class Program
                 Require(account.TranslatePoint(new Point(0, 0), root).Y > root.ActualHeight / 2, "Conta não está na parte inferior da navegação.");
                 InvokeButton(account);
                 var menu = account.ContextMenu!;
-                Require(menu.IsOpen && menu.Items.Count == 3, "A conta deve mostrar Configurações, Dados do perfil e Sair.");
+                Require(menu.IsOpen && menu.Items.Count == 4, "A conta deve mostrar Trocar perfil, Configurações, Dados do perfil e Sair.");
                 menu.UpdateLayout();
                 SavePreview(menu, Path.Combine(previewRoot, "obs-account-menu-light.png"));
                 menu.IsOpen = false;

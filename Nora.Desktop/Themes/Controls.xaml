@@ -599,11 +599,13 @@
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
       <Border x:Name="Frame" Background="Transparent" Padding="{TemplateBinding Padding}" CornerRadius="6">
         <StackPanel Orientation="Horizontal">
-          <ContentPresenter ContentSource="Icon" Width="22" VerticalAlignment="Center" TextElement.FontFamily="Segoe MDL2 Assets" />
+          <ContentPresenter x:Name="IconHost" ContentSource="Icon" Width="22" Margin="0,0,10,0" VerticalAlignment="Center" TextElement.FontFamily="Segoe MDL2 Assets" />
           <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
         </StackPanel>
       </Border>
       <ControlTemplate.Triggers>
+        <!-- Sem ícone (menu da foto): o texto começa onde sempre começou. -->
+        <Trigger Property="Icon" Value="{x:Null}"><Setter TargetName="IconHost" Property="Margin" Value="0" /></Trigger>
         <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
         <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.45" /></Trigger>
       </ControlTemplate.Triggers>
@@ -714,6 +716,11 @@
   <Geometry x:Key="IconBellGeometry">M 9,2.6 C 6.4,2.6 4.9,4.4 4.9,7 C 4.9,10.4 3.7,11.5 3.7,12.3 L 14.3,12.3 C 14.3,11.5 13.1,10.4 13.1,7 C 13.1,4.4 11.6,2.6 9,2.6 Z M 7.4,12.3 C 7.4,13.8 8.1,14.8 9,14.8 C 9.9,14.8 10.6,13.8 10.6,12.3</Geometry>
   <Geometry x:Key="IconWarningGeometry">M 9,2.6 L 16.6,15.6 L 1.4,15.6 Z M 9,7 L 9,11 M 9,13.2 L 9,13.3</Geometry>
   <Geometry x:Key="IconPlusGeometry">M 9,3.2 L 9,14.8 M 3.2,9 L 14.8,9</Geometry>
+  <!-- Ícones do menu do perfil (18x18, os do software de referência): trocar, engrenagem, pessoa e porta com seta. -->
+  <Geometry x:Key="IconSwapGeometry">M 3.4,6.6 L 14,6.6 M 11.3,3.9 L 14,6.6 L 11.3,9.3 M 14.6,11.4 L 4,11.4 M 6.7,8.7 L 4,11.4 L 6.7,14.1</Geometry>
+  <Geometry x:Key="IconGearGeometry">M 6.8,9 A 2.2,2.2 0 1 0 11.2,9 A 2.2,2.2 0 1 0 6.8,9 Z M 4.4,9 A 4.6,4.6 0 1 0 13.6,9 A 4.6,4.6 0 1 0 4.4,9 Z M 9,2.9 L 9,4.4 M 9,13.6 L 9,15.1 M 2.9,9 L 4.4,9 M 13.6,9 L 15.1,9 M 5.75,5.75 L 4.7,4.7 M 12.25,12.25 L 13.3,13.3 M 12.25,5.75 L 13.3,4.7 M 5.75,12.25 L 4.7,13.3</Geometry>
+  <Geometry x:Key="IconPersonGeometry">M 9,3.2 A 2.9,2.9 0 1 1 8.99,3.2 Z M 3.8,15.2 C 3.8,11.7 6,9.9 9,9.9 C 12,9.9 14.2,11.7 14.2,15.2</Geometry>
+  <Geometry x:Key="IconLogoutGeometry">M 9.8,3 L 13.8,3 L 13.8,15 L 9.8,15 M 7.9,6 L 4.9,9 L 7.9,12 M 5,9 L 11.2,9</Geometry>
   <!-- As duas linhas do item da listagem: o título em destaque e a linha de dados (montada no ViewModel, só com o que foi informado). -->
   <Style x:Key="ItemTitleText" TargetType="TextBlock">
     <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="SemiBold" />

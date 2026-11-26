@@ -38,7 +38,7 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                Require(vm.ActiveObsUnit?.Id == unit.Id && vm.UnitLabel == "UBS Única" && !vm.ObsUnitSelectionOpen && vm.ObsUnitPrompt == "", "UBS única não foi confirmada sozinha.");
+                Require(vm.ActiveObsUnit?.Id == unit.Id && vm.UnitLabel == "UBS Única" && vm.ObsUnitPrompt == "", "UBS única não foi confirmada sozinha.");
                 Require(vm.ObsRegistry.Count == 1 && vm.UnitLightningSlots.Count == 1, "Cadastro ou vagas não foram carregados já no login.");
                 Require(vm.TodayScheduledCount == "1" && vm.TodayCompletedCount == "1" && vm.PatientTotalCount == "1" && vm.OffersRunningCount == "0" && vm.SlotOpenCount == "1", "Resumo do dia não foi carregado já no login.");
                 Require(vm.Appointments.Count == 2, "Agenda da semana não foi carregada já no login.");
@@ -77,7 +77,7 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                Require(vm.ActiveObsUnit == null && vm.ObsUnitSelectionOpen && vm.ObsUnits.Count == 2 && !vm.CanConfirmObsUnit, "Várias UBS não pediram escolha.");
+                Require(vm.ActiveObsUnit == null && vm.NeedsObsUnitChoice && vm.ObsUnits.Count == 2 && !vm.CanConfirmObsUnit, "Várias UBS não pediram escolha.");
                 Require(vm.ObsUnitPrompt.Contains("2 UBS") && fixture.Count("GET", "/registry") == 0, "Prompt ausente ou dados lidos antes da escolha.");
                 Require(vm.ObsUnits.Select(unit => unit.SelectorLabel).Distinct().Count() == 2 && vm.ObsUnits.Any(unit => unit.SelectorLabel == "UBS Central · Norte"), "Nomes iguais não foram distinguidos por região.");
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
@@ -85,23 +85,25 @@ internal static partial class Program
                     window.ViewModel.SetAppearance(mode);
                     window.ViewModel.Navigate("home");
                     var content = Layout(window, 1280, 740);
-                    var combo = Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS autorizada no OBS");
-                    var confirm = FindActionButton(content, "Confirmar UBS");
-                    Require(!confirm.IsEnabled && VisibleTexts(content).Any(text => text.Contains("2 UBS", StringComparison.Ordinal)), "Painel não pede a escolha da UBS ou permite confirmar sem escolher.");
-                    combo.SelectedItem = vm.ObsUnits.Single(unit => unit.Region == "Norte"); Layout(window, 1280, 740);
-                    Require(confirm.IsEnabled && VisibleTexts(combo).Contains("UBS Central · Norte"), $"{mode}: seletor não mostra nome e região da UBS escolhida.");
-                    combo.IsDropDownOpen = true; combo.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                    var popup = (Popup)combo.Template.FindName("PART_Popup", combo); popup.Child.UpdateLayout();
-                    var labels = VisibleTexts(popup.Child);
-                    Require(labels.Contains("UBS Central · Norte") && labels.Contains("UBS Central · Sul"), $"{mode}: opções não distinguem UBS de mesmo nome: {string.Join(" / ", labels)}");
-                    combo.IsDropDownOpen = false;
-                    SavePreview(Layout(window, 1280, 740), Path.Combine(previewRoot, $"obs-painel-escolha-ubs-{mode.ToString().ToLowerInvariant()}.png"));
+                    // O Painel não traz mais o cartão "UBS da operação" nem o seletor: a escolha é o pop-up Trocar perfil.
+                    Require(!Descendants<Border>(content).Any(border => AutomationProperties.GetName(border) == "UBS da operação") && !Descendants<ComboBox>(content).Any(box => AutomationProperties.GetName(box) == "UBS autorizada no OBS"), $"{mode}: o Painel ainda mostra o cartão ou o seletor de UBS.");
+                    InspectSwitchProfile(window, dialog =>
+                    {
+                        Require(dialog.Options.Select(option => option.Unit.SelectorLabel).Distinct().Count() == 2 && dialog.Options.Any(option => option.Unit.SelectorLabel == "UBS Central · Norte"), $"{mode}: nomes iguais não foram distinguidos por região.");
+                        var labels = VisibleTexts(dialog);
+                        Require(labels.Contains("UBS Central") && labels.Contains("Região: Norte") && labels.Contains("Região: Sul"), $"{mode}: a lista não mostra nome e região: {string.Join(" / ", labels)}");
+                        Require(!dialog.Options.Any(option => option.IsActive) && vm.ActiveObsUnit == null && !vm.CanConfirmObsUnit && !dialog.Primary.IsEnabled, $"{mode}: sem escolha o Trocar deveria ficar desabilitado.");
+                        dialog.Units.SelectedItem = dialog.Options.Single(option => option.Unit.Region == "Norte");
+                        Require(vm.CandidateObsUnit?.Region == "Norte" && dialog.Primary.IsEnabled, $"{mode}: escolher na lista deveria habilitar o Trocar.");
+                        SavePreview(dialog, Path.Combine(previewRoot, $"obs-trocar-perfil-{mode.ToString().ToLowerInvariant()}.png"));
+                    });
+                    Require(vm.ActiveObsUnit == null && vm.ObsRegistry.Count == 0, $"{mode}: fechar o pop-up sem Trocar ativou uma UBS.");
                     vm.CandidateObsUnit = null;
                 }
                 vm.CandidateObsUnit = vm.ObsUnits.Single(unit => unit.Region == "Sul");
                 Require(vm.ActiveObsUnit == null && vm.ObsRegistry.Count == 0, "Escolher no seletor já ativou a UBS sem confirmação.");
                 Pump(vm.ConfirmObsUnitAsync());
-                Require(vm.ActiveObsUnit?.Id == south.Id && vm.ActiveObsUnitRegion == "Sul" && vm.ObsRegistry.Count == 2 && !vm.ObsUnitSelectionOpen && vm.Message.Contains("UBS Central"), "Confirmação não ativou a UBS escolhida com seus dados.");
+                Require(vm.ActiveObsUnit?.Id == south.Id && vm.ActiveObsUnitRegion == "Sul" && vm.ObsRegistry.Count == 2 && vm.Message.Contains("UBS Central"), "Confirmação não ativou a UBS escolhida com seus dados.");
                 vm.CandidateObsUnit = vm.ObsUnits.Single(unit => unit.Region == "Norte");
                 Require(vm.ActiveObsUnit?.Id == south.Id && vm.ObsRegistry.Count == 2, "Trocar de UBS sem confirmar alterou a unidade ativa.");
                 Pump(vm.ConfirmObsUnitAsync());
@@ -155,7 +157,7 @@ internal static partial class Program
                 // Perder a concessão da UBS ativa: a lista nova não a inclui e a escolha volta a ser obrigatória.
                 fixture.Granted = [first.Id];
                 Pump(vm.LoadObsUnitsAsync());
-                Require(vm.ActiveObsUnit == null && vm.ObsRegistry.Count == 0 && vm.ObsUnitSelectionOpen && vm.CandidateObsUnit?.Id == first.Id, "Concessão revogada deixou a UBS ativa ou trocou de unidade sozinha.");
+                Require(vm.ActiveObsUnit == null && vm.ObsRegistry.Count == 0 && vm.NeedsObsUnitChoice && vm.CandidateObsUnit?.Id == first.Id, "Concessão revogada deixou a UBS ativa ou trocou de unidade sozinha.");
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("deixou de estar autorizada"), "Revogação não foi explicada: " + vm.Message);
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -238,10 +240,9 @@ internal static partial class Program
                 Require(vm.BuildDetails(vm.SelectedObsRegistry!)?.Fields.Any(field => field.Label == "CPF" && field.CanCopy) == true, "Ficha da UBS não oferece CPF para cópia explícita.");
                 window.ViewModel.Navigate("patients"); Settle(vm); var content = Layout(window, 980, 640);
                 Require(Descendants<ObsUnitRegistryView>(content).Any(), "Tela de cadastro por UBS não apareceu.");
-                var unitSelector = Descendants<Expander>(content).Single(expander => expander.Header?.ToString() == "Escolher ou trocar UBS");
-                Require(!unitSelector.IsExpanded, "Escolha da UBS permaneceu aberta após a confirmação.");
-                unitSelector.IsExpanded = true; Layout(window, 980, 640);
-                Require(vm.ObsUnitSelectionOpen && Descendants<Button>(unitSelector).Any(button => button.Content?.ToString() == "Confirmar UBS" && button.IsVisible), "Não é possível reabrir a escolha da UBS.");
+                // Pacientes não tem mais o expansor "Escolher ou trocar UBS" nem o seletor: a troca é pelo menu do perfil (pop-up Trocar perfil), que reabre com a UBS ativa marcada.
+                Require(!Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Escolher ou trocar UBS") && !Descendants<Button>(content).Any(button => button.Content?.ToString() == "Confirmar UBS"), "Pacientes ainda mostra o seletor de UBS.");
+                InspectSwitchProfile(window, dialog => Require(dialog.Options.Single(option => option.IsActive).Unit.Id == unit.Id && dialog.Units.SelectedItem is ProfileOption { IsActive: true }, "O pop-up não reabriu com a UBS ativa marcada e selecionada."));
                 window.ViewModel.Navigate("slots"); Settle(vm); content = Layout(window, 980, 640);
                 Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vagas da UBS"), "Vagas por UBS não apareceram na tela.");
                 vm.LogoutCommand.Execute(null); Settle(vm);

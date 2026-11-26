@@ -13,25 +13,33 @@ public sealed partial class WorkspaceViewModel
     private string obsRegistrySearch = "";
     private string? editingObsCpf, obsRegistryIbge;
     private int obsRegistryDraftVersion;
-    private bool obsRegistryDraftOpen, obsUnitSelectionOpen = true, obsUnitsLoaded;
+    private bool obsRegistryDraftOpen, obsUnitsLoaded, profileChoicePending;
     private string obsRegistryStatusFilter = "Todos", obsRegistrySort = "Nome A–Z";
     private string obsRegistryPresenceFilter = "Todos";
     private string obsRegistryCep = "", obsRegistryStreet = "", obsRegistryNumber = "", obsRegistryComplement = "", obsRegistryNeighborhood = "", obsRegistryCity = "", obsRegistryState = "";
     public ObservableCollection<HealthUnit> ObsUnits { get; } = [];
     public bool HasAvailableObsUnits => ObsUnits.Count > 0;
     public bool ObsUnitsLoaded => obsUnitsLoaded;
-    public bool ObsUnitSelectionOpen { get => obsUnitSelectionOpen; set { obsUnitSelectionOpen = value; Notify(); } }
-    /// <summary>Orientação do seletor: explica o que falta para ter uma UBS ativa (nenhuma concedida, várias a escolher, lista ainda não lida).</summary>
+    /// <summary>
+    /// Depois do login (ou de restaurar a sessão) a conta tem mais de uma UBS e nenhuma ativa: a janela principal abre sozinha o pop-up "Trocar perfil".
+    /// O pedido fica guardado até a janela poder atender (sem ação do usuário em andamento) e é atendido uma vez só por <see cref="AcknowledgeProfileChoice"/>.
+    /// </summary>
+    public bool ProfileChoicePending => profileChoicePending;
+    /// <summary>A janela principal atendeu (ou dispensou) o pedido de escolha da UBS.</summary>
+    public void AcknowledgeProfileChoice() { if (!profileChoicePending) return; profileChoicePending = false; Notify(nameof(ProfileChoicePending)); }
+    /// <summary>Orientação das telas que dependem de uma UBS: explica o que falta para ter uma UBS ativa (nenhuma concedida, várias a escolher, lista ainda não lida).</summary>
     public string ObsUnitPrompt => !IsAuthenticated || !IsOperational || HasActiveObsUnit ? ""
-        : !obsUnitsLoaded ? "As UBS autorizadas ainda não foram carregadas. Use Atualizar lista de UBS."
+        : !obsUnitsLoaded ? "As UBS autorizadas ainda não foram carregadas. Clique em Escolher UBS para ler a lista."
         : ObsUnits.Count == 0 ? "Nenhuma UBS autorizada para esta conta. A Secretaria precisa conceder acesso a uma UBS (aba Usuários e histórico da gestão)."
-        : ObsUnits.Count == 1 ? "Confirme a UBS para carregar os dados da operação."
-        : $"Esta conta tem acesso a {ObsUnits.Count} UBS. Escolha a unidade e confirme para carregar os dados da operação.";
+        : ObsUnits.Count == 1 ? "Escolha a UBS e clique em Trocar para carregar os dados da operação."
+        : $"Esta conta tem acesso a {ObsUnits.Count} UBS. Escolha a unidade e clique em Trocar para carregar os dados da operação.";
     public bool NeedsObsUnitChoice => IsAuthenticated && IsOperational && !HasActiveObsUnit;
-    public bool CanConfirmObsUnit => CanOperate && CandidateObsUnit is not null;
-    public void SuggestClosestObsUnit(double latitude, double longitude)
+    /// <summary>"Trocar" do pop-up: há uma UBS escolhida e ela não é a que já está ativa.</summary>
+    public bool CanConfirmObsUnit => CanOperate && CandidateObsUnit is { } candidate && candidate.Id != ActiveObsUnit?.Id;
+    /// <summary>Seleciona (sem trocar) a UBS autorizada mais próxima da posição. Devolve falso quando não há o que sugerir (sem conta entrada, posição inválida ou lista vazia).</summary>
+    public bool SuggestClosestObsUnit(double latitude, double longitude)
     {
-        if (!IsAuthenticated || !double.IsFinite(latitude) || !double.IsFinite(longitude) || latitude is < -90 or > 90 || longitude is < -180 or > 180 || ObsUnits.Count == 0) return;
+        if (!IsAuthenticated || !double.IsFinite(latitude) || !double.IsFinite(longitude) || latitude is < -90 or > 90 || longitude is < -180 or > 180 || ObsUnits.Count == 0) return false;
         static double Radians(double degrees) => degrees * Math.PI / 180;
         static double Distance(HealthUnit unit, double latitude, double longitude)
         {
@@ -40,7 +48,8 @@ public sealed partial class WorkspaceViewModel
             return Math.Asin(Math.Sqrt(Math.Clamp(a, 0, 1)));
         }
         CandidateObsUnit = ObsUnits.OrderBy(unit => Distance(unit, latitude, longitude)).ThenBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).First();
-        Say(MessageKind.Info, "UBS autorizada mais próxima sugerida. Confira e confirme a escolha.");
+        Say(MessageKind.Info, "UBS autorizada mais próxima sugerida. Confira e clique em Trocar.");
+        return true;
     }
     public ObservableCollection<UnitPatientRecord> ObsRegistry { get; } = [];
     public string ObsRegistrySearch { get => obsRegistrySearch; set { obsRegistrySearch = value; Notify(); Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); } }
@@ -81,7 +90,7 @@ public sealed partial class WorkspaceViewModel
         private set
         {
             activeObsUnit = value;
-            Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(ActiveObsUnitRegion)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(NeedsObsUnitChoice)); Notify(nameof(ObsUnitPrompt)); Notify(nameof(UnitLabel)); Notify(nameof(AgendaStateText));
+            Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(ActiveObsUnitRegion)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(NeedsObsUnitChoice)); Notify(nameof(CanConfirmObsUnit)); Notify(nameof(ObsUnitPrompt)); Notify(nameof(UnitLabel)); Notify(nameof(AgendaStateText));
             NotifyUnitMetrics(); Notify(nameof(UnitMetricsScopeLabel));
             NotifyUnitCounts();
         }
@@ -159,20 +168,36 @@ public sealed partial class WorkspaceViewModel
             CandidateObsUnit = units[0];
             if (!revoked) await ActivateUnitAsync(units[0]);
         }
-        if (ActiveObsUnit is null) ObsUnitSelectionOpen = true;
     }
 
-    public Task LoadObsUnitsAsync() => RunAsync(async () =>
+    /// <summary>Fim da carga do login: conta com várias UBS e nenhuma ativa pede à janela principal que abra o pop-up "Trocar perfil" (uma vez).</summary>
+    private void RequestProfileChoiceIfNeeded()
     {
-        if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para consultar suas UBS.");
-        var hadActive = ActiveObsUnit?.Id;
-        // A lista de UBS mudou (ou pode ter mudado): os comunicados são relidos por inteiro no próximo ciclo, porque o alcance depende das concessões da conta.
-        announcementsFullDue = true;
-        await InitializeObsUnitsAsync();
-        if (disposed || !IsAuthenticated) return;
-        if (hadActive is not null && ActiveObsUnit is null) Say(MessageKind.Error, "A UBS ativa deixou de estar autorizada para esta conta. Escolha outra UBS.");
-        else Say(MessageKind.Success, ObsUnits.Count == 0 ? "Lista atualizada: esta conta não tem UBS autorizada." : "Lista de UBS atualizada.");
-    });
+        if (disposed || !NeedsObsUnitChoice || ObsUnits.Count < 2 || profileChoicePending) return;
+        profileChoicePending = true; Notify(nameof(ProfileChoicePending));
+    }
+
+    /// <summary>
+    /// Relê a lista de UBS da conta (o pop-up "Trocar perfil" faz isso ao abrir). Devolve se a leitura terminou. <paramref name="quiet"/> deixa de mostrar a mensagem de sucesso na faixa
+    /// (a de falha e a de concessão revogada aparecem sempre).
+    /// </summary>
+    public async Task<bool> LoadObsUnitsAsync(bool quiet = false)
+    {
+        var finished = false;
+        await RunAsync(async () =>
+        {
+            if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para consultar suas UBS.");
+            var hadActive = ActiveObsUnit?.Id;
+            // A lista de UBS mudou (ou pode ter mudado): os comunicados são relidos por inteiro no próximo ciclo, porque o alcance depende das concessões da conta.
+            announcementsFullDue = true;
+            await InitializeObsUnitsAsync();
+            if (disposed || !IsAuthenticated) return;
+            finished = true;
+            if (hadActive is not null && ActiveObsUnit is null) Say(MessageKind.Error, "A UBS ativa deixou de estar autorizada para esta conta. Escolha outra UBS.");
+            else if (!quiet) Say(MessageKind.Success, ObsUnits.Count == 0 ? "Lista atualizada: esta conta não tem UBS autorizada." : "Lista de UBS atualizada.");
+        });
+        return finished;
+    }
 
     /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
     private async Task ActivateUnitAsync(HealthUnit unit)
@@ -181,7 +206,6 @@ public sealed partial class WorkspaceViewModel
         if (disposed || !IsAuthenticated) return;
         if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
         ActiveObsUnit = unit;
-        ObsUnitSelectionOpen = false;
         ApplyUnitData(snapshot);
     }
 
@@ -319,13 +343,13 @@ public sealed partial class WorkspaceViewModel
 
     private void DeactivateObsUnit()
     {
-        ResetUnitState(); ActiveObsUnit = null; ObsUnitSelectionOpen = true;
+        ResetUnitState(); ActiveObsUnit = null;
         if (candidateObsUnit is { } candidate && ObsUnits.All(unit => unit.Id != candidate.Id)) CandidateObsUnit = null;
     }
 
     private void ClearObsUnits()
     {
-        ObsUnitSelectionOpen = true;
+        profileChoicePending = false; Notify(nameof(ProfileChoicePending));
         ObsUnits.Clear(); obsUnitsLoaded = false; Notify(nameof(HasAvailableObsUnits)); Notify(nameof(ObsUnitsLoaded));
         ObsRegistryStatusFilter = "Todos"; ObsRegistryPresenceFilter = "Todos"; ObsRegistrySort = "Nome A–Z"; CandidateObsUnit = null;
         ResetUnitState(); ActiveObsUnit = null;

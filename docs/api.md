@@ -672,7 +672,7 @@ Defeito corrigido: se o commit central falhava depois do commit da UBS, o e-mail
 ### Limites conhecidos desta rodada
 
 - O estado dos limites por IP e por conta fica em memória do processo (reiniciar a API o zera).
-- O computador não faz o login da atendente sozinho: a atendente continua digitando a senha; "manter conectado" só evita digitar de novo por 30 dias.
+- O computador não faz o login da atendente sozinho: a atendente continua digitando a senha; "manter conectado" só evita digitar de novo por 30 dias (desde 26/11/2026 os desktops também gravam a sessão padrão de 24 h em `session.dat`, e reabrir dentro do prazo confere a sessão e o computador de novo; a API não mudou).
 - Uma atendente com concessão em duas UBS usa um computador por UBS (ela só opera a UBS do computador em que entrou).
 - O índice central de cadastros cobre cadastros feitos pela API e os copiados pela migração; cadastro inserido direto no banco de uma UBS só entra no índice na próxima migração dessa UBS.
 - A oferta automática e o "chamar próximo" não consultam consulta em outra UBS; o conflito é recusado no aceite.

@@ -31,6 +31,7 @@ public partial class ShellWindow : Window, IDialogHost
             ViewModel.EnableCompactAccess();
         }
         InitializeScreenSearch();
+        InitializeProfileMenu(profile);
         fullScreen = new(this);
         InitializeTitleBar();
         StateChanged += (_, _) => ApplyWindowCorners();

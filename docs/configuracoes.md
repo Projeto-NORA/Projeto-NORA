@@ -45,7 +45,9 @@ Os atalhos editáveis ficam ao lado de Aparência e Preferências da interface. 
 
 Ctrl+F abre a busca no topo da janela, com destaque do resultado atual. Enter avança, Shift+Enter volta e Esc fecha. A pesquisa percorre os dados já carregados na tela atual, respeitando os filtros e as permissões da sessão.
 
-No canto inferior esquerdo, o menu da conta abre **Dados do perfil**, **Configurações** e **Sair da conta**. Dados do perfil mostra e-mail, função e município ou unidades. O nome completo e a senha podem ser alterados ali.
+No canto inferior esquerdo, o menu do perfil (clique no nome; o rodapé da barra lateral não tem mais o botão Configurações) abre, com ícones desenhados e nesta ordem, **Trocar perfil** (só no OBS), **Configurações**, **Dados do perfil** e **Sair da conta**. Trocar perfil abre o pop-up com as UBS que a conta pode acessar (ver `design.md`). Dados do perfil mostra e-mail, função e município ou unidades. O nome completo e a senha podem ser alterados ali.
+
+**Login salvo nos desktops (26/11/2026).** A sessão é sempre gravada em `session.dat` (protegido pelo DPAPI do usuário do Windows) com o vencimento que a API devolveu: **24 horas** sem marcar nada e **30 dias** com "Manter conectado por 30 dias". Fechar o programa não apaga nem encerra a sessão; reabrir dentro do prazo entra direto, depois de conferir a sessão em `/api/auth/me` (e, no OBS com a ativação de computadores ligada, de conferir o computador). **Sair da conta** apaga o arquivo e avisa a API; sessão vencida ou recusada pela API apaga o arquivo e volta ao login. A tela de acesso diz: "Sem marcar, você continua conectado por 1 dia neste computador." Com a ativação de computadores ligada a API continua amarrando a sessão ao computador, então gravar a sessão de 24 h não enfraquece essa exigência. A escolha da UBS no OBS não é guardada: ao reabrir, conta com várias UBS volta a escolher no pop-up.
 
 Em **Exclusão de itens desativados**, o gestor municipal administra contas OBS elegíveis. O administrador do OBS administra consultórios da unidade ativa. **Nunca excluir sozinho** começa marcado. Com confirmação, é possível definir um prazo automático para o escopo, agendar um cadastro elegível ou cancelar seu agendamento. A API protege contas com histórico de uso e consultórios referenciados.
 
@@ -127,7 +129,7 @@ Depois de subir, `GET /api/patient/google` e `GET /api/patient/devices/push` res
 
 ## Navegação e atualização desktop — 2026-10-11
 
-Configurações e Sair da conta ficam no menu da conta NORA, no canto inferior esquerdo. O botão de três barras recolhe/expande a sidebar e mantém `Ctrl+B`; Configurações mantém `Ctrl+,`. A tela Pacientes não contém os botões Atualizar/Sair ou inclusão na fila. A inclusão passa a ser feita na própria tela Fila de espera, selecionando o paciente.
+Configurações e Sair da conta ficam no menu da conta NORA, no canto inferior esquerdo (desde 26/11/2026 o rodapé da barra lateral não tem mais o botão Configurações). O botão de três barras recolhe/expande a sidebar e mantém `Ctrl+B`; Configurações mantém `Ctrl+,`. A tela Pacientes não contém os botões Atualizar/Sair ou inclusão na fila. A inclusão passa a ser feita na própria tela Fila de espera, selecionando o paciente.
 
 Depois de entrar, o workspace consulta a API automaticamente a cada 20 segundos, sem requisições concorrentes com operações do usuário. Mantém os campos do cadastro e a seleção ainda válida; erros de consulta continuam visíveis e uma sessão expirada pede nova entrada. As mensagens rotineiras de conta conectada/dados atualizados e preferências salvas ficam ocultas. Falhas de armazenamento de preferências permanecem visíveis, para não aparentar persistência quando a gravação falhou.
 

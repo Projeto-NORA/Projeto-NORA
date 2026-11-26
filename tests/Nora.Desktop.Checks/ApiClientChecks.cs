@@ -392,7 +392,7 @@ internal static partial class Program
         var account = Descendants<Button>((FrameworkElement)window.Content).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
         InvokeButton(account);
         var menu = account.ContextMenu ?? throw new InvalidOperationException("Menu da conta ausente.");
-        Require(menu.IsOpen && menu.Items.Count == 3, "Conta não abriu Configurações, Dados do perfil e Sair.");
+        Require(menu.IsOpen && menu.Items.Count == (window.ViewModel.Profile.IsMunicipal ? 3 : 4), "Conta não abriu o menu do perfil (Trocar perfil só no OBS, Configurações, Dados do perfil e Sair).");
         var item = menu.Items.Cast<MenuItem>().Single(item => item.Header?.ToString() == header);
         Require(item.IsEnabled && item.Command?.CanExecute(item.CommandParameter) == true, "Ação do menu indisponível: " + header);
         var peer = new System.Windows.Automation.Peers.MenuItemAutomationPeer(item);

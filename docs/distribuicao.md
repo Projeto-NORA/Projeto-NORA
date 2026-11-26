@@ -36,7 +36,7 @@ Junto com o link, oriente cada pessoa da equipe a usar o e-mail cadastrado. Envi
 2. **Aviso do Windows:** como o executável não tem assinatura digital paga, aparece "O Windows protegeu o computador". Clique em **Mais informações** → **Executar assim mesmo**. Isso é esperado num protótipo.
 3. Entre com o **e-mail** e a **senha** fornecidos. Se a senha for provisória, o sistema pede a troca no primeiro acesso.
 4. No OBS, o login válido ativa o computador para a unidade autorizada. Se houver várias unidades disponíveis, o primeiro acesso pede a escolha.
-5. A sessão padrão vale por 24 horas com o programa aberto. Marque **Manter conectado por 30 dias** para continuar conectado ao reabrir. Use **Sair da conta** no menu inferior esquerdo para encerrar a sessão.
+5. A sessão fica salva neste computador: sem marcar nada você continua conectado por 24 horas, mesmo fechando e reabrindo o programa; com **Manter conectado por 30 dias** marcado, por 30 dias. Use **Sair da conta** no menu inferior esquerdo para encerrar a sessão e apagar a sessão salva.
 
 As preferências ficam em `%LOCALAPPDATA%\NORA\`. Apagar essa pasta volta o aplicativo ao estado inicial, inclusive a ativação do computador.
 

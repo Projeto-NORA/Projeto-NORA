@@ -13,14 +13,13 @@
     </Style>
   </UserControl.Resources>
   <StackPanel>
+    <!-- Sem UBS ativa (nenhuma concedida, várias a escolher): a orientação e o botão que abre o pop-up "Trocar perfil" ficam no lugar do antigo seletor. -->
+    <views:ObsUnitNoticeView />
     <Grid Margin="0,0,0,24">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
       <StackPanel><TextBlock Text="Pacientes" Style="{StaticResource PageTitle}" /><TextBlock Text="{Binding ActiveObsUnitLabel}" Style="{StaticResource Muted}" /></StackPanel>
       <Button Grid.Column="1" Content="+ Cadastrar paciente" Style="{StaticResource BigPrimaryButton}" Click="OnNew" IsEnabled="{Binding HasActiveObsUnit}" VerticalAlignment="Top" views:SubPage.Key="list" AutomationProperties.Name="Cadastrar paciente" ToolTip="Abre o formulário de cadastro de um paciente novo nesta UBS." />
     </Grid>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="20,14">
-      <Expander Header="Escolher ou trocar UBS" Style="{StaticResource ObsExpander}" IsExpanded="{Binding ObsUnitSelectionOpen}" ToolTip="Troca a UBS em que você está trabalhando."><views:ObsUnitPickerView Margin="0,8,0,0" /></Expander>
-    </Border>
     <!-- Subaba Cadastro: formulário de paciente novo ou da ficha em edição. -->
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" views:SubPage.Key="register" IsEnabled="{Binding CanEditDraft}">
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}" MaxWidth="720" HorizontalAlignment="Left">
