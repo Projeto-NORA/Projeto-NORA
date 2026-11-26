@@ -8,7 +8,7 @@
 
     <!-- Dia do calendário do mês: o número dentro de um círculo; selecionado = fundo azul bem claro na célula e círculo azul bebê no número; hoje = contorno; fora do mês = esmaecido; embaixo, uma bolinha por situação. -->
     <Style x:Key="AgendaDayButton" TargetType="Button">
-      <Setter Property="Height" Value="50" /><Setter Property="Margin" Value="2" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Height" Value="46" /><Setter Property="Margin" Value="2" /><Setter Property="Cursor" Value="Hand" />
       <Setter Property="FocusVisualStyle" Value="{x:Null}" />
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
         <Border x:Name="Cell" CornerRadius="10" Background="Transparent" BorderBrush="Transparent" BorderThickness="1.6">
@@ -40,18 +40,22 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
 
-    <!-- Dia do mini-calendário do ano: o fundo fica mais forte com a quantidade de consultas (1-2, 3-5, 6 ou mais); dia de fora do mês fica em branco. -->
+    <!-- Dia do mini-calendário do ano: um ponto marca o dia com consulta; com 3 a 5 o dia ganha também um fundo azul claro e com 6 ou mais o fundo fica azul forte. Dia de fora do mês fica em branco. -->
     <Style x:Key="AgendaMiniDayButton" TargetType="Button">
-      <Setter Property="Height" Value="21" /><Setter Property="Margin" Value="0.5" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Height" Value="22" /><Setter Property="Margin" Value="0.5" /><Setter Property="Cursor" Value="Hand" />
       <Setter Property="FocusVisualStyle" Value="{x:Null}" />
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
         <Border x:Name="Cell" CornerRadius="11" Background="Transparent" BorderBrush="Transparent" BorderThickness="1.4">
-          <TextBlock x:Name="Number" Text="{Binding DayNumber}" FontSize="12" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Grid>
+            <!-- O número sobe um pouco em todos os dias, para o ponto caber embaixo sem encostar nele. -->
+            <TextBlock x:Name="Number" Text="{Binding DayNumber}" FontSize="11.5" Margin="0,0,0,4" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Ellipse x:Name="Dot" Width="4" Height="4" Margin="0,0,0,1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Fill="{DynamicResource StatusScheduledBrush}" Visibility="Collapsed" />
+          </Grid>
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></Trigger>
-          <DataTrigger Binding="{Binding Intensity}" Value="1"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="SemiBold" /></DataTrigger>
-          <DataTrigger Binding="{Binding Intensity}" Value="2"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ListItemFocusBrush}" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource BrandTextBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          <DataTrigger Binding="{Binding Intensity}" Value="1"><Setter TargetName="Dot" Property="Visibility" Value="Visible" /><Setter TargetName="Number" Property="FontWeight" Value="SemiBold" /></DataTrigger>
+          <DataTrigger Binding="{Binding Intensity}" Value="2"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" /><Setter TargetName="Dot" Property="Visibility" Value="Visible" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource ToneBlueTextBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="Bold" /></DataTrigger>
           <DataTrigger Binding="{Binding Intensity}" Value="3"><Setter TargetName="Cell" Property="Background" Value="{DynamicResource StatusScheduledBrush}" /><Setter TargetName="Number" Property="Foreground" Value="{DynamicResource BrandTextBrush}" /><Setter TargetName="Number" Property="FontWeight" Value="Bold" /></DataTrigger>
           <DataTrigger Binding="{Binding IsToday}" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></DataTrigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
@@ -198,18 +202,20 @@
       </views:PageActions>
     </StackPanel>
 
-    <!-- Período: anterior, rótulo, próximo e Hoje; ao lado, a legenda das cores (só onde há cor de situação). -->
+    <!-- Período: Hoje, anterior e próximo juntos e o rótulo depois deles (como no calendário do celular e do Google): o rótulo muda de largura de um dia para outro
+         ("Sábado, 28 de novembro" é mais curto que "Sexta-feira, 27 de novembro") e, se ficasse entre as setas, a seta › andaria debaixo do mouse a cada clique.
+         Ao lado, a legenda das cores (só onde há cor de situação). -->
     <Grid Grid.Row="2" Margin="0,0,0,8">
       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Button Content="Hoje" Click="OnToday" Margin="0,0,8,0" Padding="14,0" MinHeight="32" MinWidth="0" ToolTip="Volta para hoje." AutomationProperties.Name="Ir para hoje" />
         <Button Style="{StaticResource CircleIconButton}" Click="OnPrevious" ToolTip="Período anterior" AutomationProperties.Name="Período anterior">
           <Path Data="{StaticResource ChevronLeftGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
         </Button>
-        <TextBlock Text="{Binding AgendaRangeLabel}" MinWidth="176" Margin="6,0" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Período mostrado" AutomationProperties.LiveSetting="Polite" />
         <Button Style="{StaticResource CircleIconButton}" Click="OnNext" ToolTip="Próximo período" AutomationProperties.Name="Próximo período">
           <Path Data="{StaticResource ChevronRightGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
         </Button>
-        <Button Content="Hoje" Click="OnToday" Margin="10,0,0,0" Padding="14,0" MinHeight="32" MinWidth="0" ToolTip="Volta para hoje." AutomationProperties.Name="Ir para hoje" />
+        <TextBlock Text="{Binding AgendaRangeLabel}" Margin="12,0,0,0" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" AutomationProperties.Name="Período mostrado" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
       <Viewbox Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0" Stretch="Uniform" StretchDirection="DownOnly" AutomationProperties.Name="Legenda das situações da agenda" ToolTip="As cores indicam as situações das consultas; um dia pode ter mais de uma situação.">
         <Viewbox.Style><Style TargetType="Viewbox"><Style.Triggers><DataTrigger Binding="{Binding ShowsAgendaLegend}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Viewbox.Style>
@@ -300,8 +306,8 @@
         <ItemsControl ItemsSource="{Binding AgendaMonths}" AutomationProperties.Name="Meses do ano">
           <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate><DataTemplate>
-            <StackPanel Margin="8,2,8,6" AutomationProperties.Name="{Binding AutomationLabel}">
-              <Button Style="{StaticResource AgendaMonthTitleButton}" Click="OnOpenMonth" Margin="0,0,0,4" ToolTip="Abrir o mês" AutomationProperties.Name="{Binding AutomationLabel}" />
+            <StackPanel Margin="8,2,8,2" AutomationProperties.Name="{Binding AutomationLabel}">
+              <Button Style="{StaticResource AgendaMonthTitleButton}" Click="OnOpenMonth" Margin="0,0,0,2" ToolTip="Abrir o mês" AutomationProperties.Name="{Binding AutomationLabel}" />
               <UniformGrid Columns="7" Margin="0,0,0,2">
                 <TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="T" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="Q" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="Q" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="S" Style="{StaticResource AgendaWeekdayText}" FontSize="11" /><TextBlock Text="D" Style="{StaticResource AgendaWeekdayText}" FontSize="11" />
               </UniformGrid>

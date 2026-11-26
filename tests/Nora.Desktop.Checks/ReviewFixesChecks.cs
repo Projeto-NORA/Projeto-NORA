@@ -360,7 +360,7 @@ internal static partial class Program
                 // 8: outro computador cadastra o primeiro profissional; o texto livre recebe catalog-required e a tela passa ao catálogo.
                 var ana = fixture.AddProfessional(unit.Id, "Dra. Ana", [cardio.Id]); var room = fixture.AddRoom(unit.Id, "Consultório 1");
                 var day = DateTime.Today.AddDays(3); fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 9)); fixture.AddAvailableSlot(unit.Id, ana, cardio, room, LocalAt(day, 10));
-                vm.SelectAgendaDayCommand.Execute(null); vm.MoveAgenda(1); Settle(vm);
+                vm.AgendaViewMode = "Dia"; vm.MoveAgenda(1); Settle(vm);
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); vm.AppointmentSpecialty = "Cardiologia"; vm.AppointmentProfessional = "Dra. Ana"; vm.AppointmentStart = "09:00"; vm.AppointmentEnd = "09:30";
                 var reads = fixture.Count("GET", "/professionals");
                 Pump(vm.CreateAppointmentAsync()); Settle(vm);

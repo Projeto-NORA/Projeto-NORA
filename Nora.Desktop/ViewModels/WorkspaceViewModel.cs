@@ -77,8 +77,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         }), _ => CanOperate);
         LogoutCommand = new RelayCommand(async _ => await RunAsync(LogoutAsync), _ => CanOperate);
         DismissMessageCommand = new RelayCommand(_ => ClearMessage());
-        SelectAgendaDayCommand = new RelayCommand(_ => AgendaViewMode = "Dia");
-        SelectAgendaWeekCommand = new RelayCommand(_ => AgendaViewMode = "Semana");
         SelectCalendarDayCommand = new RelayCommand(day => SelectCalendarDay(day as AgendaCalendarDay));
         BuildAgendaDays(); ResetAgendaRange();
         Replace(SummaryCards, BuildSummaryCards()); Replace(OverviewCards, BuildOverviewCards());
@@ -250,8 +248,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public ICommand RefreshCommand { get; }
     public ICommand LogoutCommand { get; }
     public ICommand DismissMessageCommand { get; }
-    public ICommand SelectAgendaDayCommand { get; }
-    public ICommand SelectAgendaWeekCommand { get; }
     public ICommand SelectCalendarDayCommand { get; }
 
     public Task LoginAsync(string password) => RunAsync(async () =>

@@ -32,7 +32,8 @@ public partial class AgendaView : UserControl
     {
         Attach();
         WeekList.ApplyTemplate();
-        if (WeekList.Template.FindName("PART_Scroll", WeekList) is ScrollViewer scroll)
+        // Loaded pode chegar de novo sem Unloaded no meio (troca de pai): a rolagem é assinada uma vez só.
+        if (weekScroll is null && WeekList.Template.FindName("PART_Scroll", WeekList) is ScrollViewer scroll)
         {
             weekScroll = scroll;
             scroll.ScrollChanged += OnWeekScrollChanged;

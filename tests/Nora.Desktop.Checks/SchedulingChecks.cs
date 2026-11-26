@@ -296,6 +296,7 @@ internal static partial class Program
                         var shown = FullTexts(dialog);
                         Require(new[] { "Paciente", "Consulta", "Registro", "Marcada por", item.BookedByDisplay, "Confirmação de presença", item.ConfirmationDisplay, "Situação", "Agendada" }.All(shown.Contains), "A ficha não mostra as seções e os textos da consulta: " + string.Join(" | ", shown));
                         WaitForDialogAnimation(dialog); SavePreview(dialog, Path.Combine(previewRoot, item == unconfirmed ? "obs-agenda-ficha-light.png" : "obs-agenda-ficha-confirmada-light.png"));
+                        if (item == unconfirmed) { window.ViewModel.SetAppearance(Appearance.Dark); dialog.UpdateLayout(); SavePreview(dialog, Path.Combine(previewRoot, "obs-agenda-ficha-dark.png")); window.ViewModel.SetAppearance(Appearance.Light); }
                     }, () => window.OpenItemDetails(item));
             }
             finally { CloseWindow(window); }

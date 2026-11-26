@@ -119,6 +119,18 @@ internal static partial class Program
                 Require(!header.Any(text => text.Contains(today.ToString("MMMM"), StringComparison.Ordinal) && text.Contains(today.Day.ToString(), StringComparison.Ordinal) && text != vm.AgendaRangeLabel), "A lista não deveria repetir o título da data.");
                 Require(Descendants<Border>(list).All(border => border.Style != (Style)application.FindResource("Card")), "Sem card atrás da lista.");
                 SavePreview(content, Path.Combine(previewRoot, "obs-agenda-dia-light.png"));
+                // Clicar › seguidas vezes: o rótulo do dia muda de largura ("Sábado, …" é mais curto que "Sexta-feira, …"), mas Hoje, ‹ e › não saem do lugar debaixo do mouse.
+                Button NavButton(string name) => Descendants<Button>(content).Single(button => button.IsVisible && AutomationProperties.GetName(button) == name);
+                var places = new HashSet<double>(); var labels = new HashSet<string>();
+                for (var step = 0; step < 7; step++)
+                {
+                    places.Add(Math.Round(BoundsIn(NavButton("Próximo período"), content).X + BoundsIn(NavButton("Período anterior"), content).X + BoundsIn(NavButton("Ir para hoje"), content).X, 1));
+                    labels.Add(vm.AgendaRangeLabel);
+                    InvokeButton(NavButton("Próximo período")); Settle(vm); content = Layout(window, 1280, 740);
+                }
+                Require(labels.Count == 7 && places.Count == 1, $"Os botões de navegação deveriam ficar parados enquanto o rótulo do dia muda ({places.Count} posições em {labels.Count} dias).");
+                InvokeButton(NavButton("Ir para hoje")); Settle(vm); content = Layout(window, 1280, 740);
+                Require(vm.AgendaRangeLabel == labels.First() && vm.Appointments.Count == 5, "Hoje deveria voltar ao dia de hoje.");
                 window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 740);
                 SavePreview(content, Path.Combine(previewRoot, "obs-agenda-dia-dark.png"));
                 // Janela mínima: nada cortado.
@@ -390,6 +402,8 @@ internal static partial class Program
                 answer = false; asked.Clear();
                 fixture.AddAppointment(unit.Id, "scheduled", new DateTimeOffset(today.AddHours(11)), "39053344705", "Dora Nunes");
                 Pump(vm.RefreshAutomaticallyAsync()); content = Layout(window, 1280, 740); list = AgendaDayList(content);
+                // O ciclo de 20 s trouxe uma consulta nova e recriou a lista inteira: a seleção das três e o balão continuam, sem sumir.
+                Require(vm.Appointments.Count == 4 && list.SelectedItems.Count == 3 && vm.SelectedAppointmentCount == 3 && VisibleBalloon(content).Label == "3 consultas selecionadas", "A seleção e o balão deveriam sobreviver à releitura do ciclo automático.");
                 SelectAppointments(window, list, vm.Appointments.Single(item => item.PatientName == "Dora Nunes")); content = Layout(window, 1280, 740);
                 balloon = VisibleBalloon(content);
                 InvokeButton(((Panel)balloon.Content).Children.OfType<Button>().Single(button => AutomationProperties.GetName(button) == "Cancelar consulta")); Settle(vm);

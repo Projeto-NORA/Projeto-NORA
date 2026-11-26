@@ -218,7 +218,7 @@ internal static partial class Program
                 vm.ObsRegistryName = "Paciente Atualizado"; vm.ObsRegistryNumber = "20"; Pump(vm.CreateObsRegistryAsync());
                 Require(vm.ObsRegistry.Single().FullName == "Paciente Atualizado" && vm.ObsRegistry.Single().Address?.Number == "20" && !vm.IsEditingObsRegistry, "Edição não persistiu nome e endereço.");
                 // Agenda de amanhã: o início precisa ser no futuro.
-                vm.SelectAgendaDayCommand.Execute(null); vm.MoveAgenda(1); Settle(vm);
+                vm.AgendaViewMode = "Dia"; vm.MoveAgenda(1); Settle(vm);
                 vm.AppointmentPatient = vm.ObsRegistry.Single(); vm.AppointmentSpecialty = "Cardiologia"; vm.AppointmentProfessional = "Profissional"; vm.AppointmentStart = "09:00"; vm.AppointmentEnd = "09:30";
                 Pump(vm.CreateAppointmentAsync());
                 var appointment = vm.Appointments.Single();

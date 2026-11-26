@@ -82,7 +82,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>As consultas mostradas pela visão: as do dia (Dia e Mês), as da semana (Semana) ou nenhuma (Ano, que só marca os dias).</summary>
     public ObservableCollection<AppointmentInfo> Appointments { get; } = [];
     /// <summary>Texto de estado da lista: sem UBS, lendo a agenda ou sem consultas no período. Vazio quando a lista tem o que mostrar.</summary>
-    public string AgendaStateText => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver a agenda."
+    public string AgendaStateText => !HasActiveObsUnit ? "Escolha a UBS em que você vai trabalhar para ver a agenda."
         : AgendaIsLoading ? (IsAgendaYear ? "Carregando a agenda do ano…" : "Carregando a agenda do mês…")
         : IsAgendaYear ? ""
         : Appointments.Count == 0 ? (IsAgendaWeek ? "Nenhuma consulta nesta semana." : "Nenhuma consulta neste dia.") : "";
@@ -196,6 +196,8 @@ public sealed partial class WorkspaceViewModel
         Replace(Appointments, shown.OrderBy(item => item.StartsAt).ThenBy(item => item.Id).ToArray());
         SetAppointmentSelection(selectedIds.Count == 0 ? Array.Empty<AppointmentInfo>() : Appointments.Where(item => selectedIds.Contains(item.Id)).ToArray());
         if (IsAgendaYear && (AgendaMonths.Count != 12 || AgendaMonths[0].FirstDay.Year != selectedAgendaDate.Year)) BuildAgendaMonths();
+        // Fora do Ano os 12 mini-calendários (504 dias) saem da memória e deixam de ser remarcados a cada leitura.
+        else if (!IsAgendaYear && AgendaMonths.Count > 0) AgendaMonths.Clear();
         if (IsAgendaWeek) BuildAgendaWeek();
         ApplyCalendarMarks();
         Notify(nameof(AgendaStateText)); Notify(nameof(AgendaIsLoading));
@@ -376,7 +378,7 @@ public sealed partial class WorkspaceViewModel
         var created = false;
         await RunAsync(async () =>
         {
-            var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de agendar.");
+            var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha a UBS em que você vai trabalhar antes de agendar.");
             if (catalogFailed) throw new NoraApiException("Não foi possível ler o cadastro de profissionais desta UBS, por isso o agendamento está indisponível. A agenda tenta de novo sozinha; aguarde alguns instantes e repita.");
             if (UsesCatalogBooking) { await CreateCatalogAppointmentAsync(unit); created = true; return; }
             var (startsAt, endsAt, patient) = ValidateAppointmentDraft();

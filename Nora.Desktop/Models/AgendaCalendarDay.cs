@@ -23,7 +23,7 @@ public sealed class AgendaCalendarDay(DateTime date, bool isCurrentMonth) : Obse
         set { if (appointmentCount == value) return; appointmentCount = value; Notify(); Notify(nameof(HasAppointments)); Notify(nameof(Intensity)); Notify(nameof(CountLabel)); Notify(nameof(AutomationLabel)); }
     }
     public bool HasAppointments => appointmentCount > 0;
-    /// <summary>Quanto o dia está cheio, para o mini-calendário do ano: 0 sem consulta, 1 até 2, 2 até 5 e 3 com 6 ou mais.</summary>
+    /// <summary>Quanto o dia está cheio, para o mini-calendário do ano: 0 sem consulta, 1 até 2 (ponto), 2 até 5 (ponto e fundo claro) e 3 com 6 ou mais (fundo forte).</summary>
     public int Intensity => appointmentCount switch { 0 => 0, <= 2 => 1, <= 5 => 2, _ => 3 };
     public bool HasScheduled => statuses.Contains("scheduled");
     public bool HasCalled => statuses.Contains("called");

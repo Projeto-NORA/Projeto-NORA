@@ -155,7 +155,7 @@ internal static partial class Program
                 }
                 // Hoje às 00:00 já passou; amanhã é futuro.
                 Require(Attempt(() => { vm.AppointmentStart = "00:00"; vm.AppointmentEnd = "00:30"; }).Contains("no futuro"), "Início no passado foi aceito.");
-                vm.SelectAgendaDayCommand.Execute(null); vm.MoveAgenda(1); Settle(vm);
+                vm.AgendaViewMode = "Dia"; vm.MoveAgenda(1); Settle(vm);
                 Require(Attempt(() => { vm.AppointmentStart = "10:00"; vm.AppointmentEnd = "09:00"; }).Contains("depois do inicial"), "Fim antes do início foi aceito.");
                 Require(Attempt(() => { vm.AppointmentStart = "10:00"; vm.AppointmentEnd = "10:00"; }).Contains("depois do inicial"), "Fim igual ao início foi aceito.");
                 Require(Attempt(() => { vm.AppointmentStart = "08:00"; vm.AppointmentEnd = "20:30"; }).Contains("12 horas"), "Duração acima de 12 h foi aceita.");
