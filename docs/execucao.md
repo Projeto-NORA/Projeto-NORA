@@ -1,5 +1,29 @@
 # Execução e validação
 
+## Revisão da sessão do paciente e da janela de 20 anos — 2026-11-26
+
+Tarefa `docs/tarefas/2026-11-26-revisao-sessao-paciente-indicadores.md`, sobre o trabalho descrito na seção seguinte. Correção: `GET /api/obs/units/{id}/metrics` e `GET /api/municipal/metrics` respondiam 500 com `to` em 31/12/9999 (a leitura da grade da capacidade soma 240 min a `to`); agora a janela que começa antes de 02/01/0001 ou termina depois de 30/12/9999 recebe o 400 "Período inválido". `MetricsWindowChecks` ganhou essa verificação (vermelha com o código anterior: 500 no OBS e na Secretaria), a disponibilidade (92 dias, OBS e paciente) entre as rotas que não mudaram e a conferência do 400 genérico sem `to`.
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` (`--no-incremental`) | 0 erros, 3 avisos antigos fora da tarefa (CS8620 em `ApiEndpoints.Photo.cs`; CS8604 em `WorkspaceViewModel.UnitProfile.cs`, contado duas vezes pelo projeto temporário do WPF) |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55466, PostgreSQL 18) | saída 0, todas verdes: configuração 3/3, HTTP 34/34, fluxos 28/28, plataforma 20/20, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 16/16, computadores do OBS 18/18, Vaga Relâmpago automática 8/8, serviços e horários 7/7, conflito entre UBS 7/7, caixa de saída 5/5, desempenho 6/6, sessão do paciente 8/8, **janela dos indicadores 5/5**, fechamento 13/13, foto 10/10, ordem alfabética 3/3, exclusão programada 4/4, recuperação de senha 2/2 |
+| `--metrics-window-only` depois do último ajuste do teste (porta 55477) | 5/5 |
+| Medição de 20 anos na suíte | OBS 702 ms, Secretaria 689 ms, resposta de 398 KiB, 5.214 dias na série (mesma ordem do relato: 823 ms e 777 ms) |
+
+## Sessão do paciente e janela de 20 anos dos indicadores — 2026-11-26
+
+Tarefa `docs/tarefas/2026-11-26-api-sessao-paciente-indicadores.md`. A sessão do paciente passou a 24 h (30 dias com `keepSignedIn`, também no Google) e os indicadores aceitam até 20 anos (7.305 dias). Só API e testes da API; os desktops e o app não foram tocados.
+
+| Verificação | Resultado |
+| --- | --- |
+| Build Release de `NORA.slnx` | 0 erros |
+| `validar-postgres-descartavel.ps1 -IncludeUnitDatabases` (porta 55461, PostgreSQL 18) | todas verdes, saída 0: configuração 3/3, HTTP 34/34, fluxos 28/28, plataforma 20/20, revisão 17/17, comunicação e Jornada 16/16, agenda 21/21, Família 21/21 + 14/14 + 7/7 + 5/5, Google e push 16/16 (uma verificação nova), computadores do OBS 18/18, Vaga Relâmpago automática 8/8, serviços e horários 7/7, conflito entre UBS 7/7, caixa de saída 5/5, desempenho 6/6, **sessão do paciente 8/8 (nova)**, **janela dos indicadores 4/4 (nova)**, fechamento 13/13, foto 10/10, ordem alfabética 3/3, exclusão programada 4/4, recuperação de senha 2/2 |
+
+Para repetir só as partes novas, com `NORA_TEST_CONNECTION` definida: `--patient-session-only` (24 h e 30 dias por CPF e e-mail, o token no último instante, presença e rotas, limpeza só 30 dias depois do vencimento, troca de senha, sair e desativar a conta, desktop e equipe inalterados, `KeepSignedInDays` configurado) e `--metrics-window-only` (20 anos aceitos, 20 anos e 1 dia recusados com a mensagem nova, as outras rotas de 366 dias e a janela dos alertas inalteradas, e a medição de 20 anos com linhas `MEDIDA`). Testes antigos adaptados ao comportamento novo: `PlatformChecks` (367 e 400 dias passaram a valer; a recusa agora é 20 anos e 1 dia) e `ObsDeviceChecks` (o paciente mantém a opção: 30 dias com ela, 24 h sem).
+
+Medição (UBS com 417.120 consultas em 20 anos, melhor de 3): 366 dias 87 ms; 5 anos 374 ms; 20 anos 823 ms (OBS) e 777 ms (Secretaria), resposta de 398 KiB. Detalhes em [api.md](api.md), "Indicadores".
+
 ## Validação do fechamento das pendências — 2026-11-17
 
 Código do fechamento (score em pontos de 0 a 1000, prioridade na Vaga Relâmpago pelo score, contas de equipe sem CPF, P3, P4 e P5, marcar a qualquer horário), conferido de novo em 2026-11-18, depois das correções das voltas 1 a 3 da revisão, com PostgreSQL 18 descartável, sem commit:

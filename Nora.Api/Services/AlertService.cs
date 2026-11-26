@@ -7,6 +7,9 @@ namespace Nora.Api.Services;
 /// <summary>Limites dos alertas, de <c>Nora:Alerts:*</c> (padrões decididos pelo usuário em 2026-11-11). Valor inválido impede a inicialização.</summary>
 public sealed class AlertOptions
 {
+    /// <summary>Teto de <c>Nora:Alerts:WindowDays</c>: 366 dias. Os indicadores aceitam 20 anos, mas a janela dos alertas continua de um ano.</summary>
+    public const int MaxWindowDays = 366;
+
     /// <summary>Fila alta: este número de pessoas, ou mais, aguardando numa especialidade da UBS (<c>Nora:Alerts:HighQueue</c>, padrão 20).</summary>
     public int HighQueue { get; }
     /// <summary>Espera longa: alguém aguardando há mais que isto (<c>Nora:Alerts:LongWaitDays</c>, padrão 30).</summary>
@@ -24,7 +27,7 @@ public sealed class AlertOptions
     {
         HighQueue = Integer(configuration, "HighQueue", 20, 1, 100_000);
         LongWaitDays = Integer(configuration, "LongWaitDays", 30, 1, 36_500);
-        WindowDays = Integer(configuration, "WindowDays", 30, 1, MetricsService.MaxWindowDays);
+        WindowDays = Integer(configuration, "WindowDays", 30, 1, MaxWindowDays);
         OccupancyDays = Integer(configuration, "OccupancyDays", 7, 1, SchedulingService.MaxAvailabilityDays);
         MissedRate = Fraction(configuration, "MissedRate", 0.20);
         Occupancy = Fraction(configuration, "Occupancy", 0.95);

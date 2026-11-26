@@ -22,7 +22,8 @@ internal sealed class MetricsAggregate
 public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao, SchedulingService scheduling, GoalService goals)
 {
     private const int MaxConcurrentUnits = 4;
-    public const int MaxWindowDays = 366;
+    /// <summary>Janela máxima dos indicadores: 20 anos (7.305 dias), para os períodos "5 anos" e "máximo" do OBS e do Painel Municipal. As demais listas por período continuam em 366 dias.</summary>
+    public const int MaxWindowDays = 7305;
 
     /// <summary>Indicadores de uma UBS (o chamador já autorizou o OBS pela concessão da unidade).</summary>
     public async Task<UnitMetrics> ReadUnitAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
@@ -84,9 +85,16 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao, 
         return new(from, to, Summary(total), byUnit, byRegion, Specialties(specialties), Daily(daily), scoped.Count - ready.Count, CapacityOf(total), GoalStatuses(goalList, null, Summary(total), total.Counters));
     }
 
+    /// <summary>
+    /// Primeiro e último instante aceitos: um dia de folga em cada ponta do calendário, sem limitar nenhum período real. Perto de 31/12/9999 a leitura da grade da capacidade
+    /// (<c>to</c> + duração máxima do atendimento) passava do limite de <see cref="DateTimeOffset"/> e a rota respondia 500; perto de 01/01/0001 o mesmo acontece com a grade num fuso a leste do UTC
+    /// (<c>Nora:TimeZone</c>, no máximo 14 h). Com a folga a resposta é o 400 do período.
+    /// </summary>
+    private static readonly DateTimeOffset EarliestMoment = DateTimeOffset.MinValue.AddDays(1), LatestMoment = DateTimeOffset.MaxValue.AddDays(-1);
+
     internal static void ValidateWindow(DateTimeOffset from, DateTimeOffset to)
     {
-        if (to <= from || to - from > TimeSpan.FromDays(MaxWindowDays)) throw new ApiInputException();
+        if (to <= from || to - from > TimeSpan.FromDays(MaxWindowDays) || from < EarliestMoment || to > LatestMoment) throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-period");
     }
 
     private static string NormalizeSpecialty(string? value)

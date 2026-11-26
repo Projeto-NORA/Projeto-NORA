@@ -562,9 +562,11 @@ internal static class PlatformChecks
                 var narrowBody = (await Read(narrow)).GetProperty("appointments");
                 Require(narrowBody.GetProperty("completed").GetInt64() == 1 && narrowBody.GetProperty("cancelled").GetInt64() == 10 && narrowBody.GetProperty("cancelledByPatient").GetInt64() == 9 && Math.Abs(narrowBody.GetProperty("cancellationWeight").GetDouble() - 5.9) < 1e-9 && Math.Abs(narrowBody.GetProperty("attendanceScore").GetDouble() - Math.Round(1 / 6.9, 4)) < 1e-9, "Janela estreita (só consultas marcadas até T0 + 2 dias) incorreta.");
                 // Validações e autorização.
-                foreach (var invalid in new[] { $"from={toQ}&to={fromQ}", $"from={fromQ}&to={fromQ}", $"from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(367).ToString("O"))}", $"from={fromQ}", "" })
+                foreach (var invalid in new[] { $"from={toQ}&to={fromQ}", $"from={fromQ}&to={fromQ}", $"from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(7306).ToString("O"))}", $"from={fromQ}", "" })
                 { using var rejected = await obs.GetAsync($"/api/obs/units/{u1}/metrics?{invalid}"); Expect(rejected, 400); }
-                using (var maximum = await obs.GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(366).ToString("O"))}")) Expect(maximum, 200);
+                // Desde 2026-11-26 o limite é de 20 anos (7.305 dias): um ano e um dia a mais passam, 20 anos e 1 dia não (ver MetricsWindowChecks).
+                foreach (var accepted in new[] { 366, 367, 7305 })
+                { using var maximum = await obs.GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(accepted).ToString("O"))}"); Expect(maximum, 200); }
                 using (var deniedFree = await free.GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={toQ}")) Expect(deniedFree, 403);
                 using (var deniedManager = await municipal.GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={toQ}")) Expect(deniedManager, 403);
                 using (var deniedPatient = await patients[1].GetAsync($"/api/obs/units/{u1}/metrics?from={fromQ}&to={toQ}")) Expect(deniedPatient, 403);
@@ -598,8 +600,9 @@ internal static class PlatformChecks
                     Require(appointments.GetProperty("completed").GetInt64() == 3 && appointments.GetProperty("cancelled").GetInt64() == 2 && specialtyBody.GetProperty("bySpecialty").GetArrayLength() == 1 && specialtyBody.GetProperty("totals").GetProperty("lightning").GetProperty("registeredSlots").GetInt64() == 0, "Filtro por especialidade incorreto.");
                 }
                 using (var unknown = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}&unitId={Guid.NewGuid()}")) Expect(unknown, 404);
-                foreach (var invalid in new[] { $"from={toQ}&to={fromQ}", $"from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(400).ToString("O"))}", "" })
+                foreach (var invalid in new[] { $"from={toQ}&to={fromQ}", $"from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(7306).ToString("O"))}", "" })
                 { using var rejected = await municipal.GetAsync($"/api/municipal/metrics?{invalid}"); Expect(rejected, 400); }
+                using (var longWindow = await municipal.GetAsync($"/api/municipal/metrics?from={fromQ}&to={Uri.EscapeDataString(t0.AddDays(7305).ToString("O"))}")) Expect(longWindow, 200);
                 using (var obsDenied = await obs.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}")) Expect(obsDenied, 403);
                 using (var patientDenied = await patients[1].GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}")) Expect(patientDenied, 403);
                 using (var anonymousDenied = await anonymous.GetAsync($"/api/municipal/metrics?from={fromQ}&to={toQ}")) Expect(anonymousDenied, 401);

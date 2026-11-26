@@ -6,7 +6,7 @@ namespace Nora.Api.Services;
 /// Computadores do OBS (P-014), de <c>Nora:ObsDevices:*</c>. <c>Enabled</c> (padrão falso, decisão de 24/11/2026) liga o recurso: desligado, o login do OBS vale sozinho, nenhum computador é
 /// registrado nem exigido e a sessão de desktop pode ser mantida por 30 dias. Ligado, <c>RequireForAttendants</c> (padrão verdadeiro) exige computador ativado para a atendente entrar; com falso
 /// (implantação gradual) a ativação e o "manter conectado" funcionam, mas a atendente também entra sem computador. <c>KeepSignedInDays</c> (padrão 30; 1 a 90) é a validade da sessão com
-/// "manter conectado", sem renovação. Valor inválido impede a inicialização.
+/// "manter conectado", sem renovação: vale para o OBS do contrato antigo (só com computador) e, desde 26/11/2026, para o paciente (sem a opção, a sessão do paciente vale 24 h). O desktop segue fixo em 24 h e 30 dias. Valor inválido impede a inicialização.
 /// </summary>
 public sealed class ObsDeviceOptions
 {

@@ -28,7 +28,8 @@ public sealed class GoogleAccountService(GoogleSignInOptions options, GoogleIdTo
 
     /// <summary>
     /// Mesma resposta do login com senha (scope <c>patient</c>). Nulo (o endpoint devolve o 401 genérico do login) quando o token é inválido, o sub não está vinculado
-    /// ou a conta está inativa, sem dizer qual. <c>deviceName</c> é aceito e não é guardado.
+    /// ou a conta está inativa, sem dizer qual. <c>deviceName</c> é aceito e não é guardado. <c>keepSignedIn</c> segue a regra do login com senha: sem ele a sessão vale 24 h, com ele
+    /// <see cref="ObsDeviceOptions.KeepSignedInDays"/> dias (30 por padrão), e a resposta informa o que foi aplicado.
     /// </summary>
     public async Task<LoginResponse?> LoginAsync(GoogleTokenRequest request, CancellationToken ct)
     {
@@ -36,7 +37,7 @@ public sealed class GoogleAccountService(GoogleSignInOptions options, GoogleIdTo
         if (string.IsNullOrWhiteSpace(request.IdToken)) throw new ApiInputException();
         var identity = await validator.ValidateAsync(request.IdToken, ct);
         if (identity is null || await identities.FindPatientAsync(identity.Subject, ct) is not { } user) return null;
-        return await auth.StartSessionAsync(user, ct);
+        return await auth.StartSessionAsync(user, ct, keepSignedIn: request.KeepSignedIn == true);
     }
 
     private void RequireEnabled() { if (!options.Enabled) throw new ApiCodedException(StatusCodes.Status503ServiceUnavailable, "google-disabled"); }
