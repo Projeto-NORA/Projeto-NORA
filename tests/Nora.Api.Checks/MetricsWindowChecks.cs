@@ -63,10 +63,12 @@ internal static class MetricsWindowChecks
                 using var equal = await client.GetAsync($"{path}?from={Q(start)}&to={Q(start)}"); await ExpectProblem(equal, 400, "invalid-input");
                 using var inverted = await client.GetAsync($"{path}?from={Q(t0)}&to={Q(start)}"); await ExpectProblem(inverted, 400, "invalid-input");
             }
-            using var missing = await f.Admin.GetAsync($"/api/obs/units/{u1}/metrics?from={Q(start)}"); Expect(missing, 400);
+            // Sem "to" a requisição para na leitura dos parâmetros, antes da conferência do período: é o 400 genérico.
+            using var missing = await f.Admin.GetAsync($"/api/obs/units/{u1}/metrics?from={Q(start)}");
+            Ensure((await ExpectProblem(missing, 400, "invalid-input")).GetProperty("title").GetString() == "Dados inválidos", "Sem to a resposta deveria ser o 400 genérico.");
         });
 
-        await suite.Check("As outras rotas com limite de 366 dias não mudaram: consultas da UBS (OBS e Secretaria), bloqueios (leitura e criação) e a janela dos alertas", async () =>
+        await suite.Check("As outras rotas por período não mudaram: consultas da UBS (OBS e Secretaria) e bloqueios (leitura e criação) em 366 dias, disponibilidade (OBS e paciente) em 92 dias e a janela dos alertas em 366", async () =>
         {
             var year = TimeSpan.FromDays(366); var more = TimeSpan.FromDays(367);
             foreach (var (client, path) in new[] { (f.Admin, $"/api/obs/units/{u1}/appointments"), (f.Admin, $"/api/obs/units/{u1}/schedule-blocks"), (f.Municipal, $"/api/municipal/units/{u1}/appointments"), (f.Municipal, $"/api/municipal/units/{u1}/schedule-blocks") })
@@ -75,9 +77,18 @@ internal static class MetricsWindowChecks
                 using (var rejected = await client.GetAsync($"{path}?{Window(t0, more)}")) Expect(rejected, 400);
                 using (var twenty = await client.GetAsync($"{path}?{Window(start, TimeSpan.FromDays(WindowDays))}")) Expect(twenty, 400);
             }
-            var professional = await f.ProfessionalAsync(u1, "Prof limite", await f.SpecialtyAsync("Clínica geral"));
+            var clinical = await f.SpecialtyAsync("Clínica geral");
+            var professional = await f.ProfessionalAsync(u1, "Prof limite", clinical);
             using (var create = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/schedule-blocks", new { professionalId = professional, startsAt = t0.AddDays(10), endsAt = t0.AddDays(10) + more, reason = "Longo demais" })) Expect(create, 400);
             using (var createOk = await f.Admin.PostAsJsonAsync($"/api/obs/units/{u1}/schedule-blocks", new { professionalId = professional, startsAt = t0.AddDays(10), endsAt = t0.AddDays(10) + year, reason = "Um ano" })) Expect(createOk, 201);
+            // A disponibilidade (horários livres) continua com 92 dias por pedido, para a equipe e para o paciente: 92 dias valem, 93 dias e 20 anos não.
+            var patient = await f.PatientAsync(2, u1);
+            foreach (var (client, path) in new[] { (f.Admin, $"/api/obs/units/{u1}/availability"), (patient, $"/api/patient/units/{u1}/availability") })
+            {
+                using (var accepted = await client.GetAsync($"{path}?{Window(t0, TimeSpan.FromDays(SchedulingService.MaxAvailabilityDays))}&specialtyId={clinical}")) Expect(accepted, 200);
+                using (var rejected = await client.GetAsync($"{path}?{Window(t0, TimeSpan.FromDays(SchedulingService.MaxAvailabilityDays + 1))}&specialtyId={clinical}")) Expect(rejected, 400);
+                using (var twenty = await client.GetAsync($"{path}?{Window(t0, TimeSpan.FromDays(WindowDays))}&specialtyId={clinical}")) Expect(twenty, 400);
+            }
             // A janela dos alertas (Nora:Alerts:WindowDays) continua com teto de 366 dias, mesmo com os indicadores em 20 anos.
             AlertOptions Alerts(string days) => new(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Nora:Alerts:WindowDays"] = days }).Build());
             Ensure(Alerts("366").WindowDays == 366 && Alerts("30").WindowDays == 30, "A janela dos alertas aceita de 1 a 366 dias.");
@@ -144,6 +155,30 @@ internal static class MetricsWindowChecks
                         Ensure(sum == total.GetProperty("completed").GetInt64() + total.GetProperty("missed").GetInt64() + total.GetProperty("scheduled").GetInt64(), "A série diária não fecha com os totais.");
                     }
                 }
+        });
+
+        // Depende da grade semeada acima: sem grade, a capacidade nem gera atendimentos e o defeito não aparece.
+        // Antes da revisão de 26/11/2026, até 31/12/9999 23:59:59 respondia 500 (to + 240 min na leitura da grade passava do limite de data); o começo do calendário só falhava num fuso a leste do UTC.
+        await suite.Check("Datas nos extremos do calendário (antes de 02/01/0001 e depois de 30/12/9999) são recusadas com o 400 do período, nunca com 500; um dia antes de cada ponta continua valendo", async () =>
+        {
+            var edges = new (DateTimeOffset From, DateTimeOffset To)[]
+            {
+                (DateTimeOffset.MinValue, DateTimeOffset.MinValue.AddDays(30)),
+                (new DateTimeOffset(9999, 12, 1, 0, 0, 0, TimeSpan.Zero), DateTimeOffset.MaxValue),
+                (new DateTimeOffset(9999, 12, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(9999, 12, 31, 12, 0, 0, TimeSpan.Zero))
+            };
+            foreach (var (client, path) in new[] { (f.Admin, $"/api/obs/units/{u1}/metrics"), (f.Municipal, "/api/municipal/metrics") })
+            {
+                foreach (var (from, to) in edges)
+                {
+                    using var response = await client.GetAsync($"{path}?from={Q(from)}&to={Q(to)}");
+                    var problem = await ExpectProblem(response, 400, "invalid-input");
+                    Ensure(problem.GetProperty("title").GetString() == "Período inválido", $"{path} de {from:O} a {to:O}: esperava o 400 do período.");
+                }
+                // Um dia de folga de cada lado do calendário continua valendo (o fuso da API nunca passa de 14 h).
+                using (var low = await client.GetAsync($"{path}?from={Q(DateTimeOffset.MinValue.AddDays(1))}&to={Q(DateTimeOffset.MinValue.AddDays(31))}")) Expect(low, 200);
+                using (var high = await client.GetAsync($"{path}?from={Q(new DateTimeOffset(9999, 11, 30, 0, 0, 0, TimeSpan.Zero))}&to={Q(DateTimeOffset.MaxValue.AddDays(-1))}")) Expect(high, 200);
+            }
         });
 
         return suite.Report() == 0 ? 0 : 1;
