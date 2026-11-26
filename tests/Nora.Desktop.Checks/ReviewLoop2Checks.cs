@@ -150,21 +150,21 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 // Alertas da rede.
                 var content = Show(window, "alerts", 1280, 1400);
-                Require(vm.NetworkAlertsState.Contains("Use Atualizar alertas", StringComparison.Ordinal) && ButtonIn(content, "Atualizar alertas") is not null, "A falha dos alertas deveria apontar para o botão Atualizar alertas da página: " + vm.NetworkAlertsState);
+                Require(vm.NetworkAlertsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => (button.Content?.ToString() ?? "").StartsWith("Atualizar", StringComparison.Ordinal)), "A falha dos alertas deveria dizer que a tela tenta de novo sozinha (sem botão de atualizar): " + vm.NetworkAlertsState);
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao2-alertas-falha-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 1400); SaveScrolled(window, Path.Combine(previewRoot, "revisao2-alertas-falha-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light); content = Layout(window, 1280, 1400);
                 fixture.FailAlerts = false; var reads = fixture.NetworkAlertQueries.Count;
-                Click(window, content, "Atualizar alertas", 1280, 1400);
-                Require(fixture.NetworkAlertQueries.Count == reads + 1 && vm.NetworkAlertsState.StartsWith("Nenhum alerta neste filtro", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria avaliar de novo: " + vm.NetworkAlertsState);
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(fixture.NetworkAlertQueries.Count == reads + 1 && vm.NetworkAlertsState.StartsWith("Nenhum alerta neste filtro", StringComparison.Ordinal), "O ciclo automático deveria avaliar de novo: " + vm.NetworkAlertsState);
                 // Cadastro em leitura da Capacidade.
                 content = Show(window, "capacity", 1280, 3000);
                 vm.CapacityUnit = vm.Units.Single(); Settle(vm); content = Layout(window, 1280, 3000);
-                Require(vm.CapacityCatalogState.Contains("Use Ler o cadastro de novo", StringComparison.Ordinal) && ButtonIn(content, "Ler o cadastro de novo") is not null, "A falha do cadastro deveria apontar para o botão da própria página: " + vm.CapacityCatalogState);
+                Require(vm.CapacityCatalogState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => (button.Content?.ToString() ?? "").StartsWith("Ler o cadastro", StringComparison.Ordinal)), "A falha do cadastro deveria dizer que a tela tenta de novo sozinha (sem botão): " + vm.CapacityCatalogState);
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao2-capacidade-falha-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 3000); SaveScrolled(window, Path.Combine(previewRoot, "revisao2-capacidade-falha-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light); content = Layout(window, 1280, 3000);
                 fixture.FailCatalogUnits.Clear();
-                Click(window, content, "Ler o cadastro de novo", 1280, 3000);
-                Require(vm.CapacityProfessionals.Single().FullName == "Dra. Ana Lima" && vm.CapacityCatalogState == "", "O botão deveria ler o cadastro de novo: " + vm.CapacityCatalogState);
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.CapacityProfessionals.Single().FullName == "Dra. Ana Lima" && vm.CapacityCatalogState == "", "O ciclo automático deveria ler o cadastro de novo: " + vm.CapacityCatalogState);
                 // Meus comunicados.
                 content = Show(window, "communication", 1280, 2600);
                 Require(vm.MyAnnouncementsState.Contains("Use Atualizar lista", StringComparison.Ordinal) && ButtonIn(content, "Atualizar lista") is not null, "A falha de Meus comunicados deveria apontar para o botão Atualizar lista: " + vm.MyAnnouncementsState);
@@ -185,9 +185,9 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "reports", 1280, 3000);
                 Require(!FullTexts(content).Any(text => text.Contains("permanecem totais atuais da rede", StringComparison.Ordinal)) || vm.AppliedSummaryUnitLabel == "Toda a rede", "Texto antigo com escopo fixo.");
-                Require(FullTexts(content).Contains(vm.SummaryExportNote) && vm.SummaryExportNote.Contains("toda a rede", StringComparison.Ordinal), "Sem UBS escolhida o texto deveria falar da rede inteira: " + vm.SummaryExportNote);
+                Require(ExportTip(content) == vm.SummaryExportNote && vm.SummaryExportNote.Contains("toda a rede", StringComparison.Ordinal), "Sem UBS escolhida o texto deveria falar da rede inteira: " + vm.SummaryExportNote);
                 vm.SummaryUnitFilter = alfa.Id; Settle(vm); content = Layout(window, 1280, 3000);
-                Require(vm.AppliedSummaryUnitLabel == "UBS Alfa" && FullTexts(content).Contains(vm.SummaryExportNote) && vm.SummaryExportNote.Contains("só da UBS Alfa", StringComparison.Ordinal)
+                Require(vm.AppliedSummaryUnitLabel == "UBS Alfa" && ExportTip(content) == vm.SummaryExportNote && vm.SummaryExportNote.Contains("só da UBS Alfa", StringComparison.Ordinal)
                     && !FullTexts(content).Any(text => text.Contains("totais atuais da rede", StringComparison.Ordinal)), "Com uma UBS escolhida o texto não pode dizer que pacientes e fila são da rede: " + vm.SummaryExportNote);
                 Require(vm.CreateSummaryCsv().Contains("Unidade;UBS Alfa;", StringComparison.Ordinal), "O CSV deveria ser da UBS escolhida.");
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao2-relatorios-escopo-light.png"), 1280, 900);

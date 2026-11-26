@@ -23,6 +23,8 @@ public sealed partial class WorkspaceViewModel
             UnitSpecialtyFilter = UnitSpecialtyFilterOptions[0];
             UnitPeriodDays = 30;
         }
+        // A pesquisa em linha das telas de números da rede também é apagada por "Limpar filtros" (como a das listas).
+        if (filters.Any(key => key.StartsWith("network", StringComparison.Ordinal))) NetworkSearch = "";
         var clearNetworkMetrics = filters.Contains("networkMetrics");
         var clearNetworkScope = clearNetworkMetrics || filters.Contains("networkLightning") || filters.Contains("networkOverview");
         var refreshNetwork = clearNetworkScope && summaryUnitFilter != Guid.Empty;
@@ -37,7 +39,7 @@ public sealed partial class WorkspaceViewModel
             metricsPeriodDays = 30;
             metricsRegion = metricsSpecialty = "";
             MetricsFromText = MetricsToText = "";
-            Notify(nameof(MetricsPeriodDays)); Notify(nameof(IsCustomPeriod)); Notify(nameof(MetricsRegion)); Notify(nameof(MetricsSpecialty));
+            Notify(nameof(MetricsPeriodDays)); Notify(nameof(IsCustomPeriod)); Notify(nameof(PeriodSummaryTitle)); Notify(nameof(MetricsRegion)); Notify(nameof(MetricsSpecialty));
             if (hadFilters || refreshNetwork) ReloadNetwork(includeSummary: refreshNetwork);
         }
         else if (refreshNetwork) ReloadNetwork(includeSummary: true);

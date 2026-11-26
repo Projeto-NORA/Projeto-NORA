@@ -42,14 +42,6 @@ internal static partial class Program
         var seen = false;
         InspectModal<ItemDetailsWindow>(window, details => { seen = true; inspect(details); }, () => { PressKey(list, Key.Enter); PumpUntil(() => seen); });
     }
-    /// <summary>Captura o pop-up depois da animação de entrada (opacidade e zoom de até 180 ms); antes disso a imagem sai esmaecida.</summary>
-    private static void SaveDialog(Window dialog, string path)
-    {
-        var until = DateTime.UtcNow.AddMilliseconds(400);
-        PumpUntil(() => DateTime.UtcNow >= until);
-        dialog.UpdateLayout();
-        SavePreview(dialog, path);
-    }
 
     private static void RunUnitInformationChecks(string storageRoot, string[] args)
     {

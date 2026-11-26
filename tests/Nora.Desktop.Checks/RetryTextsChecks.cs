@@ -65,21 +65,22 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "alerts", 1280, 1400);
-                Require(vm.NetworkAlertsState.Contains("Use Atualizar alertas", StringComparison.Ordinal), "A falha dos alertas deveria citar o botão: " + vm.NetworkAlertsState);
+                // Sem botão de atualizar: a falha diz que a tela tenta de novo sozinha, e o ciclo de 20 s refaz a leitura.
+                Require(vm.NetworkAlertsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => (button.Content?.ToString() ?? "").StartsWith("Atualizar", StringComparison.Ordinal)), "A falha dos alertas deveria dizer que a tela tenta de novo sozinha, sem botão: " + vm.NetworkAlertsState);
                 var reads = fixture.NetworkAlertQueries.Count;
-                Click(window, content, "Atualizar alertas", 1280, 1400);
-                Require(fixture.NetworkAlertQueries.Count == reads + 1 && vm.NetworkAlertsState.Contains("Use Atualizar alertas", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Error, "Uma segunda falha, com o mesmo filtro, deveria refazer a leitura e continuar apontando para o botão.");
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(fixture.NetworkAlertQueries.Count == reads + 1 && vm.NetworkAlertsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Error, "Uma segunda falha, com o mesmo filtro, deveria refazer a leitura no ciclo automático e continuar avisando.");
                 fixture.FailAlerts = false;
-                Click(window, content, "Atualizar alertas", 1280, 1400);
-                Require(fixture.NetworkAlertQueries.Count == reads + 2 && vm.MessageKind == MessageKind.Success && !vm.IsDataStale && !vm.NetworkAlertsState.Contains("Use Atualizar", StringComparison.Ordinal), "Concluída a leitura, a faixa de falha e o aviso de dados antigos deveriam sumir: " + vm.Message + $" / consultas {fixture.NetworkAlertQueries.Count - reads} / antigos {vm.IsDataStale} / estado {vm.NetworkAlertsState}");
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(fixture.NetworkAlertQueries.Count == reads + 2 && vm.MessageKind != MessageKind.Error && !vm.IsDataStale && !vm.NetworkAlertsState.Contains("tenta de novo", StringComparison.Ordinal), "Concluída a leitura, a faixa de falha e o aviso de dados antigos deveriam sumir: " + vm.Message + $" / consultas {fixture.NetworkAlertQueries.Count - reads} / antigos {vm.IsDataStale} / estado {vm.NetworkAlertsState}");
                 content = Show(window, "capacity", 1280, 3000);
                 vm.CapacityUnit = vm.Units.Single(); Settle(vm); content = Layout(window, 1280, 3000);
-                Require(vm.CapacityCatalogState.Contains("Use Ler o cadastro de novo", StringComparison.Ordinal), "A falha do cadastro deveria citar o botão: " + vm.CapacityCatalogState);
+                Require(vm.CapacityCatalogState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => (button.Content?.ToString() ?? "").StartsWith("Ler o cadastro", StringComparison.Ordinal)), "A falha do cadastro deveria dizer que a tela tenta de novo sozinha, sem botão: " + vm.CapacityCatalogState);
                 var catalogReads = fixture.Count("GET", "/professionals");
-                Click(window, content, "Ler o cadastro de novo", 1280, 3000);
-                Require(fixture.Count("GET", "/professionals") == catalogReads + 1 && vm.CapacityCatalogState.Contains("Use Ler o cadastro de novo", StringComparison.Ordinal), "A nova tentativa com a mesma UBS deveria ler de novo (a leitura ainda falha): " + vm.CapacityCatalogState);
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(fixture.Count("GET", "/professionals") == catalogReads + 1 && vm.CapacityCatalogState.Contains("tenta de novo sozinha", StringComparison.Ordinal), "O ciclo automático deveria ler de novo o cadastro da mesma UBS (a leitura ainda falha): " + vm.CapacityCatalogState);
                 fixture.FailCatalogUnits.Clear();
-                Click(window, content, "Ler o cadastro de novo", 1280, 3000);
+                Pump(vm.RefreshAutomaticallyAsync());
                 Require(fixture.Count("GET", "/professionals") == catalogReads + 2 && vm.CapacityProfessionals.Single().FullName == "Dra. Ana Lima" && vm.CapacityCatalogState == "" && !vm.IsDataStale, "Concluída a leitura o cadastro aparece e a falha some: " + vm.CapacityCatalogState);
             }
             finally { CloseWindow(window); }

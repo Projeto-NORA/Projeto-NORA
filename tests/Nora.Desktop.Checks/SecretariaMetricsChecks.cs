@@ -35,8 +35,8 @@ internal static partial class Program
                 static double Days(System.Collections.Specialized.NameValueCollection query) => (DateTimeOffset.Parse(query["to"]!, CultureInfo.InvariantCulture) - DateTimeOffset.Parse(query["from"]!, CultureInfo.InvariantCulture)).TotalDays;
                 Combo(content, "Período dos indicadores").SelectedValue = 7; Settle(vm); ExpectOneMore("Período 7 dias");
                 Require(Days(fixture.MetricsQueries[^1]) == 7, "O período de 7 dias não foi enviado.");
-                Combo(content, "Período dos indicadores").SelectedValue = 90; Settle(vm); ExpectOneMore("Período 90 dias");
-                Require(Days(fixture.MetricsQueries[^1]) == 90, "O período de 90 dias não foi enviado.");
+                Combo(content, "Período dos indicadores").SelectedValue = 365; Settle(vm); ExpectOneMore("Período Ano");
+                Require(Days(fixture.MetricsQueries[^1]) == 365, "O período de um ano não foi enviado.");
                 Combo(content, "Filtrar por região").SelectedValue = "Sul"; Settle(vm); ExpectOneMore("Região");
                 Require(fixture.MetricsQueries[^1]["region"] == "Sul" && vm.UnitPerformance.Select(row => row.Name).SequenceEqual(["UBS Beta", "UBS Gama"]) && vm.RegionPerformance.Single().Name == "Sul", "A região não restringiu os números.");
                 Require(Combo(content, "Filtrar por região").Items.Cast<FilterOption>().Select(option => option.Label).SequenceEqual(["Todas as regiões", "Centro", "Sul"]), "As regiões do seletor deveriam vir das UBS cadastradas.");
@@ -54,7 +54,7 @@ internal static partial class Program
                 Combo(content, "Período dos indicadores").SelectedValue = 0; Settle(vm);
                 Require(fixture.MetricsQueries.Count == count && vm.IsCustomPeriod, "Escolher 'Personalizado' não deveria consultar.");
                 content = Layout(window, 1280, 900);
-                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2026", "03/01/2027", "no máximo 366 dias"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
+                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2000", "01/01/2021", "no máximo 20 anos"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
                 foreach (var (from, to, fragment) in invalid)
                 {
                     Input(content, "Data inicial do período").Text = from; Input(content, "Data final do período").Text = to;
@@ -100,36 +100,41 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "home", 1280, 1900);
-                Require(!Descendants<EvolutionChartView>(content).Any() && !HasText(content, "Consultas concluídas"), "Visão geral não deveria repetir a análise de Indicadores.");
+                Require(!Descendants<EvolutionChartView>(content).Any() && !Descendants<ChartPanel>(content).Any(panel => panel.IsVisible) && HasText(content, "Rede agora") && HasText(content, vm.PeriodSummaryTitle), "Visão geral, no modo cards, mostra os totais de agora e o resumo do período, sem gráficos.");
+                Require(!HasText(content, "Toda a rede em um só lugar") && !HasText(content, "Panorama da rede") && !Descendants<Button>(content).Any(button => button.IsVisible && (button.Content?.ToString() ?? "").StartsWith("Atualizar", StringComparison.Ordinal)), "Visão geral não tem banner, título repetido nem botão de atualizar.");
                 content = Show(window, "indicators", 1280, 1900);
                 Require(Card(vm, "Consultas concluídas").Value == "30" && Card(vm, "Faltas").Value == "6" && Card(vm, "Cancelamentos").Value == "3" && Card(vm, "Cancelamentos").Hint == "1 feito pelo paciente", "Cartões de consultas incorretos.");
                 Require(Card(vm, "Comparecimento").Value == "82,2%", "Score deveria ter uma casa decimal em pt-BR: " + Card(vm, "Comparecimento").Value);
                 Require(Card(vm, "Espera média da fila").Value == "2 h 15 min" && Card(vm, "Maior espera atual").Value == "1 d 1 h", "Esperas não ficaram legíveis: " + Card(vm, "Espera média da fila").Value + " / " + Card(vm, "Maior espera atual").Value);
                 foreach (var card in vm.OverviewCards) Require(HasText(content, card.Title) && HasText(content, card.Value), "Cartão não renderizado: " + card.Title);
                 Require(Descendants<TextBlock>(content).Any(text => text.ToolTip is string tip && tip.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)) && Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Saiba mais sobre o comparecimento"), "A explicação do score ou o 'saiba mais' não aparece.");
-                // Gráfico e tabela: mesmos números.
+                // Tabela (modo cards) e gráfico (modo gráficos): mesmos números.
                 var days = vm.ChartDays; Require(days.Count == 30, "A série deveria cobrir os 30 dias do período: " + days.Count);
-                var chart = Descendants<EvolutionChartView>(content).First();
-                var rectangles = Descendants<System.Windows.Shapes.Rectangle>(chart).ToArray();
-                var tips = rectangles.Where(rectangle => rectangle.ToolTip is string).Select(rectangle => (string)rectangle.ToolTip).ToArray();
-                Require(tips.SequenceEqual(days.Select(day => day.Description)), "As dicas do gráfico não trazem o número exato de cada dia.");
-                // Linha grossa com área em degradê e um ponto por dia (até 31 dias): três séries, 30 dias.
-                var plot = Descendants<System.Windows.Shapes.Polyline>(chart).ToArray();
-                Require(plot.Length == 3 && Descendants<System.Windows.Shapes.Polygon>(chart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(chart).Count() == days.Count * 3, $"O gráfico deveria ter 3 linhas, 3 áreas e {days.Count * 3} pontos: {plot.Length} linhas, {Descendants<System.Windows.Shapes.Ellipse>(chart).Count()} pontos.");
-                Require(!Descendants<Expander>(chart).Any(), "O gráfico não deveria ter o expansor da tabela (a tabela é das telas, no modo cards).");
-                var expander = Descendants<Expander>(content).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 1900);
+                var expander = Descendants<Expander>(content).Single(item => AutomationProperties.GetName(item) == "Tabela das consultas por dia"); expander.IsExpanded = true; content = Layout(window, 1280, 1900);
                 var table = GridNamed(content, "Consultas por dia");
                 var rows = table.Items.Cast<DailyPoint>().ToArray();
                 Require(rows.Length == 5 && rows.Sum(row => row.Completed) == days.Sum(day => day.Completed) && rows.Sum(row => row.Missed) == days.Sum(day => day.Missed) && rows.Sum(row => row.Cancelled) == days.Sum(day => day.Cancelled) && rows.All(row => days.Contains(row)), "A tabela não tem os mesmos valores do gráfico.");
                 Require(VisibleTexts(table).Contains(rows[0].DateDisplay) && VisibleTexts(table).Contains(rows[0].Completed.ToString()), "A tabela não mostra os valores do primeiro dia.");
+                var toggle = Descendants<ViewModeToggle>(content).Single(button => button.IsVisible); InvokeButton(toggle); content = Layout(window, 1280, 1900);
+                Require(toggle.Mode == ViewMode.Charts && !GridsVisible(content) && Descendants<ChartPanel>(content).Count(panel => panel.IsVisible) >= 5, "O modo gráficos deveria mostrar a grade de gráficos, sem tabelas.");
+                var chart = Descendants<ChartPanel>(content).First(panel => panel.IsVisible && panel.Title == "Consultas por situação");
+                var rectangles = Descendants<System.Windows.Shapes.Rectangle>(chart).ToArray();
+                var tips = rectangles.Where(rectangle => rectangle.ToolTip is string).Select(rectangle => (string)rectangle.ToolTip).ToArray();
+                Require(tips.SequenceEqual(days.Select(day => day.Description)), "As dicas do gráfico não trazem o número exato de cada dia.");
+                // Linha grossa com área em degradê e um ponto por dia (até 31 dias): três séries, 30 dias.
+                var lineView = Descendants<LineChartView>(chart).Single(); var plot = Descendants<System.Windows.Shapes.Polyline>(lineView).ToArray();
+                Require(plot.Length == 3 && Descendants<System.Windows.Shapes.Polygon>(lineView).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(lineView).Count() == days.Count * 3, $"O gráfico deveria ter 3 linhas, 3 áreas e {days.Count * 3} pontos: {plot.Length} linhas, {Descendants<System.Windows.Shapes.Ellipse>(lineView).Count()} pontos.");
+                Require(!Descendants<Expander>(chart).Any(), "O gráfico não deveria ter o expansor da tabela (a tabela é das telas, no modo cards).");
                 Require(Descendants<TextBlock>(chart).Any(text => text.Text == "Concluídas") && Descendants<TextBlock>(chart).Any(text => text.Text == "Faltas") && Descendants<TextBlock>(chart).Any(text => text.Text == "Canceladas"), "A legenda do gráfico está incompleta.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-overview-light.png"));
                 // Período longo: o mesmo gráfico vira linhas, com a mesma tabela.
                 vm.MetricsPeriodDays = 90; Settle(vm); content = Layout(window, 1280, 1900);
-                Require(vm.ChartDays.Count == 90 && Descendants<System.Windows.Shapes.Polyline>(Descendants<EvolutionChartView>(content).First()).Count() == 3, "Com 90 dias o gráfico deveria continuar com três linhas (um ponto por dia).");
+                Require(vm.ChartDays.Count == 90 && Descendants<System.Windows.Shapes.Polyline>(Descendants<ChartPanel>(content).First(panel => panel.IsVisible && panel.Title == "Consultas por situação")).Count() == 3, "Com 90 dias o gráfico deveria continuar com três linhas (um ponto por dia).");
                 // Score nulo.
                 fixture.NoClosedAppointments = true; vm.MetricsPeriodDays = 7; Settle(vm); content = Layout(window, 1280, 1900);
-                Require(Card(vm, "Comparecimento").Value == "—" && HasText(content, "Sem consulta encerrada no período para calcular.") && vm.ChartState == "Nenhuma consulta com data marcada no período." && HasText(content, "Nenhuma consulta com data marcada no período."), "Score nulo e gráfico vazio deveriam explicar o motivo.");
+                Require(Card(vm, "Comparecimento").Value == "—" && vm.ChartState == "Nenhuma consulta com data marcada no período." && HasText(content, "Nenhuma consulta com data marcada no período."), "Gráfico vazio deveria explicar o motivo.");
+                InvokeButton(toggle); content = Layout(window, 1280, 1900);
+                Require(toggle.Mode == ViewMode.Cards && HasText(content, "Sem consulta encerrada no período para calcular."), "Score nulo deveria explicar o motivo no cartão.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-overview-empty-light.png"));
             }
             finally { CloseWindow(window); }
@@ -159,7 +164,7 @@ internal static partial class Program
                 content = Show(window, "indicators", 1280, 2300);
                 var regions = GridNamed(content, "Comparativo por região");
                 Require(new[] { "Centro", "Sul", "83,3%", "81,6%" }.All(VisibleTexts(regions).Contains), "Comparativo por região sem os números esperados.");
-                Require(Descendants<EvolutionChartView>(content).Any() && vm.OverviewCards.All(card => HasText(content, card.Title)), "Indicadores deveria trazer os cartões e a série no tempo.");
+                Require(!Descendants<ChartPanel>(content).Any(panel => panel.IsVisible) && vm.OverviewCards.All(card => HasText(content, card.Title)), "Indicadores, no modo cards, traz os cartões e as tabelas; os gráficos ficam no outro modo.");
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-indicators-dark.png"));
             }
             finally { CloseWindow(window); }

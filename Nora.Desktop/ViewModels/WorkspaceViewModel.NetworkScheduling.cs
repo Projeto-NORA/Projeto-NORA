@@ -32,7 +32,14 @@ public sealed class GoalEditor : ObservableObject
     public string Inherited { get => inherited; set { inherited = value; Notify(); } }
     public string Error { get => error; set { error = value; Notify(); } }
     public string AutomationLabel => $"{Title}. {Current}. {Inherited}".Trim();
-    public void Refresh() { Notify(nameof(HasCurrent)); Notify(nameof(AutomationLabel)); }
+    /// <summary>A linha de dados do item da lista de metas: a meta gravada neste escopo e, numa UBS, o que ela herda da rede; só o que foi informado.</summary>
+    public string MetaLine => string.Join(" | ", new[] { Current, Inherited }.Where(part => part.Length > 0));
+    /// <summary>Etiqueta da situação da meta neste escopo: definida aqui, herdada da rede ou sem meta (o estado vem escrito, nunca só em cor).</summary>
+    public string StatusText => HasCurrent ? "Definida" : Inherited.Contains("herda a meta da rede", StringComparison.Ordinal) ? "Herdada" : "Sem meta";
+    public Tone StatusTone => HasCurrent ? Tone.Green : Inherited.Contains("herda a meta da rede", StringComparison.Ordinal) ? Tone.Blue : Tone.Neutral;
+    public void Refresh() { Notify(nameof(HasCurrent)); Notify(nameof(AutomationLabel)); Notify(nameof(MetaLine)); Notify(nameof(StatusText)); Notify(nameof(StatusTone)); }
+    /// <summary>Volta o campo ao que está gravado (fechar o pop-up sem salvar não deixa rascunho para trás).</summary>
+    public void Revert() { Input = BaselineInput; WaitUnit = BaselineUnit; }
 
     // O que foi preenchido a partir da meta gravada: serve para saber se a pessoa digitou algo (não perder o rascunho numa releitura)
     // e para regravar o valor exato quando ela salva sem mexer no campo (a tela mostra o valor arredondado).
@@ -150,13 +157,6 @@ public sealed partial class WorkspaceViewModel
         RefreshGoalEditors(false, changedMetric);
         Notify(nameof(GoalsState));
     }
-    public Task LoadGoalsAsync() => RunAsync(async () =>
-    {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar as metas.");
-        await LoadGoalsCoreAsync();
-        Say(MessageKind.Success, "Metas atualizadas.");
-    });
-
     private static string FormatGoalInput(string metric, decimal target)
     {
         if (metric != GoalMetric.AverageWait) return (target * 100m).ToString("0.##", DisplayFormat.Culture);
@@ -246,7 +246,7 @@ public sealed partial class WorkspaceViewModel
 
     private void ApplyNetworkScheduling(NetworkMetrics result)
     {
-        Replace(NetworkCapacityCards, BuildCapacityCards(result.Capacity, "Horários da grade com início no período"));
+        Replace(NetworkCapacityCards, ToneCapacityCards(BuildCapacityCards(result.Capacity, "Horários da grade com início no período")));
         Replace(CapacityByUnit, result.ByUnit.Select(unit => new CapacityRow(unit.Name, unit.Region, unit.Capacity?.OfferedSlots ?? 0, unit.Capacity?.BookedSlots ?? 0, unit.Capacity?.Occupancy)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         Replace(CapacityByRegion, result.ByRegion.Select(region => new CapacityRow(region.Region, "", region.Capacity?.OfferedSlots ?? 0, region.Capacity?.BookedSlots ?? 0, region.Capacity?.Occupancy)).OrderBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase).ToArray());
         static GoalUnitRow Row(string name, IEnumerable<GoalStatus>? statuses) { var cells = GoalCell.ForAll(statuses); return new(name, cells[0], cells[1], cells[2]); }
@@ -254,9 +254,12 @@ public sealed partial class WorkspaceViewModel
         Notify(nameof(CapacityState)); Notify(nameof(GoalStatusState));
     }
 
+    /// <summary>Cores dos cartões da capacidade da rede: ofertados em azul, ocupados em turquesa e a ocupação em violeta.</summary>
+    private static MetricCard[] ToneCapacityCards(MetricCard[] cards) => [.. cards.Select((card, index) => card with { Tone = index switch { 0 => Tone.Blue, 1 => Tone.Teal, _ => Tone.Violet } })];
+
     private void ClearNetworkScheduling()
     {
-        Replace(NetworkCapacityCards, BuildCapacityCards(null, "")); Replace(CapacityByUnit, Array.Empty<CapacityRow>()); Replace(CapacityByRegion, Array.Empty<CapacityRow>()); Replace(GoalUnitRows, Array.Empty<GoalUnitRow>());
+        Replace(NetworkCapacityCards, ToneCapacityCards(BuildCapacityCards(null, ""))); Replace(CapacityByUnit, Array.Empty<CapacityRow>()); Replace(CapacityByRegion, Array.Empty<CapacityRow>()); Replace(GoalUnitRows, Array.Empty<GoalUnitRow>());
         Notify(nameof(CapacityState)); Notify(nameof(GoalStatusState));
     }
 
@@ -312,25 +315,33 @@ public sealed partial class WorkspaceViewModel
     private DateTimeOffset? networkAlertsAttemptedAt, networkAlertsReadAt;
     // UBS do filtro no momento da leitura: a API só avalia as de base pronta; as outras ficam de fora e não podem virar "nenhum critério passou".
     private int networkAlertsEvaluatedUnits, networkAlertsSkippedUnits;
-    public ObservableCollection<AlertRow> NetworkAlerts { get; } = [];
+    public ObservableCollection<NetworkAlertEntry> NetworkAlerts { get; } = [];
     public Guid AlertsUnitFilter { get => alertsUnitFilter; set { if (alertsUnitFilter == value) return; alertsUnitFilter = value; Notify(); ReloadNetworkAlerts(); } }
     public string AlertsRegion { get => alertsRegion; set { value ??= ""; if (alertsRegion == value) return; alertsRegion = value; Notify(); ReloadNetworkAlerts(); } }
     public bool CanFilterAlerts => IsAuthenticated && IsMunicipal;
     public string NetworkAlertsLoadingLabel => networkAlertsLoading > 0 ? "Avaliando os alertas…" : "";
     public string NetworkAlertsState => !IsAuthenticated ? "Entre na Secretaria para consultar os alertas."
-        : networkAlertsFailed && networkAlertsReadAt is null ? "Não foi possível avaliar os alertas da rede agora. Use Atualizar alertas para tentar de novo."
-        : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "Avaliando os alertas…" : "Os alertas ainda não foram avaliados.")
-        : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. Use Atualizar alertas para tentar de novo."
+        : networkAlertsFailed && networkAlertsReadAt is null ? "Não foi possível avaliar os alertas da rede agora. A tela tenta de novo sozinha."
+        // Durante a primeira avaliação quem fala é o indicador de andamento (NetworkAlertsLoadingLabel), para a frase não aparecer duas vezes.
+        : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "" : "Os alertas ainda não foram avaliados.")
+        : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. A tela tenta de novo sozinha."
         : NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0 ? $"Os alertas deste filtro não foram avaliados: {(networkAlertsSkippedUnits == 1 ? "a UBS ainda não tem" : "nenhuma das UBS tem")} base pronta (leitura das {networkAlertsReadAt:HH:mm})."
         : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Nenhum critério passou do limite na leitura das {networkAlertsReadAt:HH:mm}.{SkippedUnitsNote}"
-        : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}." : "";
+        : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}."
+        // Com alertas na lista, a única informação que sobra é a das UBS que não puderam ser avaliadas (sem base pronta).
+        : SkippedUnitsNote.Trim();
+    /// <summary>
+    /// O estado dos alertas é um aviso (amarelo) quando a avaliação falhou ou não pôde ser feita (UBS sem base); "nenhum alerta" e "ainda avaliando" são só informação,
+    /// sem o ícone de atenção.
+    /// </summary>
+    public bool ShowNetworkAlertsWarning => NetworkAlertsState.Length > 0 && IsAuthenticated && (networkAlertsFailed || (networkAlertsLoaded && NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0));
+    public bool ShowNetworkAlertsInfo => NetworkAlertsState.Length > 0 && !ShowNetworkAlertsWarning;
     private string SkippedUnitsNote => networkAlertsSkippedUnits switch { 0 => "", 1 => " 1 UBS sem base pronta ficou de fora.", var count => $" {count} UBS sem base pronta ficaram de fora." };
-    public string NetworkAlertsFootnote => NetworkAlerts.Count == 0 ? "" : $"{NetworkAlerts.Count} {(NetworkAlerts.Count == 1 ? "alerta" : "alertas")} · avaliado às {networkAlertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais mostram a situação atual. UBS sem base pronta ficam de fora.";
     private bool NetworkAlertsDue => networkAlertsAttemptedAt is null || DateTimeOffset.Now - networkAlertsAttemptedAt >= AlertsRefreshAge;
-    private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(NetworkAlertsFootnote), nameof(CanFilterAlerts)];
+    private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(CanFilterAlerts), nameof(ShowNetworkAlertsWarning), nameof(ShowNetworkAlertsInfo)];
     private void NotifyNetworkAlerts() { foreach (var name in NetworkAlertNames) Notify(name); }
 
-    /// <summary>Leitura direta (carga da seção e atualização manual); sem filtro novo.</summary>
+    /// <summary>Leitura direta (carga da seção e ciclo automático); sem filtro novo.</summary>
     private async Task LoadNetworkAlertsCoreAsync(CancellationToken cancellation = default)
     {
         networkAlertsAttemptedAt = DateTimeOffset.Now;
@@ -339,9 +350,10 @@ public sealed partial class WorkspaceViewModel
         var request = (Unit: alertsUnitFilter == Guid.Empty ? (Guid?)null : alertsUnitFilter, Region: alertsRegion);
         var badgeVersion = request.Unit is null && string.IsNullOrWhiteSpace(request.Region) ? ++networkBadgeRequestVersion : networkBadgeRequestVersion;
         AlertItem[] alerts;
-        // Falha de leitura nunca vira "nenhum alerta": o estado de falha fica registrado mesmo quando a leitura vem do botão Atualizar dados.
+        // Falha de leitura nunca vira "nenhum alerta": o estado de falha fica registrado. Sem botão de atualizar, a tela tem de tentar de novo sozinha:
+        // a falha libera a próxima leitura do ciclo de 20 s, em vez de esperar os 5 minutos de uma leitura que deu certo.
         try { alerts = await api.NetworkAlertsAsync(request.Unit, request.Region, cancellation); }
-        catch (NoraApiException) { networkAlertsFailed = true; NotifyNetworkAlerts(); throw; }
+        catch (NoraApiException) { networkAlertsFailed = true; networkAlertsAttemptedAt = null; NotifyNetworkAlerts(); throw; }
         if (disposed || !IsAuthenticated || cancellation.IsCancellationRequested || request.Unit != (alertsUnitFilter == Guid.Empty ? (Guid?)null : alertsUnitFilter) || request.Region != alertsRegion) return;
         networkAlertsFailed = false; networkAlertsLoaded = true; networkAlertsReadAt = DateTimeOffset.Now;
         if (request.Unit is null && string.IsNullOrWhiteSpace(request.Region) && badgeGeneration == networkBadgeGeneration && badgeVersion == networkBadgeRequestVersion)
@@ -356,20 +368,9 @@ public sealed partial class WorkspaceViewModel
             if ((request.Unit is { } only && unit.Id != only) || (region.Length > 0 && !string.Equals(unit.Region, region, StringComparison.OrdinalIgnoreCase))) continue;
             if (unit.DatabaseState is null or "ready") networkAlertsEvaluatedUnits++; else networkAlertsSkippedUnits++;
         }
-        Replace(NetworkAlerts, alerts.Select(AlertRow.From).ToArray());
+        Replace(NetworkAlerts, alerts.Select(NetworkAlertEntry.From).ToArray());
         NotifyNetworkAlerts();
     }
-
-    /// <summary>Avalia os alertas da rede de novo com o filtro atual (botão Atualizar alertas).</summary>
-    public Task RefreshNetworkAlertsAsync() => RunAsync(async () =>
-    {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar os alertas.");
-        await LoadNetworkAlertsCoreAsync();
-        if (networkAlertsFailed) return;
-        // Leitura concluída pelo botão: a falha anterior (e o aviso de dados antigos que ela deixou) deixa de valer, como já acontece nas leituras por filtro.
-        RecoverFromRefreshFailure(); MarkFresh();
-        Say(MessageKind.Success, NetworkAlerts.Count == 0 ? "Alertas avaliados: nenhum alerta neste filtro." : $"Alertas avaliados: {NetworkAlerts.Count}.");
-    });
 
     /// <summary>Uma requisição por mudança de filtro: a anterior é cancelada e só a mais nova altera a tela.</summary>
     private void ReloadNetworkAlerts()
@@ -442,10 +443,10 @@ public sealed partial class WorkspaceViewModel
     public string CapacityCatalogState => !IsAuthenticated ? ""
         : capacityUnit is null ? "Escolha uma UBS para ver os profissionais, os consultórios e a grade dela."
         : capacityUnit.DatabasePending ? "A base desta UBS ainda não foi criada: não há cadastro para ler."
-        : capacityCatalogFailed ? "Não foi possível ler o cadastro desta UBS agora. Use Ler o cadastro de novo para tentar outra vez."
+        : capacityCatalogFailed ? "Não foi possível ler o cadastro desta UBS agora. A tela tenta de novo sozinha."
         : !capacityCatalogLoaded ? "Lendo o cadastro da UBS…"
         : CapacityProfessionals.Count + CapacityRooms.Count + CapacitySchedule.Count == 0 ? "Esta UBS ainda não cadastrou profissionais, consultórios nem grade." : "";
-    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState), nameof(CanReloadCapacityCatalog)];
+    private static readonly string[] CapacityCatalogNames = [nameof(CapacityCatalogLoadingLabel), nameof(CapacityCatalogState)];
     private void NotifyCapacityCatalog() { foreach (var name in CapacityCatalogNames) Notify(name); }
 
     private async Task LoadCapacityCatalogCoreAsync(HealthUnit unit, CancellationToken cancellation = default)
@@ -475,10 +476,6 @@ public sealed partial class WorkspaceViewModel
             .Select(item => item with { ProfessionalName = capacityProfessionals.FirstOrDefault(p => p.Id == item.ProfessionalId)?.FullName ?? "—", RoomName = capacityRooms.FirstOrDefault(r => r.Id == item.RoomId)?.Name ?? "—", SpecialtyName = SpecialtyName(item.SpecialtyId) }).ToArray());
         NotifyCapacityCatalog();
     }
-
-    public bool CanReloadCapacityCatalog => IsAuthenticated && capacityUnit is { DatabasePending: false };
-    /// <summary>Botão "Ler o cadastro de novo": refaz a leitura da UBS escolhida, mantendo na tela o que já foi lido até a resposta.</summary>
-    public void RetryCapacityCatalog() { capacityCatalogFailed = false; ReloadCapacityCatalog(); }
 
     /// <summary>Uma leitura (três requisições em paralelo) por UBS escolhida; trocar de UBS cancela a anterior.</summary>
     private void ReloadCapacityCatalog()

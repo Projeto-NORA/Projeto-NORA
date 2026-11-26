@@ -1,6 +1,0 @@
-<UserControl x:Class="Nora.Desktop.Views.MunicipalLightningHeroView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <DockPanel Margin="0,0,0,12" LastChildFill="True">
-    <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Content="Atualizar vagas" Command="{Binding RefreshCommand}" Margin="12,0,0,0" AutomationProperties.Name="Atualizar vagas da rede" ToolTip="Atualizar vagas da rede" />
-    <TextBlock Text="Os totais seguem a data de criação da vaga e a UBS escolhida em Filtros." TextWrapping="Wrap" VerticalAlignment="Center" />
-  </DockPanel>
-</UserControl>
