@@ -455,7 +455,10 @@ public sealed class NoraApiClient : IDisposable
         if (path == "api/auth/password") return "Confira a nova senha: use de 8 a 256 caracteres, diferente da atual.";
         if (path == "api/municipal/staff") return "Confira nome, e-mail, perfil e senha provisória (8 a 256 caracteres).";
         if (path.StartsWith("api/municipal/staff/", StringComparison.Ordinal) && path.EndsWith("/password", StringComparison.Ordinal)) return "A senha provisória precisa ter de 8 a 256 caracteres.";
-        if (path.StartsWith("api/municipal/metrics", StringComparison.Ordinal) || path.StartsWith("api/municipal/history", StringComparison.Ordinal))
+        // Indicadores (da rede e de cada UBS) aceitam até 20 anos; o histórico de acessos continua em 366 dias.
+        if (path.StartsWith("api/municipal/metrics", StringComparison.Ordinal) || (path.StartsWith("api/obs/units/", StringComparison.Ordinal) && path.Contains("/metrics", StringComparison.Ordinal)))
+            return "Confira o período: o fim deve ser posterior ao início e o intervalo pode ter no máximo 20 anos.";
+        if (path.StartsWith("api/municipal/history", StringComparison.Ordinal))
             return "Confira o período: o fim deve ser posterior ao início e o intervalo pode ter no máximo 366 dias.";
         if (path.StartsWith("api/municipal/specialties", StringComparison.Ordinal)) return "Confira o nome da especialidade: de 2 a 120 caracteres.";
         if (path.StartsWith("api/municipal/announcements", StringComparison.Ordinal)) return "Confira o comunicado: título de até 120 caracteres, texto de até 2.000, público, alcance e uma validade que ainda esteja no futuro.";

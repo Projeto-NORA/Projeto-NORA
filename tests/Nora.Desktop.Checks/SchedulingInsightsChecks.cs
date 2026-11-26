@@ -102,9 +102,8 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 var content = Show(window, "indicators", 1280, 2800);
-                var capacity = vm.UnitCapacityCards.ToDictionary(card => card.Title, card => card.Value);
-                Require(capacity["Horários ofertados"] == "100" && capacity["Horários ocupados"] == "80" && capacity["Ocupação da grade"] == "80,0%", "Os cartões de capacidade do período estão incorretos.");
-                Require(new[] { "Capacidade da agenda no período", "Horários ofertados", "Horários ocupados", "Ocupação da grade", "Metas da Secretaria" }.All(FullTexts(content).Contains), "A capacidade ou as metas não aparecem em Indicadores.");
+                Require(UnitCard(vm, "Ocupação da agenda") is { Value: "80,0%", Tone: Tone.Blue }, "O card de ocupação da agenda do período está incorreto.");
+                Require(new[] { "Ocupação da agenda", "80,0%", "Metas da Secretaria" }.All(FullTexts(content).Contains) && !FullTexts(content).Contains("Capacidade da agenda no período"), "A ocupação da agenda ou as metas não aparecem em Indicadores (a capacidade em três cards saiu).");
                 Require(!FullTexts(content).Any(text => text.Contains("previsto para uma próxima etapa", StringComparison.Ordinal)), "Sobrou o aviso de funcionalidade pendente em Indicadores.");
                 GoalCell Cell(string metric) => vm.UnitGoalCells.Single(cell => cell.Title == GoalMetric.Title(metric));
                 Require(Cell(GoalMetric.Score) is { Status: "met", StatusDisplay: "Atingida" } && Cell(GoalMetric.Score).Detail == "77,9% · meta mín. 70,0%", "Comparecimento deveria estar atingido: " + Cell(GoalMetric.Score).Detail);

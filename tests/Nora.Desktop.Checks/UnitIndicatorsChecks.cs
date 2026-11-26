@@ -32,7 +32,7 @@ internal static partial class Program
     private static void RunUnitIndicatorsChecks(Application application, string storageRoot, string[] args)
     {
         var previewRoot = PreviewRoot(args);
-        Check("OBS Indicadores: cada período (hoje, 7, 30, 90, personalizado) faz uma única requisição e só a consulta mais nova altera a tela", () =>
+        Check("OBS Indicadores: cada período (Dia, Semana, Mês, Ano, 5 anos, Máximo e Personalizado até 20 anos) faz uma única requisição e só a consulta mais nova altera a tela", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Indicadores", "Centro");
@@ -51,17 +51,21 @@ internal static partial class Program
                     Require(WindowDays(fixture.UnitMetricsQueries[^1].Query) == days && fixture.UnitMetricsQueries[^1].Unit == unit.Id, $"{what}: janela de {days} dia(s) não enviada para a UBS ativa.");
                 }
                 var period = Combo(content, "Período dos indicadores da UBS");
-                Require(period.Items.Cast<PeriodOption>().Select(option => option.Label).SequenceEqual(["Hoje", "Últimos 7 dias", "Últimos 14 dias", "Últimos 30 dias", "Últimos 90 dias", "Últimos 180 dias", "Últimos 365 dias", "Personalizado"]), "Opções de período incorretas.");
-                period.SelectedValue = 1; Settle(vm); ExpectOneMore("Hoje", 1);
-                Require(vm.UnitMetricsScopeLabel.StartsWith($"Números de {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))} a {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))}", StringComparison.Ordinal), "O escopo de 'Hoje' não mostra o dia: " + vm.UnitMetricsScopeLabel);
-                period.SelectedValue = 7; Settle(vm); ExpectOneMore("7 dias", 7);
-                period.SelectedValue = 90; Settle(vm); ExpectOneMore("90 dias", 90);
-                period.SelectedValue = 30; Settle(vm); ExpectOneMore("30 dias", 30);
+                Require(period.Items.Cast<PeriodOption>().Select(option => option.Label).SequenceEqual(["Dia", "Semana", "Mês", "Ano", "5 anos", "Máximo", "Personalizado"]), "Opções de período incorretas.");
+                Require(Descendants<ComboBox>((FrameworkElement)window.FindName("PageHeader")).Contains(period) && !Descendants<ComboBox>(OpenPageFilters(window)).Contains(period), "O período deveria ficar em linha no cabeçalho, não no botão Filtros.");
+                period.SelectedValue = 1; Settle(vm); ExpectOneMore("Dia", 1);
+                Require(vm.UnitMetricsScopeLabel.StartsWith($"Números de {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))} a {DisplayFormat.Date(DateOnly.FromDateTime(DateTime.Today))}", StringComparison.Ordinal), "O escopo de 'Dia' não mostra o dia: " + vm.UnitMetricsScopeLabel);
+                period.SelectedValue = 7; Settle(vm); ExpectOneMore("Semana", 7);
+                period.SelectedValue = 365; Settle(vm); ExpectOneMore("Ano", 365);
+                period.SelectedValue = 1826; Settle(vm); ExpectOneMore("5 anos", 1826);
+                period.SelectedValue = 7305; Settle(vm); ExpectOneMore("Máximo", 7305);
+                period.SelectedValue = 30; Settle(vm); ExpectOneMore("Mês", 30);
                 // Personalizado: escolher não consulta; aplicar valida e consulta uma vez.
                 period.SelectedValue = 0; Settle(vm);
                 Require(fixture.UnitMetricsQueries.Count == count && vm.IsUnitCustomPeriod, "Escolher 'Personalizado' não deveria consultar.");
                 content = Layout(window, 1280, 900);
-                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2026", "03/01/2027", "no máximo 366 dias"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
+                Require(vm.UnitMetricsStateText == "Informe as datas no botão Filtros e aplique o período personalizado." && HasText(content, vm.UnitMetricsStateText), "Escolher 'Personalizado' deveria dizer onde ficam as datas (o botão Filtros): " + vm.UnitMetricsStateText);
+                (string From, string To, string Fragment)[] invalid = [("31/10/2026", "01/10/2026", "inicial não pode ser posterior"), ("01/01/2010", "01/01/2030", "no máximo 20 anos"), ("abc", "01/10/2026", "formato dd/mm/aaaa")];
                 foreach (var (from, to, fragment) in invalid)
                 {
                     Input(content, "Data inicial do período da UBS").Text = from; Input(content, "Data final do período da UBS").Text = to;
@@ -70,10 +74,14 @@ internal static partial class Program
                 }
                 Input(content, "Data inicial do período da UBS").Text = "01/10/2026"; Input(content, "Data final do período da UBS").Text = "31/10/2026";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado", 31);
-                Require(vm.UnitRangeError == "" && vm.UnitMetricsScopeLabel.StartsWith("Números de 01/10/2026 a 31/10/2026", StringComparison.Ordinal), "O período personalizado não foi aplicado com fim inclusivo: " + vm.UnitMetricsScopeLabel);
-                // Intervalo máximo de 366 dias é aceito.
+                Require(vm.UnitRangeError == "" && vm.UnitMetricsScopeLabel.StartsWith("Números de 01/10/2026 a 31/10/2026", StringComparison.Ordinal) && vm.UnitMetricsStateText == "", "O período personalizado não foi aplicado com fim inclusivo: " + vm.UnitMetricsScopeLabel);
+                // O personalizado da UBS aceita até 20 anos (7.305 dias, o limite da API); a Secretaria continua em 366 dias.
                 Input(content, "Data inicial do período da UBS").Text = "01/01/2026"; Input(content, "Data final do período da UBS").Text = "01/01/2027";
                 Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado de 366 dias", 366);
+                Input(content, "Data inicial do período da UBS").Text = "01/01/2010"; Input(content, "Data final do período da UBS").Text = "31/12/2029";
+                Click(window, content, "Aplicar período da UBS"); ExpectOneMore("Personalizado de 20 anos", 7305);
+                Require(vm.UnitRangeError == "", "Vinte anos exatos deveriam ser aceitos: " + vm.UnitRangeError);
+                Require(!Descendants<Button>(OpenPageFilters(window)).Any(button => button.ToolTip?.ToString()?.Contains("366", StringComparison.Ordinal) == true), "O tooltip de 366 dias deveria ter saído do Aplicar período.");
             }
             finally { CloseWindow(window); }
         });
@@ -96,13 +104,13 @@ internal static partial class Program
                 Require(fixture.UnitMetricsQueries.Count == baseline + 1, "O ciclo seguinte releu os indicadores sem esperar.");
                 fixture.HoldUnitMetrics = true;
                 vm.UnitPeriodDays = 7; PumpUntil(() => fixture.HeldUnitMetrics.Count == 1);
-                vm.UnitPeriodDays = 90;
+                vm.UnitPeriodDays = 365;
                 fixture.HeldUnitMetrics[0].SetResult(true);
                 PumpUntil(() => fixture.HeldUnitMetrics.Count == 2);
                 Require(vm.UnitMetricsScopeLabel == initialScope, "A resposta atrasada (7 dias) foi aplicada depois de o filtro mudar.");
                 fixture.HeldUnitMetrics[1].SetResult(true); Settle(vm);
-                var expectedFirst = DateOnly.FromDateTime(DateTime.Today.AddDays(-89)).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-                Require(vm.UnitMetricsScopeLabel.StartsWith("Números de " + expectedFirst, StringComparison.Ordinal) && vm.UnitPeriodDays == 90 && !vm.UnitMetricsLoading, "Só a consulta de 90 dias deveria ficar na tela: " + vm.UnitMetricsScopeLabel);
+                var expectedFirst = DateOnly.FromDateTime(DateTime.Today.AddDays(-364)).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+                Require(vm.UnitMetricsScopeLabel.StartsWith("Números de " + expectedFirst, StringComparison.Ordinal) && vm.UnitPeriodDays == 365 && !vm.UnitMetricsLoading, "Só a consulta de 365 dias deveria ficar na tela: " + vm.UnitMetricsScopeLabel);
             }
             finally { foreach (var held in fixture.HeldUnitMetrics) held.TrySetResult(true); fixture.HoldUnitMetrics = false; CloseWindow(window); }
         });
@@ -121,11 +129,14 @@ internal static partial class Program
                 {
                     window.ViewModel.SetAppearance(mode);
                     var content = Show(window, "indicators", 1280, 2600);
+                    Require(vm.UnitOverviewCards.Select(card => card.Title).SequenceEqual(["Comparecimento", "Consultas concluídas", "Faltas", "Cancelamentos", "Espera média da fila", "Ocupação da agenda"]), "Os cards resumidos deveriam ser seis, na ordem do pedido: " + string.Join(" | ", vm.UnitOverviewCards.Select(card => card.Title)));
+                    Require(vm.UnitOverviewCards.Select(card => card.Tone).SequenceEqual([Tone.Teal, Tone.Green, Tone.Pink, Tone.Yellow, Tone.Violet, Tone.Blue]), "Cada card deveria ter o tom do seu sentido (concluídas verde, faltas rosa, cancelamentos amarelo, espera violeta).");
                     Require(UnitCard(vm, "Consultas concluídas").Value == "12" && UnitCard(vm, "Faltas").Value == "3" && UnitCard(vm, "Cancelamentos").Value == "2" && UnitCard(vm, "Cancelamentos").Hint == "1 feito pelo paciente", "Cartões de consultas incorretos.");
-                    Require(UnitCard(vm, "Comparecimento").Value == "77,9%" && UnitCard(vm, "Espera média da fila").Value == "1 h 35 min" && UnitCard(vm, "Maior espera atual").Value == "1 d 1 h", "Score ou esperas incorretos: " + UnitCard(vm, "Comparecimento").Value + " / " + UnitCard(vm, "Espera média da fila").Value + " / " + UnitCard(vm, "Maior espera atual").Value);
-                    foreach (var card in vm.UnitOverviewCards.Concat(vm.UnitLightningCards)) Require(HasText(content, card.Title) && HasText(content, card.Value), $"{mode}: cartão não renderizado: {card.Title}");
-                    Require(vm.UnitLightningCards.Select(card => card.Title + "=" + card.Value).SequenceEqual(["Vagas registradas=1", "Ofertas aceitas=1", "Ofertas recusadas=2", "Ofertas expiradas=1"]), "Cartões da Vaga Relâmpago incorretos.");
+                    Require(UnitCard(vm, "Comparecimento").Value == "77,9%" && UnitCard(vm, "Espera média da fila").Value == "1 h 35 min" && UnitCard(vm, "Ocupação da agenda").Value == "75,0%", "Score, espera ou ocupação incorretos: " + UnitCard(vm, "Comparecimento").Value + " / " + UnitCard(vm, "Espera média da fila").Value + " / " + UnitCard(vm, "Ocupação da agenda").Value);
+                    foreach (var card in vm.UnitOverviewCards) Require(HasText(content, card.Title) && HasText(content, card.Value), $"{mode}: cartão não renderizado: {card.Title}");
+                    Require(!VisibleTexts(content).Any(text => text is "Indicadores da UBS" or "Visão geral" or "Vaga Relâmpago no período" or "Capacidade da agenda no período" or "Maior espera atual" or "Série no tempo") && !Descendants<ChartPanel>(content).Any(panel => panel.IsVisible), $"{mode}: o modo cards não deveria ter título repetido, os blocos antigos nem gráficos.");
                     Require(Descendants<TextBlock>(content).Any(text => text.Text.Contains("Como é calculado o comparecimento") && text.ToolTip is string tip && tip.StartsWith("Comparecimento = concluídas ÷", StringComparison.Ordinal)), "A explicação do score não aparece na dica.");
+                    Require(VisibleTexts(content).Contains("Metas da Secretaria") && !Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Consultas por dia"), "O bloco curto de metas deveria existir e a tabela do gráfico não.");
                     Require(vm.UnitMetricsScopeLabel.EndsWith("UBS Números", StringComparison.Ordinal), "Título único ou escopo da UBS ausentes.");
                     var table = GridNamed(content, "Indicadores da UBS por especialidade");
                     var cells = VisibleTexts(table);
@@ -135,23 +146,24 @@ internal static partial class Program
                     var days = vm.UnitChart.Days;
                     Require(days.Count == 30 && vm.UnitChart.Rows.Count == 2 && days.Count(day => day.Completed == 0 && day.Missed == 0 && day.Cancelled == 0) == 28, $"A série deveria cobrir 30 dias com 28 deles zerados: {days.Count} dias.");
                     Require(days[^1].Date == DateOnly.FromDateTime(DateTime.Today) && days[^1].Completed == 2 && days[^1].Cancelled == 1 && days[^5].Completed == 3 && days[^5].Missed == 1, "Os dias com dado não ficaram nas datas certas.");
-                    var chart = Descendants<EvolutionChartView>(content).Single();
-                    var rectangles = Descendants<System.Windows.Shapes.Rectangle>(chart).ToArray(); // as áreas sensíveis do gráfico (uma por dia, com a dica)
-                    Require(rectangles.Where(rectangle => rectangle.ToolTip is string).Select(rectangle => (string)rectangle.ToolTip).SequenceEqual(days.Select(day => day.Description)), "As dicas do gráfico não trazem o número exato de cada dia.");
-                    Require(Descendants<System.Windows.Shapes.Polyline>(chart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(chart).Count() == days.Count * 3, $"{mode}: o gráfico deveria ter 3 linhas e {days.Count * 3} pontos.");
-                    Require(!Descendants<Expander>(chart).Any(), "O gráfico não deveria ter o expansor da tabela.");
-                    var expander = Descendants<Expander>(content).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 2600);
-                    Require(GridNamed(content, "Consultas por dia").Items.Cast<DailyPoint>().SequenceEqual(vm.UnitChart.Rows), "A tabela do gráfico não traz os mesmos valores.");
-                    expander.IsExpanded = false;
+                    // Modo gráficos: a grade de ChartPanel (um por indicador com dado), sem tabela e sem os cards.
+                    vm.UnitViewMode = ViewMode.Charts; content = Layout(window, 1280, 2600);
+                    var panels = Descendants<ChartPanel>(content).Where(panel => panel.IsVisible).ToArray();
+                    Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Comparecimento", "Vaga Relâmpago", "Espera e fila por especialidade", "Ocupação da agenda", "Consultas por especialidade"]), $"{mode}: grade de gráficos incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
+                    Require(!Descendants<DataGrid>(content).Any(grid => grid.IsVisible) && !Descendants<Expander>(content).Any() && !VisibleTexts(content).Any(text => text.Contains("Valor atual") || text.Contains("em tabela")) && !Descendants<ItemsControl>(content).Any(items => items.IsVisible && AutomationProperties.GetName(items) == "Indicadores da UBS no período"), $"{mode}: o modo gráficos não deveria ter tabela nem cards.");
+                    var status = panels[0]; var statusChart = Descendants<LineChartView>(status).Single();
+                    Require(status.Toggle.IsVisible && status.Lines!.Count == 3 && status.Lines.All(line => line.Points.Count == days.Count), $"{mode}: a evolução deveria ter 3 linhas de {days.Count} pontos e o alternador Linha | Pizza.");
+                    Require(Descendants<System.Windows.Shapes.Polyline>(statusChart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(statusChart).Count() == days.Count * 3, $"{mode}: o gráfico deveria ter 3 linhas e {days.Count * 3} pontos.");
+                    var statusSlices = status.Slices ?? [];
+                    Require(statusSlices.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Concluídas=12", "Faltas=3", "Canceladas=2"]) && statusSlices.Single(slice => slice.Label == "Canceladas").BrushKey == "StatusCancelledBrush", "A pizza deveria ter concluídas, faltas e canceladas (amarelo).");
+                    Require(panels.Single(panel => panel.Title == "Vaga Relâmpago").Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Aceitas=1", "Recusadas=2", "Vencidas=1"]) && !panels.Single(panel => panel.Title == "Vaga Relâmpago").Toggle.IsVisible, "A pizza da Vaga Relâmpago está incorreta (só pizza, sem alternador).");
+                    vm.UnitViewMode = ViewMode.Cards; content = Layout(window, 1280, 2600);
                     // Contraste dos textos de apoio e dos ícones de estado sobre a superfície dos cartões.
                     var surface = ((SolidColorBrush)application.FindResource("SurfaceBrush")).Color;
                     Require(Contrast(((SolidColorBrush)application.FindResource("SecondaryBrush")).Color, surface) >= 4.5 && Contrast(((SolidColorBrush)application.FindResource("AccentTextBrush")).Color, surface) >= 4.5, $"{mode}: texto de apoio ou números de destaque sem contraste sobre os cartões.");
                     Require(Contrast(((SolidColorBrush)application.FindResource("SuccessBrush")).Color, surface) >= 3 && Contrast(((SolidColorBrush)application.FindResource("ErrorBrush")).Color, surface) >= 3 && Contrast(((SolidColorBrush)application.FindResource("WarningBrush")).Color, surface) >= 3, $"{mode}: cores das séries sem contraste de 3:1 com a superfície.");
                     if (mode != Appearance.System) SaveScrolled(window, Path.Combine(previewRoot, $"obs-indicators-{mode.ToString().ToLowerInvariant()}.png"), 1280, 900);
                 }
-                var pieContent = Layout(window, 1280, 2600);
-                var pie = Descendants<OutcomePie>(pieContent).Single();
-                Require(pie.IsVisible && AutomationProperties.GetName(pie).Contains("12 concluídas, 3 faltas, 2 canceladas"), "O gráfico de distribuição não apresenta os totais reais.");
                 vm.UnitSpecialtySearch = "pedi";
                 Require(vm.FilteredUnitSpecialtyPerformance.Select(row => row.Name).SequenceEqual(["Pediatria"]), "Busca por especialidade não filtrou a tabela.");
                 vm.UnitSpecialtySearch = "sem correspondência";
@@ -161,8 +173,11 @@ internal static partial class Program
                 window.ViewModel.SetAppearance(Appearance.Light);
                 fixture.NoClosedAppointments = true; vm.UnitPeriodDays = 7; Settle(vm);
                 var empty = Layout(window, 1280, 2600);
-                Require(UnitCard(vm, "Comparecimento").Value == "—" && UnitCard(vm, "Comparecimento").Hint == "Sem consulta encerrada no período para calcular." && Descendants<Border>(empty).Any(border => border.ToolTip?.ToString() == "Sem consulta encerrada no período para calcular.") && vm.UnitChart.State == "Nenhuma consulta com data marcada no período." && HasText(empty, "Nenhuma consulta com data marcada no período.") && HasText(empty, "Nenhuma especialidade com consulta ou fila neste período."), "Score nulo, gráfico vazio e tabela vazia deveriam explicar o motivo.");
+                Require(UnitCard(vm, "Comparecimento").Value == "—" && UnitCard(vm, "Comparecimento").Hint == "Sem consulta encerrada no período para calcular." && Descendants<Border>(empty).Any(border => border.ToolTip?.ToString() == "Sem consulta encerrada no período para calcular.") && vm.UnitChart.State == "Nenhuma consulta com data marcada no período." && HasText(empty, "Nenhuma especialidade com consulta ou fila neste período."), "Score nulo e tabela vazia deveriam explicar o motivo (o gráfico vazio é conferido no modo gráficos).");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-indicators-empty-light.png"), 1280, 900);
+                vm.UnitViewMode = ViewMode.Charts; empty = Layout(window, 1280, 2600);
+                Require(Descendants<ChartPanel>(empty).Where(panel => panel.IsVisible).Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Ocupação da agenda"]) && HasText(empty, "Nenhuma consulta com data marcada no período."), "Sem consultas o modo gráficos deveria mostrar o painel de consultas, com a explicação do vazio, e a ocupação da agenda: " + string.Join(" | ", Descendants<ChartPanel>(empty).Select(panel => panel.Title)));
+                SaveScrolled(window, Path.Combine(previewRoot, "obs-indicators-charts-empty-light.png"), 1280, 900);
             }
             finally { CloseWindow(window); }
         });
@@ -185,8 +200,9 @@ internal static partial class Program
                 var texts = VisibleTexts(content);
                 Require(texts.Contains("1 h 35 min") && texts.Contains("Consultas dos últimos 7 dias") && !texts.Contains("Visão da agenda") && !texts.Contains("Aguardando série de atendimentos"), "O Painel ainda mostra o gráfico decorativo ou não mostra a espera média.");
                 Require(texts.Contains("Consultórios ativos") && texts.Contains("em atendimento agora") && texts.Contains("com grade hoje") && vm.ActiveRoomsInUseValue == "2" && vm.ActiveRoomsPlannedValue == "5" && texts.Contains("2") && texts.Contains("5"), "Consultórios ativos deveria mostrar os dois números reais (em atendimento agora e com grade hoje).");
-                var chart = Descendants<EvolutionChartView>(content).Single();
-                Require(Descendants<System.Windows.Shapes.Rectangle>(chart).Count(rectangle => rectangle.ToolTip is string) == 7, "O gráfico do Painel deveria ter uma dica por dia da semana.");
+                var table = GridNamed(content, "Consultas do período");
+                Require(table.IsVisible && vm.PanelTableRows.Count == 2 && vm.PanelTableRows.Sum(row => row.Completed) == 5 && vm.PanelTableRows.Sum(row => row.Missed) == 1 && vm.PanelTableRows.Sum(row => row.Cancelled) == 1, "A tabela do Painel deveria trazer os dois dias com consulta (os mesmos dados do gráfico).");
+                Require(vm.PanelChartCards[0].Title == "Consultas por situação" && vm.PanelChartCards[0].Lines.All(line => line.Points.Count == 7), "O gráfico do Painel deveria ter um ponto por dia dos últimos 7 dias.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-painel-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1500);
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-painel-dark.png"), 1280, 900);
@@ -213,6 +229,266 @@ internal static partial class Program
                 Require(fixture.UnitMetricsQueries.Count == afterManual + 1 && fixture.UnitMetricsQueries[^1].Unit == second.Id, "Trocar de UBS deveria ler uma vez os indicadores da nova UBS.");
             }
             finally { CloseWindow(window); }
+        });
+        Check("OBS Painel: sem banner, começa em Resumo do dia; pesquisa e período em linha e alternador à direita; cards coloridos com o fluxo da unidade no mesmo grupo", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Resumo", "Centro");
+            fixture.AddRegistry(unit.Id, "Ana Souza"); fixture.SetActiveRooms(unit.Id, 2, 5);
+            fixture.AddWaiting(unit.Id, "52998224725", "Ana Souza", "Clínica geral", DateTimeOffset.UtcNow.AddHours(-3)); fixture.AddWaiting(unit.Id, "11144477735", "Bia Lima", "Pediatria", DateTimeOffset.UtcNow.AddHours(-1));
+            fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Clínica geral", "Dra. Teste", DateTimeOffset.UtcNow.AddDays(1), DateTimeOffset.UtcNow.AddDays(1).AddMinutes(30), "open", DateTimeOffset.UtcNow));
+            var window = OpenOperational(fixture, storageRoot, "panel-redesign", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "home", 1280, 1500);
+                var texts = VisibleTexts(content);
+                Require(texts.Contains("Resumo do dia") && !texts.Any(text => text.Contains("PAINEL OPERACIONAL") || text.Contains("Sua unidade em um só lugar") || text.Contains("UBS da operação") || text == "Fluxo da unidade" || text == "Painel operacional"), "O banner, a UBS da operação ou o bloco Fluxo da unidade continuam na tela: " + string.Join(" | ", texts));
+                var page = (FrameworkElement)window.FindName("PageScroll");
+                Require(!VisibleTexts(page).Any(text => text is "Painel da UBS" or "Painel operacional"), "O nome da tela deveria aparecer só no cabeçalho, não dentro da tela.");
+                var header = (FrameworkElement)window.FindName("PageHeader");
+                var search = Descendants<HeaderSearchBox>(header).Single(); var period = Descendants<ComboBox>(header).Single(box => AutomationProperties.GetName(box) == "Período do painel"); var toggle = Descendants<ViewModeToggle>(header).Single();
+                Require(AutomationProperties.GetName(search) == "Pesquisar no painel" && search.Tag?.ToString() == "Pesquisar", "A pesquisa do cabeçalho deveria ter o campo Pesquisar com lupa.");
+                Require(period.Items.Cast<PeriodOption>().Select(option => option.Label + "=" + option.Days).SequenceEqual(["Dia=1", "Semana=7", "Mês=30", "Ano=365", "5 anos=1826", "Máximo=7305"]) && period.SelectedValue is 1, "O combo Período deveria ter Dia, Semana, Mês, Ano, 5 anos e Máximo, com Dia escolhido.");
+                double LeftOf(FrameworkElement element) => element.TranslatePoint(new Point(0, 0), header).X;
+                // B3: o alternador fica logo à direita da pesquisa (nada entre os dois) e é o mais à direita; o período vem antes da pesquisa.
+                var gap = LeftOf(toggle) - (LeftOf(search) + search.ActualWidth);
+                Require(LeftOf(period) + period.ActualWidth <= LeftOf(search) && gap >= 0 && gap <= 32 && toggle.ActualWidth > 0 && LeftOf(toggle) + toggle.ActualWidth <= header.ActualWidth + 1, $"A ordem do cabeçalho deveria ser período, pesquisa e, logo à direita dela, o alternador (o mais à direita); espaço entre pesquisa e alternador: {gap:0}.");
+                Require(!((Button)window.FindName("FiltersButton")).IsVisible && !Descendants<Button>(page).Any(button => button.IsVisible && (AutomationProperties.GetName(button).Contains("Atualizar", StringComparison.Ordinal) || button.Content?.ToString()?.Contains("Atualizar", StringComparison.Ordinal) == true)) && !Descendants<Button>(header).Any(button => button.IsVisible && AutomationProperties.GetName(button).Contains("Atualizar", StringComparison.Ordinal)), "O Painel não deveria ter botão Filtros nem Atualizar.");
+                Require(vm.PanelCards.Select(card => card.Title).SequenceEqual(["Consultas concluídas", "Faltas", "Cancelamentos", "Consultas agendadas", "Tempo médio de espera", "Ofertas em andamento", "Pacientes cadastrados", "Na fila", "Vagas ativas"]), "Os cards do resumo e do fluxo deveriam estar no mesmo grupo: " + string.Join(" | ", vm.PanelCards.Select(card => card.Title)));
+                Require(vm.PanelCards.Select(card => card.Tone).SequenceEqual([Tone.Green, Tone.Pink, Tone.Yellow, Tone.Blue, Tone.Violet, Tone.Teal, Tone.Blue, Tone.Violet, Tone.Teal]), "Cada card deveria ter o tom do seu sentido.");
+                Require(vm.PanelCards.Select(card => card.Value).SequenceEqual(["0", "0", "0", "0", "1 h 35 min", "0", "1", "2", "1"]), "Valores do resumo do dia incorretos: " + string.Join(" | ", vm.PanelCards.Select(card => card.Value)));
+                foreach (var card in vm.PanelCards) Require(HasText(content, card.Title) && HasText(content, card.Value), $"Card não renderizado: {card.Title}");
+                Require(texts.Contains("Consultórios ativos") && texts.Contains("Consultas dos últimos 7 dias") && texts.Contains("Atenção da equipe") && texts.Contains("Ver central de alertas"), "No modo cards deveriam aparecer Consultórios ativos, a tabela das consultas e a Atenção da equipe.");
+                Require(!Descendants<ChartPanel>(content).Any(panel => panel.IsVisible) && !Descendants<Expander>(content).Any(), "O modo cards não deveria ter gráficos nem o expansor da tabela.");
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("OBS Painel: o resumo acompanha o período (Semana, Mês, Ano, 5 anos, Máximo), com uma leitura por mudança e agrupamento por semana ou mês nos períodos longos", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Períodos", "Centro"); fixture.AddRegistry(unit.Id, "Ana Souza");
+            var window = OpenOperational(fixture, storageRoot, "panel-periods", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "home", 1280, 1500);
+                var period = Descendants<ComboBox>((FrameworkElement)window.FindName("PageHeader")).Single(box => AutomationProperties.GetName(box) == "Período do painel");
+                var reads = fixture.UnitMetricsQueries.Count;
+                Require(reads == 1 && WindowDays(fixture.UnitMetricsQueries[0].Query) == 30, "A abertura deveria ler a janela de 30 dias uma vez.");
+                string Values() => string.Join("|", vm.PanelCards.Take(4).Select(card => card.Value));
+                // Mês usa os mesmos 30 dias do Dia: nenhuma leitura nova, mas os números passam a ser os do período.
+                period.SelectedValue = 30; Settle(vm); content = Layout(window, 1280, 1500);
+                Require(fixture.UnitMetricsQueries.Count == reads && vm.PanelSummaryTitle == "Resumo do mês" && HasText(content, "Resumo do mês") && Values() == "12|3|2|1", "Mês deveria reaproveitar a leitura de 30 dias: " + Values());
+                (int Days, string Title, string Table)[] steps = [(7, "Resumo da semana", "Consultas da semana"), (365, "Resumo do ano", "Consultas do ano"), (1826, "Resumo dos últimos 5 anos", "Consultas dos últimos 5 anos"), (7305, "Resumo de todo o período", "Consultas de todo o período")];
+                foreach (var step in steps)
+                {
+                    period.SelectedValue = step.Days; Settle(vm); content = Layout(window, 1280, 1500); reads++;
+                    Require(fixture.UnitMetricsQueries.Count == reads && WindowDays(fixture.UnitMetricsQueries[^1].Query) == step.Days, $"{step.Title}: deveria haver uma única leitura da janela de {step.Days} dias.");
+                    Require(HasText(content, step.Title) && HasText(content, step.Table) && Values() == "12|3|2|1" && vm.PanelWaitHint.Contains("período", StringComparison.Ordinal), $"{step.Title}: título, tabela ou números incorretos: {Values()}");
+                    Require(vm.PanelTableRows.Sum(row => row.Completed) == 5 && vm.PanelTableRows.Sum(row => row.Missed) == 1 && vm.PanelTableRows.Sum(row => row.Cancelled) == 1, $"{step.Title}: a tabela deveria somar os dois dias com consulta.");
+                }
+                // Ano: eixo de 365 dias agrupado por semana; 5 anos e Máximo começam no primeiro dia com consulta (sem anos vazios).
+                period.SelectedValue = 365; Settle(vm);
+                Require(vm.PanelChart.Days.Count == 365 && vm.PanelChartCards[0].Lines.All(line => line.Points.Count is >= 52 and <= 54) && vm.PanelChartCards[0].LineNote.Contains("semana", StringComparison.Ordinal), $"Ano deveria agrupar por semana: {vm.PanelChart.Days.Count} dias, {vm.PanelChartCards[0].Lines[0].Points.Count} pontos.");
+                period.SelectedValue = 7305; Settle(vm);
+                Require(vm.PanelChart.Days.Count == 5 && vm.PanelChartCards[0].Lines.All(line => line.Points.Count == 5), $"Máximo deveria começar no primeiro dia com consulta: {vm.PanelChart.Days.Count} dias.");
+                // Voltar ao Dia lê os 30 dias de novo (a janela de 20 anos não vale para ele) e traz de volta a lista de hoje.
+                reads = fixture.UnitMetricsQueries.Count;
+                period.SelectedValue = 1; Settle(vm);
+                Require(fixture.UnitMetricsQueries.Count == reads + 1 && WindowDays(fixture.UnitMetricsQueries[^1].Query) == 30 && vm.PanelSummaryTitle == "Resumo do dia" && vm.PanelChart.Days.Count == 7 && Values() == "0|0|0|0", "Voltar ao Dia deveria ler os 30 dias e mostrar de novo os 7 dias do gráfico.");
+                // Resposta atrasada de um período que já mudou não altera a tela.
+                fixture.HoldUnitMetrics = true;
+                vm.PanelPeriodDays = 365; PumpUntil(() => fixture.HeldUnitMetrics.Count == 1);
+                vm.PanelPeriodDays = 7;
+                fixture.HeldUnitMetrics[0].SetResult(true);
+                PumpUntil(() => fixture.HeldUnitMetrics.Count == 2);
+                Require(vm.PanelWaitHint == "Atualizando o período…" && Values() == "—|—|—|—" && vm.PanelMetricsLoading, "A resposta de 365 dias não deveria ser aplicada à semana: " + vm.PanelWaitHint);
+                fixture.HeldUnitMetrics[1].SetResult(true); Settle(vm);
+                Require(Values() == "12|3|2|1" && vm.PanelSummaryTitle == "Resumo da semana" && !vm.PanelMetricsLoading, "Só a leitura de 7 dias deveria ficar na tela: " + Values());
+            }
+            finally { foreach (var held in fixture.HeldUnitMetrics) held.TrySetResult(true); fixture.HoldUnitMetrics = false; CloseWindow(window); }
+        });
+        Check("OBS Painel: a pesquisa filtra cards, painéis de gráfico, tabela e blocos sem diferenciar acentos nem maiúsculas", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Pesquisa", "Centro"); fixture.AddRegistry(unit.Id, "Ana Souza"); fixture.SetActiveRooms(unit.Id, 2, 5);
+            var window = OpenOperational(fixture, storageRoot, "panel-search", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "home", 1280, 1500);
+                var search = Descendants<HeaderSearchBox>((FrameworkElement)window.FindName("PageHeader")).Single();
+                search.Text = "FALT"; content = Layout(window, 1280, 1500);
+                Require(vm.PanelSearch == "FALT" && vm.PanelCards.Select(card => card.Title).SequenceEqual(["Faltas"]) && !vm.ShowPanelRooms && !vm.ShowPanelAttention && !vm.ShowPanelTable && !HasText(content, "Atenção da equipe") && HasText(content, "Faltas"), "A pesquisa 'FALT' deveria deixar só o card Faltas: " + string.Join(" | ", vm.PanelCards.Select(card => card.Title)));
+                search.Text = "atencao";
+                Require(vm.PanelCards.Count == 0 && vm.ShowPanelAttention && !vm.ShowPanelRooms && vm.PanelCardsEmptyText == "", "'atencao' (sem acento) deveria achar a Atenção da equipe.");
+                search.Text = "CONSULTORIOS";
+                Require(vm.PanelCards.Count == 0 && vm.ShowPanelRooms && !vm.ShowPanelAttention, "'CONSULTORIOS' deveria achar Consultórios ativos.");
+                search.Text = "últimos 7";
+                Require(vm.PanelCards.Count == 0 && vm.ShowPanelTable && vm.PanelTableRows.Count == 2, "A pesquisa pelo título da tabela deveria mostrar a tabela inteira.");
+                search.Text = "conclu";
+                Require(vm.PanelCards.Select(card => card.Title).SequenceEqual(["Consultas concluídas"]), "'conclu' deveria achar o card de concluídas: " + string.Join(" | ", vm.PanelCards.Select(card => card.Title)));
+                search.Text = "zzz"; content = Layout(window, 1280, 1500);
+                Require(vm.PanelCards.Count == 0 && !vm.ShowPanelRooms && !vm.ShowPanelAttention && !vm.ShowPanelTable && HasText(content, "Nenhum item do painel corresponde à pesquisa.") && !HasText(content, "Resumo do dia"), "Sem resultado o painel deveria dizer que nada corresponde à pesquisa (e esconder o título do resumo).");
+                // Modo gráficos: a pesquisa filtra os painéis pelo título e pelos nomes das linhas e fatias.
+                vm.PanelViewMode = ViewMode.Charts; search.Text = "ocupa"; content = Layout(window, 1280, 1500);
+                Require(vm.PanelChartCards.Select(card => card.Title).SequenceEqual(["Ocupação da agenda"]) && Descendants<ChartPanel>(content).Count(panel => panel.IsVisible) == 1, "'ocupa' deveria deixar só o painel da ocupação da agenda.");
+                search.Text = "faltas";
+                Require(vm.PanelChartCards.Select(card => card.Title).Contains("Consultas por situação"), "'faltas' deveria achar o painel que tem a linha de faltas.");
+                search.Text = "zzz"; content = Layout(window, 1280, 1500);
+                Require(vm.PanelChartCards.Count == 0 && HasText(content, "Nenhum gráfico corresponde à pesquisa."), "Sem resultado o modo gráficos deveria avisar.");
+                search.Text = ""; content = Layout(window, 1280, 1500);
+                Require(vm.PanelChartCards.Count >= 3, "Apagar a pesquisa deveria devolver todos os painéis.");
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("OBS Painel: o alternador troca cards por uma grade de ChartPanel (Linha | Pizza), sem tabela nem Atenção da equipe, lembra a escolha e mantém o desenho escolhido", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Gráficos", "Centro"); fixture.AddRegistry(unit.Id, "Ana Souza");
+            fixture.AddWaiting(unit.Id, "52998224725", "Ana Souza", "Clínica geral", DateTimeOffset.UtcNow.AddHours(-3));
+            var window = OpenOperational(fixture, storageRoot, "panel-charts", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "home", 1280, 1500);
+                var toggle = Descendants<ViewModeToggle>((FrameworkElement)window.FindName("PageHeader")).Single();
+                Require(vm.PanelViewMode == ViewMode.Cards && vm.ShowPanelCards && !vm.ShowPanelCharts, "O Painel deveria abrir em cards.");
+                InvokeButton(toggle); content = Layout(window, 1280, 1500);
+                Require(vm.PanelViewMode == ViewMode.Charts && window.ViewModel.GetViewMode("home") == ViewMode.Charts, "O alternador deveria ir para os gráficos e lembrar a escolha.");
+                var panels = Descendants<ChartPanel>(content).Where(panel => panel.IsVisible).ToArray();
+                Require(panels.Select(panel => panel.Title).SequenceEqual(["Consultas por situação", "Vaga Relâmpago", "Espera e fila por especialidade", "Ocupação da agenda", "Consultas por especialidade", "Pacientes cadastrados"]), "Grade do Painel incorreta: " + string.Join(" | ", panels.Select(panel => panel.Title)));
+                var texts = VisibleTexts(content);
+                Require(!texts.Contains("Atenção da equipe") && !texts.Contains("Consultórios ativos") && !texts.Contains("Resumo do dia") && !Descendants<DataGrid>(content).Any(grid => grid.IsVisible) && !Descendants<Expander>(content).Any() && !texts.Any(text => text.Contains("Valor atual") || text.Contains("em tabela")), "O modo gráficos não deveria ter tabela, Atenção da equipe, consultórios nem 'Valor atual'.");
+                Require(panels.Single(panel => panel.Title == "Vaga Relâmpago").Slices!.Count == 3 && panels.Single(panel => panel.Title == "Ocupação da agenda").Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Ocupados=30", "Livres=10"]), "As pizzas da Vaga Relâmpago e da ocupação estão incorretas.");
+                // Semana tem pizza das encerradas: com linha e pizza o alternador aparece, e o desenho escolhido sobrevive às atualizações.
+                var period = Descendants<ComboBox>((FrameworkElement)window.FindName("PageHeader")).Single(box => AutomationProperties.GetName(box) == "Período do painel");
+                period.SelectedValue = 7; Settle(vm); content = Layout(window, 1280, 1500);
+                var status = Descendants<ChartPanel>(content).First(panel => panel.IsVisible);
+                Require(status.Toggle.IsVisible && status.Slices!.Select(slice => slice.Label + "=" + slice.Value).SequenceEqual(["Concluídas=12", "Faltas=3", "Canceladas=2"]), "Na semana o painel de consultas deveria ter Linha e Pizza.");
+                status.Toggle.SelectedIndex = 1; content = Layout(window, 1280, 1500);
+                Require(vm.PanelChartCards[0].Kind == ChartKind.Pie, "A escolha de Pizza deveria ir para o painel.");
+                for (var cycle = 0; cycle < 2; cycle++) Pump(vm.RefreshAutomaticallyAsync());
+                content = Layout(window, 1280, 1500);
+                Require(vm.PanelChartCards[0].Kind == ChartKind.Pie && Descendants<ChartPanel>(content).First(panel => panel.IsVisible).Kind == ChartKind.Pie, "O ciclo de 20 s não deveria desfazer o desenho escolhido.");
+                InvokeButton(toggle); content = Layout(window, 1280, 1500);
+                Require(vm.PanelViewMode == ViewMode.Cards && window.ViewModel.GetViewMode("home") == ViewMode.Cards && HasText(content, "Resumo da semana") && !Descendants<ChartPanel>(content).Any(panel => panel.IsVisible), "O segundo clique deveria voltar aos cards.");
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("OBS Painel e Indicadores: grade de cards e agrupamento do eixo em períodos longos", () =>
+        {
+            Require(TileGridPanel.ColumnsFor(9, 1050, 250, 4) == 3 && TileGridPanel.ColumnsFor(6, 1050, 250, 4) == 3 && TileGridPanel.ColumnsFor(7, 1050, 250, 4) == 4 && TileGridPanel.ColumnsFor(5, 1050, 250, 4) == 3, "A grade deveria usar uma coluna a menos quando a última linha ficaria quase vazia.");
+            Require(TileGridPanel.ColumnsFor(9, 700, 250, 4) == 2 && TileGridPanel.ColumnsFor(9, 200, 250, 4) == 1 && TileGridPanel.ColumnsFor(1, 2000, 250, 4) == 4 && TileGridPanel.ColumnsFor(2, 1050, 250, 4) == 4 && TileGridPanel.ColumnsFor(4, 5000, 250, 4) == 4 && TileGridPanel.ColumnsFor(6, 1000, 460, 2) == 2, "O número de colunas deveria seguir a largura, o mínimo de 1 e o máximo configurado.");
+            var panel = new TileGridPanel { MinTileWidth = 200, MaxColumns = 3 };
+            for (var index = 0; index < 5; index++) panel.Children.Add(new Border { Height = 40 + index * 10 });
+            panel.Measure(new Size(700, double.PositiveInfinity)); panel.Arrange(new Rect(0, 0, 700, panel.DesiredSize.Height));
+            Require(panel.Children.Cast<Border>().Select(child => child.ActualWidth).Distinct().Count() == 1 && Math.Abs(panel.Children.Cast<Border>().First().ActualWidth - 700d / 3) < 0.5 && Math.Abs(panel.DesiredSize.Height - (60 + 80)) < 0.5, "A grade deveria dividir a largura por igual e dar a cada linha a altura do bloco mais alto.");
+            // Eixo: dias até 92, semanas até 400 e meses acima; o gráfico de linha usa os mesmos passos (ChartData).
+            var start = new DateOnly(2024, 1, 1);
+            var sparse = new[] { new DailyPoint(start.AddDays(10), 3, 1, 0), new DailyPoint(start.AddDays(11), 2, 0, 1), new DailyPoint(start.AddDays(700), 4, 0, 0) };
+            var axis = (DailyPoint[])typeof(WorkspaceViewModel).GetMethod("BuildAxis", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [sparse, start, start.AddDays(729)])!;
+            Require(axis.Length == 720 && axis[0].Date == start.AddDays(10) && axis[^1].Date == start.AddDays(729) && axis.Sum(day => day.Completed) == 9, $"Em janela longa o eixo deveria começar no primeiro dia com consulta: {axis.Length} dias.");
+            Require(((DailyPoint[])typeof(WorkspaceViewModel).GetMethod("BuildAxis", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [Array.Empty<DailyPoint>(), start, start.AddDays(729)])!).Length == 0, "Sem nenhuma consulta numa janela longa o eixo deveria ficar vazio, não 730 dias de zeros.");
+            var lines = ChartData.Evolution(axis);
+            Require(ChartData.For(axis.Length) == ChartGrouping.Month && lines[0].Points.Count == 24 && lines[0].Points.Sum(point => point.Value) == 9, "Mais de 400 dias deveriam agrupar por mês sem perder nenhum total.");
+            var daily = Enumerable.Range(0, 200).Select(index => new DailyMetrics(start.AddDays(index).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 1, 2, 1, 0)).ToArray();
+            var dailyLine = typeof(WorkspaceViewModel).GetMethod("DailyLine", BindingFlags.Static | BindingFlags.NonPublic)!;
+            object?[] args = [daily, (Func<DailyMetrics, double>)(day => day.Completed), null];
+            var points = (ChartPoint[])dailyLine.Invoke(null, args)!;
+            Require((ChartGrouping)args[2]! == ChartGrouping.Week && points.Length == 29 && points.Sum(point => point.Value) == 400, $"O gráfico do pop-up deveria somar por semana em 200 dias: {points.Length} pontos.");
+            args = [daily.Take(30).ToArray(), (Func<DailyMetrics, double>)(day => day.Completed), null];
+            points = (ChartPoint[])dailyLine.Invoke(null, args)!;
+            Require((ChartGrouping)args[2]! == ChartGrouping.Day && points.Length == 30, "Até 92 dias o gráfico do pop-up continua com um ponto por dia.");
+            // Janela de 20 anos: meia-noite de 2006 tinha outro deslocamento (horário de verão antigo) e passaria do limite da API por uma hora.
+            var to = new DateTimeOffset(2026, 11, 27, 0, 0, 0, TimeSpan.FromHours(-3)); var oldStart = new DateTimeOffset(2006, 11, 27, 0, 0, 0, TimeSpan.FromHours(-2));
+            Require(to - oldStart > TimeSpan.FromDays(7305) && to - WorkspaceViewModel.ClampWindowStart(oldStart, to) == TimeSpan.FromDays(7305), "A janela de 20 anos deveria ser ajustada para valer exatamente 7.305 dias.");
+            var invalidInput = typeof(NoraApiClient).GetMethod("InvalidInputMessage", BindingFlags.Static | BindingFlags.NonPublic)!;
+            string Message(string path) => (string)invalidInput.Invoke(null, [path])!;
+            Require(Message($"api/obs/units/{Guid.NewGuid()}/metrics?from=a&to=b").Contains("20 anos", StringComparison.Ordinal) && Message("api/municipal/metrics?from=a&to=b").Contains("20 anos", StringComparison.Ordinal)
+                && Message("api/municipal/history?from=a&to=b").Contains("366 dias", StringComparison.Ordinal) && !Message($"api/obs/units/{Guid.NewGuid()}/metrics?from=a").Contains("366", StringComparison.Ordinal), "O erro 400 de período dos indicadores deveria falar do limite de 20 anos (o histórico continua em 366 dias).");
+            var recent = to.AddDays(-30);
+            Require(WorkspaceViewModel.ClampWindowStart(recent, to) == recent, "Uma janela dentro do limite não deveria ser alterada.");
+            Require(WorkspaceViewModel.ValidateUnitRange("01/01/2010", "31/12/2029", out _, out _) == "" && WorkspaceViewModel.ValidateUnitRange("01/01/2010", "01/01/2030", out _, out _).Contains("20 anos", StringComparison.Ordinal)
+                && WorkspaceViewModel.ValidateUnitRange("31/10/2026", "01/10/2026", out _, out _).Contains("inicial não pode ser posterior", StringComparison.Ordinal) && WorkspaceViewModel.ValidateUnitRange("abc", "01/10/2026", out _, out _).Contains("dd/mm/aaaa", StringComparison.Ordinal), "A validação do período da UBS deveria aceitar 20 anos exatos e recusar mais.");
+        });
+        Check("OBS Painel e Indicadores: capturas dos dois modos, nos dois temas, com dados, vazio, janela mínima, pop-up do gráfico e Filtros", () =>
+        {
+            using var fixture = new ApiFixture();
+            var unit = fixture.AddUnit("UBS Jardim das Flores", "Centro");
+            foreach (var (name, cpf) in new[] { ("Ana Souza", "52998224725"), ("Bia Lima", "11144477735"), ("Caio Rocha", "12345678909") }) fixture.AddRegistry(unit.Id, name, cpf);
+            fixture.AddWaiting(unit.Id, "52998224725", "Ana Souza", "Clínica geral", DateTimeOffset.UtcNow.AddHours(-3)); fixture.AddWaiting(unit.Id, "11144477735", "Bia Lima", "Pediatria", DateTimeOffset.UtcNow.AddHours(-1)); fixture.AddWaiting(unit.Id, "12345678909", "Caio Rocha", "Clínica geral", DateTimeOffset.UtcNow.AddMinutes(-40));
+            var start = DateTimeOffset.UtcNow.AddHours(2);
+            fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Clínica geral", "Dra. Teste", start, start.AddMinutes(30), "open", DateTimeOffset.UtcNow));
+            fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Pediatria", "Dr. Teste", start.AddHours(1), start.AddHours(1).AddMinutes(30), "offered", DateTimeOffset.UtcNow));
+            var today = DateTime.Today;
+            foreach (var (status, hour) in new[] { ("completed", 7), ("completed", 8), ("completed", 9), ("missed", 10), ("cancelled", 11), ("scheduled", 14), ("scheduled", 15), ("scheduled", 16), ("called", 13) })
+                fixture.AddAppointment(unit.Id, status, new DateTimeOffset(today.AddHours(hour)));
+            fixture.SetActiveRooms(unit.Id, 3, 6);
+            var window = OpenOperational(fixture, storageRoot, "panel-captures", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                foreach (var mode in new[] { Appearance.Light, Appearance.Dark })
+                {
+                    var tag = mode.ToString().ToLowerInvariant();
+                    window.ViewModel.SetAppearance(mode);
+                    vm.PanelPeriodDays = 1; vm.PanelViewMode = ViewMode.Cards; vm.PanelSearch = "";
+                    Show(window, "home", 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, $"painel-cards-dia-{tag}.png"), 1366, 768);
+                    vm.PanelViewMode = ViewMode.Charts; Layout(window, 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, $"painel-graficos-dia-{tag}.png"), 1366, 768);
+                    vm.PanelPeriodDays = 7; Settle(vm); vm.PanelViewMode = ViewMode.Cards; Layout(window, 1366, 768);
+                    SaveScrolled(window, Path.Combine(previewRoot, $"painel-cards-semana-{tag}.png"), 1366, 768);
+                    vm.PanelViewMode = ViewMode.Charts; Layout(window, 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, $"painel-graficos-semana-{tag}.png"), 1366, 768);
+                    vm.PanelPeriodDays = 365; Settle(vm); Layout(window, 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, $"painel-graficos-ano-{tag}.png"), 1366, 768);
+                    vm.PanelPeriodDays = 1; Settle(vm);
+                    Show(window, "indicators", 1366, 768); vm.UnitViewMode = ViewMode.Cards; Layout(window, 1366, 768);
+                    SaveScrolled(window, Path.Combine(previewRoot, $"indicadores-cards-{tag}.png"), 1366, 768);
+                    vm.UnitViewMode = ViewMode.Charts; Layout(window, 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, $"indicadores-graficos-{tag}.png"), 1366, 768);
+                    vm.UnitViewMode = ViewMode.Cards;
+                }
+                window.ViewModel.SetAppearance(Appearance.Light);
+                // Pesquisa no Painel, janela mínima e pop-up do gráfico de um card.
+                Show(window, "home", 1366, 768); vm.PanelViewMode = ViewMode.Cards; vm.PanelSearch = "falt"; Layout(window, 1366, 768);
+                SaveScrolled(window, Path.Combine(previewRoot, "painel-pesquisa-light.png"), 1366, 768);
+                vm.PanelSearch = "zzz"; Layout(window, 1366, 768); SaveScrolled(window, Path.Combine(previewRoot, "painel-pesquisa-sem-resultado-light.png"), 1366, 768);
+                vm.PanelSearch = ""; vm.PanelPeriodDays = 365; Settle(vm); Layout(window, 1366, 768);
+                SaveScrolled(window, Path.Combine(previewRoot, "painel-cards-ano-light.png"), 1366, 768);
+                vm.PanelPeriodDays = 1; Settle(vm);
+                Layout(window, 980, 640); SaveScrolled(window, Path.Combine(previewRoot, "painel-cards-janela-minima-light.png"), 980, 640);
+                vm.PanelViewMode = ViewMode.Charts; Layout(window, 980, 640); SaveScrolled(window, Path.Combine(previewRoot, "painel-graficos-janela-minima-light.png"), 980, 640);
+                vm.PanelViewMode = ViewMode.Cards;
+                var popup = new IndicatorChartWindow(vm.BuildIndicatorChart("Consultas concluídas")) { Owner = window, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000, ShowActivated = false };
+                try { popup.Show(); popup.UpdateLayout(); SavePreview(popup, Path.Combine(previewRoot, "painel-popup-grafico-card-light.png")); window.ViewModel.SetAppearance(Appearance.Dark); popup.UpdateLayout(); SavePreview(popup, Path.Combine(previewRoot, "painel-popup-grafico-card-dark.png")); }
+                finally { popup.Close(); window.ViewModel.SetAppearance(Appearance.Light); }
+                // Indicadores: período personalizado e filtros no botão Filtros; janela mínima.
+                Show(window, "indicators", 1366, 768); vm.UnitPeriodDays = 0; Layout(window, 1366, 768);
+                SavePreview(OpenPageFilters(window), Path.Combine(previewRoot, "indicadores-filtros-personalizado-light.png"));
+                ((System.Windows.Controls.Primitives.Popup)window.FindName("FiltersPopup")).IsOpen = false;
+                vm.UnitPeriodDays = 30; Settle(vm); Layout(window, 980, 640);
+                SaveScrolled(window, Path.Combine(previewRoot, "indicadores-cards-janela-minima-light.png"), 980, 640);
+            }
+            finally { CloseWindow(window); }
+            // Estado vazio: UBS sem consulta, fila, vaga nem cadastro.
+            using var emptyFixture = new ApiFixture { NoClosedAppointments = true };
+            emptyFixture.AddUnit("UBS Nova", "Sul");
+            var emptyWindow = OpenOperational(emptyFixture, storageRoot, "panel-captures-empty", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(emptyWindow);
+                foreach (var mode in new[] { Appearance.Light, Appearance.Dark })
+                {
+                    var tag = mode.ToString().ToLowerInvariant();
+                    emptyWindow.ViewModel.SetAppearance(mode);
+                    vm.PanelViewMode = ViewMode.Cards; Show(emptyWindow, "home", 1366, 768); SaveScrolled(emptyWindow, Path.Combine(previewRoot, $"painel-vazio-cards-{tag}.png"), 1366, 768);
+                    vm.PanelViewMode = ViewMode.Charts; Layout(emptyWindow, 1366, 768); SaveScrolled(emptyWindow, Path.Combine(previewRoot, $"painel-vazio-graficos-{tag}.png"), 1366, 768);
+                    vm.PanelViewMode = ViewMode.Cards;
+                    Show(emptyWindow, "indicators", 1366, 768); vm.UnitViewMode = ViewMode.Cards; Layout(emptyWindow, 1366, 768); SaveScrolled(emptyWindow, Path.Combine(previewRoot, $"indicadores-vazio-cards-{tag}.png"), 1366, 768);
+                    vm.UnitViewMode = ViewMode.Charts; Layout(emptyWindow, 1366, 768); SaveScrolled(emptyWindow, Path.Combine(previewRoot, $"indicadores-vazio-graficos-{tag}.png"), 1366, 768);
+                    vm.UnitViewMode = ViewMode.Cards;
+                }
+            }
+            finally { CloseWindow(emptyWindow); }
         });
         Check("OBS Painel: se só os indicadores falharem a UBS abre, o cartão avisa e o ciclo não insiste", () =>
         {
