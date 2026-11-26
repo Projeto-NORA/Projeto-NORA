@@ -36,6 +36,7 @@ A conexão privada e o provisionamento definitivo (P-012) foram encerrados em 20
 - [Gestão / Secretaria](docs/secretaria.md).
 - [Documento da tarefa e validações](docs/tarefas/2026-10-07-inicio-plataforma-nora.md).
 - [Pendências](docs/PENDENCIAS.md).
+- [Dados de demonstração para capturas de tela](docs/dados-demonstracao.md) (`scripts/popular-dados-demonstracao.ps1`: só acrescenta, repetível, com `-Simular` e `-Remover`).
 - [Integração back x front por UBS](docs/integracao-back-front.md).
 - [App do paciente](docs/app-paciente.md).
 - [Hospedagem (Render + Neon, plano B na Hostinger)](docs/hospedagem.md).
