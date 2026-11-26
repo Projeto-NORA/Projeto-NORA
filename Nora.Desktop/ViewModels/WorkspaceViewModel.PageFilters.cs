@@ -11,6 +11,12 @@ public sealed partial class WorkspaceViewModel
             ObsRegistrySort = "Mais recentes";
         }
         if (filters.Contains("units")) UnitSearch = "";
+        if (filters.Contains("slots"))
+        {
+            SlotSearch = "";
+            SlotSpecialtyFilter = AllSpecialties;
+            SlotStatusFilter = SlotStatusOptions[0];
+        }
         if (filters.Contains("unitMetrics"))
         {
             UnitFromText = UnitToText = UnitSpecialtySearch = "";

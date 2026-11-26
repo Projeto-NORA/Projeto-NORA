@@ -27,17 +27,9 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<AlertRow> UnitAlerts { get; } = [];
     /// <summary>Os primeiros alertas, para o cartão "Atenção da equipe" do Painel.</summary>
     public ObservableCollection<AlertRow> UnitAlertPreview { get; } = [];
-    private bool AlertsDue => alertsAttemptedAt is null || DateTimeOffset.Now - alertsAttemptedAt >= AlertsRefreshAge;
-
-    /// <summary>Avalia os alertas da UBS ativa de novo (botão Atualizar alertas).</summary>
-    public Task RefreshAlertsAsync() => RunAsync(async () =>
-    {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar os alertas.");
-        await LoadUnitScopeAsync(unit, UnitScope.Alerts);
-        if (ActiveObsUnit?.Id != unit.Id) return;
-        if (unitAlertsFailed) Say(MessageKind.Error, "Não foi possível avaliar os alertas agora. A lista mostra a última avaliação concluída, se houver.");
-        else Say(MessageKind.Success, UnitAlerts.Count == 0 ? "Alertas avaliados: nenhum alerta." : $"Alertas avaliados: {UnitAlerts.Count}.");
-    });
+    // Fora da tela de alertas a avaliação é lida no máximo a cada 5 minutos (só para o aviso do menu); com a tela aberta, a lista é relida a cada ciclo de 20 s (sem botão Atualizar).
+    private static readonly TimeSpan AlertsScreenRefreshAge = TimeSpan.FromSeconds(15);
+    private bool AlertsDue => alertsAttemptedAt is null || DateTimeOffset.Now - alertsAttemptedAt >= (Section == "alerts" ? AlertsScreenRefreshAge : AlertsRefreshAge);
 
     // ---- Painel: consultórios ativos ----
 
@@ -64,16 +56,19 @@ public sealed partial class WorkspaceViewModel
 
     public string UnitAlertsState => !IsAuthenticated ? "Entre na conta para consultar os alertas."
         : !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os alertas."
-        : unitAlertsFailed && alertsReadAt is null ? "Não foi possível avaliar os alertas agora. Use Atualizar alertas para tentar de novo."
+        : unitAlertsFailed && alertsReadAt is null ? "Não foi possível avaliar os alertas agora. A tela tenta de novo sozinha."
         : alertsReadAt is null ? "Avaliando os alertas…"
-        : UnitAlerts.Count == 0 && unitAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {alertsReadAt:HH:mm}, não havia alerta. Use Atualizar alertas para tentar de novo."
+        : UnitAlerts.Count == 0 && unitAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {alertsReadAt:HH:mm}, não havia alerta. A tela tenta de novo sozinha."
         : UnitAlerts.Count > 0 && unitAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {alertsReadAt:HH:mm}."
         : UnitAlerts.Count == 0 ? $"Nenhum alerta. Nenhum critério (fila alta, espera longa, faltas, ocupação da grade e metas) passou do limite na leitura das {alertsReadAt:HH:mm}."
         : "";
     /// <summary>Só uma avaliação concluída e sem alerta mostra o ícone verde; falha ou carregamento nunca viram "tudo certo".</summary>
     public bool UnitAlertsAllClear => IsAuthenticated && HasActiveObsUnit && alertsReadAt is not null && UnitAlerts.Count == 0 && !unitAlertsFailed;
-    public string UnitAlertsFootnote => UnitAlerts.Count == 0 ? "" : $"Avaliado às {alertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais alertas mostram a situação atual.";
+    /// <summary>A primeira avaliação ainda não chegou: a tela mostra o indicador e o passo escrito.</summary>
+    public bool IsAlertsLoading => IsAuthenticated && HasActiveObsUnit && alertsReadAt is null && !unitAlertsFailed;
     public bool HasUnitAlerts => UnitAlerts.Count > 0;
+    /// <summary>Há alertas na lista e um aviso sobre a avaliação (a última falhou): o aviso fica acima da lista. Sem alertas, o texto é o estado da própria lista.</summary>
+    public bool HasUnitAlertsNotice => UnitAlerts.Count > 0 && UnitAlertsState.Length > 0;
     public string PanelAlertsTitle => !HasActiveObsUnit ? "Aguardando a escolha da UBS"
         : alertsReadAt is null ? (unitAlertsFailed ? "Alertas indisponíveis agora" : "Avaliando os alertas…")
         : UnitAlerts.Count == 0 ? (unitAlertsFailed ? "Última avaliação não concluiu" : "Nenhum alerta") : UnitAlerts.Count == 1 ? "1 alerta ativo" : $"{UnitAlerts.Count} alertas ativos";
@@ -86,7 +81,7 @@ public sealed partial class WorkspaceViewModel
     private static readonly string[] SchedulingNames =
     [
         nameof(ActiveRoomsInUseValue), nameof(ActiveRoomsPlannedValue), nameof(ActiveRoomsHint), nameof(ActiveRoomsHasError), nameof(PanelOfferedValue), nameof(PanelBookedValue), nameof(PanelOccupancyValue), nameof(PanelCapacityHint),
-        nameof(UnitAlertsState), nameof(UnitAlertsFootnote), nameof(HasUnitAlerts), nameof(UnitAlertsAllClear), nameof(PanelAlertsTitle), nameof(PanelAlertsText), nameof(UnitGoalsState)
+        nameof(UnitAlertsState), nameof(IsAlertsLoading), nameof(HasUnitAlerts), nameof(HasUnitAlertsNotice), nameof(UnitAlertsAllClear), nameof(PanelAlertsTitle), nameof(PanelAlertsText), nameof(UnitGoalsState)
     ];
     private void NotifyScheduling() { foreach (var name in SchedulingNames) Notify(name); }
 

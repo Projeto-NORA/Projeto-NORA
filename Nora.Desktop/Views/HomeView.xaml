@@ -5,6 +5,7 @@
     <DataTemplate x:Key="DashboardPage"><views:OperationalOverviewView /></DataTemplate>
     <DataTemplate x:Key="AgendaPage"><views:AgendaView /></DataTemplate>
     <DataTemplate x:Key="InsightsPage"><views:OperationalInsightsView /></DataTemplate>
+    <DataTemplate x:Key="AlertsPage"><views:UnitAlertsView /></DataTemplate>
     <DataTemplate x:Key="AccessRequiredPage"><views:OperationalAccessView /></DataTemplate>
     <DataTemplate x:Key="UnitSettingsPage"><views:UnitSettingsView /></DataTemplate>
     <DataTemplate x:Key="AnnouncementsPage"><views:AnnouncementsView /></DataTemplate>
@@ -20,7 +21,7 @@
           <DataTrigger Binding="{Binding Workspace.ShowDashboard}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource DashboardPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowAgenda}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AgendaPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowIndicators}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource InsightsPage}" /></DataTrigger>
-          <DataTrigger Binding="{Binding Workspace.ShowAlerts}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource InsightsPage}" /></DataTrigger>
+          <DataTrigger Binding="{Binding Workspace.ShowAlerts}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AlertsPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowUnitSettings}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource UnitSettingsPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowAnnouncements}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource AnnouncementsPage}" /></DataTrigger>
           <DataTrigger Binding="{Binding Workspace.ShowFamily}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource FamilyPage}" /></DataTrigger>

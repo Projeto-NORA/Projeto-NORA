@@ -1,11 +1,12 @@
 using System.Collections.ObjectModel;
+using System.Runtime.ExceptionServices;
 using Nora.Desktop.Generics;
 using Nora.Desktop.Models;
 using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-/// <summary>Um comunicado recebido, com o estado de leitura que muda no lugar (marcar como lido não recria a linha). Não lido aparece como texto e ícone, nunca só em cor.</summary>
+/// <summary>Um comunicado recebido, com o estado de leitura que muda no lugar (marcar como lido não recria a linha). Não lido aparece como texto na etiqueta, nunca só em cor.</summary>
 public sealed class AnnouncementRow : ObservableObject
 {
     private bool isRead;
@@ -25,22 +26,25 @@ public sealed class AnnouncementRow : ObservableObject
     public bool IsRead => isRead;
     public bool IsUnread => !isRead;
     public string StateDisplay => isRead ? (readAt is { } at ? "Lido em " + at.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "Lido") : "Não lido";
-    public string Glyph => isRead ? "" : "";
+    /// <summary>Tom da etiqueta de situação: o não lido chama a atenção (azul), o lido fica tranquilo (verde).</summary>
+    public Tone StateTone => isRead ? Tone.Green : Tone.Blue;
     public string PublishedAtDisplay => "Publicado em " + PublishedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture);
     public string ValidityDisplay => ExpiresAt is { } expires ? "Vale até " + expires.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "";
+    /// <summary>Linha de dados do item: publicação e validade, só o que está informado, separados por " | ".</summary>
+    public string MetaLine => string.Join(" | ", new[] { PublishedAtDisplay, ValidityDisplay }.Where(text => text.Length > 0));
     public string AutomationLabel => $"{StateDisplay}. {Title}. {PublishedAtDisplay}.";
     public void MarkRead(DateTimeOffset at)
     {
         if (isRead) return;
         isRead = true; readAt = at;
-        foreach (var name in new[] { nameof(IsRead), nameof(IsUnread), nameof(StateDisplay), nameof(Glyph), nameof(AutomationLabel) }) Notify(name);
+        foreach (var name in new[] { nameof(IsRead), nameof(IsUnread), nameof(StateDisplay), nameof(StateTone), nameof(AutomationLabel) }) Notify(name);
     }
     /// <summary>Traz uma leitura feita em outro computador, sem desmarcar o que já foi lido aqui.</summary>
     public void Sync(ReceivedAnnouncement item) { if (item.IsRead && !isRead) MarkRead(item.ReadAt ?? DateTimeOffset.Now); }
 }
 
 /// <summary>
-/// OBS: comunicados da Secretaria para a equipe, das UBS concedidas à conta (não dependem da UBS ativa). A primeira leitura e a leitura completa (ao abrir a aba, no botão Atualizar
+/// OBS: comunicados da Secretaria para a equipe, das UBS concedidas à conta (não dependem da UBS ativa). A primeira leitura e a leitura completa (ao abrir a aba
 /// e quando a lista de UBS muda) trazem tudo o que está em vigor; o ciclo automático faz uma única chamada incremental com o cursor da API, que sem novidade devolve lista vazia e não mexe na tela.
 /// </summary>
 public sealed partial class WorkspaceViewModel
@@ -59,17 +63,16 @@ public sealed partial class WorkspaceViewModel
     public int AnnouncementBadgeCount => Announcements.Count(row => row.IsUnread && !viewedAnnouncementIds.Contains(row.Id));
     private void MarkAnnouncementsViewed() { viewedAnnouncementIds.UnionWith(Announcements.Select(row => row.Id)); Notify(nameof(AnnouncementBadgeCount)); }
     public bool ShowAnnouncements => IsAuthenticated && IsOperational && Section == "announcements";
+    /// <summary>A primeira leitura ainda não chegou: a tela mostra o indicador e o passo escrito.</summary>
+    public bool IsAnnouncementsLoading => IsAuthenticated && !announcementsLoaded && !announcementsFailed;
+    /// <summary>Texto da lista vazia (ou da leitura em andamento / que falhou); vazio quando há comunicados para mostrar.</summary>
     public string AnnouncementsState => !IsAuthenticated ? "Entre na conta para ler os comunicados."
-        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Use Atualizar comunicados para tentar de novo." : "Carregando os comunicados…")
+        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Saia desta tela e volte para ler de novo." : "Carregando os comunicados…")
         : Announcements.Count == 0 ? "Nenhum comunicado em vigor para as UBS desta conta." : "";
-    public string AnnouncementsSummary => !announcementsLoaded ? ""
-        : unreadAnnouncements == 0 ? (Announcements.Count == 1 ? "1 comunicado, todos lidos." : $"{Announcements.Count} comunicados, todos lidos.")
-        : unreadAnnouncements == 1 ? $"{Announcements.Count} comunicados em vigor, 1 não lido." : $"{Announcements.Count} comunicados em vigor, {unreadAnnouncements} não lidos.";
-    public string AnnouncementsFootnote => announcementsReadAt is not { } at ? ""
-        : announcementsFailed ? $"A última leitura não concluiu; a lista é da leitura das {at:HH:mm}."
-        : $"Atualizado às {at:HH:mm}. Encerrados e vencidos saem ao abrir esta aba ou em Atualizar comunicados.";
+    /// <summary>Só aparece quando a última leitura falhou e a lista mostrada é a de uma leitura anterior.</summary>
+    public string AnnouncementsFootnote => announcementsReadAt is { } at && announcementsFailed ? $"A última leitura não concluiu; a lista é da leitura das {at:HH:mm}." : "";
 
-    private static readonly string[] AnnouncementNames = [nameof(UnreadAnnouncementCount), nameof(AnnouncementsState), nameof(AnnouncementsSummary), nameof(AnnouncementsFootnote)];
+    private static readonly string[] AnnouncementNames = [nameof(UnreadAnnouncementCount), nameof(AnnouncementsState), nameof(AnnouncementsFootnote), nameof(IsAnnouncementsLoading)];
     private void NotifyAnnouncements()
     {
         if (Section == "announcements") viewedAnnouncementIds.UnionWith(Announcements.Select(row => row.Id));
@@ -99,7 +102,7 @@ public sealed partial class WorkspaceViewModel
         catch (NoraApiException error) when (!error.Unauthorized && error.Code != "password-change-required")
         {
             if (disposed || version != announcementsVersion) return;
-            announcementsFailed = true; Notify(nameof(AnnouncementsState)); Notify(nameof(AnnouncementsFootnote));
+            announcementsFailed = true; Notify(nameof(AnnouncementsState)); Notify(nameof(AnnouncementsFootnote)); Notify(nameof(IsAnnouncementsLoading));
             return;
         }
         if (disposed || !IsAuthenticated || version != announcementsVersion) return;
@@ -142,27 +145,33 @@ public sealed partial class WorkspaceViewModel
         return expired.Length > 0;
     }
 
-    /// <summary>Parte do ciclo da UBS e da atualização manual: leitura incremental por padrão; completa no clique em Atualizar comunicados, ao abrir a aba e quando a lista de UBS mudou.</summary>
+    /// <summary>Parte do ciclo da UBS e da atualização geral: leitura incremental por padrão; completa ao abrir a aba, quando a lista de UBS mudou e na atualização geral.</summary>
     private Task RefreshAnnouncementsAsync(bool manual) => ReadAnnouncementsAsync(manual || announcementsFullDue || !announcementsLoaded);
 
-    /// <summary>Botão Atualizar da aba: leitura completa.</summary>
-    public Task LoadAnnouncementsAsync() => RunAsync(async () =>
+    /// <summary>
+    /// Marca como lidos os comunicados escolhidos (um ou vários, numa só ação): só os ainda não lidos vão à API. Um comunicado que a API já não reconhece (encerrado ou vencido
+    /// desde a última leitura) sai da lista; se nenhum pôde ser marcado por isso, o erro da API é mostrado. A lista não é recriada: as linhas mudam no lugar.
+    /// </summary>
+    public Task MarkAnnouncementsReadAsync(IReadOnlyList<AnnouncementRow> rows) => RunAsync(async () =>
     {
-        if (!IsOperational || !IsAuthenticated) throw new NoraApiException("Entre no OBS para ler os comunicados.");
-        await ReadAnnouncementsAsync(full: true);
-        if (announcementsFailed) throw new NoraApiException("Não foi possível ler os comunicados agora. A lista mostra a última leitura, se houver.");
-        Say(MessageKind.Success, unreadAnnouncements == 0 ? "Comunicados atualizados: nenhum não lido." : $"Comunicados atualizados: {unreadAnnouncements} não lido(s).");
-    });
-
-    public Task MarkAnnouncementReadAsync(AnnouncementRow? row) => RunAsync(async () =>
-    {
-        if (row is null || !Announcements.Contains(row)) throw new NoraApiException("Selecione um comunicado da lista.");
-        if (row.IsRead) return;
-        try { await api.MarkObsAnnouncementReadAsync(row.Id); }
-        catch (NoraApiException error) when (error.Status == 404) { Announcements.Remove(row); NotifyAnnouncements(); throw; }
-        row.MarkRead(DateTimeOffset.Now);
-        NotifyAnnouncements();
-        Say(MessageKind.Success, "Comunicado marcado como lido.");
+        var chosen = rows.Where(Announcements.Contains).Distinct().ToArray();
+        if (chosen.Length == 0) throw new NoraApiException("Selecione um comunicado da lista.");
+        var marked = 0; var gone = 0;
+        NoraApiException? notFound = null;
+        try
+        {
+            foreach (var row in chosen.Where(row => row.IsUnread))
+            {
+                try { await api.MarkObsAnnouncementReadAsync(row.Id); }
+                catch (NoraApiException error) when (error.Status == 404) { Announcements.Remove(row); gone++; notFound ??= error; continue; }
+                row.MarkRead(DateTimeOffset.Now);
+                marked++;
+            }
+        }
+        finally { NotifyAnnouncements(); }
+        if (marked == 0 && notFound is not null) ExceptionDispatchInfo.Capture(notFound).Throw();
+        if (marked == 0) return;
+        Say(MessageKind.Success, (marked == 1 ? "Comunicado marcado como lido." : $"{marked} comunicados marcados como lidos.") + (gone > 0 ? $" {gone} já não estava em vigor e saiu da lista." : ""));
     });
 
     private void ClearAnnouncements()

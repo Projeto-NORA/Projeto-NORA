@@ -195,6 +195,7 @@ internal static partial class Program
             RunDesktopAccessChecks(root, args);
             RunProfileChecks(application, themes, root, args);
             RunApiClientChecks(application, root, args);
+            RunVagasAlertasComunicadosChecks(root, args);
             RunEndToEndChecks(root, args);
             RunRoundEndToEndChecks(root, args);
             if (args.Contains("--secretaria-gallery")) RunSecretaryGallery(root, args);

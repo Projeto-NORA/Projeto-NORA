@@ -27,6 +27,12 @@ public sealed partial class WorkspaceViewModel
         return offers.Select((offer, index) => new DetailField($"{index + 1}ª oferta", $"{offer.PatientName} · {offer.StatusDisplay} · prazo {offer.ExpiresAtDisplay}", Group: OffersGroup));
     }
 
+    /// <summary>Ficha do comunicado: situação, datas e o texto completo (texto puro: as quebras de linha ficam como foram escritas, nada é interpretado).</summary>
+    private static ItemDetails BuildAnnouncementDetails(AnnouncementRow row) => new(row.Title, "Comunicado da Secretaria", [
+        new("Situação", row.StateDisplay), new("Publicado em", row.PublishedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture)),
+        new("Validade", row.ExpiresAt is { } expires ? "Vale até " + expires.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "Sem validade"),
+        new("Texto", row.Body, true, "Comunicado", Block: true)]);
+
     /// <summary>
     /// Aba "Exames e vacinas" da ficha de um paciente da UBS ativa. Nulo fora de uma UBS ativa ou para um item que não está mais na lista. A ficha é uma janela própria: o retorno
     /// das ações aparece nela, e uma sessão encerrada ou troca obrigatória de senha continua sendo tratada aqui.
@@ -47,6 +53,8 @@ public sealed partial class WorkspaceViewModel
 
     public ItemDetails? BuildDetails(object item)
     {
+        // Os comunicados são da conta, não da UBS ativa: a ficha deles abre mesmo sem UBS escolhida.
+        if (item is AnnouncementRow announcement) return !IsMunicipal && IsAuthenticated && Announcements.Contains(announcement) ? BuildAnnouncementDetails(announcement) : null;
         if (IsMunicipal || !IsAuthenticated || !HasActiveObsUnit) return null;
         return item switch
         {

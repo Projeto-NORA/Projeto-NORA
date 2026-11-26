@@ -2,6 +2,5 @@
   <StackPanel>
     <TextBlock Text="{Binding PageTitle}" Style="{StaticResource PageTitle}" Margin="0,0,0,26" ToolTip="{Binding PageSubtitle}" />
     <views:UnitIndicatorsView Visibility="{Binding IsIndicatorsPage, Converter={StaticResource BoolVisibility}}" />
-    <views:UnitAlertsView Visibility="{Binding IsAlertsPage, Converter={StaticResource BoolVisibility}}" />
   </StackPanel>
 </UserControl>

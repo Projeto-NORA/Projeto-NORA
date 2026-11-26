@@ -47,13 +47,26 @@
             <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,8">
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <TextBlock Text="{Binding Label}" FontSize="13.5" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="14.5" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Right" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" TextWrapping="Wrap" ToolTip="{Binding Value}" />
+                <TextBlock x:Name="ValueText" Grid.Column="1" Text="{Binding Value}" FontSize="14.5" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Right" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" TextWrapping="Wrap" ToolTip="{Binding Value}" />
                 <Button Grid.Column="2" Style="{StaticResource CircleIconButton}" Width="30" Height="30" Command="{Binding DataContext.CopyCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Visibility="{Binding CanCopy, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Center" ToolTip="{Binding Label, StringFormat='Copiar {0}'}" AutomationProperties.Name="{Binding Label, StringFormat='Copiar {0}'}">
                   <Path Data="{StaticResource IconCopyGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                 </Button>
               </Grid>
             </Border>
+            <DataTemplate.Triggers>
+              <!-- Texto longo (Block): rótulo em cima e valor embaixo, na largura toda, alinhado à esquerda e com as quebras de linha como foram escritas. -->
+              <DataTrigger Binding="{Binding Block}" Value="True">
+                <Setter TargetName="ValueText" Property="Grid.Row" Value="1" />
+                <Setter TargetName="ValueText" Property="Grid.Column" Value="0" />
+                <Setter TargetName="ValueText" Property="Grid.ColumnSpan" Value="3" />
+                <Setter TargetName="ValueText" Property="HorizontalAlignment" Value="Stretch" />
+                <Setter TargetName="ValueText" Property="TextAlignment" Value="Left" />
+                <Setter TargetName="ValueText" Property="FontWeight" Value="Normal" />
+                <Setter TargetName="ValueText" Property="Margin" Value="0,8,0,0" />
+              </DataTrigger>
+            </DataTemplate.Triggers>
           </DataTemplate></ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
