@@ -31,17 +31,17 @@ internal static partial class Program
                     ("home", "Resumo do dia", "+ Agendar nova consulta"),
                     ("agenda", "+ Agendar nova consulta", "Resumo do dia"),
                     ("patients", "Pacientes", "+ Agendar nova consulta"),
-                    ("slots", "Vaga Relâmpago", "Fila"),
-                    ("indicators", "Por especialidade", "O que passou do limite"),
-                    ("alerts", "O que passou do limite", "Por especialidade"),
+                    ("slots", "Nenhuma vaga cadastrada nesta UBS até agora.", "Fila"),
+                    ("indicators", "Por especialidade", "Nenhum alerta."),
+                    ("alerts", "Nenhum alerta.", "Por especialidade"),
                     ("unit-settings", "Informações da UBS", "Resumo do dia")
                 })
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 1280, 740);
                     var page = Descendants<HomeView>(content).Single(view => view.IsVisible);
-                    Require(Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text == visibleText), "A aba não mostrou seu conteúdo: " + route);
-                    Require(!Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text == hiddenText), "A aba manteve conteúdo de outra tela visível: " + route);
+                    Require(Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text.StartsWith(visibleText, StringComparison.Ordinal)), "A aba não mostrou seu conteúdo: " + route);
+                    Require(!Descendants<TextBlock>(page).Any(text => text.IsVisible && text.Text.StartsWith(hiddenText, StringComparison.Ordinal)), "A aba manteve conteúdo de outra tela visível: " + route);
                 }
             }
             finally { window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -131,11 +131,10 @@ internal static partial class Program
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 980, 640);
-                    var grid = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == name);
-                    Require(grid.IsReadOnly && grid.ClipboardCopyMode == DataGridClipboardCopyMode.None, "A listagem permite editar/copiar texto da linha: " + name);
-                    Require(grid.Items.Count > 0, "Cenário não publicou registros na listagem: " + name);
-                    var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
-                    Require(row != null && row.Margin.Bottom == 3, "Item não preserva intervalo compacto de 3px: " + name);
+                    var list = Descendants<ListBox>(content).Single(list => AutomationProperties.GetName(list) == name);
+                    Require(list.Items.Count > 0, "Cenário não publicou registros na listagem: " + name);
+                    var row = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
+                    Require(row != null && row.Margin.Bottom == 4, "Item não preserva o intervalo de 4px da listagem aberta: " + name);
                     Require(Descendants<Border>(row!).Any(border => border.CornerRadius == new CornerRadius(8) && border.ActualHeight > 0), "Item não apresenta raio discreto de 8px: " + name);
                     Require(!Descendants<Button>(row!).Any(button => AutomationProperties.GetName(button).StartsWith("Copiar", StringComparison.Ordinal)), "Linha ganhou cópia que deveria ficar somente nos detalhes: " + name);
                 }
@@ -154,14 +153,14 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 foreach (var mode in new[] { Appearance.Light, Appearance.Dark, Appearance.System })
-                foreach (var (route, name, cell) in new[] { ("slots", "Vagas da UBS", "Dra. Teste") })
+                foreach (var (route, name, cell) in new[] { ("slots", "Vagas da UBS", "· Cardiologia") })
                 {
                     window.ViewModel.SetAppearance(mode); window.ViewModel.Navigate(route); Settle(vm);
                     var content = Layout(window, 980, 640);
-                    var grid = Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == name);
-                    grid.SelectedItem = grid.Items[0]; Layout(window, 980, 640);
-                    var row = (DataGridRow)grid.ItemContainerGenerator.ContainerFromIndex(0);
-                    var text = Descendants<TextBlock>(row).SingleOrDefault(text => text.Text == cell) ?? throw new InvalidOperationException("Texto da linha ausente: " + route);
+                    var list = Descendants<ListBox>(content).Single(list => AutomationProperties.GetName(list) == name);
+                    list.SelectedItem = list.Items[0]; Layout(window, 980, 640);
+                    var row = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
+                    var text = Descendants<TextBlock>(row).SingleOrDefault(text => text.Text.EndsWith(cell, StringComparison.Ordinal)) ?? throw new InvalidOperationException("Texto da linha ausente: " + route);
                     Require(((SolidColorBrush)text.Foreground).Color == ((SolidColorBrush)Application.Current.FindResource("TextBrush")).Color, $"{route}/{mode}: texto selecionado não usa o contraste TextBrush.");
                     SavePreview(content, Path.Combine(previewRoot, $"obs-{route}-selected-{mode.ToString().ToLowerInvariant()}.png"));
                 }

@@ -130,16 +130,16 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "alerts", 1280, 1400);
                 Require(vm.UnitAlerts.Count == 0 && vm.PanelAlertsTitle == "Nenhum alerta" && vm.UnitAlertsAllClear, "Uma avaliação concluída e sem alertas diz que não há alerta.");
-                fixture.FailAlerts = true; Pump(vm.RefreshAlertsAsync()); Settle(vm); content = Layout(window, 1280, 1400);
+                fixture.FailAlerts = true; RefreshAlertsNow(vm); content = Layout(window, 1280, 1400);
                 Require(vm.PanelAlertsTitle != "Nenhum alerta" && vm.PanelAlertsText.Contains("não concluiu", StringComparison.Ordinal) && vm.UnitAlertsState.Contains("não concluiu", StringComparison.Ordinal) && !vm.UnitAlertsState.StartsWith("Nenhum alerta", StringComparison.Ordinal) && !vm.UnitAlertsAllClear,
                     $"Depois de uma leitura que falhou o Painel não pode dizer \"nenhum alerta\": título \"{vm.PanelAlertsTitle}\", texto \"{vm.PanelAlertsText}\", estado \"{vm.UnitAlertsState}\".");
                 Require(FullTexts(content).Contains(vm.UnitAlertsState), "O estado da falha não aparece na tela de alertas.");
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao-alertas-obs-falha-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1400); SaveScrolled(window, Path.Combine(previewRoot, "revisao-alertas-obs-falha-dark.png"), 1280, 900);
                 // Alerta presente e leitura seguinte falha: a lista fica com aviso.
-                fixture.FailAlerts = false; fixture.AddAlert(unit.Id, new("high-queue", unit.Id, unit.Name, "Cardiologia", 23, 20, null, null)); Pump(vm.RefreshAlertsAsync()); Settle(vm);
+                fixture.FailAlerts = false; fixture.AddAlert(unit.Id, new("high-queue", unit.Id, unit.Name, "Cardiologia", 23, 20, null, null)); RefreshAlertsNow(vm);
                 Require(vm.UnitAlertsState == "" && vm.UnitAlerts.Count == 1, "A leitura que deu certo deveria mostrar o alerta, sem aviso.");
-                fixture.FailAlerts = true; Pump(vm.RefreshAlertsAsync()); Settle(vm);
+                fixture.FailAlerts = true; RefreshAlertsNow(vm);
                 Require(vm.UnitAlertsState.Contains("não concluiu", StringComparison.Ordinal) && vm.UnitAlerts.Count == 1, "Com a lista anterior mantida, a tela precisa avisar que a última avaliação falhou: " + vm.UnitAlertsState);
             }
             finally { CloseWindow(window); }

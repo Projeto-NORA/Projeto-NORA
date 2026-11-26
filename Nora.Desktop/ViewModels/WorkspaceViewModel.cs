@@ -310,8 +310,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             return;
         }
         // Comunicados são da conta (não da UBS): uma chamada incremental por ciclo, em paralelo com a leitura da UBS; a falha dela não derruba o resto.
-        // Sem UBS ativa o ciclo não insiste: a leitura sai só do login, da abertura da aba e do Atualizar dados.
-        var announcements = ActiveObsUnit is not null || manual || announcementsFullDue ? RefreshAnnouncementsAsync(manual) : Task.CompletedTask;
+        // Sem UBS ativa o ciclo só insiste com a tela de comunicados aberta (ela relê sozinha, sem botão); fora dela, a leitura sai do login e da abertura da tela.
+        var announcements = ActiveObsUnit is not null || manual || announcementsFullDue || Section == "announcements" ? RefreshAnnouncementsAsync(manual) : Task.CompletedTask;
         try
         {
             if (ActiveObsUnit is { } unit) { if (scope != UnitScope.None) await LoadUnitScopeAsync(unit, scope); }

@@ -244,7 +244,7 @@ internal static partial class Program
                 Require(!Descendants<Expander>(content).Any(expander => expander.Header?.ToString() == "Escolher ou trocar UBS") && !Descendants<Button>(content).Any(button => button.Content?.ToString() == "Confirmar UBS"), "Pacientes ainda mostra o seletor de UBS.");
                 InspectSwitchProfile(window, dialog => Require(dialog.Options.Single(option => option.IsActive).Unit.Id == unit.Id && dialog.Units.SelectedItem is ProfileOption { IsActive: true }, "O pop-up não reabriu com a UBS ativa marcada e selecionada."));
                 window.ViewModel.Navigate("slots"); Settle(vm); content = Layout(window, 980, 640);
-                Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vagas da UBS"), "Vagas por UBS não apareceram na tela.");
+                Require(Descendants<UnitLightningSlotsView>(content).Any() && Descendants<ListBox>(content).Any(list => AutomationProperties.GetName(list) == "Vagas da UBS"), "Vagas por UBS não apareceram na tela.");
                 vm.LogoutCommand.Execute(null); Settle(vm);
                 Require(vm.ObsRegistry.Count == 0 && vm.ActiveObsUnit == null && vm.Appointments.Count == 0, "Saída preservou dados da UBS.");
             }

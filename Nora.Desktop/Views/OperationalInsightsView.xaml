@@ -2,6 +2,5 @@
   <!-- O nome da tela (Indicadores, Central de alertas) fica só no cabeçalho da janela: nenhum título repetido aqui dentro. -->
   <StackPanel>
     <views:UnitIndicatorsView Visibility="{Binding IsIndicatorsPage, Converter={StaticResource BoolVisibility}}" />
-    <views:UnitAlertsView Visibility="{Binding IsAlertsPage, Converter={StaticResource BoolVisibility}}" />
   </StackPanel>
 </UserControl>

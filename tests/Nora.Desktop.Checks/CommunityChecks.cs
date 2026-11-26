@@ -82,17 +82,26 @@ internal static partial class Program
                 var content = Show(window, "announcements", 1280, 1500);
                 Require(fixture.AnnouncementFeedQueries.Count == 2 && fixture.AnnouncementFeedQueries[1]["after"] is null, "Abrir a aba deveria fazer uma leitura completa.");
                 var texts = FullTexts(content);
-                Require(texts.Count(text => text == "Não lido") == 2 && Descendants<Button>(content).Count(button => button.IsVisible && button.Content?.ToString() == "Marcar como lido") == 2, "Os dois não lidos deveriam aparecer com o texto \"Não lido\" e o botão de marcar.");
-                Require(texts.Contains("Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso") || Descendants<TextBlock>(content).Any(text => text.Text == "Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso"), "O texto do comunicado deveria aparecer como texto puro, sem interpretar o que parece HTML.");
-                Require(nav.Badge == 0 && vm.UnreadAnnouncementCount == 2 && fixture.Count("POST", "/read") == 0, "Abrir a aba deveria ocultar o aviso sem registrar leitura dos comunicados.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-comunicados-light.png"), 1280, 900);
-                // Marcar como lido: pela ViewModel e pela tela; idempotente.
-                Pump(vm.MarkAnnouncementReadAsync(vm.Announcements[1]));
+                // Listagem aberta: o título e a linha de dados no item, a etiqueta "Não lido" à direita e nenhuma ação enquanto nada está selecionado (o botão só vive no balão).
+                Require(texts.Count(text => text == "Não lido") == 2 && texts.Contains("Reunião das equipes") && !Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() == "Marcar como lido"), "Os dois não lidos deveriam aparecer com a etiqueta \"Não lido\" e sem botão de marcar antes da seleção.");
+                Require(!texts.Contains("Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso"), "A listagem não mostra o texto do comunicado: ele fica na ficha.");
+                // A ficha (duplo clique) mostra o texto completo, como texto puro e com as quebras de linha preservadas.
+                var campaign = vm.Announcements.Single(row => row.Title == "Campanha de vacinação");
+                var ficha = vm.BuildDetails(campaign) ?? throw new InvalidOperationException("O comunicado deveria ter ficha.");
+                var bodyField = ficha.Fields.Single(field => field.Label == "Texto");
+                Require(bodyField.Value == "Linha 1 com <b>html</b> e &amp; texto\nLinha 2 do aviso" && bodyField.Block && ficha.Fields.Any(field => field.Label == "Situação" && field.Value == "Não lido"), "A ficha deveria trazer o texto puro, com a quebra de linha, e a situação.");
+                Require(nav.Badge == 0 && vm.UnreadAnnouncementCount == 2 && fixture.Count("POST", "/read") == 0, "Abrir a aba (e a ficha) deveria ocultar o aviso sem registrar leitura dos comunicados.");
+                var announcementList = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Comunicados recebidos");
+                announcementList.SelectedItems.Add(vm.Announcements[0]); announcementList.SelectedItems.Add(vm.Announcements[1]); content = Layout(window, 1280, 1500);
+                SavePreview(content, Path.Combine(previewRoot, "obs-comunicados-light.png"));
+                // Marcar como lido: pela ViewModel e pelo balão; idempotente.
+                Pump(vm.MarkAnnouncementsReadAsync([vm.Announcements[1]]));
                 Require(fixture.Count("POST", "/read") == 1 && vm.UnreadAnnouncementCount == 1 && nav.Badge == 0 && vm.Announcements[1].StateDisplay.StartsWith("Lido em", StringComparison.Ordinal), "Marcar como lido deveria gravar e baixar o contador de não lidos.");
-                Pump(vm.MarkAnnouncementReadAsync(vm.Announcements[1]));
+                Pump(vm.MarkAnnouncementsReadAsync([vm.Announcements[1]]));
                 Require(fixture.Count("POST", "/read") == 1, "Marcar de novo o que já está lido não deveria chamar a API.");
-                content = Layout(window, 1280, 1500);
-                Require(FullTexts(content).Count(text => text == "Não lido") == 1 && Descendants<Button>(content).Count(button => button.IsVisible && button.Content?.ToString() == "Marcar como lido") == 1, "O comunicado lido deveria perder o destaque e o botão.");
+                announcementList.SelectedItems.Clear(); announcementList.SelectedItems.Add(vm.Announcements[1]); content = Layout(window, 1280, 1500);
+                Require(FullTexts(content).Count(text => text == "Não lido") == 1 && !Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() == "Marcar como lido"), "O comunicado lido deveria perder o destaque e o balão não deveria oferecer marcar de novo.");
+                announcementList.SelectedItems.Clear(); announcementList.SelectedItems.Add(vm.Announcements[0]); content = Layout(window, 1280, 1500);
                 Click(window, content, "Marcar como lido", 1280, 1500);
                 Require(fixture.Count("POST", "/read") == 2 && vm.UnreadAnnouncementCount == 0 && nav.Badge == 0 && nav.AutomationName == "Comunicados" && !Descendants<TextBlock>(window).Any(text => text.IsVisible && text.Text == "0"), "Sem não lidos o contador some do menu.");
                 // Ciclo: uma chamada incremental com o cursor, sem mexer na lista quando nada mudou.
@@ -109,9 +118,10 @@ internal static partial class Program
                 fixture.Announcements.Single(item => item.Title == "Campanha de vacinação").ClosedAt = DateTimeOffset.UtcNow;
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(vm.Announcements.Any(row => row.Title == "Campanha de vacinação"), "A leitura incremental não traz o que foi encerrado depois (só a completa).");
+                window.ViewModel.Navigate("home"); Settle(vm);
                 var full = fixture.AnnouncementFeedQueries.Count;
-                Pump(vm.LoadAnnouncementsAsync());
-                Require(fixture.AnnouncementFeedQueries.Count == full + 1 && fixture.AnnouncementFeedQueries[^1]["after"] is null && vm.Announcements.All(row => row.Title != "Campanha de vacinação"), "Atualizar dados deveria ler tudo de novo e tirar o encerrado.");
+                window.ViewModel.Navigate("announcements"); Settle(vm);
+                Require(fixture.AnnouncementFeedQueries.Count == full + 1 && fixture.AnnouncementFeedQueries[^1]["after"] is null && vm.Announcements.All(row => row.Title != "Campanha de vacinação"), "Reabrir a tela deveria ler tudo de novo e tirar o encerrado.");
                 fixture.AddAnnouncement("Expira logo", "dura dois segundos", "staff", expiresAt: DateTimeOffset.UtcNow.AddSeconds(2));
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(vm.Announcements.Any(row => row.Title == "Expira logo"), "O comunicado com validade futura deveria aparecer.");
@@ -123,13 +133,13 @@ internal static partial class Program
                 Pump(vm.RefreshAutomaticallyAsync());
                 Require(vm.Announcements.Count == kept && vm.AnnouncementsFootnote.Contains("não concluiu", StringComparison.Ordinal) && vm.MessageKind != MessageKind.Error, "A falha de leitura deveria manter a lista e avisar na aba: " + vm.AnnouncementsFootnote);
                 fixture.FailAnnouncementFeed = false; Pump(vm.RefreshAutomaticallyAsync());
-                Require(vm.AnnouncementsFootnote.StartsWith("Atualizado", StringComparison.Ordinal), "A leitura que voltou deveria limpar o aviso.");
+                Require(vm.AnnouncementsFootnote == "", "A leitura que voltou deveria limpar o aviso.");
                 window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 1500);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-comunicados-dark.png"), 1280, 900);
-                var body = Descendants<TextBlock>(content).First(text => text.IsVisible && text.Text == "chegou agora");
-                Require(((SolidColorBrush)body.Foreground).Color == ((SolidColorBrush)Application.Current.FindResource("TextBrush")).Color && Contrast(((SolidColorBrush)body.Foreground).Color, ((SolidColorBrush)Application.Current.FindResource("SurfaceBrush")).Color) >= 4.5, "O texto do comunicado deveria ter contraste AA no tema escuro.");
+                SavePreview(content, Path.Combine(previewRoot, "obs-comunicados-dark.png"));
+                var title = Descendants<TextBlock>(content).First(text => text.IsVisible && text.Text == "Novo comunicado");
+                Require(((SolidColorBrush)title.Foreground).Color == ((SolidColorBrush)Application.Current.FindResource("TextBrush")).Color && Contrast(((SolidColorBrush)title.Foreground).Color, ((SolidColorBrush)Application.Current.FindResource("ListItemBrush")).Color) >= 4.5, "O título do comunicado deveria ter contraste AA no tema escuro.");
                 window.ViewModel.SetAppearance(Appearance.System);
-                Require(Descendants<TextBlock>(window).Any(text => text.Text.Contains("não lidos", StringComparison.Ordinal) || text.Text == "Comunicados"), "O tema Sistema deveria renderizar a aba.");
+                Require(Descendants<ListBox>(window).Any(box => AutomationProperties.GetName(box) == "Comunicados recebidos"), "O tema Sistema deveria renderizar a aba.");
                 vm.LogoutCommand.Execute(null); Settle(vm);
                 Require(vm.Announcements.Count == 0 && nav.Badge == 0 && vm.UnreadAnnouncementCount == 0, "Sair deveria limpar os comunicados e o contador.");
             }

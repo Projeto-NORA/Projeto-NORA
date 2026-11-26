@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Nora.Desktop.Models;
 using Nora.Desktop.Services;
@@ -15,7 +16,7 @@ internal static partial class Program
 {
     private static void RunRetryTextsChecks(string storageRoot, string[] args)
     {
-        Check("Textos de nova tentativa do OBS (comunicados, alertas da UBS, profissionais): a frase cita o botão da própria tela e ele refaz a leitura", () =>
+        Check("Textos de nova tentativa do OBS: comunicados e alertas da UBS orientam sem citar botão (a tela relê sozinha); profissionais cita o botão da própria tela e ele refaz a leitura", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Tentar de novo", "Centro");
@@ -26,16 +27,22 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 // Comunicados.
                 var content = Show(window, "announcements", 1280, 1800);
-                Require(vm.AnnouncementsState.Contains("Use Atualizar comunicados", StringComparison.Ordinal) && ButtonIn(content, "Atualizar comunicados").IsEnabled, "A falha dos comunicados deveria citar Atualizar comunicados: " + vm.AnnouncementsState);
+                Require(vm.AnnouncementsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => AutomationProperties.GetName(button) == "Atualizar comunicados"), "A falha dos comunicados deveria orientar sem citar um botão que não existe mais: " + vm.AnnouncementsState);
+                // A tela tenta de novo sozinha: o ciclo de 20 s com a tela aberta refaz a leitura.
                 fixture.FailAnnouncementFeed = false;
-                Click(window, content, "Atualizar comunicados", 1280, 1800);
-                Require(vm.AnnouncementsState == "Nenhum comunicado em vigor para as UBS desta conta." && vm.MessageKind == MessageKind.Success, "O botão deveria ler os comunicados de novo: " + vm.AnnouncementsState);
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                Require(vm.AnnouncementsState == "Nenhum comunicado em vigor para as UBS desta conta.", "O ciclo da tela de comunicados deveria ler de novo depois da falha: " + vm.AnnouncementsState);
+                // Reabrir a tela também relê tudo.
+                fixture.FailAnnouncementFeed = true; window.ViewModel.Navigate("home"); Settle(vm); content = Show(window, "announcements", 1280, 1800);
+                fixture.FailAnnouncementFeed = false;
+                window.ViewModel.Navigate("home"); Settle(vm); content = Show(window, "announcements", 1280, 1800);
+                Require(vm.AnnouncementsState == "Nenhum comunicado em vigor para as UBS desta conta.", "Reabrir a tela deveria ler os comunicados de novo: " + vm.AnnouncementsState);
                 // Alertas da UBS.
                 content = Show(window, "alerts", 1280, 1800);
-                Require(vm.UnitAlertsState.Contains("Use Atualizar alertas", StringComparison.Ordinal) && !vm.UnitAlertsState.Contains("Atualizar dados", StringComparison.Ordinal) && ButtonIn(content, "Atualizar alertas").IsEnabled, "A falha dos alertas deveria citar Atualizar alertas: " + vm.UnitAlertsState);
-                fixture.FailAlerts = false;
-                Click(window, content, "Atualizar alertas", 1280, 1800);
-                Require(vm.UnitAlertsState.StartsWith("Nenhum alerta.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria avaliar os alertas de novo: " + vm.UnitAlertsState);
+                Require(vm.UnitAlertsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !vm.UnitAlertsState.Contains("Atualizar", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => AutomationProperties.GetName(button) == "Atualizar alertas"), "A falha dos alertas deveria dizer que a tela tenta de novo sozinha: " + vm.UnitAlertsState);
+                fixture.FailAlerts = false; AgeAlertsRead(vm, TimeSpan.FromSeconds(20));
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.UnitAlertsState.StartsWith("Nenhum alerta.", StringComparison.Ordinal), "O ciclo da tela de alertas deveria avaliar os alertas de novo: " + vm.UnitAlertsState);
                 // Profissionais, consultórios, grade e bloqueios das Configurações.
                 content = Show(window, "unit-settings", 1280, 5200);
                 Require(vm.ProfessionalsState == "Não foi possível ler os profissionais agora. Use Atualizar informações da UBS para tentar de novo." && ButtonIn(content, "Atualizar informações da UBS").IsEnabled, "A falha do catálogo deveria citar a ação de atualização: " + vm.ProfessionalsState);

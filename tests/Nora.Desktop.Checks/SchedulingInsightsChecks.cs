@@ -144,26 +144,29 @@ internal static partial class Program
                 var content = Show(window, "alerts", 1280, 2000);
                 Require(fixture.Count("GET", "/alerts") == reads && vm.UnitAlerts.Count == 5, "Entrar em Alertas logo depois do Painel não deveria reler (já está atualizado).");
                 var texts = FullTexts(content);
-                Require(new[] { "Fila alta", "Espera longa", "Taxa de faltas acima do limite", "Ocupação da grade acima do limite", "Meta fora: Comparecimento" }.All(texts.Contains), "Os tipos de alerta não aparecem: " + string.Join(" | ", texts.Where(text => text.Length < 50)));
-                Require(new[] { "Valor: 23 pessoas", "Limite: 20 pessoas", "Valor: 45 dias", "Limite: 30 dias", "Valor: 25,0%", "Limite: 20,0%", "Valor: 97,0%", "Limite: 95,0%", "Valor: 60,0%", "Limite: mín. 80,0%", "Especialidade: Cardiologia", "Especialidade: Pediatria", "Desde: " + new DateTimeOffset(2026, 10, 2, 8, 30, 0, TimeSpan.FromHours(-3)).ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) }.All(texts.Contains), "Valor, limite, especialidade ou 'desde' ausentes: " + string.Join(" | ", texts.Where(text => text.StartsWith("Valor", StringComparison.Ordinal) || text.StartsWith("Limite", StringComparison.Ordinal) || text.StartsWith("Desde", StringComparison.Ordinal) || text.StartsWith("Especialidade:", StringComparison.Ordinal))));
-                Require(texts.Count(text => text.StartsWith("Especialidade:", StringComparison.Ordinal)) == 2 && texts.Count(text => text == "Desde: —") == 4, "Especialidade só aparece quando existe, e o 'desde' ausente vira —.");
+                // Listagem aberta: o tipo (com a especialidade, quando existe) na primeira linha, valor | limite | desde na segunda e a etiqueta do tipo à direita.
+                Require(new[] { "Fila alta · Cardiologia", "Espera longa · Pediatria", "Taxa de faltas acima do limite", "Ocupação da grade acima do limite", "Meta fora: Comparecimento" }.All(texts.Contains), "Os tipos de alerta não aparecem: " + string.Join(" | ", texts.Where(text => text.Length < 50)));
+                var sinceText = new DateTimeOffset(2026, 10, 2, 8, 30, 0, TimeSpan.FromHours(-3)).ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+                Require(new[] { "Valor: 23 pessoas | Limite: 20 pessoas", "Valor: 45 dias | Limite: 30 dias | Desde: " + sinceText, "Valor: 25,0% | Limite: 20,0%", "Valor: 97,0% | Limite: 95,0%", "Valor: 60,0% | Limite: mín. 80,0%" }.All(texts.Contains), "Valor, limite ou 'desde' ausentes: " + string.Join(" | ", texts.Where(text => text.StartsWith("Valor", StringComparison.Ordinal))));
+                Require(new[] { "Fila", "Espera", "Faltas", "Ocupação", "Meta" }.All(tag => texts.Count(text => text == tag) == 1) && !texts.Any(text => text.Contains("Desde: —", StringComparison.Ordinal) || text.StartsWith("Especialidade:", StringComparison.Ordinal)), "Cada alerta tem uma etiqueta do tipo; o 'desde' só aparece quando existe e a especialidade fica no título.");
                 Require(!texts.Any(text => text.Contains("Nenhum alerta é avaliado ainda", StringComparison.Ordinal)) && !texts.Any(text => text.StartsWith("Nenhum alerta.", StringComparison.Ordinal)), "Com alertas não deveria aparecer o estado vazio.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-alertas-reais-light.png"), 1280, 900);
-                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 2000); SaveScrolled(window, Path.Combine(previewRoot, "obs-alertas-reais-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
-                // Atualizar alertas: uma leitura; sem alerta: estado vazio honesto com a hora da leitura.
-                fixture.Reset(unit.Id, alerts: true); content = Layout(window, 1280, 2000); Click(window, content, "Atualizar alertas", 1280, 2000);
+                SavePreview(content, Path.Combine(previewRoot, "obs-alertas-reais-light.png"));
+                window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 2000); SavePreview(content, Path.Combine(previewRoot, "obs-alertas-reais-dark.png")); window.ViewModel.SetAppearance(Appearance.Light);
+                // Sem botão Atualizar: a tela de alertas reavalia sozinha no ciclo (a cada 15 s ou mais). Sem alerta: estado vazio honesto com a hora da leitura.
+                Require(!Descendants<Button>(content).Any(button => AutomationProperties.GetName(button) == "Atualizar alertas"), "A tela de alertas não deveria ter o botão Atualizar alertas.");
+                fixture.Reset(unit.Id, alerts: true); RefreshAlertsNow(vm); content = Layout(window, 1280, 2000);
                 Require(fixture.Count("GET", "/alerts") == reads + 1 && vm.UnitAlerts.Count == 0 && vm.UnitAlertsState.StartsWith("Nenhum alerta. Nenhum critério", StringComparison.Ordinal), "Sem alertas o estado vazio deveria dizer que nada passou do limite: " + vm.UnitAlertsState);
                 content = Layout(window, 1280, 2000); Require(FullTexts(content).Any(text => text.StartsWith("Nenhum alerta. Nenhum critério", StringComparison.Ordinal)), "O estado vazio não aparece na tela.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-alertas-vazio-light.png"), 1280, 900);
-                // Sair e voltar só relê depois de 5 minutos.
+                SavePreview(content, Path.Combine(previewRoot, "obs-alertas-vazio-light.png"));
+                // Sair e voltar não reavalia logo em seguida (a tela de alertas reavalia a cada 15 s ou mais; fora dela, a cada 5 minutos).
                 window.ViewModel.Navigate("queue"); Settle(vm); window.ViewModel.Navigate("alerts"); Settle(vm); Pump(vm.RefreshAutomaticallyAsync());
-                Require(fixture.Count("GET", "/alerts") == reads + 1, "Voltar à aba e o ciclo de 20 s não deveriam reavaliar os alertas antes de 5 minutos.");
+                Require(fixture.Count("GET", "/alerts") == reads + 1, "Voltar à aba e o ciclo de 20 s não deveriam reavaliar os alertas antes de 15 s.");
                 AgeAlertsRead(vm, TimeSpan.FromMinutes(6)); Pump(vm.RefreshAutomaticallyAsync());
-                Require(fixture.Count("GET", "/alerts") == reads + 2, "Passados 5 minutos o ciclo com a aba aberta deveria reavaliar os alertas uma vez.");
+                Require(fixture.Count("GET", "/alerts") == reads + 2, "Passados mais de 15 s o ciclo com a aba aberta deveria reavaliar os alertas uma vez.");
                 // Falha: a lista anterior continua e o erro aparece; nunca vira "nenhum alerta".
-                fixture.AddAlert(unit.Id, SampleAlerts(unit)[0]); Click(window, Layout(window, 1280, 2000), "Atualizar alertas", 1280, 2000); Require(vm.UnitAlerts.Count == 1, "Pré-condição: um alerta.");
-                fixture.FailAlerts = true; Click(window, Layout(window, 1280, 2000), "Atualizar alertas", 1280, 2000);
-                Require(vm.MessageKind == MessageKind.Error && vm.UnitAlerts.Count == 1 && vm.PanelAlertsText.Contains("não concluiu"), "A falha deveria avisar e manter a última avaliação: " + vm.Message);
+                fixture.AddAlert(unit.Id, SampleAlerts(unit)[0]); RefreshAlertsNow(vm); Require(vm.UnitAlerts.Count == 1, "Pré-condição: um alerta.");
+                fixture.FailAlerts = true; RefreshAlertsNow(vm);
+                Require(vm.UnitAlerts.Count == 1 && vm.UnitAlertsState.Contains("não concluiu") && vm.PanelAlertsText.Contains("não concluiu"), "A falha deveria avisar na tela e manter a última avaliação: " + vm.UnitAlertsState);
             }
             finally { CloseWindow(window); }
             using var down = new ApiFixture(); var other = down.AddUnit("UBS Sem Avaliação"); down.FailAlerts = true;

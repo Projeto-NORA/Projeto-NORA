@@ -150,7 +150,7 @@ public sealed record CapacityRow(string Name, string Region, long Offered, long 
 }
 
 /// <summary>Alerta pronto para exibir: tipo, especialidade, valor, limite e desde quando.</summary>
-public sealed record AlertRow(string UnitName, string Title, string Specialty, string Value, string Threshold, string Since, string Description)
+public sealed partial record AlertRow(string UnitName, string Title, string Specialty, string Value, string Threshold, string Since, string Description, string Kind = "")
 {
     public string AutomationLabel => $"{Title}{(Specialty.Length > 0 ? " · " + Specialty : "")}: {Value}, limite {Threshold}";
     /// <summary>Texto da tabela: "—" quando o alerta não é de uma especialidade.</summary>
@@ -170,7 +170,7 @@ public sealed record AlertRow(string UnitName, string Title, string Specialty, s
         var specialty = string.IsNullOrWhiteSpace(item.Specialty) ? "" : item.Specialty.Trim();
         var since = item.Since is { } at ? at.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "—";
         var description = $"{title}{(specialty.Length > 0 ? " em " + specialty : "")}: {value} (limite {threshold}){(item.Since is null ? "" : ", desde " + since)}.";
-        return new(item.UnitName, title, specialty, value, threshold, since, description);
+        return new(item.UnitName, title, specialty, value, threshold, since, description, item.Kind);
     }
     private static string Count(double value, string singular, string plural) { var n = (long)Math.Round(value); return $"{DisplayFormat.Count(n)} {(n == 1 ? singular : plural)}"; }
 

@@ -69,12 +69,12 @@ internal static partial class Program
                     network.AnnouncementTitle = announcementTitle; network.AnnouncementBodyText = "Texto puro <b>E2E</b>\nsegunda linha"; network.AnnouncementAudienceKey = "staff"; network.AnnouncementScopeKey = "all";
                     Pump(network.PublishAnnouncementAsync());
                     Require(network.MyAnnouncements.Any(item => item.Title == announcementTitle && item.StatusDisplay == "Em vigor"), "A Secretaria não publicou o comunicado na API real: " + network.Message);
-                    Pump(vm.LoadAnnouncementsAsync());
+                    ReadAnnouncementsFully(obs, vm);
                     var receivedAnnouncement = vm.Announcements.SingleOrDefault(row => row.Title == announcementTitle) ?? throw new InvalidOperationException("O OBS não recebeu o comunicado real: " + vm.Message);
                     Require(receivedAnnouncement.IsUnread && receivedAnnouncement.Body == "Texto puro <b>E2E</b>\nsegunda linha" && vm.UnreadAnnouncementCount == 1 && obs.ViewModel.Navigation.Single(item => item.Id == "announcements").Badge == 1, "O comunicado real deveria chegar não lido, com o texto puro intacto e o contador em 1.");
                     var announcementReads = obs.ViewModel.Workspace.Announcements.Count; Pump(vm.RefreshAutomaticallyAsync());
                     Require(vm.Announcements.Count == announcementReads, "A leitura incremental real sem novidade não deveria mudar a lista.");
-                    Pump(vm.MarkAnnouncementReadAsync(receivedAnnouncement));
+                    Pump(vm.MarkAnnouncementsReadAsync([receivedAnnouncement]));
                     Require(vm.UnreadAnnouncementCount == 0 && receivedAnnouncement.StateDisplay.StartsWith("Lido em", StringComparison.Ordinal), "Marcar como lido na API real não baixou o contador: " + vm.Message);
                     Pump(network.LoadMyAnnouncementsAsync());
                     network.SelectedMyAnnouncement = network.MyAnnouncements.Single(item => item.Title == announcementTitle);
@@ -83,7 +83,7 @@ internal static partial class Program
                     Require(network.AnnouncementReaders.Count == 1 && network.AnnouncementReaders[0].FullName == "Operador de teste", "A lista de quem leu deveria trazer o operador: " + network.AnnouncementReadersState);
                     Pump(network.CloseMyAnnouncementAsync());
                     Require(network.MyAnnouncements.Single(item => item.Title == announcementTitle).StatusDisplay == "Encerrado", "A Secretaria não encerrou o comunicado real: " + network.Message);
-                    Pump(vm.LoadAnnouncementsAsync());
+                    ReadAnnouncementsFully(obs, vm);
                     Require(vm.Announcements.All(row => row.Title != announcementTitle), "O comunicado encerrado deveria sair da leitura completa do OBS.");
                     vm.ObsRegistryName = "Referência WPF " + suffix; vm.ObsRegistryCpf = SyntheticCpf(); vm.ObsRegistryEmail = "unit-" + suffix + "@example.test"; vm.ObsRegistryPhone = "(48) 99999-0028";
                     vm.ObsRegistryCep = "01001000"; vm.ObsRegistryStreet = "Praça da Sé"; vm.ObsRegistryCity = "São Paulo"; vm.ObsRegistryState = "SP";
