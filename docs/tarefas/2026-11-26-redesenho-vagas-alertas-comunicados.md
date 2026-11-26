@@ -72,7 +72,7 @@ As três telas do OBS no padrão novo da fundação, validadas por build, checag
 ## Validação
 
 - `dotnet build NORA.slnx --configuration Release -m:1`: 0 erros.
-- Checagens do desktop: ver o final deste arquivo (números da última rodada).
+- Checagens do desktop (suíte completa, última rodada): 249 PASS e 2 FAIL em 251. Os 2 FAIL: "NORA OBS: faixa de retorno aparece em todas as abas … home" (P-066, conhecido da fundação, só falha na suíte completa) e "Os dois desktops abrem cada tela no topo com e sem animação" (menu da conta não abriu), que **passa isolada** (`--check-filter "cada tela no topo"`: 1/1) e só falhou com oito suítes rodando ao mesmo tempo no PC (instabilidade por carga, não por esta tela; o ShellWindow não foi tocado). As 6 checagens novas e as 30 relacionadas a Vagas, Alertas e Comunicados passam.
 - Capturas (claro e escuro, com dados, vazio, seleção, ficha, filtros, falha, janela de 980): `.build/redesenho/vagas-alertas-comunicados/`.
 
 ## Pendências (P-105 a P-109)
