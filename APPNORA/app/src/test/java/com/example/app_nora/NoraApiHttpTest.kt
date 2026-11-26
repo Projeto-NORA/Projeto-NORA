@@ -525,6 +525,34 @@ class NoraApiHttpTest {
         org.json.JSONObject(lastBody).let { assertEquals("Celular", it.getString("deviceName")); assertEquals(2, it.length()) }
     }
 
+    // ---- Login salvo: duração da sessão pedida ao servidor (26/11/2026) ----------------------------------------------
+
+    @Test fun passwordLoginSendsKeepSignedInOnlyWhenTheBoxIsTickedAndObeysTheServersExpiry() = runBlocking {
+        // Servidor novo: 30 dias quando pedido; o app só repassa o `expiresAt` que recebeu.
+        route("/api/auth/login", 200, """{"token":"t","expiresAt":"2026-12-26T12:00:00Z","user":{"id":"i","fullName":"Maria","scope":"patient"},"keepSignedIn":true,"device":null}""")
+        val kept = api().login("a@b.c", "senha", true)
+        assertEquals("2026-12-26T12:00:00Z", kept.expiresAt)
+        org.json.JSONObject(lastBody).let { assertTrue(it.getBoolean("keepSignedIn")); assertEquals("patient", it.getString("scope")) }
+        // Sem marcar: o corpo é o de sempre, sem o campo (o servidor aplica o padrão de 1 dia).
+        route("/api/auth/login", 200, """{"token":"t","expiresAt":"2026-11-27T12:00:00Z","user":{"id":"i","fullName":"Maria","scope":"patient"},"keepSignedIn":false,"device":null}""")
+        assertEquals("2026-11-27T12:00:00Z", api().login("a@b.c", "senha", false).expiresAt)
+        assertFalse(org.json.JSONObject(lastBody).has("keepSignedIn"))
+        assertEquals("2026-11-27T12:00:00Z", api().login("a@b.c", "senha").expiresAt)
+        assertFalse(org.json.JSONObject(lastBody).has("keepSignedIn"))
+        // Servidor antigo: ignora o campo e devolve 8 h, sem `keepSignedIn` na resposta; vale o prazo dele.
+        route("/api/auth/login", 200, """{"token":"t","expiresAt":"2026-11-26T20:00:00Z","user":{"id":"i","fullName":"Maria","scope":"patient"}}""")
+        assertEquals("2026-11-26T20:00:00Z", api().login("a@b.c", "senha", true).expiresAt)
+    }
+
+    @Test fun googleLoginSendsKeepSignedInOnlyWhenTheBoxIsTicked() = runBlocking {
+        route("/api/auth/google", 200, """{"token":"t","expiresAt":"2026-12-26T12:00:00Z","user":{"id":"i","fullName":"Maria","scope":"patient"},"keepSignedIn":true,"device":null}""")
+        val kept = api().loginWithGoogle("id-token-de-teste", null, true)
+        assertEquals("2026-12-26T12:00:00Z", kept.expiresAt)
+        org.json.JSONObject(lastBody).let { assertEquals("id-token-de-teste", it.getString("idToken")); assertTrue(it.getBoolean("keepSignedIn")); assertEquals(2, it.length()) }
+        api().loginWithGoogle("id-token-de-teste", null, false)
+        assertEquals("""{"idToken":"id-token-de-teste"}""", lastBody)
+    }
+
     @Test fun googleLoginUnauthorizedIsTheGenericMessageAndDisabledIsExplained() = runBlocking {
         route("/api/auth/google", 401, """{"code":"unauthorized","title":"SEGREDO"}""")
         try { api().loginWithGoogle("x"); fail("expected failure") }

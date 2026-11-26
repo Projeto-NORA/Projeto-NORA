@@ -95,6 +95,11 @@ class ApiFailure(val status: Int, message: String, val code: String? = null) : I
 
 interface PatientApi {
     suspend fun login(identifier: String, password: String): PatientSession
+    /**
+     * Entrar pedindo a duração da sessão: [keepSignedIn] manda `keepSignedIn: true` (30 dias) em vez do padrão do servidor (24 h). Um servidor
+     * antigo ignora o campo; o app obedece sempre ao `expiresAt` da resposta. Quem só implementa a versão curta (dublês) continua valendo.
+     */
+    suspend fun login(identifier: String, password: String, keepSignedIn: Boolean): PatientSession = login(identifier, password)
     suspend fun requestPasswordReset(cpf: String): String = throw ApiFailure(501, "Recuperação de senha indisponível.")
     suspend fun confirmPasswordReset(challengeId: String, code: String, newPassword: String): Boolean = false
     suspend fun startRegistration(name: String, cpf: String, password: String, unitIds: List<String>): RegistrationStart = throw ApiFailure(501, "Cadastro indisponível.")
@@ -156,6 +161,8 @@ interface PatientApi {
     // ---- Entrar com Google e push (desligados no servidor sem credenciais) ----
     /** G4: sessão de paciente a partir do ID token do Google. 401 genérico quando a conta Google não está vinculada. */
     suspend fun loginWithGoogle(idToken: String, deviceName: String? = null): PatientSession = throw ApiFailure(501, "Entrar com Google indisponível.")
+    /** Como [login] com `keepSignedIn`: o Google usa a mesma escolha de duração da entrada por senha. */
+    suspend fun loginWithGoogle(idToken: String, deviceName: String?, keepSignedIn: Boolean): PatientSession = loginWithGoogle(idToken, deviceName)
     suspend fun googleStatus(token: String): GoogleStatus = throw ApiFailure(501, "Google indisponível.")
     suspend fun linkGoogle(token: String, idToken: String): Unit = throw ApiFailure(501, "Google indisponível.")
     suspend fun unlinkGoogle(token: String): Unit = throw ApiFailure(501, "Google indisponível.")
@@ -191,9 +198,12 @@ class NoraApi(private val address: String) : PatientApi {
             .put("challengeId", challengeId).put("code", code).put("newPassword", newPassword), context = ApiContext.PASSWORD_RESET)
             .getBoolean("codeValid")
 
-    override suspend fun login(identifier: String, password: String): PatientSession {
+    override suspend fun login(identifier: String, password: String): PatientSession = login(identifier, password, false)
+
+    override suspend fun login(identifier: String, password: String, keepSignedIn: Boolean): PatientSession {
         val body = request("/api/auth/login", "POST", body = JSONObject()
-            .put("scope", "patient").put("identifier", identifier).put("password", password), context = ApiContext.LOGIN)
+            .put("scope", "patient").put("identifier", identifier).put("password", password).apply { if (keepSignedIn) put("keepSignedIn", true) },
+            context = ApiContext.LOGIN)
         return PatientSession(body.getString("token"), body.getString("expiresAt"), user(body.getJSONObject("user")))
     }
 
@@ -472,8 +482,12 @@ class NoraApi(private val address: String) : PatientApi {
 
     // ---- Entrar com Google e push --------------------------------------------------------------------------
 
-    override suspend fun loginWithGoogle(idToken: String, deviceName: String?): PatientSession {
-        val body = request("/api/auth/google", "POST", body = JSONObject().put("idToken", idToken).apply { deviceName?.let { put("deviceName", it) } },
+    override suspend fun loginWithGoogle(idToken: String, deviceName: String?): PatientSession = loginWithGoogle(idToken, deviceName, false)
+
+    // O campo só vai quando a pessoa pediu os 30 dias: sem ele o servidor aplica o padrão, e um servidor antigo nem precisa conhecê-lo.
+    override suspend fun loginWithGoogle(idToken: String, deviceName: String?, keepSignedIn: Boolean): PatientSession {
+        val body = request("/api/auth/google", "POST", body = JSONObject().put("idToken", idToken)
+            .apply { deviceName?.let { put("deviceName", it) }; if (keepSignedIn) put("keepSignedIn", true) },
             context = ApiContext.GOOGLE_LOGIN)
         return PatientSession(body.getString("token"), body.getString("expiresAt"), user(body.getJSONObject("user")))
     }

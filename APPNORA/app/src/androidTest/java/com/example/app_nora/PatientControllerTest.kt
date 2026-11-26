@@ -45,7 +45,7 @@ class PatientControllerTest {
     }
 
     @Test fun unitsAreLoadedForSessionAndClearedOnLogout() = runBlocking {
-        val controller = PatientController(isolatedContext()) { PresenceApi() }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { PresenceApi() }
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         controller.loadUnits()
@@ -83,7 +83,7 @@ class PatientControllerTest {
             override suspend fun logout(token: String) = Unit
             override suspend fun presence(token: String, online: Boolean) = Unit
         }
-        val controller = PatientController(isolatedContext()) { api }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { api }
         controller.changeAddress("https://nora.example.test")
         val started = controller.startRegistration("Paciente", "52998224725", "synthetic-password", listOf("unit-1", "unit-2"))
         controller.sendRegistrationCode(requireNotNull(started.challengeId), started.emails.single().id)
@@ -97,7 +97,7 @@ class PatientControllerTest {
 
     @Test fun obsoleteLifecycleCannotClearNewPresenceAndLogoutStopsPublishing() = runBlocking {
         val api = PresenceApi()
-        val controller = PatientController(isolatedContext()) { api }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { api }
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         val session = requireNotNull(controller.state.session)
@@ -118,7 +118,7 @@ class PatientControllerTest {
 
     @Test fun missedHeartbeatRetriesButUnauthorizedClearsIdentityAndPendingReload() = runBlocking {
         val api = PresenceApi()
-        val controller = PatientController(isolatedContext()) { api }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { api }
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         val session = requireNotNull(controller.state.session)
@@ -147,7 +147,7 @@ class PatientControllerTest {
 
     @Test fun closingTaskClearsLocalAccountAndStopsOldHeartbeat() = runBlocking {
         val api = PresenceApi()
-        val controller = PatientController(isolatedContext()) { api }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { api }
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         val session = requireNotNull(controller.state.session)
@@ -171,7 +171,7 @@ class PatientControllerTest {
             override suspend fun logout(token: String) { throw IOException("Test offline") }
             override suspend fun presence(token: String, online: Boolean) = Unit
         }
-        val controller = PatientController(isolatedContext()) { api }
+        val controller = PatientController(isolatedContext(), NoSessionStorage) { api }
         controller.changeAddress("https://nora.example.test")
         controller.login("patient@example.test", "test-only-input")
         assertNotNull(controller.state.session)
@@ -200,7 +200,7 @@ class PatientControllerTest {
                 "pm grant ${instrumentation.targetContext.packageName} android.permission.ACCESS_LOCAL_NETWORK")).use { it.readBytes() }
         }
         val password = "Disposable-patient-registration!29"
-        val controller = PatientController(isolatedContext())
+        val controller = PatientController(isolatedContext(), NoSessionStorage)
         controller.changeAddress(address)
         val units = controller.registrationUnits().filter { it.name.startsWith("UBS Cadastro E2E ") }.sortedBy { it.name }
         assertEquals(3, units.size)

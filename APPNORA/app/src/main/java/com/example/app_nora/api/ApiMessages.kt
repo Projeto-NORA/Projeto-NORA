@@ -50,6 +50,11 @@ const val LOCAL_NETWORK_DENIED_MESSAGE = "O endereço do serviço fica na rede l
 const val CONNECTION_FAILED_MESSAGE = "Não foi possível conectar ao serviço. O servidor pode estar acordando (leva até 1 minuto). Confira o endereço e a conexão e tente novamente."
 const val GOOGLE_DISABLED_MESSAGE = "O acesso com Google não está habilitado nesta rede. Use o CPF ou e-mail e a senha."
 const val INCOMPATIBLE_RESPONSE_MESSAGE = "O serviço retornou uma resposta incompatível. Contate a unidade."
+/** Sessão guardada no aparelho: o prazo dela acabou pelo relógio (apagada sem chamar a rede) e o servidor não a reconheceu mais. */
+const val SESSION_EXPIRED_MESSAGE = "Sua sessão terminou: o prazo da conexão salva neste aparelho acabou. Entre novamente."
+const val SESSION_ENDED_MESSAGE = "Sua sessão terminou. Entre novamente."
+/** O disco não aceitou a sessão cifrada (Keystore indisponível): ela vale só até o app fechar. */
+const val SESSION_NOT_SAVED_MESSAGE = "Você entrou, mas este aparelho não guardou a sessão. Ao reabrir o app, entre de novo."
 
 /** Senha atual incorreta na troca de senha (400); nunca 401, para a sessão não ser encerrada. */
 const val INVALID_CURRENT_PASSWORD = "invalid-current-password"

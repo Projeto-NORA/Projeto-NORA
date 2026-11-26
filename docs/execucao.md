@@ -24,6 +24,14 @@ Para repetir só as partes novas, com `NORA_TEST_CONNECTION` definida: `--patien
 
 Medição (UBS com 417.120 consultas em 20 anos, melhor de 3): 366 dias 87 ms; 5 anos 374 ms; 20 anos 823 ms (OBS) e 777 ms (Secretaria), resposta de 398 KiB. Detalhes em [api.md](api.md), "Indicadores".
 
+## Validação do app: revisão do login salvo — 2026-11-26
+
+Revisão crítica com 4 correções (gravação que falhava relatada como sucesso, corrida na criação da chave do Keystore, queda em laço na abertura por `IllegalArgumentException` e testes instrumentados que mexiam na sessão e na chave do app real; ver `tarefas/2026-11-26-revisao-app-login-salvo.md`). Em `APPNORA` com JDK 21 Adoptium: `gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:updateDebugScreenshotTest` e depois `:app:validateDebugScreenshotTest` passaram: **343 testes locais, 0 falhas, 0 erros, 0 pulados** (341 do autor, reproduzidos antes das correções, mais 2 novos); lint 0 erros e os mesmos 17 avisos; 58 referências de prévia, conferidas na imagem a 55, 57 e 58. Sem emulador: instrumentados alterados só compilaram (P-078).
+
+## Validação do app: login salvo — 2026-11-26
+
+`gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:validateDebugScreenshotTest --rerun` (JDK 21 Adoptium) passou: 341 testes locais, 0 falhas; lint 0 erros e 17 avisos antigos; 58 referências de prévia (5 novas, entrada atualizada de propósito). Sem emulador: os instrumentados novos ou alterados só compilaram (P-078). Detalhes em [app-paciente.md](app-paciente.md#login-salvo-1-dia-ou-30-dias--26112026) e `tarefas/2026-11-26-app-login-salvo.md`.
+
 ## Validação do fechamento das pendências — 2026-11-17
 
 Código do fechamento (score em pontos de 0 a 1000, prioridade na Vaga Relâmpago pelo score, contas de equipe sem CPF, P3, P4 e P5, marcar a qualquer horário), conferido de novo em 2026-11-18, depois das correções das voltas 1 a 3 da revisão, com PostgreSQL 18 descartável, sem commit:

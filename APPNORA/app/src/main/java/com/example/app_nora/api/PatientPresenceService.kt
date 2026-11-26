@@ -26,7 +26,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Owns presence while logged in and, in the same 30 s cycle, polls Vaga Relâmpago offers of every linked UBS
- * (there is no push server) and raises the local notification. Bearer tokens never enter intents, files or notifications.
+ * (there is no push server) and raises the local notification. Bearer tokens never enter intents, logs or notifications; the only copy
+ * on disk is the Keystore-encrypted session of [SessionStorage]. Task removal keeps that stored session on purpose (see
+ * [PatientController.closeLocalSession]), so the patient is still signed in when the app is opened again.
  */
 class PatientPresenceService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -56,6 +58,9 @@ class PatientPresenceService : Service() {
                 fun connected() = controller.state.session?.token == connection.session.token
                 while (isActive && connected()) {
                     controller.publishPresence(connection.session, connection.generation, true)
+                    if (!connected()) break
+                    // Sessão restaurada do disco que a rede não deixou confirmar na abertura: tenta de novo no mesmo ciclo (401 a encerra).
+                    controller.confirmRestoredSession(connection.session, connection.generation)
                     if (!connected()) break
                     // Same cycle, no second timer: network failures are silent and retried in the next cycle.
                     controller.pollOffers(connection.session, connection.generation)

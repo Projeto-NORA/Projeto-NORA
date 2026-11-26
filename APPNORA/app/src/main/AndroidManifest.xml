@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- allowBackup continua ligado para as preferências do app; a sessão guardada (nora_secure_session.xml, cifrada pelo Keystore) é
+         excluída do backup e da transferência de aparelho em backup_rules.xml (até a API 30) e data_extraction_rules.xml (API 31+). -->
     <application
         android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="true"

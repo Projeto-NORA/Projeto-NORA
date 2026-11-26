@@ -8,8 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.app_nora.BuildConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import java.io.IOException
@@ -52,7 +54,11 @@ data class PatientState(val address: String = "", val session: PatientSession? =
     /** Horário de funcionamento, serviços e especialidades de cada UBS vinculada, por id da UBS (tela UBS). */
     val about: Map<String, AboutState> = emptyMap(),
     /** Foto de perfil (JPEG) lida de `GET /api/auth/photo`; nula sem foto ou antes da leitura. Fica só em memória. */
-    val photo: ByteArray? = null, val photoLoaded: Boolean = false, val photoBusy: Boolean = false) {
+    val photo: ByteArray? = null, val photoLoaded: Boolean = false, val photoBusy: Boolean = false,
+    /** A sessão guardada está sendo lida ou conferida no servidor: o Início mostra "Restaurando a sua sessão…" em vez do formulário. */
+    val restoring: Boolean = false,
+    /** A caixa "Manter conectado por 30 dias" da entrada; vale para a senha e para o Google. Começa desmarcada e volta a ficar ao sair da conta. */
+    val keepSignedIn: Boolean = false) {
     private val selectedSnapshot: UnitSnapshot? get() = selectedUnitId?.let { unitData[it] }
     val appointments: List<PatientAppointment>? get() = selectedSnapshot?.appointments
         val unitOffers: List<UnitOffer>? get() = selectedSnapshot?.offers
@@ -78,7 +84,7 @@ data class AvailabilityResult(val unitId: String, val specialtyId: String, val w
 /** Consulta recém-marcada pelo paciente e a UBS em que foi marcada. */
 data class BookedAppointment(val unitId: String, val appointment: PatientAppointment)
 
-/** Guarda só o endereço do serviço; token e identidade nunca vão para disco. */
+/** Guarda só o endereço do serviço; a sessão (token e identidade) tem o seu próprio armazenamento cifrado, [SessionStorage]. */
 interface AddressStore {
     fun load(): String
     fun save(address: String)
@@ -100,8 +106,14 @@ private const val CYCLE_ANNOUNCEMENT_PAGES = 5
 /** O logout espera no máximo isto pela remoção do aparelho no push (P2). */
 private const val PUSH_REMOVE_TIMEOUT_MS = 4_000L
 
-class PatientController(private val store: AddressStore, private val apiFactory: (String) -> PatientApi = ::NoraApi) {
-    constructor(context: Context, apiFactory: (String) -> PatientApi = ::NoraApi) : this(PreferencesAddressStore(context), apiFactory)
+/**
+ * [sessions] guarda a sessão entre uma abertura do app e outra (decisão de 26/11/2026, que substitui a regra de nunca gravar token em disco).
+ * O padrão não guarda nada; o construtor com [Context] usa [secureSessionStorage] (AES-GCM com chave do Android Keystore).
+ */
+class PatientController(private val store: AddressStore, private val sessions: SessionStorage = NoSessionStorage,
+    private val apiFactory: (String) -> PatientApi = ::NoraApi) {
+    constructor(context: Context, sessions: SessionStorage = secureSessionStorage(context), apiFactory: (String) -> PatientApi = ::NoraApi) :
+        this(PreferencesAddressStore(context), sessions, apiFactory)
 
     /** Chamado depois de remover uma UBS, para o serviço de conexão retirar na hora os avisos de oferta dela. */
     var onOffersRemoved: (() -> Unit)? = null
@@ -120,22 +132,37 @@ class PatientController(private val store: AddressStore, private val apiFactory:
     private var presenceGeneration = 0L
     // Cada ação do paciente sobre uma UBS invalida leituras em segundo plano que começaram antes dela.
     private val unitVersions = HashMap<String, Long>()
-    var state by mutableStateOf(PatientState(address = store.load()))
+    // A sessão guardada ainda precisa ser lida do disco e conferida: até lá o Início mostra "Restaurando a sua sessão…" e não o formulário.
+    var state by mutableStateOf(PatientState(address = store.load(), restoring = sessions.hasSaved()))
         private set
+    // A leitura do disco já foi feita (uma vez por controlador) e a sessão restaurada ainda não foi confirmada pelo servidor (falha de rede).
+    private var sessionRead = false
+    private var unconfirmed = false
 
     fun beginPresence(): Long = ++presenceGeneration
 
+    /**
+     * O app saiu dos recentes: a sessão em memória acaba e o serviço de conexão avisa que a pessoa saiu da rede, mas a sessão guardada em
+     * disco **fica**, para a pessoa continuar conectada ao reabrir (só sair da conta, um 401 ou o prazo a apagam).
+     */
     fun closeLocalSession() {
         presenceGeneration++
-        state = signedOut(state, null)
+        state = loggedOutState(state, null)
     }
 
-    private fun signedOut(from: PatientState, message: String?) = from.copy(session = null, units = null, selectedUnitId = null,
+    /** Fim definitivo da sessão (sair da conta, 401, conta desativada): apaga também a sessão guardada em disco. */
+    private fun signedOut(from: PatientState, message: String?): PatientState {
+        sessions.clear()
+        unconfirmed = false
+        return loggedOutState(from, message)
+    }
+
+    private fun loggedOutState(from: PatientState, message: String?) = from.copy(session = null, units = null, selectedUnitId = null,
         unitData = emptyMap(), loadingUnits = false, attendanceLoading = false, passwordChangeRequired = false, message = message,
         specialties = null, specialtiesLoading = false, availability = null, availabilityLoading = false, bookingError = null, lastBooked = null,
         announcements = AnnouncementsState(), family = FamilyState(), actingFor = null, dependentData = emptyMap(),
         dependentOffers = emptyList(), records = RecordsState(), email = EmailState(), google = GoogleState(), about = emptyMap(),
-        photo = null, photoLoaded = false, photoBusy = false)
+        photo = null, photoLoaded = false, photoBusy = false, restoring = false)
 
     /**
      * A API do serviço. Com [acting] (por padrão o dependente atual), as chamadas por UBS vão pelas rotas do responsável; as ações
@@ -194,11 +221,16 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         state = state.copy(address = value, message = null)
     }
 
+    /** Liga ou desliga a caixa "Manter conectado por 30 dias" da entrada (só antes de entrar e fora de uma ação em andamento). */
+    fun setKeepSignedIn(value: Boolean) {
+        if (state.session == null && !state.busy && state.keepSignedIn != value) state = state.copy(keepSignedIn = value)
+    }
+
     suspend fun login(identifier: String, password: String) {
         operation(ApiContext.LOGIN) {
             require(identifier.isNotBlank() && password.isNotBlank()) { "Informe seu CPF ou e-mail e sua senha." }
             val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-            startSession(address, api(address, null).login(identifier.trim(), password))
+            startSession(address, api(address, null).login(identifier.trim(), password, state.keepSignedIn))
         }
         loadUnitsInBackground()
     }
@@ -209,17 +241,97 @@ class PatientController(private val store: AddressStore, private val apiFactory:
         operation(ApiContext.GOOGLE_LOGIN) {
             require(idToken.isNotBlank()) { "O Google não devolveu a identificação da conta. Tente de novo." }
             val address = ApiAddress.normalize(state.address, BuildConfig.DEBUG)
-            startSession(address, api(address, null).loginWithGoogle(idToken))
+            startSession(address, api(address, null).loginWithGoogle(idToken, null, state.keepSignedIn))
             signedIn = true
         }
         loadUnitsInBackground()
         return signedIn
     }
 
-    private fun startSession(address: String, session: PatientSession) {
-        // Identity and bearer token remain only in memory; backup contains no account data.
+    /**
+     * Abre a sessão e a guarda cifrada em disco pelo prazo que o servidor deu (`expiresAt`: 24 h, 30 dias com "manter conectado", ou o que o
+     * servidor antigo decidir; o app nunca calcula o prazo). Se o disco não aceitar, a sessão segue só em memória e a pessoa é avisada.
+     */
+    private suspend fun startSession(address: String, session: PatientSession) {
         store.save(address)
-        state = state.copy(address = address, session = session)
+        val stored = withContext(Dispatchers.IO) { sessions.save(StoredSession(session.token, session.expiresAt, session.user.id, session.user.fullName, address)) }
+        unconfirmed = false
+        state = state.copy(address = address, session = session, restoring = false, message = if (stored) state.message else SESSION_NOT_SAVED_MESSAGE)
+    }
+
+    // ---- Sessão guardada: restaurar ao abrir o app ------------------------------------------------------------
+
+    /**
+     * Ao abrir o app: lê a sessão guardada fora da thread principal e, se ela existe, não venceu pelo relógio e é do mesmo serviço, entra direto
+     * e confere no servidor (`GET /api/auth/me`). Vencida (ou com prazo ilegível, ou de outro endereço) é apagada **sem** chamar a rede; 401
+     * apaga tudo e volta à entrada com a mensagem; falha de rede mantém a sessão, mostra a falha de conexão e o ciclo de 30 s do serviço
+     * de conexão tenta de novo ([confirmRestoredSession]). Pode ser chamada de novo (a leitura do disco acontece uma vez).
+     */
+    suspend fun restoreSession() {
+        if (!sessionRead) {
+            sessionRead = true
+            val stored = try { withContext(Dispatchers.IO) { sessions.load() } }
+            catch (cancelled: CancellationException) { sessionRead = false; throw cancelled }
+            if (!installStored(stored)) return
+        }
+        val session = state.session ?: return
+        if (!state.restoring) return
+        verifyRestored(session)
+        loadUnitsInBackground()
+    }
+
+    /** Aceita a sessão lida do disco; `false` quando não há o que restaurar (a tela segue para a entrada). */
+    private fun installStored(stored: StoredSession?): Boolean {
+        if (stored == null || state.session != null) {
+            state = state.copy(restoring = false)
+            return false
+        }
+        val sameService = runCatching { ApiAddress.normalize(state.address, BuildConfig.DEBUG) }.getOrNull() == stored.address
+        if (!sameService || sessionExpired(stored.expiresAt, clock())) {
+            sessions.clear()
+            state = state.copy(restoring = false, message = if (sameService) SESSION_EXPIRED_MESSAGE else null)
+            return false
+        }
+        state = state.copy(session = PatientSession(stored.token, stored.expiresAt, PatientUser(stored.userId, stored.fullName)), restoring = true)
+        return true
+    }
+
+    private suspend fun verifyRestored(session: PatientSession) {
+        try { confirmRestored(session, api(state.address, null).me(session.token)) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: ApiFailure) {
+            // Só o 401 é definitivo; qualquer outra resposta do servidor (503 acordando, 500) não diz nada sobre a sessão.
+            if (failure.status == 401) { if (isCurrent(session)) state = signedOut(state, failure.message) } else notConfirmed(session)
+        }
+        catch (_: IOException) { notConfirmed(session) }
+        catch (_: JSONException) { notConfirmed(session) }
+        // Resposta com identidade inválida: a abertura não pode derrubar o app (a sessão guardada faria o app cair a cada abertura).
+        catch (_: IllegalArgumentException) { notConfirmed(session) }
+    }
+
+    /** O servidor confirmou a sessão: atualiza a identidade (CPF mascarado e e-mail só vêm daqui) e encerra o "Restaurando…". */
+    private fun confirmRestored(session: PatientSession, user: PatientUser?) {
+        if (!isCurrent(session)) return
+        if (user != null && user.id != session.user.id) { state = signedOut(state, SESSION_ENDED_MESSAGE); return }
+        unconfirmed = false
+        state = state.copy(session = if (user != null) session.copy(user = user) else session, restoring = false)
+    }
+
+    private fun notConfirmed(session: PatientSession) {
+        if (!isCurrent(session)) return
+        unconfirmed = true
+        state = state.copy(restoring = false, message = CONNECTION_FAILED_MESSAGE)
+    }
+
+    private class Confirmed(val user: PatientUser?)
+
+    /**
+     * Ciclo de 30 s: enquanto a sessão restaurada não foi confirmada (a rede falhou na abertura), tenta de novo, em silêncio. 401 encerra a
+     * sessão e a apaga do disco, como em qualquer outra chamada do ciclo.
+     */
+    suspend fun confirmRestoredSession(session: PatientSession, generation: Long) {
+        if (!unconfirmed || !isCurrent(session, generation)) return
+        cycleCall(session, generation, "Sessão") { Confirmed(it.me(session.token)) }?.let { confirmRestored(session, it.user) }
     }
 
     /** Fecha o pop-up do resultado da última ação (o texto de [PatientState.message]). */
@@ -1390,13 +1502,15 @@ class PatientController(private val store: AddressStore, private val apiFactory:
 
     suspend fun logout() = operation {
         val session = state.session ?: return@operation
+        // A sessão guardada sai do disco na hora, antes de qualquer chamada: se o processo morrer durante a saída, o token não fica para trás.
+        sessions.clear()
         // O aparelho deixa de receber push desta conta antes de a sessão acabar (P2); a falha não impede a saída.
         removePushToken(session)
         try { api(state.address, null).logout(session.token) }
         catch (failure: ApiFailure) { if (failure.status != 401) warnUnconfirmedLogout() }
         catch (_: IOException) { warnUnconfirmedLogout() }
         catch (_: JSONException) { warnUnconfirmedLogout() }
-        finally { state = signedOut(state, state.message) }
+        finally { state = signedOut(state, state.message).copy(keepSignedIn = false) }
     }
 
     private fun warnUnconfirmedLogout() {
