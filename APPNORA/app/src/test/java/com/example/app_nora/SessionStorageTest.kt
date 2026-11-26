@@ -10,9 +10,14 @@ import javax.crypto.SecretKey
 class SessionStorageTest {
     private class MemoryBlob(var value: String? = null) : BlobStore {
         var failWrites = false
+        var refuseWrites = false
         override fun contains() = value != null
         override fun read() = value
-        override fun write(value: String): Boolean { if (failWrites) throw IllegalStateException("disco cheio"); this.value = value; return true }
+        override fun write(value: String): Boolean {
+            if (failWrites) throw IllegalStateException("disco cheio")
+            if (refuseWrites) return false // o commit das preferências devolveu false
+            this.value = value; return true
+        }
         override fun delete() { value = null }
     }
 
@@ -130,7 +135,17 @@ class SessionStorageTest {
 
     @Test fun aDiskWriteFailureIsReportedNotThrown() {
         val blob = MemoryBlob().apply { failWrites = true }
-        assertFalse(CipheredSessionStorage(blob, cipher(Keys(newKey()))).save(session))
+        val keys = Keys(newKey())
+        assertFalse(CipheredSessionStorage(blob, cipher(keys)).save(session))
+        assertEquals("o disco falhou, não a chave: ela continua", 0, keys.discarded)
+    }
+
+    @Test fun aRefusedCommitIsReportedAsNotSavedAndLeavesNothingBehind() {
+        val blob = MemoryBlob("resto-de-uma-sessao-antiga").apply { refuseWrites = true }
+        val keys = Keys(newKey())
+        assertFalse("o app precisa saber que a sessão não foi guardada", CipheredSessionStorage(blob, cipher(keys)).save(session))
+        assertNull(blob.value)
+        assertEquals(0, keys.discarded)
     }
 
     @Test fun theStoredSessionNeverPrintsItsToken() {

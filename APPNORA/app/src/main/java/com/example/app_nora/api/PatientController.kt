@@ -305,6 +305,8 @@ class PatientController(private val store: AddressStore, private val sessions: S
         }
         catch (_: IOException) { notConfirmed(session) }
         catch (_: JSONException) { notConfirmed(session) }
+        // Resposta com identidade inválida: a abertura não pode derrubar o app (a sessão guardada faria o app cair a cada abertura).
+        catch (_: IllegalArgumentException) { notConfirmed(session) }
     }
 
     /** O servidor confirmou a sessão: atualiza a identidade (CPF mascarado e e-mail só vêm daqui) e encerra o "Restaurando…". */

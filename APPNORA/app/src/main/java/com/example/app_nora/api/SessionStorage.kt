@@ -1,5 +1,6 @@
 package com.example.app_nora.api
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -81,10 +82,12 @@ class CipheredSessionStorage(private val blob: BlobStore, private val cipher: Se
         val plain = JSONObject().put("v", VERSION).put("token", session.token).put("expiresAt", session.expiresAt)
             .put("userId", session.userId).put("fullName", session.fullName).put("address", session.address)
             .toString().toByteArray(Charsets.UTF_8)
-        // Uma chave que o Keystore não deixa mais usar é trocada uma vez; se ainda assim não der, a sessão fica só em memória.
-        repeat(2) {
-            try { return blob.write(toHex(cipher.encrypt(plain))) }
-            catch (_: Exception) { runCatching { cipher.discardKey() } }
+        // Uma chave que o Keystore não deixa mais usar é trocada uma vez. O disco que recusa a gravação não melhora com outra chave: aí a
+        // sessão fica só em memória, sem apagar a chave à toa.
+        for (attempt in 1..2) {
+            val sealed = try { cipher.encrypt(plain) } catch (_: Exception) { runCatching { cipher.discardKey() }; continue }
+            if (try { blob.write(toHex(sealed)) } catch (_: Exception) { false }) return true
+            break
         }
         Log.w("NORA", "Não foi possível guardar a sessão neste aparelho.")
         clear()
@@ -141,16 +144,23 @@ class AesGcmSessionCipher(private val keyProvider: () -> SecretKey, private val 
     }
 }
 
-/** A chave AES do Android Keystore: gerada no aparelho, nunca exportável, e fora do backup do Android. */
-internal object KeystoreSessionKey {
-    private const val PROVIDER = "AndroidKeyStore"
-    private const val ALIAS = "nora.patient.session.v1"
+/** O arquivo de preferências da sessão (`nora_secure_session.xml`, o nome que as regras de backup excluem) e o apelido da chave no Keystore. */
+const val SESSION_PREFERENCES_FILE = "nora_secure_session"
+const val SESSION_KEY_ALIAS = "nora.patient.session.v1"
 
-    fun get(): SecretKey {
+/**
+ * A chave AES do Android Keystore: gerada no aparelho, nunca exportável, e fora do backup do Android. Ler, criar e apagar a chave são
+ * serializados: duas leituras ao mesmo tempo sem chave criariam duas, e a segunda tornaria ilegível o que a primeira cifrou.
+ */
+internal class KeystoreSessionKey(private val alias: String) {
+    fun get(): SecretKey = synchronized(LOCK) {
         val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
-        (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+        (store.getKey(alias, null) as? SecretKey) ?: generate()
+    }
+
+    private fun generate(): SecretKey {
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, PROVIDER)
-        generator.init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+        generator.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setKeySize(256)
@@ -159,31 +169,42 @@ internal object KeystoreSessionKey {
     }
 
     fun discard() {
-        try { KeyStore.getInstance(PROVIDER).apply { load(null) }.deleteEntry(ALIAS) }
-        catch (_: Exception) { Log.w("NORA", "A chave da sessão não pôde ser removida.") }
+        synchronized(LOCK) {
+            try { KeyStore.getInstance(PROVIDER).apply { load(null) }.deleteEntry(alias) }
+            catch (_: Exception) { Log.w("NORA", "A chave da sessão não pôde ser removida.") }
+        }
+    }
+
+    private companion object {
+        const val PROVIDER = "AndroidKeyStore"
+        val LOCK = Any()
     }
 }
 
 /**
- * O arquivo de preferências próprio da sessão (`nora_secure_session.xml`), excluído do backup automático em `backup_rules.xml` e
- * `data_extraction_rules.xml`. Escreve e apaga de forma síncrona: sair da conta não pode deixar o token no disco por mais um instante.
+ * O arquivo de preferências próprio da sessão, excluído do backup automático em `backup_rules.xml` e `data_extraction_rules.xml`. Escreve
+ * e apaga de forma síncrona: sair da conta não pode deixar o token no disco por mais um instante. A gravação devolve o resultado real do
+ * `commit` (disco cheio, por exemplo), para o app avisar que a sessão não foi guardada.
  */
-private class PreferencesBlobStore(context: Context) : BlobStore {
-    private val preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+private class PreferencesBlobStore(context: Context, file: String) : BlobStore {
+    private val preferences = context.getSharedPreferences(file, Context.MODE_PRIVATE)
     override fun contains() = preferences.contains(KEY)
     override fun read(): String? = preferences.getString(KEY, null)
-    override fun write(value: String): Boolean { preferences.edit(commit = true) { putString(KEY, value) }; return true }
+    @SuppressLint("UseKtx") // o `edit {}` do KTX não devolve o resultado do commit
+    override fun write(value: String): Boolean = preferences.edit().putString(KEY, value).commit()
     override fun delete() { preferences.edit(commit = true) { clear() } }
 
-    companion object {
-        const val FILE = "nora_secure_session"
-        private const val KEY = "session"
-    }
+    private companion object { const val KEY = "session" }
 }
 
-/** A sessão cifrada com a chave do Android Keystore, no arquivo de preferências próprio. */
-fun secureSessionStorage(context: Context): SessionStorage =
-    CipheredSessionStorage(PreferencesBlobStore(context), AesGcmSessionCipher(KeystoreSessionKey::get, KeystoreSessionKey::discard))
+/**
+ * A sessão cifrada com a chave do Android Keystore, no arquivo de preferências próprio. [file] e [keyAlias] só mudam nos testes
+ * instrumentados, para nunca apagarem a sessão nem a chave do app de verdade no aparelho.
+ */
+fun secureSessionStorage(context: Context, file: String = SESSION_PREFERENCES_FILE, keyAlias: String = SESSION_KEY_ALIAS): SessionStorage {
+    val key = KeystoreSessionKey(keyAlias)
+    return CipheredSessionStorage(PreferencesBlobStore(context, file), AesGcmSessionCipher(key::get, key::discard))
+}
 
 /** A sessão venceu pelo relógio? Data ilegível conta como vencida: sem prazo conhecido a sessão não é aceita. */
 fun sessionExpired(expiresAt: String, nowMillis: Long): Boolean = parseInstantMillis(expiresAt)?.let { it <= nowMillis } ?: true

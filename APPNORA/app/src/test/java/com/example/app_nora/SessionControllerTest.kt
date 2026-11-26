@@ -269,6 +269,17 @@ class SessionControllerTest {
         assertNotNull(sessions.saved)
     }
 
+    @Test fun anInvalidIdentityInTheAnswerNeitherCrashesTheOpeningNorErasesTheSession() = runBlocking {
+        // Sem esta proteção a exceção sairia do escopo do ViewModel e o app cairia a cada abertura, com a sessão ainda guardada.
+        val api = SessionApi().apply { meFailure = IllegalArgumentException("identificador inválido") }
+        val sessions = MemorySessions(stored())
+        val controller = controller(api, sessions)
+        controller.restoreSession()
+        assertNotNull(controller.state.session)
+        assertFalse(controller.state.restoring)
+        assertNotNull(sessions.saved)
+    }
+
     @Test fun aRejectionInTheCycleAfterANetworkFailureErasesTheSession() = runBlocking {
         val api = SessionApi().apply { meFailure = IOException("sem rede") }
         val sessions = MemorySessions(stored())

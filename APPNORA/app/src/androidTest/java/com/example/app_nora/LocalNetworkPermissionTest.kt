@@ -17,6 +17,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.example.app_nora.api.CONNECTION_FAILED_MESSAGE
 import com.example.app_nora.api.LOCAL_NETWORK_DENIED_MESSAGE
+import com.example.app_nora.api.secureSessionStorage
 import java.util.regex.Pattern
 import org.junit.After
 import org.junit.Assert.assertNotNull
@@ -50,6 +51,8 @@ class LocalNetworkPermissionTest {
         val connection = context.getSharedPreferences("nora_connection", Context.MODE_PRIVATE)
         savedAddress = connection.getString("address", "").orEmpty()
         connection.edit(commit = true) { putString("address", LOCAL_ADDRESS) }
+        // Sem sessão guardada de uma rodada anterior: a MainActivity precisa abrir no formulário de entrada, não restaurar uma conta.
+        secureSessionStorage(context).clear()
         // Sem a permissão e com o endereço da rede local, o app precisa pedi-la, e o diálogo só aparece com ela negada. Não dá para
         // revogá-la aqui: `pm revoke` de uma permissão concedida MATA o processo do app, e o processo do teste é o mesmo (provado:
         // "Crash of app ... running instrumentation"). Por isso a ordem dos casos é fixa (negar, depois conceder) e, se a permissão já
