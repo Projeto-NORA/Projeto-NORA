@@ -34,10 +34,27 @@ Na UBS que já existe (em produção, "Jacyra Vieira Baracho"; o script descobre
 
 Opcionais:
 
-- `-UbsExtras N` (1 a 5): cria N **UBS fictícias** (Jardim Aurora, Vila Esperança, Parque Industrial, Santana e Bosque Oeste), cada uma com banco próprio, 6 especialidades, 12 médicos, 14 pacientes e 6 meses de histórico. Servem para as comparações do Painel Municipal (mapa, regiões, ranking, alertas). A Vila Esperança e a Parque Industrial têm mais faltas e geram alertas de propósito.
+- `-UbsExtras N` (1 a 5; as capturas de 26/11 usaram 5): cria N **UBS fictícias** (Jardim Aurora, Vila Esperança, Parque Industrial, Santana e Bosque Oeste), cada uma com banco próprio, 6 especialidades, 12 médicos, 14 pacientes e 6 meses de histórico. Servem para as comparações do Painel Municipal (mapa, regiões, ranking, alertas). A Vila Esperança e a Parque Industrial têm mais faltas e geram alertas de propósito.
 - `-CpfApp <cpf>`: o **seu paciente de teste do app** (um CPF que já está cadastrado na UBS) ganha cerca de 25 consultas no ano, duas marcadas à frente (uma com presença confirmada), exames e vacinas, para as telas do aplicativo não ficarem vazias. Só acrescenta registros a ele; o cadastro dele não é tocado.
 - `-ConsultasPorDia <n>` (padrão 12): média de consultas por dia útil. Aumente se quiser gráficos com números maiores (mas, com 48 pacientes, cada um passa a ter mais consultas).
 - `-Pacientes <n>` (padrão 48).
+
+## Capturas para os slides (26/11/2026): o que é fictício e o que é real
+
+As capturas da pasta `Mateus-Projects\Claude-HTML\Projeto-NORA\capturas-2026-11\` foram tiradas de um **banco local deste computador** (PostgreSQL 18 na porta 55490, API em `http://127.0.0.1:5190`; instruções em `%LOCALAPPDATA%\NORA\capturas-demo\LEIA-ME.txt`), **não** do Neon. Nenhum dado de pessoa real aparece nelas. Por pedido do usuário, nada nos programas indica que os dados são fictícios: a separação está só aqui.
+
+| Item nas imagens | Real ou fictício |
+| --- | --- |
+| Nome e região da UBS principal, "Jacyra Vieira Baracho", São José dos Campos | **Real** (é a UBS cadastrada na produção). O endereço mostrado é fictício. |
+| UBS Jardim Aurora, Vila Esperança, Parque Industrial, Santana e Bosque Oeste | **Fictícias** (`-UbsExtras 5`), criadas para o Painel Municipal ter rede para comparar. |
+| Conta da Secretaria "Mariana Duarte", administrador do OBS "Ricardo Almeida" e paciente do app "Camila Rocha" | **Fictícias**: contas de demonstração do banco local (`*.demo@example.test`), renomeadas só lá. |
+| Os 48 pacientes da UBS principal e os 14 de cada UBS extra, com CPF, e-mail e telefone | **Fictícios** (CPFs com dígitos válidos que não existem na rede; e-mails `@email.example`, que nunca entregam). |
+| 20 especialidades, 40 médicos, consultórios e grade | **Fictícios** (o catálogo da simulação; médicos sem registro no conselho). |
+| Consultas, faltas, cancelamentos, score, Vagas Relâmpago, exames, vacinas, pedidos de Família, comunicados e metas | **Fictícios**, gerados pelo script na noite de 26/11/2026. |
+| Pedidos de vínculo de Família da Camila Rocha no app | **Fictícios**, criados pelo próprio app no emulador para a tela não ficar vazia. |
+| Telas, textos, regras e cálculos (score, indicadores, alertas) | **Reais**: é o sistema como está na branch `claude/desktop-redesign-ui`. |
+
+Para repetir as capturas noutro dia: `-Remover` e rodar o script de novo (ver acima), num dia útil entre 9h e 16h.
 
 ## Passo a passo no Neon (para quem não programa)
 
