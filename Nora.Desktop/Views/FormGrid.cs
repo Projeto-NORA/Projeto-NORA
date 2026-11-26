@@ -34,8 +34,9 @@ public sealed class FormGrid : Panel
     /// </summary>
     public static int ColumnsFor(double width, double minColumnWidth, double spacing, int maxColumns)
     {
-        // TODO(human): calcular as colunas a partir da largura. Enquanto isso, uma coluna só (funciona, mas não fica lado a lado).
-        return 1;
+        // N colunas ocupam N × campo + (N − 1) × espaço; somar um espaço à largura transforma a conta numa divisão simples.
+        var fit = (int)Math.Floor((width + spacing) / (minColumnWidth + spacing));
+        return Math.Clamp(fit, 1, Math.Max(1, maxColumns));
     }
 
     protected override Size MeasureOverride(Size available)
