@@ -181,7 +181,7 @@ internal static partial class Program
                 Require(vm.MunicipalAppointments.Single().PatientName == "Paciente Sintético", "Consulta de agenda da UBS não atualizou a lista.");
                 vm.SelectedUnit = null; Require(vm.UnitRegistry.Count == 0 && !vm.UnitRegistryLoaded, "Troca de UBS preservou dados anteriores.");
                 Require(vm.MunicipalAppointments.Count == 0 && !vm.MunicipalAppointmentsLoaded, "Troca de UBS preservou consultas anteriores.");
-                Pump(vm.LoadStaffAsync());
+                vm.Section = "users"; Pump(vm.RefreshAutomaticallyAsync());
                 vm.SelectedStaff = vm.Staff.Single(); vm.SelectedStaffUnit = vm.Units.Single();
                 Pump(vm.ChangeStaffUnitAsync(true)); Require(vm.StaffUnits.Count == 1, "Concessão não atualizou a lista.");
                 vm.SelectedStaffGrant = vm.StaffUnits.Single(); Pump(vm.ChangeStaffUnitAsync(false));
@@ -202,16 +202,24 @@ internal static partial class Program
                 window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false; PrepareWindow(window);
                 var vm = window.ViewModel.Workspace; vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
                 Pump(vm.LoginAsync("isolated-test-password"));
-                window.ViewModel.Navigate("units"); Settle(vm);
+                window.ViewModel.Navigate("units:registry"); Settle(vm);
                 var content = Layout(window, 980, 640);
-                var unitName = Input(content, "Nome da UBS");
                 fixture.PauseReads = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 refresh = vm.RefreshAutomaticallyAsync(); PumpUntil(() => vm.IsBusy);
                 Layout(window, 980, 640);
-                Require(unitName.IsEnabled && vm.CanEditUnit == vm.HasSelectedUnit && vm.CanOperate && !vm.ShowProgress, "Atualização automática desabilitou o formulário de UBS ou acendeu a barra.");
-                unitName.Text = "Digitado durante a atualização"; Require(vm.UnitName == unitName.Text, "Formulário de UBS perdeu a digitação durante o ciclo.");
-                window.ViewModel.Navigate("users"); content = Layout(window, 980, 640);
-                Require(Descendants<DataGrid>(content).Single(grid => AutomationProperties.GetName(grid) == "Contas OBS").IsEnabled && Descendants<ComboBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS para conceder acesso").IsEnabled, "Formulário de vínculos foi desabilitado pelo ciclo automático.");
+                // Os formulários são pop-ups: com a leitura automática em andamento o campo continua habilitado e a digitação chega ao ViewModel.
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    var unitName = Descendants<TextBox>(dialog).Single(box => AutomationProperties.GetName(box) == "Nome da UBS");
+                    Require(unitName.IsEnabled && vm.CanOperate && !vm.ShowProgress, "Atualização automática desabilitou o formulário de UBS ou acendeu a barra.");
+                    unitName.Text = "Digitado durante a atualização"; Require(vm.UnitName == unitName.Text, "Formulário de UBS perdeu a digitação durante o ciclo.");
+                }, () => DialogService.ShowForm(window, vm.UnitDraftTitle, new UnitFormView { DataContext = vm }, vm.SaveUnitAsync, "Salvar UBS", error: () => vm.Message));
+                window.ViewModel.Navigate("users:access"); content = Layout(window, 980, 640);
+                Require(Descendants<ListBox>(content).Single(list => AutomationProperties.GetName(list) == "Contas e UBS com acesso").IsEnabled, "A listagem de acessos foi desabilitada pelo ciclo automático.");
+                var grantForm = new StaffUnitFormView("Conta", "Dica", "UBS para conceder acesso", vm.Units.ToArray());
+                var grantWindow = new Window { Content = grantForm, Width = 400, Height = 300, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000, ShowActivated = false, Opacity = 0 };
+                try { grantWindow.Show(); Require(Descendants<ComboBox>(grantForm).Single(box => AutomationProperties.GetName(box) == "UBS para conceder acesso").IsEnabled, "O formulário de vínculos foi desabilitado pelo ciclo automático."); }
+                finally { grantWindow.Close(); }
                 fixture.PauseReads.TrySetResult(); Pump(refresh);
             }
             finally { fixture.PauseReads?.TrySetResult(); if (refresh != null) Pump(refresh); window.ViewModel.ConfirmClose = false; window.Close(); }
@@ -294,9 +302,7 @@ internal static partial class Program
                     Pump(vm.SaveUnitAsync());
                     Require(vm.Units.Count == 2 && vm.SelectedUnit?.Latitude == -23.55, "Cadastro não salvou coordenadas normalizadas.");
                     vm.EditSelectedUnit(); vm.UnitName = "UBS Teste Atualizada"; Pump(vm.SaveUnitAsync());
-                    vm.UnitSearch = "Atualizada"; Require(vm.FilteredUnits.Single().Name == "UBS Teste Atualizada", "Pesquisa de unidade falhou.");
-                    vm.UnitSearch = "inexistente"; Require(!vm.FilteredUnits.Any(), "Pesquisa encontrou unidade indevida.");
-                    vm.UnitSearch = ""; vm.SelectedUnit = vm.Units.Single(u => u.Name == "UBS Teste Atualizada");
+                    vm.SelectedUnit = vm.Units.Single(u => u.Name == "UBS Teste Atualizada");
                     var mapAddress = NetworkMapView.MapAddress(vm.SelectedUnit);
                     Require(mapAddress.Contains("marker=-23.55%2C-46.63") && !mapAddress.Contains("UBS"), "Mapa não recebeu somente as coordenadas da unidade.");
                     window.ViewModel.Navigate("network");

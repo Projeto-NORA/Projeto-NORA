@@ -99,11 +99,14 @@ internal static partial class Program
             }
             finally { window.Close(); }
         });
-        Check("Enter percorre o cadastro real de conta e aciona Criar conta", () =>
+        Check("Enter percorre o cadastro real de conta (campos do pop-up) e aciona Criar conta", () =>
         {
-            var view = new StaffCreateView();
-            ((StackPanel)((Border)view.Content).Child).IsEnabled = true;
-            var window = new Window { Content = view, Width = 800, Height = 700, ShowInTaskbar = false };
+            var view = new StaffCreateFormView();
+            // No pop-up o botão primário entra no grupo dos campos (FormDialog); aqui o mesmo arranjo, numa janela de teste.
+            var primary = new Button { Content = "Criar conta" };
+            EnterNavigation.SetGroup(primary, "StaffCreateFormView.staff");
+            var host = new StackPanel(); host.Children.Add(view); host.Children.Add(primary);
+            var window = new Window { Content = host, Width = 800, Height = 700, ShowInTaskbar = false };
             try
             {
                 window.Show(); window.Activate(); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -112,7 +115,7 @@ internal static partial class Program
                 var role = Descendants<ComboBox>(view).Single(item => AutomationProperties.GetName(item) == "Perfil da nova conta");
                 var password = Descendants<PasswordBox>(view).Single(item => AutomationProperties.GetName(item) == "Senha provisória da nova conta");
                 var confirm = Descendants<PasswordBox>(view).Single(item => AutomationProperties.GetName(item) == "Confirmação da senha provisória da nova conta");
-                var button = Descendants<Button>(view).Single(item => Equals(item.Content, "Criar conta"));
+                var button = primary;
                 var clicks = 0; button.Click += (_, _) => clicks++;
                 Require(name.Focus(), "Não foi possível focar o nome.");
                 PressEnter(name); Require(email.IsKeyboardFocusWithin, "Nome não avançou para e-mail.");

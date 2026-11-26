@@ -1,13 +1,52 @@
 using System.Windows;
 using System.Windows.Controls;
+using Nora.Desktop.Models;
+using Nora.Desktop.Services;
 using Nora.Desktop.ViewModels;
+
 namespace Nora.Desktop.Views;
+
+/// <summary>Cadastro de UBS: listagem aberta com balão (Editar e "Tentar criar a base de novo"), ficha em linhas e o cadastro em pop-up.</summary>
 public partial class HealthUnitsView : UserControl
 {
-    public HealthUnitsView() => InitializeComponent();
-    private async void OnRefresh(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.LoadUnitsAsync(); }
-    private async void OnSave(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.SaveUnitAsync(); }
-    private async void OnProvision(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) await vm.ProvisionSelectedUnitDatabaseAsync(); }
-    private void OnNew(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.NewUnitDraft(); UnitForm.BringIntoView(); }
-    private void OnEdit(object sender, RoutedEventArgs e) { if (DataContext is WorkspaceViewModel vm) vm.EditSelectedUnit(); UnitForm.BringIntoView(); }
+    public HealthUnitsView()
+    {
+        InitializeComponent();
+        MunicipalDetailsHost.Attach(UnitList, this);
+        ListingBehavior.AddBalloonRefreshedHandler(UnitList, OnBalloonRefreshed);
+    }
+
+    private WorkspaceViewModel? Workspace => DataContext as WorkspaceViewModel;
+    private HealthUnit? SelectedUnit => ListingBehavior.GetSelectedItems<HealthUnit>(UnitList).FirstOrDefault();
+
+    /// <summary>"Tentar criar a base de novo" só serve à UBS cuja base está pendente.</summary>
+    private void OnBalloonRefreshed(object sender, RoutedEventArgs args) =>
+        ProvisionButton.Visibility = ListingBehavior.GetSelectedItems<HealthUnit>(UnitList) is [{ DatabasePending: true }] ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnNew(object sender, RoutedEventArgs e)
+    {
+        if (Workspace is not { } vm) return;
+        vm.NewUnitDraft();
+        OpenForm(vm);
+    }
+
+    private void OnEdit(object sender, RoutedEventArgs e)
+    {
+        if (Workspace is not { } vm || SelectedUnit is not { } unit) return;
+        vm.SelectedUnit = unit;
+        vm.EditSelectedUnit();
+        OpenForm(vm);
+    }
+
+    /// <summary>Cadastro e edição no pop-up: os passos (localizar o endereço, salvar) aparecem dentro dele; erros da API e dos campos ficam nele também.</summary>
+    private void OpenForm(WorkspaceViewModel vm) =>
+        DialogService.ShowForm(Window.GetWindow(this), vm.UnitDraftTitle, new UnitFormView { DataContext = vm }, vm.SaveUnitAsync, "Salvar UBS", error: () => vm.Message);
+
+    private void OnProvision(object sender, RoutedEventArgs e)
+    {
+        if (Workspace is not { } vm || SelectedUnit is not { DatabasePending: true } unit) return;
+        vm.SelectedUnit = unit;
+        vm.UnitProvisionSteps.Clear();
+        DialogService.ShowForm(Window.GetWindow(this), "Criar a base da UBS", new UnitProvisionFormView { DataContext = vm }, vm.ProvisionSelectedUnitDatabaseAsync, "Criar a base", error: () => vm.Message);
+    }
 }

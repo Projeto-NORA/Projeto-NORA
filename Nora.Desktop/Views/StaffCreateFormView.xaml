@@ -1,0 +1,29 @@
+<UserControl x:Class="Nora.Desktop.Views.StaffCreateFormView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Conta nova do OBS, no pop-up (sem card): conta só de acesso (nome, e-mail, perfil e senha provisória, sem CPF). O DataContext é o WorkspaceViewModel. -->
+  <views:FormGrid>
+    <StackPanel>
+      <TextBlock Text="Nome completo" Style="{StaticResource FieldLabelText}" />
+      <TextBox Text="{Binding StaffName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da nova conta" views:EnterNavigation.Group="StaffCreateFormView.staff" />
+      <TextBlock Text="{Binding StaffNameError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding StaffNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="E-mail" Style="{StaticResource FieldLabelText}" />
+      <TextBox Text="{Binding StaffEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail da nova conta" views:EnterNavigation.Group="StaffCreateFormView.staff" />
+      <TextBlock Text="{Binding StaffEmailError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding StaffEmailError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Perfil" Style="{StaticResource FieldLabelText}" />
+      <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.StaffRoleOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding StaffRole}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Perfil da nova conta" views:EnterNavigation.Group="StaffCreateFormView.staff" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Senha provisória (8 a 256 caracteres)" Style="{StaticResource FieldLabelText}" />
+      <PasswordBox x:Name="PasswordField" AutomationProperties.Name="Senha provisória da nova conta" views:EnterNavigation.Group="StaffCreateFormView.staff" />
+      <TextBlock Text="{Binding StaffPasswordError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding StaffPasswordError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Confirmar a senha provisória" Style="{StaticResource FieldLabelText}" />
+      <PasswordBox x:Name="ConfirmField" AutomationProperties.Name="Confirmação da senha provisória da nova conta" views:EnterNavigation.Group="StaffCreateFormView.staff" />
+      <TextBlock Text="{Binding StaffConfirmError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding StaffConfirmError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+  </views:FormGrid>
+</UserControl>

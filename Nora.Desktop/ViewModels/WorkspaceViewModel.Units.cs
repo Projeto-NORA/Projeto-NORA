@@ -10,7 +10,7 @@ namespace Nora.Desktop.ViewModels;
 public sealed partial class WorkspaceViewModel
 {
     private static readonly HealthUnit WholeNetwork = new(Guid.Empty, "Toda a rede", "", "", 0, 0);
-    private string unitSearch = "", unitName = "", unitRegion = "", unitAddress = "", unitLatitude = "", unitLongitude = "";
+    private string unitName = "", unitRegion = "", unitAddress = "", unitLatitude = "", unitLongitude = "";
     private HealthUnit? selectedUnit;
     private Guid? editingUnitId;
     private string editingUnitAddress = "", editingUnitRegion = "";
@@ -37,14 +37,7 @@ public sealed partial class WorkspaceViewModel
             : $"O resumo é só da {AppliedSummaryUnitLabel}, que aparece pelo nome no arquivo; o período filtra somente as vagas pela data de criação; os pacientes são totais atuais só dessa UBS.");
     public string AppliedSummaryUnitLabel => appliedSummaryUnitId is { } id ? Units.FirstOrDefault(unit => unit.Id == id)?.Name ?? "UBS selecionada" : "Toda a rede";
     public bool UnitsLoaded { get => unitsLoaded; private set { unitsLoaded = value; Notify(); Notify(nameof(UnitsState)); } }
-    public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Carregando as unidades da API…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : !FilteredUnits.Any() ? "Nenhuma unidade encontrada para esta pesquisa." : "";
-    public string UnitSearch
-    {
-        get => unitSearch;
-        // A pesquisa troca a lista mostrada; a UBS selecionada continua selecionada mesmo escondida (o ListBox limparia a seleção).
-        set { unitSearch = value ?? ""; Notify(); filteringUnits = true; try { NotifyUnits(); Notify(nameof(SelectedUnit)); } finally { filteringUnits = false; } }
-    }
-    public IEnumerable<HealthUnit> FilteredUnits => Units.Where(u => u.Name.Contains(UnitSearch, StringComparison.CurrentCultureIgnoreCase) || u.Region.Contains(UnitSearch, StringComparison.CurrentCultureIgnoreCase) || u.Address.Contains(UnitSearch, StringComparison.CurrentCultureIgnoreCase));
+    public string UnitsState => !IsAuthenticated ? "Entre na Visão geral para acessar as unidades." : !UnitsLoaded ? "Carregando as unidades da API…" : Units.Count == 0 ? "Nenhuma UBS cadastrada." : "";
     public HealthUnit? SelectedUnit
     {
         get => selectedUnit;
@@ -69,7 +62,7 @@ public sealed partial class WorkspaceViewModel
     private bool unitRegistryLoaded;
     public ObservableCollection<UnitPatientRecord> UnitRegistry { get; } = [];
     public bool UnitRegistryLoaded { get => unitRegistryLoaded; private set { unitRegistryLoaded = value; Notify(); Notify(nameof(UnitRegistryState)); } }
-    public string UnitRegistryState => !UnitRegistryLoaded ? "Selecione uma UBS e consulte os cadastros quando necessário." : UnitRegistry.Count == 0 ? "Nenhum paciente cadastrado nesta UBS." : "";
+    public string UnitRegistryState => !UnitRegistryLoaded ? "Abra Filtros, escolha uma UBS e consulte os cadastros quando necessário." : UnitRegistry.Count == 0 ? "Nenhum paciente cadastrado nesta UBS." : "";
     public bool CanReadUnitRegistry => IsMunicipal && CanOperate && HasSelectedUnit && !SelectedUnitDatabasePending;
 
     // Agenda nominal da UBS: período inicial/final (padrão −30/+30 dias), situação filtrada no cliente.
@@ -140,6 +133,8 @@ public sealed partial class WorkspaceViewModel
     public string UnitLongitudeError => (unitFormSubmitted || unitLongitude.Length > 0) && !TryCoordinate(unitLongitude, -180, 180, out _) ? "Longitude inválida: use graus decimais entre -180 e 180 (ex.: -46,63)." : "";
     private bool HasUnitFormErrors => UnitNameError.Length + UnitRegionError.Length + UnitAddressError.Length > 0;
     public ObservableCollection<ProgressStep> UnitSaveSteps { get; } = [];
+    /// <summary>Passo da criação da base da UBS ("Tentar criar a base de novo"), mostrado no pop-up enquanto roda.</summary>
+    public ObservableCollection<ProgressStep> UnitProvisionSteps { get; } = [];
     /// <summary>Aviso, não bloqueio: (0, 0), coordenadas aparentemente trocadas ou fora do Brasil.</summary>
     public string UnitCoordinateWarning
     {
@@ -156,7 +151,7 @@ public sealed partial class WorkspaceViewModel
     private static bool InBrazil(double latitude, double longitude) => latitude is >= -34 and <= 5.6 && longitude is >= -74.5 and <= -28;
     private static readonly string[] UnitFormNames = [nameof(UnitNameError), nameof(UnitRegionError), nameof(UnitAddressError), nameof(UnitLatitudeError), nameof(UnitLongitudeError), nameof(UnitCoordinateWarning)];
 
-    private void NotifyUnits() { Notify(nameof(FilteredUnits)); Notify(nameof(UnitsState)); Notify(nameof(AppliedSummaryUnitLabel)); Notify(nameof(SummaryExportNote)); }
+    private void NotifyUnits() { Notify(nameof(UnitsState)); Notify(nameof(AppliedSummaryUnitLabel)); Notify(nameof(SummaryExportNote)); }
 
     /// <summary>A lista de UBS mudou de conteúdo: seletores de UBS e de região acompanham, sem recriar o que não mudou.</summary>
     private void UnitsChanged()
@@ -224,44 +219,58 @@ public sealed partial class WorkspaceViewModel
         UnitsChanged();
     }
 
-    public Task SaveUnitAsync() => RunAsync(async () =>
+    /// <summary>Cadastra ou atualiza a UBS do rascunho, com os passos visíveis (localizar o endereço, salvar). Devolve se salvou: o pop-up fecha.</summary>
+    public async Task<bool> SaveUnitAsync()
     {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para cadastrar uma UBS.");
-        UnitSaveSteps.Clear();
-        unitFormSubmitted = true;
-        foreach (var field in UnitFormNames) Notify(field);
-        if (HasUnitFormErrors) throw new NoraApiException("Corrija os campos destacados no formulário da UBS.");
-        var name = UnitName.Trim(); var region = UnitRegion.Trim(); var address = UnitAddress.Trim();
-        double lat = 0, lon = 0;
-        var haveCoordinates = TryCoordinate(UnitLatitude, -85, 85, out lat) && TryCoordinate(UnitLongitude, -180, 180, out lon);
-        var addressChanged = editingUnitId is not null && (!string.Equals(address, editingUnitAddress.Trim(), StringComparison.OrdinalIgnoreCase) || !string.Equals(region, editingUnitRegion.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (!haveCoordinates || addressChanged)
-            await WithStepAsync(UnitSaveSteps, "Localizando o endereço da UBS…", async () => (lat, lon) = await unitGeocoder.FindAsync(address, region), clear: false);
-        if (disposed || !IsAuthenticated) return;
-        var creating = editingUnitId is null;
-        HealthUnit? saved = null;
-        await WithStepAsync(UnitSaveSteps, "Salvando a UBS…", async () => saved = editingUnitId is { } id ? await api.UpdateHealthUnitAsync(id, name, region, address, lat, lon) : await api.CreateHealthUnitAsync(name, region, address, lat, lon), clear: false);
-        if (saved is null) throw new NoraApiException("Não foi possível salvar a UBS. Tente novamente.");
-        if (disposed) return;
-        UpsertUnit(saved); SelectedUnit = saved; NewUnitDraft(clearSteps: false);
-        if (saved.DatabasePending)
-            Say(MessageKind.Info, "UBS salva, mas a base de dados dela não foi criada: o usuário PostgreSQL da API precisa de permissão para criar bancos. Use \"Tentar criar a base\" depois de ajustar a permissão.");
-        else Say(MessageKind.Success, "UBS salva. Selecione-a no mapa para conferir a localização.");
-        if (creating) ReloadNetwork(includeSummary: true);
-    });
+        var done = false;
+        await RunAsync(async () =>
+        {
+            if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para cadastrar uma UBS.");
+            UnitSaveSteps.Clear();
+            unitFormSubmitted = true;
+            foreach (var field in UnitFormNames) Notify(field);
+            if (HasUnitFormErrors) throw new NoraApiException("Corrija os campos destacados no formulário da UBS.");
+            var name = UnitName.Trim(); var region = UnitRegion.Trim(); var address = UnitAddress.Trim();
+            double lat = 0, lon = 0;
+            var haveCoordinates = TryCoordinate(UnitLatitude, -85, 85, out lat) && TryCoordinate(UnitLongitude, -180, 180, out lon);
+            var addressChanged = editingUnitId is not null && (!string.Equals(address, editingUnitAddress.Trim(), StringComparison.OrdinalIgnoreCase) || !string.Equals(region, editingUnitRegion.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!haveCoordinates || addressChanged)
+                await WithStepAsync(UnitSaveSteps, "Localizando o endereço da UBS…", async () => (lat, lon) = await unitGeocoder.FindAsync(address, region), clear: false);
+            if (disposed || !IsAuthenticated) return;
+            var creating = editingUnitId is null;
+            HealthUnit? saved = null;
+            await WithStepAsync(UnitSaveSteps, "Salvando a UBS…", async () => saved = editingUnitId is { } id ? await api.UpdateHealthUnitAsync(id, name, region, address, lat, lon) : await api.CreateHealthUnitAsync(name, region, address, lat, lon), clear: false);
+            if (saved is null) throw new NoraApiException("Não foi possível salvar a UBS. Tente novamente.");
+            if (disposed) return;
+            UpsertUnit(saved); SelectedUnit = saved; NewUnitDraft(clearSteps: false);
+            done = true;
+            if (saved.DatabasePending)
+                Say(MessageKind.Info, "UBS salva, mas a base de dados dela não foi criada: o usuário PostgreSQL da API precisa de permissão para criar bancos. Use \"Tentar criar a base de novo\" depois de ajustar a permissão.");
+            else Say(MessageKind.Success, "UBS salva. Selecione-a no mapa para conferir a localização.");
+            if (creating) ReloadNetwork(includeSummary: true);
+        });
+        return done;
+    }
 
     /// <summary>Repete a criação da base da UBS (idempotente no servidor). Falha → 503 database-provisioning-failed, explicada na faixa comum.</summary>
-    public Task ProvisionSelectedUnitDatabaseAsync() => RunAsync(async () =>
+    public async Task<bool> ProvisionSelectedUnitDatabaseAsync()
     {
-        if (!IsMunicipal || !IsAuthenticated || SelectedUnit is not { DatabasePending: true } unit) throw new NoraApiException("Selecione uma UBS com a base ainda não criada.");
-        var saved = await api.ProvisionUnitDatabaseAsync(unit.Id);
-        if (disposed || !IsAuthenticated) return;
-        UpsertUnit(saved);
-        if (SelectedUnit?.Id == saved.Id) SelectedUnit = saved;
-        Say(saved.DatabasePending ? MessageKind.Error : MessageKind.Success,
-            saved.DatabasePending ? "A API respondeu, mas a base da UBS continua sem estar pronta. Tente novamente." : $"Base da UBS {saved.Name} criada. Ela passa a entrar nos números da rede.");
-        ReloadNetwork(includeSummary: true);
-    });
+        var ready = false;
+        await RunAsync(async () =>
+        {
+            if (!IsMunicipal || !IsAuthenticated || SelectedUnit is not { DatabasePending: true } unit) throw new NoraApiException("Selecione uma UBS com a base ainda não criada.");
+            HealthUnit? saved = null;
+            await WithStepAsync(UnitProvisionSteps, "Criando a base de dados da UBS…", async () => saved = await api.ProvisionUnitDatabaseAsync(unit.Id));
+            if (saved is null || disposed || !IsAuthenticated) return;
+            UpsertUnit(saved);
+            if (SelectedUnit?.Id == saved.Id) SelectedUnit = saved;
+            ready = !saved.DatabasePending;
+            Say(saved.DatabasePending ? MessageKind.Error : MessageKind.Success,
+                saved.DatabasePending ? "A API respondeu, mas a base da UBS continua sem estar pronta. Tente novamente." : $"Base da UBS {saved.Name} criada. Ela passa a entrar nos números da rede.");
+            ReloadNetwork(includeSummary: true);
+        });
+        return ready;
+    }
 
     private static bool TryCoordinate(string value, double min, double max, out double number)
         => double.TryParse(value.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out number) && double.IsFinite(number) && number >= min && number <= max;
@@ -269,9 +278,9 @@ public sealed partial class WorkspaceViewModel
     private void ClearUnits()
     {
         Units.Clear(); selectedUnit = null; UnitRegistry.Clear(); UnitRegistryLoaded = false; MunicipalAppointments.Clear(); VisibleMunicipalAppointments.Clear(); MunicipalAppointmentsLoaded = false;
-        UnitsLoaded = false; unitSearch = ""; Notify(nameof(UnitSearch)); summaryUnitFilter = Guid.Empty; appliedSummaryUnitId = null;
+        UnitsLoaded = false; summaryUnitFilter = Guid.Empty; appliedSummaryUnitId = null;
         Replace(UnitFilterOptions, new[] { WholeNetwork }); Replace(RegionOptions, new[] { new FilterOption("", "Todas as regiões") });
-        ResetAgendaRange(); NewUnitDraft(); ClearMetrics(); NotifyUnits();
+        ResetAgendaRange(); NewUnitDraft(); UnitProvisionSteps.Clear(); ClearMetrics(); NotifyUnits();
         foreach (var name in new[] { nameof(SelectedUnit), nameof(SummaryUnitFilter), nameof(HasSelectedUnit), nameof(CanEditUnit), nameof(CanReadUnitRegistry), nameof(SelectedUnitLabel), nameof(SelectedUnitDatabasePending), nameof(CanProvisionUnitDatabase), nameof(UnitRegistryHint) }) Notify(name);
     }
 }

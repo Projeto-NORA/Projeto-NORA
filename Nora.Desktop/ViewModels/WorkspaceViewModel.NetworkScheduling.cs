@@ -58,11 +58,10 @@ public sealed partial class WorkspaceViewModel
     private Guid? editingSpecialtyId;
     private string specialtyDraftName = "", specialtyServerError = "";
     public ObservableCollection<Specialty> SpecialtyCatalog { get; } = [];
-    public Specialty? SelectedSpecialty { get => selectedSpecialty; set { selectedSpecialty = value; Notify(); Notify(nameof(HasSelectedSpecialty)); Notify(nameof(SpecialtyActiveLabel)); Notify(nameof(CanChangeSpecialty)); } }
+    public Specialty? SelectedSpecialty { get => selectedSpecialty; set { selectedSpecialty = value; Notify(); Notify(nameof(HasSelectedSpecialty)); Notify(nameof(CanChangeSpecialty)); } }
     public bool HasSelectedSpecialty => selectedSpecialty is not null;
     public bool CanChangeSpecialty => IsMunicipal && CanOperate && HasSelectedSpecialty;
     public bool CanSaveSpecialty => IsMunicipal && CanOperate;
-    public string SpecialtyActiveLabel => selectedSpecialty is { IsActive: false } ? "Reativar especialidade" : "Desativar especialidade";
     public string SpecialtyDraftTitle => editingSpecialtyId is null ? "Cadastrar especialidade" : "Renomear especialidade";
     public string SpecialtySaveLabel => editingSpecialtyId is null ? "Cadastrar especialidade" : "Salvar novo nome";
     public string SpecialtyDraftName { get => specialtyDraftName; set { specialtyDraftName = value; specialtyServerError = ""; Notify(); Notify(nameof(SpecialtyNameError)); } }
@@ -70,7 +69,7 @@ public sealed partial class WorkspaceViewModel
         : (specialtyDraftSubmitted || specialtyDraftName.Length > 0) && (Spaces.Replace(specialtyDraftName.Trim(), " ").Length is < 2 or > 120 || specialtyDraftName.Any(char.IsControl)) ? "Informe o nome da especialidade, de 2 a 120 caracteres." : "";
     public string SpecialtyCatalogState => !IsAuthenticated ? "Entre na Secretaria para gerenciar as especialidades."
         : !specialtyCatalogLoaded ? "Carregando as especialidades…"
-        : SpecialtyCatalog.Count == 0 ? "Nenhuma especialidade cadastrada. Cadastre a primeira acima: as UBS escolhem dessa lista ao cadastrar profissionais." : "";
+        : SpecialtyCatalog.Count == 0 ? "Nenhuma especialidade cadastrada. Use Nova especialidade para criar a primeira: as UBS escolhem dessa lista ao cadastrar profissionais." : "";
 
     private async Task LoadSpecialtyCatalogCoreAsync()
     {
@@ -87,12 +86,6 @@ public sealed partial class WorkspaceViewModel
         Notify(nameof(SpecialtyCatalogState));
         DecorateCapacityCatalog();
     }
-    public Task LoadSpecialtyCatalogAsync() => RunAsync(async () =>
-    {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para consultar as especialidades.");
-        await LoadSpecialtyCatalogCoreAsync();
-        Say(MessageKind.Success, "Especialidades atualizadas.");
-    });
     public void NewSpecialtyDraft()
     {
         editingSpecialtyId = null; specialtyDraftSubmitted = false; specialtyDraftName = specialtyServerError = "";
@@ -104,25 +97,33 @@ public sealed partial class WorkspaceViewModel
         NewSpecialtyDraft(); editingSpecialtyId = item.Id; specialtyDraftName = item.Name;
         foreach (var name in new[] { nameof(SpecialtyDraftName), nameof(SpecialtyDraftTitle), nameof(SpecialtySaveLabel) }) Notify(name);
     }
-    public Task SaveSpecialtyAsync() => RunAsync(async () =>
+    /// <summary>Cadastra ou renomeia a especialidade do rascunho. Devolve se gravou (o pop-up fecha); o erro de nome repetido (409) fica em <see cref="SpecialtyNameError"/>, dentro do pop-up.</summary>
+    public async Task<bool> SaveSpecialtyAsync()
     {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para cadastrar especialidades.");
-        specialtyDraftSubmitted = true; specialtyServerError = ""; Notify(nameof(SpecialtyNameError));
-        if (SpecialtyNameError.Length > 0) throw new NoraApiException("Corrija o nome da especialidade.");
-        var name = Spaces.Replace(specialtyDraftName.Trim(), " ");
-        var editing = editingSpecialtyId;
-        try { if (editing is { } id) await api.RenameSpecialtyAsync(id, name); else await api.CreateSpecialtyAsync(name); }
-        catch (NoraApiException error) when (error.Status == 409) { specialtyServerError = error.Message; Notify(nameof(SpecialtyNameError)); throw; }
-        NewSpecialtyDraft();
-        Say(MessageKind.Success, editing is null ? $"Especialidade {name} cadastrada." : $"Especialidade renomeada para {name}.");
-        await LoadSpecialtyCatalogCoreAsync();
-    });
-    public Task ChangeSpecialtyActiveAsync() => RunAsync(async () =>
+        var done = false;
+        await RunAsync(async () =>
+        {
+            if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para cadastrar especialidades.");
+            specialtyDraftSubmitted = true; specialtyServerError = ""; Notify(nameof(SpecialtyNameError));
+            if (SpecialtyNameError.Length > 0) throw new NoraApiException("Corrija o nome da especialidade.");
+            var name = Spaces.Replace(specialtyDraftName.Trim(), " ");
+            var editing = editingSpecialtyId;
+            try { if (editing is { } id) await api.RenameSpecialtyAsync(id, name); else await api.CreateSpecialtyAsync(name); }
+            catch (NoraApiException error) when (error.Status == 409) { specialtyServerError = error.Message; Notify(nameof(SpecialtyNameError)); throw; }
+            NewSpecialtyDraft();
+            done = true;
+            Say(MessageKind.Success, editing is null ? $"Especialidade {name} cadastrada." : $"Especialidade renomeada para {name}.");
+            await LoadSpecialtyCatalogCoreAsync();
+        });
+        return done;
+    }
+    /// <summary>Desativa ou reativa as especialidades escolhidas (a confirmação, uma só para o lote, é pedida pela tela) e lê a lista de novo uma vez, no fim.</summary>
+    public Task ChangeSpecialtiesActiveAsync(IReadOnlyList<Specialty> items, bool activate) => RunAsync(async () =>
     {
-        var item = SelectedSpecialty ?? throw new NoraApiException("Selecione uma especialidade.");
-        var activate = !item.IsActive;
-        await api.SetSpecialtyActiveAsync(item.Id, activate);
-        Say(MessageKind.Success, activate ? $"Especialidade {item.Name} reativada." : $"Especialidade {item.Name} desativada: ela sai da lista do paciente e de novos vínculos e horários; o que já existe foi preservado.");
+        if (items.Count == 0) throw new NoraApiException("Selecione uma especialidade.");
+        foreach (var item in items) await api.SetSpecialtyActiveAsync(item.Id, activate);
+        var who = items.Count == 1 ? $"Especialidade {items[0].Name}" : $"{items.Count} especialidades";
+        Say(MessageKind.Success, activate ? $"{who} {(items.Count == 1 ? "reativada" : "reativadas")}." : $"{who} {(items.Count == 1 ? "desativada" : "desativadas")}: sai da lista do paciente e de novos vínculos e horários; o que já existe foi preservado.");
         await LoadSpecialtyCatalogCoreAsync();
     });
 
@@ -510,11 +511,13 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Leituras extras que cada seção da Secretaria precisa; a leitura automática só repete as que passaram de 5 minutos.</summary>
     private Task LoadMunicipalSectionExtrasAsync(bool manual) => Section switch
     {
-        "specialties" when manual || !specialtyCatalogLoaded => LoadSpecialtyCatalogCoreAsync(),
+        "specialties" => LoadSpecialtyCatalogCoreAsync(),
         "reports" when manual || !goalsLoaded => LoadGoalsCoreAsync(),
         "alerts" when manual || NetworkAlertsDue => LoadNetworkAlertsCoreAsync(),
         "capacity" when capacityUnit is { } unit && (manual || !capacityCatalogLoaded) => LoadCapacityCatalogCoreAsync(unit),
-        "communication" when manual || MyAnnouncementsDue => LoadMyAnnouncementsCoreAsync(keepLoaded: !manual),
+        "communication" => LoadMyAnnouncementsCoreAsync(keepLoaded: !manual),
+        "users" => LoadUsersSectionAsync(),
+        "network" => LoadUnitsCoreAsync(),
         _ => Task.CompletedTask
     };
 }

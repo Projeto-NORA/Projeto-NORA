@@ -82,7 +82,16 @@ public partial class MunicipalView : UserControl
         ContentPanel.Children.Add(grid);
     }
     /// <summary>Parte da página que aparece só na subaba indicada (barra lateral em dois níveis).</summary>
-    private void Add(FrameworkElement part, string subPage) { var host = new ContentControl { Content = part, Focusable = false }; SubPage.SetKey(host, subPage); ContentPanel.Children.Add(host); }
+    private void Add(FrameworkElement part, string subPage, bool fill = false)
+    {
+        var host = new ContentControl { Content = part, Focusable = false };
+        SubPage.SetKey(host, subPage);
+        // Listagem aberta: a subtela recebe a altura inteira da área de conteúdo e a lista rola sozinha (o balão fica no pé da tela).
+        if (fill) { host.HorizontalContentAlignment = HorizontalAlignment.Stretch; host.VerticalContentAlignment = VerticalAlignment.Stretch; PageLayout.SetFill(host, true); }
+        ContentPanel.Children.Add(host);
+    }
+    /// <summary>Tela inteira de uma rota sem subtelas (Mapa da rede, Comunicação): recebe a altura inteira da área de conteúdo.</summary>
+    private void AddFill(FrameworkElement screen) { PageLayout.SetFill(screen, true); ContentPanel.Children.Add(screen); }
     private void Box(string title, string description) => ContentPanel.Children.Add(Card(Panel(title, description), new Thickness(0, 0, 0, 18)));
     private void ExportSummary(object sender, RoutedEventArgs e)
     {
@@ -112,9 +121,9 @@ public partial class MunicipalView : UserControl
                 var refresh = new Button { Content = "Atualizar dados", Style = (Style)Application.Current.FindResource("IconRefreshButton"), ToolTip = "Atualizar dados", HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 0, 18) }; System.Windows.Automation.AutomationProperties.SetName(refresh, "Atualizar dados"); refresh.SetBinding(Button.CommandProperty, new Binding(nameof(WorkspaceViewModel.RefreshCommand))); ContentPanel.Children.Add(refresh);
                 Heading("Panorama da rede", "Totais atuais da rede. Consulte a aba Indicadores para análise do período.");
                 ContentPanel.Children.Add(new NetworkOverviewView()); break;
-            case "units": Heading("Unidades de saúde", "Cadastro, base e desempenho das UBS."); Add(new HealthUnitsView(), "registry"); Add(new NetworkUnitsPerformanceView(), "performance"); Add(new UnitRegistryView(), "reference"); break;
-            case "specialties": Heading("Especialidades", "Lista da rede e demanda por especialidade."); Add(new SpecialtyCatalogView(), "catalog"); Add(new NetworkSpecialtiesView(), "demand"); break;
-            case "network": Heading("Mapa da rede", "Explore o território da rede de saúde."); ContentPanel.Children.Add(new NetworkMapView()); break;
+            case "units": Add(new HealthUnitsView(), "registry", fill: true); Add(new NetworkUnitsPerformanceView(), "performance"); Add(new UnitRegistryView(), "reference", fill: true); break;
+            case "specialties": Add(new SpecialtyCatalogView(), "catalog", fill: true); Add(new NetworkSpecialtiesView(), "demand"); break;
+            case "network": AddFill(new NetworkMapView()); break;
             case "indicators": Heading("Indicadores da rede", "Acompanhe acesso, produção e evolução ao longo do tempo."); ContentPanel.Children.Add(new NetworkIndicatorsView()); break;
             case "slots": ContentPanel.Children.Add(new MunicipalLightningHeroView()); ContentPanel.Children.Add(new LightningFiltersView()); Metrics(("Vagas abertas", "LightningOpen", "Estado atual das vagas no período"), ("Ofertas aceitas", "LightningAccepted", "Ofertas das vagas no período"), ("Vagas registradas", "LightningRegistered", "Vagas criadas no período"), ("Ofertas criadas", "LightningCreated", "Não mede envio de notificações"), ("Recusadas", "LightningDeclined", "Ofertas das vagas no período"), ("Expiradas", "LightningExpired", "Ofertas das vagas no período"), ("Pendentes", "LightningPending", "Estado atual das ofertas"), ("Canceladas", "LightningCancelled", "Ofertas das vagas no período")); Box("Como ler", "A oferta é automática. Aceite não confirma o atendimento, e ofertas criadas não comprovam a entrega da notificação."); break;
             case "capacity": Heading("Capacidade da rede", "Horários ofertados pela grade, ocupados e ocupação, por UBS e região, e o cadastro de cada UBS em leitura."); ContentPanel.Children.Add(new CapacityView()); break;
@@ -125,8 +134,9 @@ public partial class MunicipalView : UserControl
                 var export = new Button { Content = "Exportar resumo em CSV", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 16, 0, 0) }; export.SetBinding(IsEnabledProperty, new Binding(nameof(WorkspaceViewModel.CanExportSummary))); export.Click += ExportSummary; report.Children.Add(export);
                 ContentPanel.Children.Add(Card(report, new Thickness(0, 0, 0, 18)));
                 ContentPanel.Children.Add(new GoalsView()); break;
-            case "communication": Heading("Comunicação", "Comunicados para equipes e pacientes, com leituras."); ContentPanel.Children.Add(new CommunicationView()); break;
-            case "users": Heading("Usuários", "Contas, acessos às UBS e histórico de ações."); Add(new StaffAccountsView(), "accounts"); Add(new StaffCreateView(), "create"); Add(new StaffAccessView(), "access"); Add(new HistoryView(), "history"); break;
+            case "communication": AddFill(new CommunicationView()); break;
+            // "Nova conta" leva à tela Contas com o pop-up de cadastro aberto: as duas subtelas mostram a mesma listagem.
+            case "users": Add(new StaffAccountsView(), "accounts,create", fill: true); Add(new StaffAccessView(), "access", fill: true); Add(new HistoryView(), "history", fill: true); break;
         }
     }
 }

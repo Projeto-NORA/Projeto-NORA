@@ -1,14 +1,39 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.StaffAccessView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Border Style="{StaticResource Card}" Margin="0,0,0,18">
-    <StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="Vínculos de contas OBS" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Registre as UBS que cada conta pode operar. Desativar uma conta preserva estes vínculos. Selecione a conta na tabela acima." />
-
-      <TextBlock Text="{Binding SelectedStaffLabel}" FontWeight="SemiBold" Margin="0,0,0,12" />
-      <Button Content="Atualizar vínculos" Click="OnLoadUnits" IsEnabled="{Binding CanLoadStaffUnits}" HorizontalAlignment="Left" Margin="0,0,0,12" ToolTip="Lê os vínculos da conta de novo."/>
-      <TextBlock Text="UBS autorizadas" /><ListBox ItemsSource="{Binding StaffUnits}" SelectedItem="{Binding SelectedStaffGrant}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS autorizadas à conta" MinHeight="80" MaxHeight="180" Margin="0,6,0,12" />
-      <Button Content="Revogar vínculo selecionado" Click="OnRevoke" IsEnabled="{Binding CanRevokeStaffUnit}" HorizontalAlignment="Left" Margin="0,0,0,12" ToolTip="Retira o acesso da conta a esta UBS."/>
-      <TextBlock Text="UBS para conceder" /><ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedStaffUnit}" DisplayMemberPath="SelectorLabel" AutomationProperties.Name="UBS para conceder acesso" Margin="0,6,0,12"  enter:EnterNavigation.Group="StaffAccessView.access"/>
-      <Button Content="Conceder vínculo" Click="OnGrant" IsEnabled="{Binding CanGrantStaffUnit}" HorizontalAlignment="Left" ToolTip="Dá à conta acesso à UBS escolhida." enter:EnterNavigation.Group="StaffAccessView.access"/>
+<UserControl x:Class="Nora.Desktop.Views.StaffAccessView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Acessos às UBS: as contas do OBS com as UBS que cada uma opera. Conceder e retirar acesso são pop-ups abertos pelo balão (retirar é a lixeira). Desativar uma conta preserva os acessos. -->
+  <UserControl.Resources>
+    <views:ListMetaJoinConverter x:Key="MetaJoin" />
+    <views:ListBoolTextConverter x:Key="InactiveTag" TrueText="" FalseText="Desativada" />
+  </UserControl.Resources>
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal">
+      <views:PageFilterGroup Label="Acessos às UBS" SearchFields="FullName,EmailDisplay,RoleDisplay,UnitsDisplay" ItemsTarget="{Binding ElementName=AccessList}" />
     </StackPanel>
-  </Border>
+    <Grid Grid.Row="1">
+      <ListBox x:Name="AccessList" Style="{StaticResource OpenList}" ItemsSource="{Binding Staff}" AutomationProperties.Name="Contas e UBS com acesso"
+               views:ListingBehavior.Balloon="{Binding ElementName=Balloon}" views:ListingBehavior.LabelPath="FullName" views:ListingBehavior.PluralName="contas" views:ListingBehavior.Feminine="True">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid AutomationProperties.Name="{Binding SelectorLabel}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding FullName}" Style="{StaticResource ItemTitleText}" />
+                <TextBlock Style="{StaticResource ItemMetaText}">
+                  <TextBlock.Text><MultiBinding Converter="{StaticResource MetaJoin}"><Binding Path="Email" /><Binding Path="UnitsDisplay" /></MultiBinding></TextBlock.Text>
+                </TextBlock>
+              </StackPanel>
+              <views:StatusTag Grid.Column="1" Text="{Binding IsActive, Converter={StaticResource InactiveTag}}" Tone="Pink" Margin="12,0,0,0" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <views:ListEmptyText List="{Binding ElementName=AccessList}" EmptyText="{Binding StaffState}" NoMatchText="Nenhuma conta encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
+      <views:SelectionBalloon x:Name="Balloon">
+        <StackPanel Orientation="Horizontal">
+          <Button Style="{StaticResource ListActionEditButton}" views:ListAction.Icon="{StaticResource IconPlusGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Conceder acesso" Click="OnGrant" ToolTip="Dá à conta acesso a uma UBS (pede confirmação)." />
+          <Button Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Retirar acesso" Click="OnRevoke" ToolTip="Retira o acesso da conta a uma UBS (pede confirmação)." AutomationProperties.Name="Retirar acesso" />
+        </StackPanel>
+      </views:SelectionBalloon>
+    </Grid>
+  </Grid>
 </UserControl>

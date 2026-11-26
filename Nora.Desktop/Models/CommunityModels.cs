@@ -35,6 +35,9 @@ public sealed record AnnouncementSummary(Guid Id, long Sequence, string Title, s
     [JsonIgnore] public string StaffReadsDisplay => AnnouncementText.Reads(StaffReads, Audience != "patients");
     [JsonIgnore] public string PatientReadsDisplay => AnnouncementText.Reads(PatientReads, Audience != "staff");
     [JsonIgnore] public string AutomationLabel => $"{Title}. {StatusDisplay}. Para {AudienceDisplay}. {ScopeDisplay}.";
+    /// <summary>Linha de dados da listagem de comunicados: público, alcance, publicação e validade (só quando há).</summary>
+    [JsonIgnore] public string MetaLine => ListText.Join([AudienceDisplay, ScopeDisplay, "Publicado " + CreatedAtDisplay, ExpiresAt is null ? null : "Validade " + ValidityDisplay]);
+    [JsonIgnore] public Tone StatusTone => Status switch { "active" => Tone.Green, "expired" => Tone.Yellow, _ => Tone.Neutral };
 
     // Igualdade pelo conteúdo (os vetores de regiões e UBS vêm novos a cada leitura): uma releitura sem mudança não troca nenhuma linha da lista.
     public bool Equals(AnnouncementSummary? other) => other is not null && Id == other.Id && Sequence == other.Sequence && Title == other.Title && Body == other.Body && Audience == other.Audience && Scope == other.Scope

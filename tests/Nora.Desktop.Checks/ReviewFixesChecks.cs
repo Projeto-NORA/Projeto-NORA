@@ -413,7 +413,7 @@ internal static partial class Program
             finally { CloseWindow(window); }
         });
 
-        Check("Revisão 11: o ciclo de 5 minutos da Comunicação mantém as páginas carregadas, a seleção e a lista de quem leu", () =>
+        Check("Revisão 11: o ciclo de 20 s da Comunicação mantém as páginas carregadas, a seleção e a lista de quem leu", () =>
         {
             using var fixture = new ApiFixture();
             fixture.AddUnit("UBS Comunicação", "Centro");
@@ -428,21 +428,21 @@ internal static partial class Program
                 Click(window, content, "Carregar mais antigos", 1280, 2600);
                 Require(vm.MyAnnouncements.Count == 60 && !vm.CanLoadMoreAnnouncements, "A segunda página deveria completar os 60.");
                 vm.SelectedMyAnnouncement = vm.MyAnnouncements.Single(item => item.Title == "Aviso 3"); content = Layout(window, 1280, 2600);
-                Click(window, content, "Ver quem da equipe leu", 1280, 2600);
+                Pump(vm.LoadAnnouncementReadersAsync());
                 Require(vm.AnnouncementReaders.Count == 1, "A lista de quem leu deveria estar carregada.");
-                // Passam 5 minutos: o ciclo automático relê a lista.
-                AgeField(vm, "myAnnouncementsAttemptedAt", TimeSpan.FromMinutes(6)); var reads = fixture.Count("GET", "/api/municipal/announcements");
+                // O ciclo automático (20 s) relê a lista, sem desfazer as páginas já carregadas.
+                var reads = fixture.Count("GET", "/api/municipal/announcements");
                 Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 2600);
-                Require(fixture.Count("GET", "/api/municipal/announcements") == reads + 1, "Passados 5 minutos o ciclo deveria reler a lista uma vez.");
+                Require(fixture.Count("GET", "/api/municipal/announcements") == reads + 1, "O ciclo deveria reler a lista uma vez.");
                 Require(vm.MyAnnouncements.Count == 60 && !vm.CanLoadMoreAnnouncements, $"O ciclo automático desfez as páginas já carregadas ({vm.MyAnnouncements.Count} comunicados).");
                 Require(vm.SelectedMyAnnouncement?.Title == "Aviso 3" && vm.AnnouncementReaders.Count == 1 && vm.AnnouncementReadersSummary.Length > 0, "O ciclo automático apagou a seleção ou a lista de quem leu.");
                 // Um comunicado novo entra no topo sem perder o resto.
-                fixture.AddAnnouncement("Aviso novo", "texto", "staff"); AgeField(vm, "myAnnouncementsAttemptedAt", TimeSpan.FromMinutes(6)); Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                fixture.AddAnnouncement("Aviso novo", "texto", "staff"); Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
                 Require(vm.MyAnnouncements.Count == 61 && vm.MyAnnouncements[0].Title == "Aviso novo" && vm.SelectedMyAnnouncement?.Title == "Aviso 3" && vm.AnnouncementReaders.Count == 1, "O comunicado novo deveria entrar no topo, mantendo as páginas, a seleção e os leitores.");
                 // Atualizar dados (manual) continua voltando à primeira página.
                 vm.RefreshCommand.Execute(null); Settle(vm);
                 Require(vm.MyAnnouncements.Count == 50 && vm.CanLoadMoreAnnouncements, "A atualização manual volta à primeira página.");
-                SaveScrolled(window, Path.Combine(previewRoot, "revisao-comunicacao-ciclo-light.png"), 1280, 900);
+                SavePreview(Layout(window, 1280, 900), Path.Combine(previewRoot, "revisao-comunicacao-ciclo-light.png"));
             }
             finally { CloseWindow(window); }
         });

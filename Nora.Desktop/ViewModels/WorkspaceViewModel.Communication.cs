@@ -26,12 +26,10 @@ public sealed class AnnouncementChoice(string key, string label, Action? changed
 public sealed partial class WorkspaceViewModel
 {
     public const int AnnouncementTitleMax = 120, AnnouncementBodyMax = 2000, AnnouncementRegionsMax = 50, AnnouncementUnitsMax = 200;
-    private static readonly TimeSpan MyAnnouncementsRefreshAge = TimeSpan.FromMinutes(5);
     private string announcementTitle = "", announcementBody = "", announcementExpiryDate = "", announcementExpiryTime = "23:59";
     private string? announcementAudience, announcementScope;
     private bool announcementSubmitted, myAnnouncementsLoaded, myAnnouncementsFailed, loadingMoreAnnouncements;
     private long? myAnnouncementsNext;
-    private DateTimeOffset? myAnnouncementsAttemptedAt;
     private AnnouncementSummary? selectedMyAnnouncement;
     private Guid? readersFor;
     private AnnouncementReads? readers;
@@ -105,14 +103,13 @@ public sealed partial class WorkspaceViewModel
     [
         nameof(AnnouncementTitle), nameof(AnnouncementBodyText), nameof(AnnouncementAudienceKey), nameof(AnnouncementScopeKey), nameof(AnnouncementExpiryDate), nameof(AnnouncementExpiryTime),
         nameof(AnnouncementTitleError), nameof(AnnouncementBodyError), nameof(AnnouncementAudienceError), nameof(AnnouncementScopeError), nameof(AnnouncementExpiryError),
-        nameof(AnnouncementPreviewTitle), nameof(AnnouncementPreviewBody), nameof(AnnouncementPreviewMeta), nameof(AnnouncementBodyCounter), nameof(AnnouncementTitleCounter)
+        nameof(AnnouncementPreviewMeta), nameof(AnnouncementBodyCounter), nameof(AnnouncementTitleCounter)
     ];
     private void NotifyAnnouncementDraft() { foreach (var name in AnnouncementDraftNames) Notify(name); }
 
-    // ---- Pré-visualização em texto puro ----
+    // ---- Resumo do que será publicado (texto da confirmação) ----
 
-    public string AnnouncementPreviewTitle => announcementTitle.Length == 0 ? "(título em branco)" : announcementTitle;
-    public string AnnouncementPreviewBody => announcementBody.Length == 0 ? "(texto em branco)" : announcementBody;
+    /// <summary>"Para Equipes (OBS) · toda a rede · sem validade": o resumo que a pergunta de confirmação mostra.</summary>
     public string AnnouncementPreviewMeta
     {
         get
@@ -175,20 +172,27 @@ public sealed partial class WorkspaceViewModel
         return AnnouncementTitleError.Length + AnnouncementBodyError.Length + AnnouncementAudienceError.Length + AnnouncementScopeError.Length + AnnouncementExpiryError.Length == 0;
     }
 
-    public Task PublishAnnouncementAsync() => RunAsync(async () =>
+    /// <summary>Publica o comunicado do rascunho (a confirmação é pedida pela tela). Devolve se publicou: o pop-up fecha e o rascunho é limpo.</summary>
+    public async Task<bool> PublishAnnouncementAsync()
     {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para publicar comunicados.");
-        announcementSubmitted = true; NotifyAnnouncementDraft();
-        var problem = AnnouncementTitleError.Length > 0 ? AnnouncementTitleError : AnnouncementBodyError.Length > 0 ? AnnouncementBodyError : AnnouncementAudienceError.Length > 0 ? AnnouncementAudienceError
-            : AnnouncementScopeError.Length > 0 ? AnnouncementScopeError : AnnouncementExpiryError;
-        if (problem.Length > 0) throw new NoraApiException("Corrija os campos destacados do comunicado. " + problem);
-        ExpiryProblem(out var expiresAt);
-        string[]? regions = announcementScope == "region" ? [.. AnnouncementRegionChoices.Where(choice => choice.IsChecked).Select(choice => choice.Key)] : null;
-        Guid[]? unitIds = announcementScope == "units" ? [.. AnnouncementUnitChoices.Where(choice => choice.IsChecked).Select(choice => Guid.Parse(choice.Key))] : null;
-        var created = await api.CreateAnnouncementAsync(new(announcementTitle, announcementBody, announcementAudience!, announcementScope!, regions, unitIds, expiresAt));
-        NewAnnouncementDraft();
-        await ReadMyAnnouncementsAfterChangeAsync($"Comunicado \"{created.Title}\" publicado para {AnnouncementText.Audience(created.Audience).ToLowerInvariant()}.");
-    });
+        var done = false;
+        await RunAsync(async () =>
+        {
+            if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para publicar comunicados.");
+            announcementSubmitted = true; NotifyAnnouncementDraft();
+            var problem = AnnouncementTitleError.Length > 0 ? AnnouncementTitleError : AnnouncementBodyError.Length > 0 ? AnnouncementBodyError : AnnouncementAudienceError.Length > 0 ? AnnouncementAudienceError
+                : AnnouncementScopeError.Length > 0 ? AnnouncementScopeError : AnnouncementExpiryError;
+            if (problem.Length > 0) throw new NoraApiException("Corrija os campos destacados do comunicado. " + problem);
+            ExpiryProblem(out var expiresAt);
+            string[]? regions = announcementScope == "region" ? [.. AnnouncementRegionChoices.Where(choice => choice.IsChecked).Select(choice => choice.Key)] : null;
+            Guid[]? unitIds = announcementScope == "units" ? [.. AnnouncementUnitChoices.Where(choice => choice.IsChecked).Select(choice => Guid.Parse(choice.Key))] : null;
+            var created = await api.CreateAnnouncementAsync(new(announcementTitle, announcementBody, announcementAudience!, announcementScope!, regions, unitIds, expiresAt));
+            NewAnnouncementDraft();
+            done = true;
+            await ReadMyAnnouncementsAfterChangeAsync($"Comunicado \"{created.Title}\" publicado para {AnnouncementText.Audience(created.Audience).ToLowerInvariant()}.");
+        });
+        return done;
+    }
 
     // ---- Lista dos meus comunicados ----
 
@@ -206,23 +210,19 @@ public sealed partial class WorkspaceViewModel
         }
     }
     public string MyAnnouncementsState => !IsAuthenticated ? "Entre na Secretaria para ver seus comunicados."
-        : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. Use Atualizar lista para tentar de novo." : "Carregando seus comunicados…")
+        : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. A leitura é refeita sozinha em instantes." : "Carregando seus comunicados…")
         : MyAnnouncements.Count == 0 ? "Você ainda não publicou comunicados." : "";
-    public string MyAnnouncementsFootnote => !myAnnouncementsLoaded || MyAnnouncements.Count == 0 ? ""
-        : $"{MyAnnouncements.Count} {(MyAnnouncements.Count == 1 ? "comunicado" : "comunicados")} carregado(s){(myAnnouncementsNext is null ? "." : "; há mais antigos.")} A contagem de leituras é de contas que marcaram como lido; a de pacientes não mostra quem leu.";
-    private static readonly string[] MyAnnouncementNames = [nameof(MyAnnouncementsState), nameof(MyAnnouncementsFootnote), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements)];
+    private static readonly string[] MyAnnouncementNames = [nameof(MyAnnouncementsState), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements)];
     private void NotifyMyAnnouncements() { foreach (var name in MyAnnouncementNames) Notify(name); }
-    private bool MyAnnouncementsDue => myAnnouncementsAttemptedAt is null || DateTimeOffset.Now - myAnnouncementsAttemptedAt >= MyAnnouncementsRefreshAge;
 
-    /// <summary>Primeira página (carga da seção, atualização manual e depois de publicar ou encerrar).</summary>
+    /// <summary>Primeira página (carga da seção, ciclo de 20 s e depois de publicar ou encerrar).</summary>
     private async Task LoadMyAnnouncementsCoreAsync(bool keepLoaded = false)
     {
-        myAnnouncementsAttemptedAt = DateTimeOffset.Now;
         MyAnnouncementPageResult page;
         try { var result = await api.MunicipalAnnouncementsAsync(null); page = new(result.Announcements, result.NextBefore); }
         catch (NoraApiException) { myAnnouncementsFailed = true; NotifyMyAnnouncements(); throw; }
         if (disposed || !IsAuthenticated) return;
-        // A releitura traz só a primeira página. Atualizar manualmente volta à primeira página; o ciclo automático (keepLoaded) não desfaz o que a pessoa carregou:
+        // A releitura traz só a primeira página. Depois de publicar ou encerrar volta à primeira página; o ciclo automático (keepLoaded) não desfaz o que a pessoa carregou:
         // as páginas mais antigas já carregadas ("Carregar mais antigos") continuam na lista, com o cursor delas.
         var fresh = page.Items.Select(DecorateAnnouncement).ToArray();
         var freshIds = fresh.Select(item => item.Id).ToHashSet();
@@ -245,13 +245,6 @@ public sealed partial class WorkspaceViewModel
     }
     private readonly record struct MyAnnouncementPageResult(AnnouncementSummary[] Items, long? Next);
 
-    public Task LoadMyAnnouncementsAsync() => RunAsync(async () =>
-    {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para ver seus comunicados.");
-        await LoadMyAnnouncementsCoreAsync();
-        Say(MessageKind.Success, "Comunicados atualizados.");
-    });
-
     public Task LoadMoreMyAnnouncementsAsync() => RunAsync(async () =>
     {
         if (myAnnouncementsNext is not { } before) throw new NoraApiException("Não há comunicados mais antigos.");
@@ -273,7 +266,7 @@ public sealed partial class WorkspaceViewModel
         catch (NoraApiException error) when (!error.Unauthorized)
         {
             MarkStale();
-            Say(MessageKind.Success, success + " Não foi possível atualizar a lista; use Atualizar lista.");
+            Say(MessageKind.Success, success + " Não foi possível atualizar a lista agora; ela é lida de novo sozinha.");
         }
     }
 
@@ -299,24 +292,30 @@ public sealed partial class WorkspaceViewModel
     private void NotifyReaders() { Notify(nameof(AnnouncementReadersState)); Notify(nameof(AnnouncementReadersSummary)); Notify(nameof(CanLoadAnnouncementReaders)); }
     private void ClearAnnouncementReaders() { readers = null; readersFor = null; AnnouncementReaders.Clear(); NotifyReaders(); }
 
-    public Task CloseMyAnnouncementAsync() => RunAsync(async () =>
+    /// <summary>Encerra os comunicados escolhidos (a confirmação, uma só para o lote, é pedida pela tela). Só um comunicado em vigor pode ser encerrado; a lista é lida de novo uma vez, no fim.</summary>
+    public Task CloseMyAnnouncementsAsync(IReadOnlyList<AnnouncementSummary> items) => RunAsync(async () =>
     {
-        var item = SelectedMyAnnouncement ?? throw new NoraApiException("Selecione um comunicado.");
-        if (!item.CanClose) throw new NoraApiException("Este comunicado não está em vigor: só um comunicado em vigor pode ser encerrado.");
-        try { await api.CloseAnnouncementAsync(item.Id); }
-        catch (NoraApiException error) when (error.Status is 409 or 404 && !error.Unauthorized)
+        if (items.Count == 0) throw new NoraApiException("Selecione um comunicado.");
+        if (items.Any(item => !item.CanClose)) throw new NoraApiException("Este comunicado não está em vigor: só um comunicado em vigor pode ser encerrado.");
+        foreach (var item in items)
         {
-            // Já encerrado (ou removido) por outra pessoa: a lista é lida de novo para mostrar o que ficou valendo, e a mensagem do erro continua.
-            try { await LoadMyAnnouncementsCoreAsync(); } catch (NoraApiException reading) when (!reading.Unauthorized) { MarkStale(); }
-            throw;
+            try { await api.CloseAnnouncementAsync(item.Id); }
+            catch (NoraApiException error) when (error.Status is 409 or 404 && !error.Unauthorized)
+            {
+                // Já encerrado (ou removido) por outra pessoa: a lista é lida de novo para mostrar o que ficou valendo, e a mensagem do erro continua.
+                try { await LoadMyAnnouncementsCoreAsync(); } catch (NoraApiException reading) when (!reading.Unauthorized) { MarkStale(); }
+                throw;
+            }
         }
-        await ReadMyAnnouncementsAfterChangeAsync($"Comunicado \"{item.Title}\" encerrado: ele deixou de aparecer para as equipes e para os pacientes.");
+        await ReadMyAnnouncementsAfterChangeAsync(items.Count == 1
+            ? $"Comunicado \"{items[0].Title}\" encerrado: ele deixou de aparecer para as equipes e para os pacientes."
+            : $"{items.Count} comunicados encerrados: eles deixaram de aparecer para as equipes e para os pacientes.");
     });
 
     private void ClearCommunication()
     {
         NewAnnouncementDraft();
-        myAnnouncementsLoaded = myAnnouncementsFailed = loadingMoreAnnouncements = false; myAnnouncementsNext = null; myAnnouncementsAttemptedAt = null;
+        myAnnouncementsLoaded = myAnnouncementsFailed = loadingMoreAnnouncements = false; myAnnouncementsNext = null;
         MyAnnouncements.Clear(); selectedMyAnnouncement = null; ClearAnnouncementReaders();
         AnnouncementRegionChoices.Clear(); AnnouncementUnitChoices.Clear();
         Notify(nameof(SelectedMyAnnouncement)); NotifyMyAnnouncements(); Notify(nameof(AnnouncementChoicesState)); NotifyAnnouncementDraft();

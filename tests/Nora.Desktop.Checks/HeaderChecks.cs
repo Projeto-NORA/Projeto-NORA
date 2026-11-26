@@ -67,12 +67,15 @@ internal static partial class Program
                         Show(window, route);
                         Require(!Descendants<TextBlock>(header).Any(text => text.Text.Contains("Gestão") || (vm.UnitLabel.Length > 0 && text.Text.Contains(vm.UnitLabel))), $"Rota {route}: o chip da UBS ou de \"Gestão conectada\" continua no cabeçalho.");
                     }
-                    var searchOnly = municipal ? "specialties:catalog" : "agenda";
-                    Show(window, searchOnly);
-                    Require(Searches() == 1 && !filters.IsVisible, $"{searchOnly}: deveria mostrar só o campo Pesquisar em linha, sem o botão Filtros (campos {Searches()}, botão {filters.IsVisible}).");
-                    var realFilters = municipal ? "units:registry" : "patients:list";
+                    foreach (var searchOnly in municipal ? new[] { "specialties:catalog", "units:registry" } : new[] { "agenda" })
+                    {
+                        Show(window, searchOnly);
+                        Require(Searches() == 1 && !filters.IsVisible, $"{searchOnly}: deveria mostrar só o campo Pesquisar em linha, sem o botão Filtros (campos {Searches()}, botão {filters.IsVisible}).");
+                    }
+                    // Cadastros de referência da Secretaria tem os dois: a pesquisa da listagem em linha e os filtros (UBS, período, situação) no botão Filtros.
+                    var realFilters = municipal ? "units:reference" : "patients:list";
                     Show(window, realFilters);
-                    Require(filters.IsVisible && Searches() == 0, $"{realFilters}: deveria mostrar o botão Filtros e nenhum campo Pesquisar em linha (campos {Searches()}, botão {filters.IsVisible}).");
+                    Require(filters.IsVisible && Searches() == (municipal ? 1 : 0), $"{realFilters}: deveria mostrar o botão Filtros e {(municipal ? "o campo" : "nenhum campo")} Pesquisar em linha (campos {Searches()}, botão {filters.IsVisible}).");
                     if (!municipal)
                     {
                         // "Limpar filtros" continua valendo para os grupos do pop-up.

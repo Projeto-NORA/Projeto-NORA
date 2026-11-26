@@ -10,6 +10,10 @@ public sealed partial class WorkspaceViewModel
     private StaffAccount? selectedStaff;
     private HealthUnit? selectedStaffUnit, selectedStaffGrant;
     private bool staffLoaded, staffLoading, staffFormSubmitted, applyingStaff;
+    // UBS com acesso de cada conta (a API só informa por conta): lidas na primeira carga, para contas novas e a cada 5 minutos, no máximo 4 por vez.
+    private static readonly TimeSpan StaffUnitsRefreshAge = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<Guid, string[]> staffUnitNames = [];
+    private DateTimeOffset? staffUnitsReadAt;
     private string staffName = "", staffEmail = "", staffRole = "attendant", staffPasswordError = "", staffConfirmError = "", staffResetPasswordError = "", staffResetConfirmError = "";
     public ObservableCollection<StaffAccount> Staff { get; } = [];
     public ObservableCollection<HealthUnit> StaffUnits { get; } = [];
@@ -70,8 +74,10 @@ public sealed partial class WorkspaceViewModel
         {
             var staffTask = api.StaffAsync(); var unitsTask = api.HealthUnitsAsync();
             await Task.WhenAll(staffTask, unitsTask);
+            var accounts = await staffTask;
+            await ReadStaffUnitNamesAsync(accounts);
             if (disposed || !IsAuthenticated) return;
-            ApplyStaff(await staffTask); ApplyUnits(await unitsTask);
+            ApplyStaff(accounts); ApplyUnits(await unitsTask);
         }
         finally { staffLoading = false; if (!disposed) Notify(nameof(StaffState)); }
     }
@@ -79,35 +85,72 @@ public sealed partial class WorkspaceViewModel
     {
         var selectedId = selectedStaff?.Id;
         applyingStaff = true;
-        try { Replace(Staff, accounts.OrderBy(account => account.FullName, StringComparer.CurrentCultureIgnoreCase).ThenBy(account => account.Id).ToArray()); }
+        try { Replace(Staff, DecorateStaff(accounts).OrderBy(account => account.FullName, StringComparer.CurrentCultureIgnoreCase).ThenBy(account => account.Id).ToArray()); }
         finally { applyingStaff = false; }
         staffLoaded = true; Notify(nameof(StaffState));
         if (selectedId is { } id) SelectedStaff = Staff.FirstOrDefault(account => account.Id == id);
     }
-
-    public Task LoadStaffAsync() => RunAsync(async () =>
+    /// <summary>Lê as contas de novo (depois de gravar algo) e aplica na lista.</summary>
+    private async Task ReloadStaffAsync()
     {
-        if (!IsMunicipal || !IsAuthenticated) throw new NoraApiException("Entre na Secretaria para gerenciar acessos.");
-        await LoadStaffCoreAsync();
-        Say(MessageKind.Success, "Contas e unidades atualizadas. Selecione uma conta para ver seus vínculos.");
-    });
+        var accounts = await api.StaffAsync();
+        if (disposed || !IsAuthenticated) return;
+        await ReadStaffUnitNamesAsync(accounts);
+        if (disposed || !IsAuthenticated) return;
+        ApplyStaff(accounts);
+    }
+
+    private StaffAccount[] DecorateStaff(IEnumerable<StaffAccount> accounts) =>
+        [.. accounts.Select(account => staffUnitNames.TryGetValue(account.Id, out var names) ? account with { UnitsDisplay = names.Length == 0 ? "Sem UBS" : string.Join(", ", names) } : account)];
+
+    /// <summary>Lê as UBS com acesso das contas que ainda não foram lidas (todas, se a última leitura passou de 5 minutos). Falha de uma conta só deixa a UBS dela fora da linha; sessão recusada sobe.</summary>
+    private async Task ReadStaffUnitNamesAsync(StaffAccount[] accounts)
+    {
+        var stale = staffUnitsReadAt is null || DateTimeOffset.Now - staffUnitsReadAt >= StaffUnitsRefreshAge;
+        var pending = accounts.Where(account => stale || !staffUnitNames.ContainsKey(account.Id)).ToArray();
+        if (pending.Length > 0)
+        {
+            using var limit = new SemaphoreSlim(4);
+            await Task.WhenAll(pending.Select(async account =>
+            {
+                await limit.WaitAsync();
+                try { staffUnitNames[account.Id] = NamesOf(await api.StaffUnitsAsync(account.Id)); }
+                catch (NoraApiException error) when (!error.Unauthorized) { }
+                finally { limit.Release(); }
+            }));
+            if (stale) staffUnitsReadAt = DateTimeOffset.Now;
+        }
+        foreach (var gone in staffUnitNames.Keys.Except(accounts.Select(account => account.Id)).ToArray()) staffUnitNames.Remove(gone);
+    }
+    private static string[] NamesOf(IEnumerable<HealthUnit> units) => [.. units.Select(unit => unit.Name).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)];
+
+    /// <summary>Lê as UBS com acesso da conta selecionada (ao abrir conceder ou retirar acesso).</summary>
     public Task LoadStaffUnitsAsync() => RunAsync(async () =>
     {
         var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
         var units = await api.StaffUnitsAsync(staff.Id);
         if (disposed || SelectedStaff?.Id != staff.Id) return;
-        Replace(StaffUnits, units.OrderBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null; Say(MessageKind.Success, "Vínculos atualizados.");
+        Replace(StaffUnits, units.OrderBy(unit => unit.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null;
     });
-    public Task ChangeStaffUnitAsync(bool grant) => RunAsync(async () =>
+    /// <summary>Concede ou retira o acesso da conta selecionada à UBS escolhida (a confirmação é pedida pela tela) e atualiza a lista de contas. Devolve se concluiu.</summary>
+    public async Task<bool> ChangeStaffUnitAsync(bool grant)
     {
-        var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
-        var unit = (grant ? SelectedStaffUnit : SelectedStaffGrant) ?? throw new NoraApiException("Selecione uma UBS.");
-        await api.SetStaffUnitAsync(staff.Id, unit.Id, grant);
-        var units = await api.StaffUnitsAsync(staff.Id);
-        if (disposed || SelectedStaff?.Id != staff.Id) return;
-        Replace(StaffUnits, units.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null;
-        Say(MessageKind.Success, grant ? "Vínculo concedido e registrado." : "Vínculo revogado e registrado.");
-    });
+        var done = false;
+        await RunAsync(async () =>
+        {
+            var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
+            var unit = (grant ? SelectedStaffUnit : SelectedStaffGrant) ?? throw new NoraApiException("Selecione uma UBS.");
+            await api.SetStaffUnitAsync(staff.Id, unit.Id, grant);
+            var units = await api.StaffUnitsAsync(staff.Id);
+            if (disposed || SelectedStaff?.Id != staff.Id) return;
+            Replace(StaffUnits, units.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()); SelectedStaffGrant = null;
+            staffUnitNames[staff.Id] = NamesOf(units);
+            ApplyStaff(Staff.ToArray());
+            done = true;
+            Say(MessageKind.Success, grant ? "Vínculo concedido e registrado." : "Vínculo revogado e registrado.");
+        });
+        return done;
+    }
 
     /// <summary>Cria a conta OBS com senha provisória (troca obrigatória no primeiro acesso). Devolve se criou, para a tela limpar as senhas.</summary>
     public async Task<bool> CreateStaffAsync(string password, string confirm)
@@ -125,10 +168,12 @@ public sealed partial class WorkspaceViewModel
             if (disposed || !IsAuthenticated) return;
             ClearStaffForm(); created = true;
             Say(MessageKind.Success, $"Conta de {account.FullName} criada. A pessoa será obrigada a trocar a senha provisória no primeiro acesso.");
-            ApplyStaff(await api.StaffAsync());
+            await ReloadStaffAsync();
         });
         return created;
     }
+    /// <summary>Começa um cadastro de conta do zero (ao abrir o pop-up "Nova conta").</summary>
+    public void NewStaffDraft() => ClearStaffForm();
     private void ClearStaffForm()
     {
         staffFormSubmitted = false; staffName = staffEmail = ""; staffRole = "attendant"; StaffPasswordError = ""; StaffConfirmError = "";
@@ -136,15 +181,20 @@ public sealed partial class WorkspaceViewModel
         foreach (var name in StaffFormErrors) Notify(name);
     }
 
-    /// <summary>Desativa ou reativa a conta selecionada (a confirmação é pedida pela tela). Desativar encerra as sessões e preserva as concessões de UBS.</summary>
-    public Task ChangeStaffActiveAsync() => RunAsync(async () =>
+    /// <summary>
+    /// Desativa ou reativa as contas escolhidas (a confirmação, uma só para o lote, é pedida pela tela). Desativar encerra as sessões e preserva as concessões de UBS.
+    /// A lista de contas é lida de novo uma vez, no fim.
+    /// </summary>
+    public Task ChangeStaffActiveAsync(IReadOnlyList<StaffAccount> accounts, bool activate) => RunAsync(async () =>
     {
-        var staff = SelectedStaff ?? throw new NoraApiException("Selecione uma conta OBS.");
-        var activate = !staff.IsActive;
-        await api.SetStaffActiveAsync(staff.Id, activate);
+        if (accounts.Count == 0) throw new NoraApiException("Selecione uma conta OBS.");
+        foreach (var staff in accounts) await api.SetStaffActiveAsync(staff.Id, activate);
         if (disposed || !IsAuthenticated) return;
-        Say(MessageKind.Success, activate ? $"Conta de {staff.FullName} reativada. As concessões de UBS preservadas voltam a valer." : $"Conta de {staff.FullName} desativada: as sessões foram encerradas e as concessões de UBS foram preservadas.");
-        ApplyStaff(await api.StaffAsync());
+        var who = accounts.Count == 1 ? $"Conta de {accounts[0].FullName}" : $"{accounts.Count} contas";
+        Say(MessageKind.Success, activate
+            ? $"{who} {(accounts.Count == 1 ? "reativada" : "reativadas")}. As concessões de UBS preservadas voltam a valer."
+            : $"{who} {(accounts.Count == 1 ? "desativada" : "desativadas")}: as sessões foram encerradas e as concessões de UBS foram preservadas.");
+        await ReloadStaffAsync();
     });
 
     /// <summary>Redefine a senha da conta selecionada para uma senha provisória, com troca obrigatória e sessões encerradas.</summary>
@@ -159,7 +209,7 @@ public sealed partial class WorkspaceViewModel
             if (disposed || !IsAuthenticated) return;
             done = true;
             Say(MessageKind.Success, $"Senha provisória de {staff.FullName} definida: as sessões foram encerradas e a troca será exigida no próximo acesso.");
-            ApplyStaff(await api.StaffAsync());
+            await ReloadStaffAsync();
         });
         return done;
     }
@@ -174,6 +224,7 @@ public sealed partial class WorkspaceViewModel
     private void ClearStaff()
     {
         Staff.Clear(); StaffUnits.Clear(); selectedStaff = null; selectedStaffUnit = null; selectedStaffGrant = null; staffLoaded = false; staffLoading = false;
+        staffUnitNames.Clear(); staffUnitsReadAt = null;
         ClearStaffForm(); ClearStaffResetErrors(); ClearHistory();
         foreach (var name in new[] { nameof(SelectedStaff), nameof(SelectedStaffUnit), nameof(SelectedStaffGrant), nameof(StaffState) }) Notify(name);
         NotifyStaffActions();

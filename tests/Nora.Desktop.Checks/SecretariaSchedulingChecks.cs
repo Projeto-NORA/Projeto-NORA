@@ -17,7 +17,7 @@ internal static partial class Program
     private static void RunSecretariaSchedulingChecks(Application application, string storageRoot, string[] args)
     {
         var previewRoot = PreviewRoot(args);
-        Check("Secretaria Especialidades: lista da rede com criar, renomear, ativar e desativar; 409 de nome duplicado no campo; a demanda por especialidade continua", () =>
+        Check("Secretaria Especialidades: lista da rede com criar e renomear em pop-up e ativar e desativar pelo balão; 409 de nome duplicado no pop-up; a demanda por especialidade continua", () =>
         {
             using var fixture = new ApiFixture(); fixture.AddUnit("UBS Esp", "Centro");
             var asked = new List<string>(); Confirmation.Handler = (_, title, _) => { asked.Add(title); return true; };
@@ -28,33 +28,52 @@ internal static partial class Program
                 Require(fixture.Count("GET", "/specialties") == 0, "As especialidades não deveriam ser lidas antes de abrir a seção.");
                 var content = Show(window, "specialties", 1280, 2400);
                 Require(fixture.Count("GET", "/specialties") == 1 && vm.SpecialtyCatalogState.StartsWith("Nenhuma especialidade cadastrada", StringComparison.Ordinal) && FullTexts(content).Contains(vm.SpecialtyCatalogState), "Entrar na seção deveria ler a lista uma vez e explicar a lista vazia.");
-                Require(Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Indicadores por especialidade") && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Lista de especialidades"), "A seção deveria ter a lista da rede e a tabela de demanda.");
-                vm.SpecialtyDraftName = "A"; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyNameError.Contains("2 a 120") && fixture.Count("POST", "/specialties") == 0, "Nome curto demais foi enviado.");
-                vm.SpecialtyDraftName = "  Cardiologia   "; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyCatalog.Single() is { Name: "Cardiologia", IsActive: true } && vm.SpecialtyDraftName == "" && vm.MessageKind == MessageKind.Success, "A especialidade não foi criada (espaços sobrando deveriam sair): " + vm.Message);
-                vm.SpecialtyDraftName = "cardiología"; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyNameError.Contains("Já existe") && vm.SpecialtyCatalog.Count == 1 && vm.MessageKind == MessageKind.Error, "O nome duplicado (409) deveria aparecer no campo: " + vm.SpecialtyNameError);
-                content = Layout(window, 1280, 2400); Require(FullTexts(content).Contains(vm.SpecialtyNameError), "O aviso de nome duplicado não aparece no campo.");
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-especialidades-duplicada-light.png"), 1280, 900);
-                vm.NewSpecialtyDraft(); vm.SpecialtyDraftName = "Pediatria"; Pump(vm.SaveSpecialtyAsync());
+                Require(Descendants<ListBox>(content).Any(list => AutomationProperties.GetName(list) == "Lista de especialidades") && Descendants<FrameworkElement>(content).Any(element => AutomationProperties.GetName(element) == "Indicadores por especialidade"), "A seção deveria ter a lista da rede e a tabela de demanda.");
+                content = Show(window, "specialties:catalog", 1280, 900);
+                var list = ListNamed(content, "Lista de especialidades");
+                InspectHeaderForm(window, "Nova especialidade", dialog =>
+                {
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Cadastrar especialidade");
+                    Input(dialog, "Nome da especialidade").Text = "A"; InvokeButton(primary); PumpUntil(() => !dialog.IsBusy); dialog.UpdateLayout();
+                    Require(dialog.IsVisible && vm.SpecialtyNameError.Contains("2 a 120") && fixture.Count("POST", "/specialties") == 0 && HasText(dialog, vm.SpecialtyNameError), "Nome curto demais foi enviado, ou o erro não aparece no pop-up.");
+                    Input(dialog, "Nome da especialidade").Text = "  Cardiologia   "; InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && vm.SpecialtyCatalog.Single() is { Name: "Cardiologia", IsActive: true } && vm.SpecialtyDraftName == "" && vm.MessageKind == MessageKind.Success, "A especialidade não foi criada (espaços sobrando deveriam sair): " + vm.Message);
+                });
+                InspectHeaderForm(window, "Nova especialidade", dialog =>
+                {
+                    Input(dialog, "Nome da especialidade").Text = "cardiología"; InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Cadastrar especialidade")); PumpUntil(() => !dialog.IsBusy); dialog.UpdateLayout();
+                    Require(dialog.IsVisible && vm.SpecialtyNameError.Contains("Já existe") && vm.SpecialtyCatalog.Count == 1 && vm.MessageKind == MessageKind.Error && HasText(dialog, vm.SpecialtyNameError) && dialog.ErrorMessage.Contains("Já existe"), "O nome duplicado (409) deveria aparecer dentro do pop-up, junto do campo: " + vm.SpecialtyNameError);
+                    SavePreview(dialog, Path.Combine(previewRoot, "municipal-especialidades-duplicada-light.png"));
+                });
+                InspectHeaderForm(window, "Nova especialidade", dialog =>
+                {
+                    Input(dialog, "Nome da especialidade").Text = "Pediatria"; InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Cadastrar especialidade")); PumpUntil(() => !dialog.IsVisible);
+                });
                 Require(vm.SpecialtyCatalog.Select(item => item.Name).SequenceEqual(["Cardiologia", "Pediatria"]), "A lista deveria vir ordenada pelo nome.");
-                vm.SelectedSpecialty = vm.SpecialtyCatalog.Single(item => item.Name == "Cardiologia"); vm.EditSelectedSpecialty();
-                Require(vm.SpecialtyDraftName == "Cardiologia" && vm.SpecialtySaveLabel == "Salvar novo nome", "Editar deveria preencher o nome e mudar o botão.");
-                vm.SpecialtyDraftName = "pediatria"; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyNameError.Contains("Já existe"), "Renomear para o nome de outra especialidade deveria dar 409 no campo.");
-                vm.SpecialtyDraftName = "Cardiologia Clínica"; Pump(vm.SaveSpecialtyAsync());
-                Require(vm.SpecialtyCatalog.Any(item => item.Name == "Cardiologia Clínica") && fixture.Count("PUT", "/specialties/" + fixture.Specialties.First().Id) == 2, "O novo nome não foi gravado.");
-                vm.SelectedSpecialty = vm.SpecialtyCatalog.Single(item => item.Name == "Pediatria"); content = Layout(window, 1280, 2400);
-                Click(window, content, "Desativar especialidade", 1280, 2400);
-                Require(asked.Contains("Desativar especialidade") && vm.SpecialtyCatalog.Single(item => item.Name == "Pediatria") is { IsActive: false, StatusDisplay: "Desativada" } && vm.SpecialtyActiveLabel == "Reativar especialidade", "Desativar deveria pedir confirmação e mostrar Desativada.");
-                content = Layout(window, 1280, 2400); var confirmations = asked.Count; Click(window, content, "Reativar especialidade", 1280, 2400);
+                // Renomear pelo balão: o pop-up traz o nome atual e o botão "Salvar novo nome".
+                content = Layout(window, 1280, 900);
+                SelectRows(window, list, vm.SpecialtyCatalog.Single(item => item.Name == "Cardiologia"));
+                Require(BalloonButton(list, "Renomear").IsVisible && BalloonButton(list, "Desativar especialidade").IsVisible && !BalloonButton(list, "Reativar").IsVisible, "O balão deveria oferecer Renomear e Desativar para uma especialidade ativa.");
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Salvar novo nome");
+                    Require(vm.SpecialtyDraftName == "Cardiologia" && Input(dialog, "Nome da especialidade").Text == "Cardiologia", "Renomear deveria preencher o nome atual.");
+                    Input(dialog, "Nome da especialidade").Text = "pediatria"; InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && vm.SpecialtyNameError.Contains("Já existe"), "Renomear para o nome de outra especialidade deveria dar 409 no pop-up.");
+                    Input(dialog, "Nome da especialidade").Text = "Cardiologia Clínica"; InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && vm.SpecialtyCatalog.Any(item => item.Name == "Cardiologia Clínica") && fixture.Count("PUT", "/specialties/" + fixture.Specialties.First().Id) == 2, "O novo nome não foi gravado.");
+                }, () => InvokeButton(BalloonButton(list, "Renomear")));
+                // Desativar (lixeira) pede confirmação; reativar não.
+                SelectRows(window, list, vm.SpecialtyCatalog.Single(item => item.Name == "Pediatria"));
+                InvokeButton(BalloonButton(list, "Desativar especialidade")); Layout(window, 1280, 900);
+                Require(asked.Contains("Desativar especialidade") && vm.SpecialtyCatalog.Single(item => item.Name == "Pediatria") is { IsActive: false, StatusDisplay: "Desativada" } && BalloonButton(list, "Reativar").IsVisible && !BalloonButton(list, "Desativar especialidade").IsVisible, "Desativar deveria pedir confirmação, mostrar Desativada e trocar a ação do balão por Reativar.");
+                var confirmations = asked.Count; InvokeButton(BalloonButton(list, "Reativar"));
                 Require(vm.SpecialtyCatalog.Single(item => item.Name == "Pediatria").IsActive && asked.Count == confirmations, "Reativar não deveria pedir confirmação e deveria reativar.");
+                // Ciclo: a lista é relida a cada ciclo de 20 s e depois de cada ação.
                 var reads = fixture.Count("GET", "/specialties"); for (var cycle = 0; cycle < 2; cycle++) Pump(vm.RefreshAutomaticallyAsync());
-                Require(fixture.Count("GET", "/specialties") == reads, "O ciclo automático não deveria reler a lista de especialidades.");
-                vm.RefreshCommand.Execute(null); Settle(vm); Require(fixture.Count("GET", "/specialties") == reads + 1, "Atualizar dados deveria reler a lista.");
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-especialidades-light.png"), 1280, 900);
-                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 2400); SaveScrolled(window, Path.Combine(previewRoot, "municipal-especialidades-dark.png"), 1280, 900);
+                Require(fixture.Count("GET", "/specialties") == reads + 2, "O ciclo automático deveria reler a lista de especialidades a cada ciclo.");
+                content = Layout(window, 1280, 900); SavePreview(content, Path.Combine(previewRoot, "municipal-especialidades-light.png"));
+                window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 900); SavePreview(content, Path.Combine(previewRoot, "municipal-especialidades-dark.png"));
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });

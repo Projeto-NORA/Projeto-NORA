@@ -96,7 +96,7 @@ internal static partial class Program
             }
         });
 
-        Check("Secretaria > Usuários (P-053): nova conta só com nome, e-mail, perfil e senha; a lista não tem coluna de CPF; o servidor não recebe CPF", () =>
+        Check("Secretaria > Usuários (P-053): nova conta só com nome, e-mail, perfil e senha; a lista não mostra CPF; o servidor não recebe CPF", () =>
         {
             using var fixture = new ApiFixture();
             fixture.AddUnit("UBS Equipe");
@@ -104,20 +104,26 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "users", 1280, 1900);
-                Require(!Descendants<TextBox>(content).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(content).Any(text => text == "CPF"), "O formulário não deveria ter campo de CPF.");
-                Require(!GridNamed(content, "Contas OBS").Columns.Any(column => column.Header?.ToString()?.Contains("CPF", StringComparison.Ordinal) == true), "A lista de contas não deveria ter coluna de CPF.");
-                Require(VisibleTexts(content).Any(text => text.Contains("sem CPF", StringComparison.Ordinal)), "O formulário deveria dizer que a conta é só de acesso, sem CPF.");
-                Input(content, "Nome da nova conta").Text = "Paulo Equipe"; Input(content, "E-mail da nova conta").Text = "paulo@example.test";
-                Secret(content, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(content, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.LastStaffCreate is { Email: "paulo@example.test", Role: "attendant" } && fixture.LastStaffCreateBody is { } body && !body.Contains("cpf", StringComparison.OrdinalIgnoreCase) && vm.Staff.Any(account => account.FullName == "Paulo Equipe"), "A conta deveria ser criada sem CPF no corpo: " + fixture.LastStaffCreateBody);
-                // Duplicidade só por e-mail.
-                Input(content, "Nome da nova conta").Text = "Outro Nome"; Input(content, "E-mail da nova conta").Text = "paulo@example.test";
-                Secret(content, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(content, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message == "Já existe uma conta OBS com este e-mail.", "A duplicidade deveria citar só o e-mail: " + vm.Message);
-                foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
+                var content = Show(window, "users:accounts", 1280, 900);
+                Require(!VisibleTexts(content).Any(text => text == "CPF" || text.Contains("CPF", StringComparison.Ordinal)), "A lista de contas não deveria mostrar CPF.");
+                InspectHeaderForm(window, "Nova conta", dialog =>
+                {
+                    Require(!Descendants<TextBox>(dialog).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(dialog).Any(text => text == "CPF"), "O formulário não deveria ter campo de CPF.");
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Criar conta");
+                    Input(dialog, "Nome da nova conta").Text = "Paulo Equipe"; Input(dialog, "E-mail da nova conta").Text = "paulo@example.test";
+                    Secret(dialog, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(dialog, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && fixture.LastStaffCreate is { Email: "paulo@example.test", Role: "attendant" } && fixture.LastStaffCreateBody is { } body && !body.Contains("cpf", StringComparison.OrdinalIgnoreCase) && vm.Staff.Any(account => account.FullName == "Paulo Equipe"), "A conta deveria ser criada sem CPF no corpo: " + fixture.LastStaffCreateBody);
+                });
+                // Duplicidade só por e-mail: o erro aparece dentro do pop-up.
+                InspectHeaderForm(window, "Nova conta", dialog =>
+                {
+                    Input(dialog, "Nome da nova conta").Text = "Outro Nome"; Input(dialog, "E-mail da nova conta").Text = "paulo@example.test";
+                    Secret(dialog, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(dialog, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
+                    InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Criar conta")); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && vm.MessageKind == MessageKind.Error && vm.Message == "Já existe uma conta OBS com este e-mail." && dialog.ErrorMessage == vm.Message, "A duplicidade deveria citar só o e-mail: " + vm.Message);
+                    foreach (var box in Descendants<PasswordBox>(dialog)) box.Clear();
+                });
             }
             finally { CloseWindow(window); }
         });

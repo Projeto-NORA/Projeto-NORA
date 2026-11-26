@@ -50,7 +50,7 @@ internal static partial class Program
                 vm.SpecialtyCatalog.Clear();
                 vm.SpecialtyCatalog.Add(new(Guid.NewGuid(), "Clínica geral", true));
                 vm.SpecialtyCatalog.Add(new(Guid.NewGuid(), "Pediatria", true));
-                var list = GridNamed(content, "Lista de especialidades");
+                var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Lista de especialidades");
                 // Tela só com pesquisa: o campo fica em linha no cabeçalho e não há botão Filtros.
                 var header = (FrameworkElement)window.FindName("PageHeader");
                 Require(!((Button)window.FindName("FiltersButton")).IsVisible, "Tela só com pesquisa não deveria mostrar o botão Filtros.");

@@ -25,10 +25,6 @@ public partial class NetworkMapView : UserControl
     {
         if (DataContext is WorkspaceViewModel { IsAuthenticated: true, UnitsLoaded: false, CanOperate: true } vm) await vm.LoadUnitsAsync();
     }
-    private async void OnRefreshUnits(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is WorkspaceViewModel vm) await vm.LoadUnitsAsync();
-    }
     public static string MapAddress(HealthUnit? unit)
     {
         if (unit == null) return MapUrl;

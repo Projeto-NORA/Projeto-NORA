@@ -133,7 +133,7 @@ internal static partial class Program
             finally { CloseWindow(window); }
         });
 
-        Check("Revisão 2.5: falhas de alertas da rede, do cadastro da Capacidade e de Meus comunicados apontam para um botão que existe na página e refaz a leitura", () =>
+        Check("Revisão 2.5: falhas de alertas da rede e do cadastro da Capacidade apontam para um botão que existe na página e refaz a leitura; a de Meus comunicados é refeita pelo ciclo", () =>
         {
             using var fixture = new ApiFixture();
             var alfa = fixture.AddUnit("UBS Alfa", "Centro");
@@ -162,10 +162,10 @@ internal static partial class Program
                 Require(vm.CapacityProfessionals.Single().FullName == "Dra. Ana Lima" && vm.CapacityCatalogState == "", "O botão deveria ler o cadastro de novo: " + vm.CapacityCatalogState);
                 // Meus comunicados.
                 content = Show(window, "communication", 1280, 2600);
-                Require(vm.MyAnnouncementsState.Contains("Use Atualizar lista", StringComparison.Ordinal) && ButtonIn(content, "Atualizar lista") is not null, "A falha de Meus comunicados deveria apontar para o botão Atualizar lista: " + vm.MyAnnouncementsState);
+                Require(vm.MyAnnouncementsState.Contains("refeita sozinha", StringComparison.Ordinal) && Descendants<Button>(content).All(button => button.Content?.ToString() != "Atualizar lista"), "A falha de Meus comunicados deveria dizer que a leitura é refeita sozinha, sem botão Atualizar: " + vm.MyAnnouncementsState);
                 fixture.FailMyAnnouncements = false;
-                Click(window, content, "Atualizar lista", 1280, 2600);
-                Require(vm.MyAnnouncementsState == "Você ainda não publicou comunicados.", "O botão deveria ler a lista de novo: " + vm.MyAnnouncementsState);
+                Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.MyAnnouncementsState == "Você ainda não publicou comunicados.", "O ciclo automático deveria ler a lista de novo: " + vm.MyAnnouncementsState);
             }
             finally { CloseWindow(window); }
         });

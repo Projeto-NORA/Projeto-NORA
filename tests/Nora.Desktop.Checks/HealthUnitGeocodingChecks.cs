@@ -116,18 +116,20 @@ internal static partial class Program
             vm.Endpoint = "https://fixture.invalid"; vm.Identifier = "fixture@example.invalid";
             Pump(vm.LoginAsync("isolated-test-password"));
             vm.UnitName = "UBS Teste"; vm.UnitRegion = "Cidade"; vm.UnitAddress = "Rua Exemplo, 1";
-            var view = new HealthUnitsView { DataContext = vm };
-            var window = new Window { Content = view, Width = 900, Height = 700, ShowInTaskbar = false };
+            // O cadastro é o pop-up da marca: Enter no último campo aciona o primário "Salvar UBS" e o pop-up fecha com a UBS salva.
+            var owner = OffScreenOwner();
             try
             {
-                window.Show(); window.Activate(); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                var address = Descendants<TextBox>(view).Single(box => AutomationProperties.GetName(box) == "Endereço da UBS");
-                Require(address.Focus(), "Não foi possível focar o endereço.");
-                PressEnter(address);
-                PumpUntil(() => fixture.Count("POST", "/api/municipal/units") == 1 && !vm.IsBusy);
-                Require(geo.Calls == 1 && vm.SelectedUnit?.Latitude == -23.2, "Enter não salvou com a localização buscada.");
+                InspectModal<FormDialog>(owner, dialog =>
+                {
+                    var address = Descendants<TextBox>(dialog).Single(box => AutomationProperties.GetName(box) == "Endereço da UBS");
+                    Require(address.Focus(), "Não foi possível focar o endereço.");
+                    PressEnter(address);
+                    PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && fixture.Count("POST", "/api/municipal/units") == 1 && geo.Calls == 1 && vm.SelectedUnit?.Latitude == -23.2, "Enter não salvou com a localização buscada.");
+                }, () => DialogService.ShowForm(owner, vm.UnitDraftTitle, new UnitFormView { DataContext = vm }, vm.SaveUnitAsync, "Salvar UBS", error: () => vm.Message));
             }
-            finally { window.Close(); }
+            finally { owner.Close(); }
         });
     }
 }

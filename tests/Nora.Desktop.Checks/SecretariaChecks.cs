@@ -67,18 +67,20 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 vm.SelectedUnit = vm.Units.Single();
-                var content = Show(window, "units");
+                var content = Show(window, "units:reference");
                 Click(window, content, "Consultar pacientes da UBS");
                 content = Layout(window, 1280, 900);
-                var grid = GridNamed(content, "Pacientes da UBS selecionada");
-                var headers = grid.Columns.Select(column => column.Header?.ToString()).ToArray();
-                Require(new[] { "Nome", "CPF", "E-mail", "Telefone", "Situação", "Aplicativo", "Cadastro em" }.All(headers.Contains), "Colunas do cadastro incompletas: " + string.Join(", ", headers));
-                var cells = VisibleTexts(grid);
+                var list = ListNamed(content, "Pacientes da UBS selecionada");
+                // Listagem aberta: nome; "CPF | e-mail | telefone" só com o que foi informado; etiqueta "Desativado" só para o inativo.
+                var cells = VisibleTexts(list);
+                Require(cells.Any(text => text.StartsWith("529.982.247-25 | ", StringComparison.Ordinal) && text.EndsWith(" | +5511999990000", StringComparison.Ordinal)), "Linha de dados do primeiro cadastro incorreta: " + string.Join(" || ", cells));
+                Require(cells.Any(text => text.StartsWith("111.444.777-35 | ", StringComparison.Ordinal) && !text.Contains("não informado", StringComparison.Ordinal) && text.Count(letter => letter == '|') == 1), "Campo vazio deveria ficar de fora da linha de dados: " + string.Join(" || ", cells));
+                Require(cells.Count(text => text == "Desativado") == 1 && !cells.Contains("Ativo nesta UBS") && !cells.Contains("52998224725"), "Só o cadastro desativado leva a etiqueta, e o CPF vai formatado.");
+                // Ficha em linhas: situação, presença e data de cadastro.
                 var created = new DateTimeOffset(2026, 3, 12, 15, 30, 0, TimeSpan.Zero).ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                var ficha = vm.UnitRegistry.Select(record => vm.BuildMunicipalDetails(record)!).SelectMany(details => details.Fields).Select(field => field.Value).ToArray();
                 foreach (var expected in new[] { "529.982.247-25", "+5511999990000", "Ativo nesta UBS", "Online no aplicativo", created, "111.444.777-35", "Telefone não informado", "Desativado nesta UBS", "Offline no aplicativo" })
-                    Require(cells.Contains(expected), "Célula ausente no cadastro de referência: " + expected);
-                Require(!cells.Contains("52998224725"), "CPF apareceu sem formatação.");
-                Require(grid.Columns.Single(column => column.Header?.ToString() == "Cadastro em").SortMemberPath == "CreatedAt", "Data de cadastro ordena por texto.");
+                    Require(ficha.Contains(expected), "Linha ausente na ficha do cadastro de referência: " + expected);
             }
             finally { CloseWindow(window); }
         });
@@ -96,7 +98,8 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 vm.SelectedUnit = vm.Units.Single();
-                var content = Show(window, "units");
+                var content = Show(window, "units:reference");
+                Descendants<UnitRegistryView>(content).Single().ModeToggle.SelectedIndex = 1; content = Layout(window, 1280, 900);
                 var today = DateTime.Today;
                 Require(vm.UnitAgendaFromText == today.AddDays(-30).ToString("dd/MM/yyyy") && vm.UnitAgendaToText == today.AddDays(30).ToString("dd/MM/yyyy"), "Período padrão não é −30/+30 dias.");
                 var before = fixture.Count("GET", "/appointments");
@@ -105,9 +108,10 @@ internal static partial class Program
                 Require(fixture.LastAppointmentRange.From == new DateTimeOffset(today.AddDays(-30)) && fixture.LastAppointmentRange.To == new DateTimeOffset(today.AddDays(31)), "A API recebeu um intervalo diferente do informado (fim inclusivo).");
                 Require(vm.MunicipalAppointments.Count == 3 && vm.MunicipalAppointments.Select(item => item.PatientName).SequenceEqual(["Bruno Lima", "Ana Souza", "Carla Dias"]), "Consultas não vieram em ordem de data real.");
                 content = Layout(window, 1280, 900);
-                var grid = GridNamed(content, "Consultas da UBS selecionada");
-                Require(grid.Columns.Single(column => column.Header?.ToString() == "Data e hora").SortMemberPath == "StartsAt", "A coluna de data ordena por texto.");
-                Require(VisibleTexts(grid).Contains("529.982.247-25"), "CPF formatado não aparece na grade da agenda.");
+                var agenda = ListNamed(content, "Consultas da UBS selecionada");
+                Require(agenda.Items.Cast<AppointmentInfo>().Select(item => item.PatientName).SequenceEqual(["Bruno Lima", "Ana Souza", "Carla Dias"]), "A listagem deveria seguir a ordem de data real.");
+                Require(VisibleTexts(agenda).Any(text => text.Contains(" | ", StringComparison.Ordinal)) && new[] { "Falta", "Agendada", "Concluída" }.All(VisibleTexts(agenda).Contains), "A listagem deveria trazer a linha de dados e a etiqueta da situação.");
+                Require(vm.BuildMunicipalDetails(vm.MunicipalAppointments[0])!.Fields.Any(field => field.Value == "529.982.247-25"), "CPF formatado não aparece na ficha da consulta.");
                 // Situação filtra só o que já foi carregado: nenhuma nova requisição.
                 var requests = fixture.Requests.Count;
                 Combo(content, "Filtrar agenda por situação").SelectedValue = "missed";
@@ -216,19 +220,23 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 Require(vm.Staff.Count == 0 && vm.StaffState == "As contas ainda não foram carregadas.", "Contas não deveriam carregar antes de abrir a seção.");
                 fixture.PauseReads = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                window.ViewModel.Navigate("users"); PumpUntil(() => vm.IsBusy);
+                window.ViewModel.Navigate("users:accounts"); PumpUntil(() => vm.IsBusy);
                 Require(vm.StaffState == "Carregando as contas…", "Estado de carregamento não apareceu: " + vm.StaffState);
                 fixture.PauseReads.TrySetResult(); Settle(vm);
                 var content = Layout(window, 1280, 900);
                 Require(vm.Staff.Count == 1 && vm.StaffState == "" && fixture.Count("GET", "/api/municipal/staff") == 1, "As contas não carregaram sozinhas ao abrir a seção.");
-                foreach (var label in new[] { "Desativar conta", "Redefinir senha provisória", "Atualizar vínculos", "Revogar vínculo selecionado", "Conceder vínculo" })
-                    Require(!FindActionButton(content, label).IsEnabled, "Botão deveria estar desabilitado sem seleção: " + label);
-                GridNamed(content, "Contas OBS").SelectedItem = vm.Staff.Single(); Layout(window, 1280, 900);
-                Require(vm.SelectedStaff is not null && FindActionButton(content, "Desativar conta").IsEnabled && FindActionButton(content, "Atualizar vínculos").IsEnabled && !FindActionButton(content, "Conceder vínculo").IsEnabled, "Botões não acompanharam a seleção da conta.");
+                // Sem seleção não há balão nem ação; com a conta selecionada o balão traz as ações dela.
+                var accounts = ListNamed(content, "Contas OBS");
+                Require(!ListingBehavior.GetBalloon(accounts)!.IsVisible, "Sem seleção o balão de ações deveria estar escondido.");
+                SelectRows(window, accounts, vm.Staff.Single());
+                Require(ListingBehavior.GetBalloon(accounts)!.IsVisible && BalloonButton(accounts, "Redefinir senha provisória").IsVisible && BalloonButton(accounts, "Desativar conta").IsVisible && !BalloonButton(accounts, "Reativar").IsVisible, "O balão deveria trazer Redefinir senha e Desativar para a conta ativa.");
+                accounts.UnselectAll(); Layout(window, 1280, 900);
+                window.ViewModel.Navigate("users:history"); content = Layout(window, 1280, 900);
                 Require(HasText(content, "Nenhuma ação registrada para este período e esta UBS."), "Estado vazio do histórico ausente.");
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-users-light.png"));
-                fixture.StaffAccounts.Clear(); Pump(vm.LoadStaffAsync());
-                Require(vm.StaffState == "Nenhuma conta OBS cadastrada.", "Estado vazio das contas não apareceu.");
+                window.ViewModel.Navigate("users:accounts"); content = Layout(window, 1280, 900);
+                SavePreview(content, Path.Combine(previewRoot, "municipal-users-light.png"));
+                fixture.StaffAccounts.Clear(); Pump(vm.RefreshAutomaticallyAsync());
+                Require(vm.StaffState == "Nenhuma conta OBS cadastrada." && HasText(Layout(window, 1280, 900), "Nenhuma conta OBS cadastrada."), "Estado vazio das contas não apareceu.");
             }
             finally { fixture.PauseReads?.TrySetResult(); CloseWindow(window); }
         });
@@ -274,45 +282,52 @@ internal static partial class Program
                 Require(vm.Units.Select(item => item.Name).SequenceEqual(["UBS Alfa", "UBS Beta", "UBS Zeta"]), "UBS nova não entrou na posição ordenada por nome: " + string.Join(", ", vm.Units.Select(item => item.Name)));
                 vm.EditSelectedUnit(); vm.UnitName = "Aaa Primeira"; Pump(vm.SaveUnitAsync());
                 Require(vm.Units[0].Name == "Aaa Primeira" && vm.Units.Count == 3, "UBS renomeada não foi movida para a posição ordenada.");
-                var content = Show(window, "units");
-                var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS cadastradas");
-                vm.SelectedUnit = vm.Units.Single(item => item.Name == "UBS Zeta"); Layout(window, 1280, 900);
-                Require(ReferenceEquals(list.SelectedItem, vm.SelectedUnit) || Equals(list.SelectedItem, vm.SelectedUnit), "A lista não mostrou a UBS selecionada.");
-                Input(content, "Pesquisar UBS").Text = "Aaa"; Layout(window, 1280, 900);
-                Require(vm.SelectedUnit?.Name == "UBS Zeta" && list.Items.Count == 1 && vm.SelectedUnitLabel.Contains("UBS Zeta"), "A pesquisa que escondeu a UBS apagou a seleção.");
-                Input(content, "Pesquisar UBS").Text = ""; Layout(window, 1280, 900);
-                Require(vm.SelectedUnit?.Name == "UBS Zeta" && Equals(list.SelectedItem, vm.SelectedUnit), "A seleção não voltou à lista depois de limpar a pesquisa.");
+                var content = Show(window, "units:registry");
+                var list = ListNamed(content, "UBS cadastradas");
+                var zeta = vm.Units.Single(item => item.Name == "UBS Zeta"); var first = vm.Units.Single(item => item.Name == "Aaa Primeira");
+                SelectRows(window, list, zeta, first);
+                Require(ListingBehavior.GetSelectedItems<HealthUnit>(list).Select(item => item.Name).SequenceEqual(["Aaa Primeira", "UBS Zeta"]) && ListingBehavior.GetBalloon(list)!.IsVisible, "A lista não mostrou as UBS selecionadas.");
+                // A pesquisa esconde o que não combina (e isso sai da seleção); o que continua à vista continua selecionado, sem o balão piscar.
+                Input(content, "Pesquisar: Cadastro de UBS").Text = "Aaa"; Layout(window, 1280, 900);
+                Require(list.Items.Count == 1 && ListingBehavior.GetSelectedItems<HealthUnit>(list).Select(item => item.Name).SequenceEqual(["Aaa Primeira"]) && ListingBehavior.GetBalloon(list)!.IsVisible && ListingBehavior.GetBalloon(list)!.Label == "Aaa Primeira", "A pesquisa não deveria desfazer a seleção da UBS que continua à vista.");
+                Input(content, "Pesquisar: Cadastro de UBS").Text = ""; Layout(window, 1280, 900);
+                Require(list.Items.Count == 3 && ListingBehavior.GetSelectedItems<HealthUnit>(list).Select(item => item.Name).SequenceEqual(["Aaa Primeira"]), "A seleção da UBS à vista deveria sobreviver à pesquisa.");
             }
             finally { CloseWindow(window); }
         });
-        Check("Secretaria: formulário de UBS valida nome, região e endereço sem exibir coordenadas", () =>
+        Check("Secretaria: formulário de UBS (pop-up) valida nome, região e endereço sem exibir coordenadas", () =>
         {
             using var fixture = new ApiFixture();
             var window = OpenMunicipal(fixture, storageRoot, "sec-unit-form", Appearance.Light);
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "units");
-                Pump(vm.SaveUnitAsync());
-                Require(vm.MessageKind == MessageKind.Error && fixture.Count("POST", "/api/municipal/units") == 0, "Formulário vazio deveria ser barrado antes da API.");
-                Require(vm.UnitNameError.Contains("nome da UBS") && vm.UnitRegionError.Contains("região") && vm.UnitAddressError.Contains("endereço") && vm.UnitLatitudeError.Contains("Latitude") && vm.UnitLongitudeError.Contains("Longitude"), "Faltou mensagem em algum campo.");
-                content = Layout(window, 1280, 1500);
-                Require(VisibleTexts(content).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 3, "As mensagens dos campos exibidos não aparecem na tela.");
-                Require(!Descendants<TextBox>(content).Any(box => box.IsVisible && (AutomationProperties.GetName(box) == "Latitude da UBS" || AutomationProperties.GetName(box) == "Longitude da UBS")), "O formulário ainda mostra coordenadas manuais.");
-                vm.UnitName = "UBS Teste"; vm.UnitRegion = "Centro"; vm.UnitAddress = "Rua A, 1";
-                (string Latitude, string Longitude, string Fragment)[] warnings = [("-46,63", "-23,55", "trocadas"), ("0", "0", "oceano"), ("48,85", "2,35", "fora do Brasil"), ("-23,55", "-46,63", "")];
-                foreach (var (latitude, longitude, fragment) in warnings)
+                Show(window, "units:registry");
+                InspectHeaderForm(window, "Nova UBS", dialog =>
                 {
-                    vm.UnitLatitude = latitude; vm.UnitLongitude = longitude;
-                    Require(fragment.Length == 0 ? vm.UnitCoordinateWarning == "" : vm.UnitCoordinateWarning.Contains(fragment), $"Aviso incorreto para {latitude}/{longitude}: {vm.UnitCoordinateWarning}");
-                }
-                vm.UnitLatitude = "-46,63"; vm.UnitLongitude = "-23,55"; SaveScrolled(window, Path.Combine(previewRoot, "municipal-unit-form-warning-light.png"));
-                Pump(vm.SaveUnitAsync());
-                Require(vm.MessageKind == MessageKind.Success && vm.Units.Count == 1 && fixture.Count("POST", "/api/municipal/units") == 1, "O aviso de coordenadas não deveria bloquear o salvamento: " + vm.Message);
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Salvar UBS");
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && !dialog.Saved && vm.MessageKind == MessageKind.Error && fixture.Count("POST", "/api/municipal/units") == 0, "Formulário vazio deveria ser barrado antes da API, com o pop-up aberto.");
+                    Require(dialog.ErrorMessage.Contains("Corrija os campos") && vm.UnitNameError.Contains("nome da UBS") && vm.UnitRegionError.Contains("região") && vm.UnitAddressError.Contains("endereço") && vm.UnitLatitudeError.Contains("Latitude") && vm.UnitLongitudeError.Contains("Longitude"), "Faltou mensagem em algum campo ou no pop-up.");
+                    dialog.UpdateLayout();
+                    Require(VisibleTexts(dialog).Count(text => text.Contains("Informe") || text.Contains("inválida")) >= 3, "As mensagens dos campos exibidos não aparecem no pop-up.");
+                    Require(!Descendants<TextBox>(dialog).Any(box => box.IsVisible && (AutomationProperties.GetName(box) == "Latitude da UBS" || AutomationProperties.GetName(box) == "Longitude da UBS")), "O formulário ainda mostra coordenadas manuais.");
+                    Input(dialog, "Nome da UBS").Text = "UBS Teste"; Input(dialog, "Região da UBS").Text = "Centro"; Input(dialog, "Endereço da UBS").Text = "Rua A, 1";
+                    (string Latitude, string Longitude, string Fragment)[] warnings = [("-46,63", "-23,55", "trocadas"), ("0", "0", "oceano"), ("48,85", "2,35", "fora do Brasil"), ("-23,55", "-46,63", "")];
+                    foreach (var (latitude, longitude, fragment) in warnings)
+                    {
+                        vm.UnitLatitude = latitude; vm.UnitLongitude = longitude;
+                        Require(fragment.Length == 0 ? vm.UnitCoordinateWarning == "" : vm.UnitCoordinateWarning.Contains(fragment), $"Aviso incorreto para {latitude}/{longitude}: {vm.UnitCoordinateWarning}");
+                    }
+                    vm.UnitLatitude = "-46,63"; vm.UnitLongitude = "-23,55";
+                    dialog.UpdateLayout(); SavePreview(dialog, Path.Combine(previewRoot, "municipal-unit-form-warning-light.png"));
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && vm.MessageKind == MessageKind.Success && vm.Units.Count == 1 && fixture.Count("POST", "/api/municipal/units") == 1, "O aviso de coordenadas não deveria bloquear o salvamento: " + vm.Message);
+                });
             }
             finally { CloseWindow(window); }
         });
-        Check("Secretaria: estado da base da UBS, nova tentativa com falha e sucesso, e aviso ao cadastrar UBS sem base", () =>
+        Check("Secretaria: estado da base da UBS, nova tentativa com falha e sucesso no pop-up com os passos, e aviso ao cadastrar UBS sem base", () =>
         {
             using var fixture = new ApiFixture { FailProvisioning = true };
             fixture.AddUnit("UBS Pronta", "Centro"); fixture.AddUnit("UBS Sem Base", "Sul", databaseState: "pending");
@@ -320,18 +335,27 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "units");
-                var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "UBS cadastradas");
+                var content = Show(window, "units:registry");
+                var list = ListNamed(content, "UBS cadastradas");
                 Require(VisibleTexts(list).Contains("Base pronta") && VisibleTexts(list).Contains("Base não criada"), "A lista não mostra o estado da base de cada UBS.");
-                Require(!Descendants<Button>(content).Any(button => button.IsVisible && button.Content?.ToString() == "Tentar criar a base"), "O botão de nova tentativa só deveria aparecer para a UBS sem base.");
-                vm.SelectedUnit = vm.Units.Single(unit => unit.Name == "UBS Sem Base"); content = Layout(window, 1280, 1500);
-                Require(VisibleTexts(content).Any(text => text.Contains("permissão para criar bancos")) && !vm.CanReadUnitRegistry, "A explicação da permissão não apareceu, ou a consulta nominal continuou liberada.");
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-units-database-dark.png"));
-                Click(window, content, "Tentar criar a base", 1280, 1500);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("permissão para criar bancos") && !vm.Message.Contains("private-server-secret") && vm.SelectedUnit!.DatabasePending, "Falha database-provisioning-failed não foi explicada.");
-                fixture.FailProvisioning = false;
-                Click(window, content, "Tentar criar a base", 1280, 1500);
-                Require(vm.MessageKind == MessageKind.Success && !vm.SelectedUnit!.DatabasePending && vm.SelectedUnit.DatabaseLabel == "Base pronta" && vm.CanReadUnitRegistry, "A nova tentativa não deixou a base pronta.");
+                SelectRows(window, list, vm.Units.Single(unit => unit.Name == "UBS Pronta"));
+                Require(!BalloonButton(list, "Tentar criar a base de novo").IsVisible, "O botão de nova tentativa só deveria aparecer para a UBS sem base.");
+                var pending = vm.Units.Single(unit => unit.Name == "UBS Sem Base");
+                SelectRows(window, list, pending);
+                Require(BalloonButton(list, "Tentar criar a base de novo").IsVisible && BalloonButton(list, "Editar").IsVisible, "UBS sem base deveria oferecer Editar e Tentar criar a base de novo.");
+                vm.SelectedUnit = pending;
+                Require(!vm.CanReadUnitRegistry, "A consulta nominal deveria ficar bloqueada para a UBS sem base.");
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    Require(VisibleTexts(dialog).Any(text => text.Contains("permissão para criar bancos")), "A explicação da permissão não apareceu no pop-up.");
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Criar a base");
+                    dialog.UpdateLayout(); SavePreview(dialog, Path.Combine(previewRoot, "municipal-units-database-dark.png"));
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && vm.MessageKind == MessageKind.Error && vm.Message.Contains("permissão para criar bancos") && !vm.Message.Contains("private-server-secret") && vm.SelectedUnit!.DatabasePending && vm.UnitProvisionSteps.Single().State == StepState.Failed, "Falha database-provisioning-failed não foi explicada no pop-up, com o passo marcado como falho.");
+                    fixture.FailProvisioning = false;
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && vm.MessageKind == MessageKind.Success && !vm.SelectedUnit!.DatabasePending && vm.SelectedUnit.DatabaseLabel == "Base pronta" && vm.CanReadUnitRegistry && vm.UnitProvisionSteps.Single().State == StepState.Done, "A nova tentativa não deixou a base pronta.");
+                }, () => InvokeButton(BalloonButton(list, "Tentar criar a base de novo")));
                 Require(fixture.History.Any(item => item.Kind == "unit-database-created"), "A API não registrou a criação da base.");
                 fixture.NewUnitsPending = true;
                 vm.NewUnitDraft(); vm.UnitName = "UBS Nova"; vm.UnitRegion = "Leste"; vm.UnitAddress = "Rua Nova, 1"; vm.UnitLatitude = "-23,5"; vm.UnitLongitude = "-46,6"; Pump(vm.SaveUnitAsync());
