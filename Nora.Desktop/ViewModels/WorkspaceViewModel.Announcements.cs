@@ -67,7 +67,7 @@ public sealed partial class WorkspaceViewModel
     public bool IsAnnouncementsLoading => IsAuthenticated && !announcementsLoaded && !announcementsFailed;
     /// <summary>Texto da lista vazia (ou da leitura em andamento / que falhou); vazio quando há comunicados para mostrar.</summary>
     public string AnnouncementsState => !IsAuthenticated ? "Entre na conta para ler os comunicados."
-        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. Saia desta tela e volte para ler de novo." : "Carregando os comunicados…")
+        : !announcementsLoaded ? (announcementsFailed ? "Não foi possível ler os comunicados agora. A tela tenta de novo sozinha." : "Carregando os comunicados…")
         : Announcements.Count == 0 ? "Nenhum comunicado em vigor para as UBS desta conta." : "";
     /// <summary>Só aparece quando a última leitura falhou e a lista mostrada é a de uma leitura anterior.</summary>
     public string AnnouncementsFootnote => announcementsReadAt is { } at && announcementsFailed ? $"A última leitura não concluiu; a lista é da leitura das {at:HH:mm}." : "";

@@ -3,6 +3,9 @@ namespace Nora.Desktop.Models;
 /// <summary>Textos prontos do item de alerta na listagem aberta: título, linha de dados e a etiqueta do tipo.</summary>
 public sealed partial record AlertRow
 {
+    /// <summary>Identidade do alerta na listagem (tipo, título e especialidade): a seleção volta para ele quando o ciclo relê a avaliação e o valor muda.</summary>
+    public string Key => $"{Kind}|{Title}|{Specialty}";
+
     /// <summary>Primeira linha do item: o tipo do alerta e, quando é de uma especialidade, a especialidade.</summary>
     public string ItemTitle => Specialty.Length > 0 ? $"{Title} · {Specialty}" : Title;
 

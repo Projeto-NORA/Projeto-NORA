@@ -27,7 +27,13 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 // Comunicados.
                 var content = Show(window, "announcements", 1280, 1800);
-                Require(vm.AnnouncementsState.Contains("volte para ler de novo", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => AutomationProperties.GetName(button) == "Atualizar comunicados"), "A falha dos comunicados deveria orientar sem citar um botão que não existe mais: " + vm.AnnouncementsState);
+                Require(vm.AnnouncementsState.Contains("tenta de novo sozinha", StringComparison.Ordinal) && !Descendants<Button>(content).Any(button => AutomationProperties.GetName(button) == "Atualizar comunicados"), "A falha dos comunicados deveria orientar sem citar um botão que não existe mais: " + vm.AnnouncementsState);
+                // A tela tenta de novo sozinha: o ciclo de 20 s com a tela aberta refaz a leitura.
+                fixture.FailAnnouncementFeed = false;
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                Require(vm.AnnouncementsState == "Nenhum comunicado em vigor para as UBS desta conta.", "O ciclo da tela de comunicados deveria ler de novo depois da falha: " + vm.AnnouncementsState);
+                // Reabrir a tela também relê tudo.
+                fixture.FailAnnouncementFeed = true; window.ViewModel.Navigate("home"); Settle(vm); content = Show(window, "announcements", 1280, 1800);
                 fixture.FailAnnouncementFeed = false;
                 window.ViewModel.Navigate("home"); Settle(vm); content = Show(window, "announcements", 1280, 1800);
                 Require(vm.AnnouncementsState == "Nenhum comunicado em vigor para as UBS desta conta.", "Reabrir a tela deveria ler os comunicados de novo: " + vm.AnnouncementsState);

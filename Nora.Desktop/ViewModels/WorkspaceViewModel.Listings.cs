@@ -33,6 +33,14 @@ public sealed partial class WorkspaceViewModel
         new("Validade", row.ExpiresAt is { } expires ? "Vale até " + expires.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) : "Sem validade"),
         new("Texto", row.Body, true, "Comunicado", Block: true)]);
 
+    /// <summary>Ficha do alerta da UBS em linhas: tipo, especialidade ("—" quando o alerta é da UBS toda), valor, limite e "desde" (só quando existe).</summary>
+    private static ItemDetails BuildAlertDetails(AlertRow row)
+    {
+        var fields = new List<DetailField> { new("Tipo", row.Title), new("Especialidade", row.SpecialtyDisplay), new("Valor", row.Value), new("Limite", row.Threshold) };
+        if (row.Since is not ("" or "—")) fields.Add(new("Desde", row.Since));
+        return new(row.ItemTitle, "Alerta da UBS", fields);
+    }
+
     /// <summary>
     /// Aba "Exames e vacinas" da ficha de um paciente da UBS ativa. Nulo fora de uma UBS ativa ou para um item que não está mais na lista. A ficha é uma janela própria: o retorno
     /// das ações aparece nela, e uma sessão encerrada ou troca obrigatória de senha continua sendo tratada aqui.
@@ -55,6 +63,7 @@ public sealed partial class WorkspaceViewModel
     {
         // Os comunicados são da conta, não da UBS ativa: a ficha deles abre mesmo sem UBS escolhida.
         if (item is AnnouncementRow announcement) return !IsMunicipal && IsAuthenticated && Announcements.Contains(announcement) ? BuildAnnouncementDetails(announcement) : null;
+        if (item is AlertRow alert) return !IsMunicipal && IsAuthenticated && HasActiveObsUnit && UnitAlerts.Contains(alert) ? BuildAlertDetails(alert) : null;
         if (IsMunicipal || !IsAuthenticated || !HasActiveObsUnit) return null;
         return item switch
         {

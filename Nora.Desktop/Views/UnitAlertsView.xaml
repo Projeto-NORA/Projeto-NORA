@@ -12,7 +12,8 @@
       </ContentControl>
     </StackPanel>
     <Grid Grid.Row="1">
-      <ListBox x:Name="AlertsFilterList" Style="{StaticResource OpenList}" ItemsSource="{Binding UnitAlerts}" views:SearchEmptyNotice.Target="{Binding ElementName=SearchEmpty}" AutomationProperties.Name="Alertas da UBS ativa" ToolTip="Fila alta, espera longa, faltas, ocupação da grade e metas fora dos limites da rede.">
+      <ListBox x:Name="AlertsFilterList" Style="{StaticResource OpenList}" ItemsSource="{Binding UnitAlerts}" views:SearchEmptyNotice.Target="{Binding ElementName=SearchEmpty}" AutomationProperties.Name="Alertas da UBS ativa" ToolTip="Duplo clique ou Enter abre a ficha do alerta."
+               views:ListingBehavior.Balloon="{Binding ElementName=NoBalloon}" views:ListingBehavior.LabelPath="ItemTitle" views:ListingBehavior.KeyPath="Key" views:ListingBehavior.PluralName="alertas">
         <ListBox.ItemTemplate>
           <DataTemplate>
             <Grid AutomationProperties.Name="{Binding AutomationLabel}">
@@ -26,6 +27,8 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+      <!-- Alerta é só leitura: sem ações, o balão fica sempre escondido. Ele existe porque o ListingBehavior (segundo clique, Enter, Esc e a seleção que sobrevive ao ciclo de 20 s) precisa de um. -->
+      <Border Visibility="Collapsed"><views:SelectionBalloon x:Name="NoBalloon" /></Border>
       <!-- Lista sem alerta: "Nenhum alerta" (com a hora da avaliação) ou a falha da leitura; são estados diferentes. -->
       <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" Orientation="Horizontal" AutomationProperties.Name="Estado dos alertas" AutomationProperties.LiveSetting="Polite">
         <StackPanel.Style>

@@ -265,6 +265,45 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
+        Check(RedesignGroup + "Vaga Relâmpago encerradas: etiqueta Recusada ou Vencida pelo desfecho da última oferta; a leitura que falha não deixa o indicador girando", () =>
+        {
+            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
+            var unit = fixture.AddUnit("UBS Desfechos", "Leste");
+            var start = DateTimeOffset.UtcNow.AddDays(-1);
+            var declined = fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Cardiologia", "Dra. Helena Prado", start, start.AddMinutes(30), "closed", start.AddHours(-3)));
+            var expired = fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Pediatria", "Dr. Marcos Vieira", start.AddHours(1), start.AddHours(1).AddMinutes(30), "closed", start.AddHours(-2)));
+            var silent = fixture.AddSlot(unit.Id, new UnitLightningSlot(Guid.NewGuid(), Guid.NewGuid(), "Ortopedia", "Dr. Rafael Nunes", start.AddHours(2), start.AddHours(2).AddMinutes(30), "closed", start.AddHours(-1)));
+            fixture.Offers[declined.Id] = [new(Guid.NewGuid(), "Carlos Pires", "expired", start.AddHours(-2)), new(Guid.NewGuid(), "Joana Alves", "declined", start.AddHours(-1))];
+            fixture.Offers[expired.Id] = [new(Guid.NewGuid(), "Maria Souza", "declined", start.AddHours(-2)), new(Guid.NewGuid(), "Paulo Ribeiro", "expired", start.AddHours(-1))];
+            var window = OpenOperational(fixture, storageRoot, "redesign-slots-outcomes", Appearance.Light);
+            try
+            {
+                var vm = LoginObs(window);
+                var content = Show(window, "slots:closed", 1280, 740); PumpFor(TimeSpan.FromMilliseconds(400)); content = Layout(window, 1280, 740);
+                var view = Descendants<UnitLightningSlotsView>(content).Single(item => item.IsVisible);
+                var list = ListNamed(view, "Vagas da UBS");
+                var rows = list.Items.Cast<SlotPanelRow>().ToDictionary(row => row.Id);
+                Require(rows.Count == 3 && rows[declined.Id] is { StatusDisplay: "Recusada", StatusTone: Tone.Pink } && rows[expired.Id] is { StatusDisplay: "Vencida", StatusTone: Tone.Violet } && rows[silent.Id] is { StatusDisplay: "Encerrada", StatusTone: Tone.Neutral },
+                    "A etiqueta da vaga encerrada sem aceite deveria ser o desfecho da última oferta: " + string.Join(", ", rows.Values.Select(row => row.StatusDisplay)));
+                var texts = FullTexts(content);
+                Require(new[] { "Recusada", "Vencida", "Encerrada" }.All(texts.Contains), "As etiquetas Recusada, Vencida e Encerrada deveriam aparecer na lista.");
+                CaptureBoth(window, folder, "vagas-encerradas-desfechos", 1280, 740);
+                // A primeira leitura das vagas ainda não chegou: indicador com o passo escrito. Se ela falha, a lista diz que falhou em vez de girar para sempre.
+                var spinner = Descendants<StackPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Lendo as vagas");
+                var failed = (TextBlock)view.FindName("SlotsFailed");
+                fixture.FailReads = true;
+                typeof(WorkspaceViewModel).GetMethod("ClearUnitLightningData", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(vm, null);
+                Layout(window, 1280, 740);
+                Require(vm.IsSlotsLoading && spinner.IsVisible && !failed.IsVisible, "Antes da leitura chegar a tela deveria mostrar o indicador com 'Lendo as vagas da UBS…'.");
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 740);
+                Require(vm.IsSlotsLoading && vm.IsDataStale && failed.IsVisible && !spinner.IsVisible, "Com a leitura falhando, a lista deveria dizer que não conseguiu ler, sem o indicador girando.");
+                CaptureBoth(window, folder, "vagas-falha", 1280, 740);
+                fixture.FailReads = false;
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); PumpFor(TimeSpan.FromMilliseconds(300)); content = Layout(window, 1280, 740);
+                Require(!vm.IsSlotsLoading && !failed.IsVisible && !spinner.IsVisible && list.Items.Count == 3, "Com a leitura de volta, a lista deveria voltar sem o aviso de falha.");
+            }
+            finally { CloseWindow(window); }
+        });
     }
 
     private static TextBlock FindTextBlock(DependencyObject root, string startsWith) =>
@@ -294,6 +333,33 @@ internal static partial class Program
                 var search = Descendants<TextBox>(window).Single(box => box.IsVisible && AutomationProperties.GetName(box) == "Pesquisar: Alertas da unidade");
                 Require(!((Button)window.FindName("FiltersButton")).IsVisible, "A tela só tem pesquisa: sem botão Filtros.");
                 CaptureBoth(window, folder, "alertas", 1280, 740);
+                // Só leitura: selecionar não mostra balão; o ciclo relê a avaliação e, com o valor mudando, a seleção volta ao mesmo alerta pela chave.
+                var queue = list.Items.Cast<AlertRow>().Single(row => row.Kind == "high-queue");
+                SelectRows(window, list, 1280, 740, queue);
+                Require(list.SelectedItems.Count == 1 && !((SelectionBalloon)view.FindName("NoBalloon")).IsVisible, "Alerta é só leitura: não deveria haver balão de ações.");
+                CaptureBoth(window, folder, "alertas-selecionado", 1280, 740);
+                fixture.Reset(unit.Id, alerts: true);
+                foreach (var alert in SampleAlerts(unit)) fixture.AddAlert(unit.Id, alert.Kind == "high-queue" ? alert with { Value = 31 } : alert);
+                RefreshAlertsNow(vm); PumpFor(TimeSpan.FromMilliseconds(100)); Layout(window, 1280, 740);
+                Require(list.SelectedItems.Count == 1 && list.SelectedItem is AlertRow { Kind: "high-queue" } reread && reread.Value != queue.Value, "O ciclo de 20 s não deveria derrubar a seleção do alerta quando o valor dele muda.");
+                // Enter abre a ficha em linhas (a da janela principal), uma vez.
+                string? alertTitle = null; var alertTexts = Array.Empty<string>();
+                var alertCloser = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                alertCloser.Tick += (_, _) =>
+                {
+                    if (Application.Current.Windows.OfType<ItemDetailsWindow>().FirstOrDefault() is not { } dialog) return;
+                    alertTitle = dialog.Title; alertTexts = Descendants<TextBlock>(dialog).Select(text => text.Text).ToArray();
+                    alertCloser.Stop(); dialog.Close();
+                };
+                alertCloser.Start();
+                try { Require(PressKey(list, Key.Enter), "Enter deveria abrir a ficha do alerta."); PumpUntil(() => alertTitle is not null); }
+                finally { alertCloser.Stop(); }
+                Require(alertTitle == "Fila alta · Cardiologia" && new[] { "Tipo", "Especialidade", "Valor", "Limite", "Cardiologia" }.All(alertTexts.Contains) && !alertTexts.Contains("Desde"), "A ficha do alerta deveria trazer tipo, especialidade, valor e limite (sem 'desde' quando não existe): " + string.Join(" | ", alertTexts));
+                var alertDetails = vm.BuildDetails(list.SelectedItem!) ?? throw new InvalidOperationException("Alerta sem ficha.");
+                var alertPopup = ShowDetails(window, alertDetails);
+                try { CapturePopupBoth(window, alertPopup, folder, "alertas-ficha"); }
+                finally { alertPopup.Close(); }
+                list.UnselectAll();
                 search.Text = "Cardio"; PumpFor(TimeSpan.FromMilliseconds(80)); content = Layout(window, 1280, 740);
                 Require(list.Items.Count == 1 && FullTexts(content).Contains("Fila alta · Cardiologia"), "A pesquisa em linha deveria filtrar a lista.");
                 search.Text = "zzzz"; PumpFor(TimeSpan.FromMilliseconds(80)); content = Layout(window, 1280, 740);

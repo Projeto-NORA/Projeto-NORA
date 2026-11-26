@@ -37,10 +37,29 @@
       <!-- A vaga é só leitura: não há ações, então o balão da listagem fica sempre escondido. Ele existe só porque o ListingBehavior (segundo clique, Enter, Esc e seleção que sobrevive à releitura) precisa de um. -->
       <Border Visibility="Collapsed"><views:SelectionBalloon x:Name="NoBalloon" /></Border>
       <TextBlock Text="{Binding SlotsEmptyText}" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Top" TextAlignment="Center" TextWrapping="Wrap" Margin="0,28,0,0" Visibility="{Binding SlotsEmptyText, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Estado da lista de vagas" />
-      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" Visibility="{Binding IsSlotsLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Lendo as vagas" AutomationProperties.LiveSetting="Polite">
+      <!-- Primeira leitura: indicador com o passo escrito. Se a leitura falhou (dados marcados como desatualizados), o indicador não gira para sempre: a lista diz que falhou. -->
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,28,0,0" AutomationProperties.Name="Lendo as vagas" AutomationProperties.LiveSetting="Polite">
+        <StackPanel.Style>
+          <Style TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsSlotsLoading}" Value="True" /><Condition Binding="{Binding IsDataStale}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
+            </Style.Triggers>
+          </Style>
+        </StackPanel.Style>
         <ProgressBar IsIndeterminate="True" Height="3" Width="220" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" />
         <TextBlock Text="Lendo as vagas da UBS…" Style="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,8,0,0" />
       </StackPanel>
+      <TextBlock x:Name="SlotsFailed" Text="Não foi possível ler as vagas agora. A tela tenta de novo sozinha." HorizontalAlignment="Center" VerticalAlignment="Top" TextAlignment="Center" TextWrapping="Wrap" Margin="0,28,0,0" AutomationProperties.Name="Estado da lista de vagas" AutomationProperties.LiveSetting="Polite">
+        <TextBlock.Style>
+          <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsSlotsLoading}" Value="True" /><Condition Binding="{Binding IsDataStale}" Value="True" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
+            </Style.Triggers>
+          </Style>
+        </TextBlock.Style>
+      </TextBlock>
     </Grid>
     <DockPanel Grid.Row="3" Margin="0,10,0,0" Visibility="{Binding SlotsHistoryState, Converter={StaticResource TextVisibility}}">
       <Button DockPanel.Dock="Right" Content="Carregar mais histórico" Click="OnMoreHistory" IsEnabled="{Binding CanLoadMoreSlotsHistory}" Margin="12,0,0,0" AutomationProperties.Name="Carregar mais histórico das vagas" ToolTip="Traz vagas encerradas mais antigas." ToolTipService.ShowOnDisabled="True" />

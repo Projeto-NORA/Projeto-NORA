@@ -216,20 +216,30 @@ public sealed class SlotPanelRow(UnitLightningSlot slot) : ObservableObject
     /// <summary>Profissional e paciente, só o que está informado, separados por " | " (o prazo vem logo depois, no próprio item, porque muda a cada segundo).</summary>
     public string MetaLead => string.Join(" | ", new[] { Slot.Professional, PatientName }.Where(text => !string.IsNullOrWhiteSpace(text) && text != "—"));
     public string SeparatorBeforeDeadline => MetaLead.Length > 0 && HasDeadline ? " | " : "";
-    /// <summary>Situação da vaga na etiqueta à direita (curta); a ficha traz o texto completo.</summary>
+    /// <summary>Desfecho da última oferta respondida de uma vaga encerrada sem aceite (recusada ou vencida); vazio sem oferta.</summary>
+    private string? LastOutcome => offers.LastOrDefault(offer => offer.Status is "declined" or "expired")?.Status;
+    /// <summary>
+    /// Situação na etiqueta à direita (curta); a ficha traz o texto completo. A vaga encerrada sem aceite e sem motivo próprio mostra como terminou a última
+    /// oferta: "Recusada" ou "Vencida" (o pedido lista essas etiquetas); sem oferta, "Encerrada".
+    /// </summary>
     public string StatusDisplay => Slot.Status switch
     {
         "open" => "Aberta",
         "offered" => "Em oferta",
         "accepted" => "Aceita",
-        _ => Slot.ClosedReason switch { "conflict" => "Horário ocupado", "too-late" => "Menos de 10 min", _ => "Encerrada" }
+        _ => Slot.ClosedReason switch
+        {
+            "conflict" => "Horário ocupado",
+            "too-late" => "Menos de 10 min",
+            _ => LastOutcome switch { "declined" => "Recusada", "expired" => "Vencida", _ => "Encerrada" }
+        }
     };
     public Tone StatusTone => Slot.Status switch
     {
         "open" => Tone.Blue,
         "offered" => Tone.Teal,
         "accepted" => Tone.Green,
-        _ => Slot.ClosedReason is "conflict" or "too-late" ? Tone.Yellow : Tone.Neutral
+        _ => Slot.ClosedReason is "conflict" or "too-late" ? Tone.Yellow : LastOutcome switch { "declined" => Tone.Pink, "expired" => Tone.Violet, _ => Tone.Neutral }
     };
     public string AutomationLabel => $"{ItemTitle}. {StatusDisplay}. {MetaLead}.";
     /// <summary>Tempo que falta para a oferta atual vencer ("04:32"), ou o desfecho quando não há oferta correndo.</summary>
@@ -252,8 +262,12 @@ public sealed class SlotPanelRow(UnitLightningSlot slot) : ObservableObject
     public bool IsUrgent => Current is { } current && current.ExpiresAt - DateTimeOffset.Now < TimeSpan.FromMinutes(2);
     public void SetOffers(UnitSlotOffer[] value)
     {
+        // O ciclo relê as ofertas das vagas em andamento a cada 20 s: sem mudança, a linha não é redesenhada.
+        if (offers.SequenceEqual(value)) return;
         offers = value;
-        foreach (var name in new[] { nameof(PatientName), nameof(MetaLead), nameof(SeparatorBeforeDeadline), nameof(AutomationLabel), nameof(HasDeadline), nameof(DeadlineText), nameof(Countdown), nameof(CountdownTip), nameof(IsUrgent), nameof(Declined), nameof(Expired) }) Notify(name);
+        foreach (var name in OfferDependents) Notify(name);
     }
+    private static readonly string[] OfferDependents =
+        [nameof(PatientName), nameof(MetaLead), nameof(SeparatorBeforeDeadline), nameof(StatusDisplay), nameof(StatusTone), nameof(AutomationLabel), nameof(HasDeadline), nameof(DeadlineText), nameof(Countdown), nameof(CountdownTip), nameof(IsUrgent), nameof(Declined), nameof(Expired)];
     public void Tick() { if (HasDeadline) { Notify(nameof(DeadlineText)); Notify(nameof(IsUrgent)); } }
 }
