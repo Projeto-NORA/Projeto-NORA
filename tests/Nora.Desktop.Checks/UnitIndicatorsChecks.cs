@@ -568,8 +568,9 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(municipal); vm.SelectedUnit = vm.Units.Single();
-                var content = Show(municipal, "units"); Click(municipal, content, "Consultar pacientes da UBS"); content = Layout(municipal, 1280, 900);
-                Require(!GridNamed(content, "Pacientes da UBS selecionada").Columns.Any(column => column.Header?.ToString()?.Contains("Participação", StringComparison.Ordinal) == true || column.Header?.ToString()?.Contains("Score", StringComparison.Ordinal) == true) && !VisibleTexts(content).Any(text => text.Contains("Participação", StringComparison.Ordinal) || text.Contains("Score (12 meses)", StringComparison.Ordinal)), "A Secretaria não deveria mostrar o score nem a participação do paciente.");
+                var content = Show(municipal, "units:reference"); Click(municipal, content, "Consultar pacientes da UBS"); content = Layout(municipal, 1280, 900);
+                var ficha = vm.BuildMunicipalDetails(vm.UnitRegistry.First()) ?? throw new InvalidOperationException("A ficha do cadastro de referência não abriu.");
+                Require(!VisibleTexts(content).Any(text => text.Contains("Participação", StringComparison.Ordinal) || text.Contains("Score (12 meses)", StringComparison.Ordinal)) && ficha.Fields.All(field => !field.Label.Contains("Score", StringComparison.Ordinal) && !field.Group.Contains("Score", StringComparison.Ordinal) && !field.Label.Contains("Participação", StringComparison.Ordinal)), "A Secretaria não deveria mostrar o score nem a participação do paciente.");
                 Require(vm.UnitRegistry.All(record => record.Attendance is null), "A consulta municipal trouxe participação.");
             }
             finally { CloseWindow(municipal); }

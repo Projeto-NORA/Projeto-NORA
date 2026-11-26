@@ -76,12 +76,12 @@ internal static partial class Program
                     Require(vm.Announcements.Count == announcementReads, "A leitura incremental real sem novidade não deveria mudar a lista.");
                     Pump(vm.MarkAnnouncementsReadAsync([receivedAnnouncement]));
                     Require(vm.UnreadAnnouncementCount == 0 && receivedAnnouncement.StateDisplay.StartsWith("Lido em", StringComparison.Ordinal), "Marcar como lido na API real não baixou o contador: " + vm.Message);
-                    Pump(network.LoadMyAnnouncementsAsync());
+                    network.Section = "communication"; Pump(network.RefreshAutomaticallyAsync());
                     network.SelectedMyAnnouncement = network.MyAnnouncements.Single(item => item.Title == announcementTitle);
                     Require(network.SelectedMyAnnouncement.StaffReadsDisplay == "1" && network.SelectedMyAnnouncement.PatientReadsDisplay == "—", "A Secretaria deveria ver 1 leitura de equipe: " + network.SelectedMyAnnouncement.StaffReadsDisplay);
                     Pump(network.LoadAnnouncementReadersAsync());
                     Require(network.AnnouncementReaders.Count == 1 && network.AnnouncementReaders[0].FullName == "Operador de teste", "A lista de quem leu deveria trazer o operador: " + network.AnnouncementReadersState);
-                    Pump(network.CloseMyAnnouncementAsync());
+                    Pump(network.CloseMyAnnouncementsAsync([network.SelectedMyAnnouncement!]));
                     Require(network.MyAnnouncements.Single(item => item.Title == announcementTitle).StatusDisplay == "Encerrado", "A Secretaria não encerrou o comunicado real: " + network.Message);
                     ReadAnnouncementsFully(obs, vm);
                     Require(vm.Announcements.All(row => row.Title != announcementTitle), "O comunicado encerrado deveria sair da leitura completa do OBS.");

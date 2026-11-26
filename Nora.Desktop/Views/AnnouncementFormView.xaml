@@ -1,0 +1,57 @@
+<UserControl x:Class="Nora.Desktop.Views.AnnouncementFormView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Comunicado novo, no pop-up (sem card): título, texto, público, alcance (com as regiões ou as UBS), validade. Título e texto são texto puro. O DataContext é o WorkspaceViewModel. -->
+  <views:FormGrid>
+    <StackPanel views:FormGrid.FullRow="True">
+      <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding AnnouncementTitleCounter}" Style="{StaticResource Muted}" FontSize="12" /><TextBlock Text="Título" Style="{StaticResource FieldLabelText}" /></DockPanel>
+      <TextBox Text="{Binding AnnouncementTitle, UpdateSourceTrigger=PropertyChanged}" MaxLength="500" AutomationProperties.Name="Título do comunicado" views:EnterNavigation.Group="AnnouncementFormView.message" />
+      <TextBlock Text="{Binding AnnouncementTitleError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding AnnouncementTitleError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True">
+      <DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding AnnouncementBodyCounter}" Style="{StaticResource Muted}" FontSize="12" /><TextBlock Text="Texto" Style="{StaticResource FieldLabelText}" /></DockPanel>
+      <TextBox Text="{Binding AnnouncementBodyText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" MaxHeight="220" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" MaxLength="4000" AutomationProperties.Name="Texto do comunicado" views:EnterNavigation.Group="AnnouncementFormView.message" />
+      <TextBlock Text="{Binding AnnouncementBodyError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding AnnouncementBodyError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Para quem" Style="{StaticResource FieldLabelText}" />
+      <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.AudienceOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementAudienceKey}" AutomationProperties.Name="Público do comunicado" views:EnterNavigation.Group="AnnouncementFormView.message" />
+      <TextBlock Text="{Binding AnnouncementAudienceError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding AnnouncementAudienceError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Alcance" Style="{StaticResource FieldLabelText}" />
+      <ComboBox ItemsSource="{x:Static vm:WorkspaceViewModel.ScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding AnnouncementScopeKey}" AutomationProperties.Name="Alcance do comunicado" views:EnterNavigation.Group="AnnouncementFormView.message" />
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True" Visibility="{Binding ShowRegionChoices, Converter={StaticResource BoolVisibility}}">
+      <TextBlock Text="Regiões (as UBS de cada região recebem; a região de cada UBS vale no momento da leitura)" Style="{StaticResource FieldLabelText}" TextWrapping="Wrap" />
+      <ItemsControl ItemsSource="{Binding AnnouncementRegionChoices}" AutomationProperties.Name="Regiões do comunicado">
+        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate><DataTemplate><CheckBox ToolTip="Marca quem recebe o comunicado." IsChecked="{Binding IsChecked}" Content="{Binding Label}" Margin="0,0,18,8" AutomationProperties.Name="{Binding Label}" /></DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True" Visibility="{Binding ShowUnitChoices, Converter={StaticResource BoolVisibility}}">
+      <TextBlock Text="UBS (marque uma ou mais)" Style="{StaticResource FieldLabelText}" />
+      <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding AnnouncementUnitChoices}" AutomationProperties.Name="UBS do comunicado">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate><DataTemplate><CheckBox ToolTip="Marca quem recebe o comunicado." IsChecked="{Binding IsChecked}" Content="{Binding Label}" Margin="0,0,18,8" AutomationProperties.Name="{Binding Label}" /></DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True" Visibility="{Binding AnnouncementChoicesState, Converter={StaticResource TextVisibility}}">
+      <TextBlock Text="{Binding AnnouncementChoicesState}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True" Visibility="{Binding AnnouncementScopeError, Converter={StaticResource TextVisibility}}">
+      <TextBlock Text="{Binding AnnouncementScopeError}" Style="{StaticResource FieldError}" Margin="0" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Validade (opcional): data (dd/mm/aaaa)" Style="{StaticResource FieldLabelText}" />
+      <TextBox Text="{Binding AnnouncementExpiryDate, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" AutomationProperties.Name="Data de validade do comunicado" ToolTip="dd/mm/aaaa. Depois dela o comunicado some das leituras." views:EnterNavigation.Group="AnnouncementFormView.message" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Validade: hora (HH:mm)" Style="{StaticResource FieldLabelText}" />
+      <TextBox Text="{Binding AnnouncementExpiryTime, UpdateSourceTrigger=PropertyChanged}" MaxLength="5" AutomationProperties.Name="Hora de validade do comunicado" ToolTip="HH:mm; em branco vale 23:59" views:EnterNavigation.Group="AnnouncementFormView.message" />
+    </StackPanel>
+    <StackPanel views:FormGrid.FullRow="True" Visibility="{Binding AnnouncementExpiryError, Converter={StaticResource TextVisibility}}">
+      <TextBlock Text="{Binding AnnouncementExpiryError}" Style="{StaticResource FieldError}" Margin="0" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+  </views:FormGrid>
+</UserControl>

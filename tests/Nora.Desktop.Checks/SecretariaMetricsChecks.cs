@@ -180,29 +180,30 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "users", 1280, 1900);
+                var content = Show(window, "users:history", 1280, 900);
                 Require(vm.HistoryEvents.Count == 100 && fixture.HistoryQueries.Count == 1 && fixture.HistoryQueries[0]["limit"] == "100" && vm.CanLoadMoreHistory, "A primeira página deveria trazer 100 ações com 'carregar mais'.");
                 Require(vm.HistoryEvents[0].OccurredAt == baseTime.AddMinutes(149) && vm.HistoryEvents[0].ActionDisplay == "Consultou os cadastros da UBS", "As ações deveriam vir da mais recente para a mais antiga e em português.");
-                var grid = GridNamed(content, "Histórico de ações");
-                Require(VisibleTexts(grid).Contains(vm.HistoryEvents[0].OccurredAtDisplay) && vm.HistoryEvents[0].OccurredAtDisplay == baseTime.AddMinutes(149).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"), "Data e hora não aparecem no horário local.");
-                Click(window, content, "Carregar mais", 1280, 1900);
+                var list = ListNamed(content, "Histórico de ações");
+                Require(VisibleTexts(list).Any(text => text.StartsWith(vm.HistoryEvents[0].OccurredAtDisplay, StringComparison.Ordinal)) && vm.HistoryEvents[0].OccurredAtDisplay == baseTime.AddMinutes(149).ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"), "Data e hora não aparecem no horário local, na linha de dados.");
+                Require(HasText(content, vm.HistoryFooter) && vm.HistoryFooter.Contains("Há ações mais antigas"), "O rodapé deveria contar as ações mostradas e avisar que há mais.");
+                Click(window, content, "Carregar mais", 1280, 900);
                 Require(vm.HistoryEvents.Count == 150 && !vm.CanLoadMoreHistory && fixture.HistoryQueries.Count == 2 && fixture.HistoryQueries[1]["before"] is not null, "'Carregar mais' deveria trazer as 50 restantes pelo cursor.");
                 Require(vm.HistoryEvents.Select(item => item.OccurredAt).Distinct().Count() == 150 && vm.HistoryEvents.Zip(vm.HistoryEvents.Skip(1)).All(pair => pair.First.OccurredAt > pair.Second.OccurredAt), "A lista paginada ficou com repetições ou fora de ordem.");
                 // Filtros: UBS e período, uma requisição ao consultar.
                 vm.HistoryUnitFilter = other.Id; Settle(vm);
                 Require(fixture.HistoryQueries.Count == 2, "Escolher a UBS não deveria consultar antes do botão.");
-                Click(window, content, "Consultar histórico", 1280, 1900);
+                Click(window, content, "Consultar histórico", 1280, 900);
                 Require(fixture.HistoryQueries.Count == 3 && fixture.HistoryQueries[2]["unitId"] == other.Id.ToString() && vm.HistoryEvents.Count == 20 && !vm.CanLoadMoreHistory, "O filtro de UBS não restringiu o histórico.");
-                vm.HistoryUnitFilter = Guid.Empty; vm.HistoryFromText = "xx/yy"; Click(window, content, "Consultar histórico", 1280, 1900);
+                vm.HistoryUnitFilter = Guid.Empty; vm.HistoryFromText = "xx/yy"; Click(window, content, "Consultar histórico", 1280, 900);
                 Require(fixture.HistoryQueries.Count == 3 && vm.HistoryRangeError.Contains("dd/mm/aaaa"), "Data inválida deveria ser barrada sem requisição.");
                 vm.HistoryFromText = baseTime.ToLocalTime().AddMinutes(100).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture); vm.HistoryToText = vm.HistoryFromText;
-                Click(window, content, "Consultar histórico", 1280, 1900);
+                Click(window, content, "Consultar histórico", 1280, 900);
                 Require(fixture.HistoryQueries.Count == 4 && fixture.HistoryQueries[3]["from"] is not null && fixture.HistoryQueries[3]["to"] is not null && vm.HistoryRangeError == "", "O período não foi enviado.");
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-history-light.png"));
+                SavePreview(Layout(window, 1280, 900), Path.Combine(previewRoot, "municipal-history-light.png"));
             }
             finally { CloseWindow(window); }
         });
-        Check("Secretaria: criar, desativar, reativar e redefinir senha de conta OBS pedem confirmação e nunca mostram a senha", () =>
+        Check("Secretaria: criar, desativar, reativar e redefinir senha de conta OBS pedem confirmação e nunca mostram a senha; conceder acesso também confirma", () =>
         {
             using var fixture = new ApiFixture();
             fixture.AddUnit("UBS Contas");
@@ -212,59 +213,81 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "users", 1280, 1900);
-                Require(!Descendants<TextBox>(content).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(content).Contains("CPF"), "O formulário de nova conta não deveria ter campo de CPF.");
-                void Fill(string email, string password, string confirm)
+                var content = Show(window, "users:accounts", 1280, 900);
+                // Conta nova: pop-up com nome, e-mail, perfil e senha provisória (sem CPF); os erros ficam junto dos campos, dentro dele.
+                InspectHeaderForm(window, "Nova conta", dialog =>
                 {
-                    Input(content, "Nome da nova conta").Text = "Marina Costa"; Input(content, "E-mail da nova conta").Text = email;
-                    Combo(content, "Perfil da nova conta").SelectedValue = "administrator";
-                    Secret(content, "Senha provisória da nova conta").Password = password; Secret(content, "Confirmação da senha provisória da nova conta").Password = confirm;
-                }
-                Fill("marina@example.test", "provisoria-123", "provisoria-124");
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffConfirmError.Contains("confirmação") && HasText(Layout(window, 1280, 1900), vm.StaffConfirmError), "Confirmação diferente deveria ser barrada junto ao campo.");
-                Fill("invalido", "curta", "curta");
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffEmailError.Length > 0 && vm.StaffPasswordError.Length > 0, "E-mail e senha inválidos deveriam ter mensagem própria.");
-                foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
-                SaveScrolled(window, Path.Combine(previewRoot, "municipal-staff-form-errors-light.png"));
-                Fill("marina@example.test", "provisoria-123", "provisoria-123");
-                Require(Descendants<PasswordBox>(content).Count(box => box.Password.Length > 0) == 2, "Pré-condição: campos de senha preenchidos.");
-                foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
-                Secret(content, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(content, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(fixture.Count("POST", "/api/municipal/staff") == 1 && fixture.LastStaffCreate is { Role: "administrator", Email: "marina@example.test", Password: "provisoria-123" }, "A conta não foi criada com os dados informados.");
+                    Require(!Descendants<TextBox>(dialog).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(dialog).Contains("CPF"), "O formulário de nova conta não deveria ter campo de CPF.");
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Criar conta");
+                    void Fill(string email, string password, string confirm)
+                    {
+                        Input(dialog, "Nome da nova conta").Text = "Marina Costa"; Input(dialog, "E-mail da nova conta").Text = email;
+                        Combo(dialog, "Perfil da nova conta").SelectedValue = "administrator";
+                        Secret(dialog, "Senha provisória da nova conta").Password = password; Secret(dialog, "Confirmação da senha provisória da nova conta").Password = confirm;
+                    }
+                    Fill("marina@example.test", "provisoria-123", "provisoria-124");
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy); dialog.UpdateLayout();
+                    Require(dialog.IsVisible && fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffConfirmError.Contains("confirmação") && HasText(dialog, vm.StaffConfirmError), "Confirmação diferente deveria ser barrada junto ao campo, com o pop-up aberto.");
+                    Fill("invalido", "curta", "curta");
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy); dialog.UpdateLayout();
+                    Require(dialog.IsVisible && fixture.Count("POST", "/api/municipal/staff") == 0 && vm.StaffEmailError.Length > 0 && vm.StaffPasswordError.Length > 0, "E-mail e senha inválidos deveriam ter mensagem própria.");
+                    SavePreview(dialog, Path.Combine(previewRoot, "municipal-staff-form-errors-light.png"));
+                    foreach (var box in Descendants<PasswordBox>(dialog)) box.Clear();
+                    Fill("marina@example.test", "provisoria-123", "provisoria-123");
+                    Require(Descendants<PasswordBox>(dialog).Count(box => box.Password.Length > 0) == 2, "Pré-condição: campos de senha preenchidos.");
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && fixture.Count("POST", "/api/municipal/staff") == 1 && fixture.LastStaffCreate is { Role: "administrator", Email: "marina@example.test", Password: "provisoria-123" }, "A conta não foi criada com os dados informados.");
+                });
                 Require(fixture.LastStaffCreateBody is { } body && !body.Contains("cpf", StringComparison.OrdinalIgnoreCase) && body.Contains("\"fullName\"") && body.Contains("\"email\""), "O corpo enviado não deveria ter CPF: " + fixture.LastStaffCreateBody);
                 var created = vm.Staff.Single(account => account.FullName == "Marina Costa");
-                Require(created.PendingDisplay == "Pendente" && created.RoleDisplay == "Administrador" && vm.Message.Contains("obrigada a trocar a senha"), "A conta nova deveria aparecer com troca de senha pendente e a explicação.");
-                Require(Descendants<PasswordBox>(content).All(box => box.Password.Length == 0) && vm.StaffName == "", "O formulário não foi limpo depois de criar.");
-                Fill("marina@example.test", "provisoria-123", "provisoria-123");
-                Click(window, content, "Criar conta", 1280, 1900);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message == "Já existe uma conta OBS com este e-mail.", "Duplicidade deveria virar mensagem específica por e-mail: " + vm.Message);
-                foreach (var box in Descendants<PasswordBox>(content)) box.Clear();
-                // Desativar / reativar com confirmação e cancelamento.
-                GridNamed(content, "Contas OBS").SelectedItem = created; Layout(window, 1280, 1900);
-                answer = false; Click(window, content, "Desativar conta", 1280, 1900);
+                Require(created.PendingDisplay == "Pendente" && created.RoleDisplay == "Administrador" && created.TagText == "Senha provisória" && vm.Message.Contains("obrigada a trocar a senha") && vm.StaffName == "", "A conta nova deveria aparecer com troca de senha pendente, a explicação e o formulário limpo.");
+                content = Layout(window, 1280, 900);
+                Require(VisibleTexts(ListNamed(content, "Contas OBS")).Contains("Senha provisória"), "A etiqueta Senha provisória deveria aparecer na lista.");
+                InspectHeaderForm(window, "Nova conta", dialog =>
+                {
+                    Input(dialog, "Nome da nova conta").Text = "Marina Costa"; Input(dialog, "E-mail da nova conta").Text = "marina@example.test";
+                    Secret(dialog, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(dialog, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";
+                    InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Criar conta")); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && vm.MessageKind == MessageKind.Error && vm.Message == "Já existe uma conta OBS com este e-mail." && dialog.ErrorMessage == vm.Message, "Duplicidade deveria virar mensagem específica por e-mail, dentro do pop-up: " + vm.Message);
+                });
+                // Desativar (lixeira) e reativar pelo balão, com confirmação e cancelamento.
+                var accounts = ListNamed(content, "Contas OBS");
+                SelectRows(window, accounts, created);
+                answer = false; InvokeButton(BalloonButton(accounts, "Desativar conta"));
                 Require(fixture.Count("PATCH", "/active") == 0 && created.IsActive && asked[^1].Contains("sessões") && asked[^1].Contains("concessões de UBS são preservadas"), "Cancelar a confirmação não deveria desativar, e o texto deve explicar o efeito.");
-                answer = true; Click(window, content, "Desativar conta", 1280, 1900);
-                Require(fixture.Count("PATCH", "/active") == 1 && vm.SelectedStaff is { IsActive: false } && vm.StaffActiveActionLabel == "Reativar conta" && vm.Staff.Single(account => account.Id == created.Id).StatusDisplay == "Desativada", "A conta não foi desativada, ou a seleção se perdeu ao recarregar a lista.");
-                Click(window, content, "Reativar conta", 1280, 1900);
-                Require(fixture.Count("PATCH", "/active") == 2 && vm.SelectedStaff is { IsActive: true }, "A conta não foi reativada.");
-                // Redefinir senha provisória.
-                Secret(content, "Nova senha provisória da conta").Password = "senha-nova-123"; Secret(content, "Confirmação da senha provisória da conta").Password = "senha-nova-999";
-                Click(window, content, "Redefinir senha provisória", 1280, 1900);
-                Require(fixture.Count("POST", "/password") == 0 && vm.StaffResetConfirmError.Length > 0, "Confirmação diferente deveria ser barrada antes de perguntar.");
-                Secret(content, "Confirmação da senha provisória da conta").Password = "senha-nova-123"; answer = false;
-                Click(window, content, "Redefinir senha provisória", 1280, 1900);
-                Require(fixture.Count("POST", "/password") == 0 && asked[^1].Contains("obrigada a trocar a senha"), "Cancelar não deveria redefinir.");
-                answer = true; Click(window, content, "Redefinir senha provisória", 1280, 1900);
-                Require(fixture.Count("POST", "/password") == 1 && fixture.LastStaffPassword == "senha-nova-123" && vm.SelectedStaff!.MustChangePassword && Descendants<PasswordBox>(content).All(box => box.Password.Length == 0), "A senha provisória não foi redefinida ou os campos não foram limpos.");
-                Require(!vm.Message.Contains("senha-nova-123") && !VisibleTexts(content).Any(text => text.Contains("senha-nova-123") || text.Contains("provisoria-123")), "Uma senha apareceu em texto na tela.");
-                // Concessão de UBS também confirma.
-                vm.SelectedStaffUnit = vm.Units.Single(); answer = false; Click(window, content, "Conceder vínculo", 1280, 1900);
-                Require(vm.StaffUnits.Count == 0, "Cancelar a concessão não deveria conceder.");
-                answer = true; Click(window, content, "Conceder vínculo", 1280, 1900);
-                Require(vm.StaffUnits.Count == 1, "A concessão confirmada não foi feita.");
+                answer = true; InvokeButton(BalloonButton(accounts, "Desativar conta")); Layout(window, 1280, 900);
+                Require(fixture.Count("PATCH", "/active") == 1 && vm.Staff.Single(account => account.Id == created.Id) is { IsActive: false, StatusDisplay: "Desativada" }, "A conta não foi desativada.");
+                Require(ListingBehavior.GetSelectedItems<StaffAccount>(accounts).Single().Id == created.Id && BalloonButton(accounts, "Reativar").IsVisible && !BalloonButton(accounts, "Desativar conta").IsVisible, "A seleção deveria sobreviver à releitura, e o balão passar a oferecer Reativar.");
+                InvokeButton(BalloonButton(accounts, "Reativar"));
+                Require(fixture.Count("PATCH", "/active") == 2 && vm.Staff.Single(account => account.Id == created.Id).IsActive && asked[^1].StartsWith("Confirmar reativação|", StringComparison.Ordinal), "A conta não foi reativada, ou não pediu confirmação.");
+                // Redefinir senha provisória: pop-up, confirmação e senhas que nunca aparecem em texto.
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Redefinir senha");
+                    Secret(dialog, "Nova senha provisória da conta").Password = "senha-nova-123"; Secret(dialog, "Confirmação da senha provisória da conta").Password = "senha-nova-999";
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && fixture.Count("POST", "/password") == 0 && vm.StaffResetConfirmError.Length > 0, "Confirmação diferente deveria ser barrada antes de perguntar.");
+                    Secret(dialog, "Confirmação da senha provisória da conta").Password = "senha-nova-123"; answer = false;
+                    InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && fixture.Count("POST", "/password") == 0 && asked[^1].Contains("obrigada a trocar a senha") && dialog.ErrorMessage.Contains("não foi confirmada"), "Cancelar não deveria redefinir.");
+                    answer = true; InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && fixture.Count("POST", "/password") == 1 && fixture.LastStaffPassword == "senha-nova-123" && vm.Staff.Single(account => account.Id == created.Id).MustChangePassword, "A senha provisória não foi redefinida.");
+                }, () => InvokeButton(BalloonButton(accounts, "Redefinir senha provisória")));
+                Require(!vm.Message.Contains("senha-nova-123") && !VisibleTexts(Layout(window, 1280, 900)).Any(text => text.Contains("senha-nova-123") || text.Contains("provisoria-123")), "Uma senha apareceu em texto na tela.");
+                // Conceder acesso a uma UBS também confirma (tela Acessos às UBS).
+                content = Show(window, "users:access", 1280, 900);
+                var access = ListNamed(content, "Contas e UBS com acesso");
+                SelectRows(window, access, vm.Staff.Single(account => account.Id == created.Id));
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Conceder acesso");
+                    answer = false; InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
+                    Require(dialog.IsVisible && vm.StaffUnits.Count == 0, "Cancelar a concessão não deveria conceder.");
+                    answer = true; InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
+                    Require(dialog.Saved && vm.StaffUnits.Count == 1, "A concessão confirmada não foi feita.");
+                }, () => InvokeButton(BalloonButton(access, "Conceder acesso")));
+                content = Layout(window, 1280, 900);
+                Require(VisibleTexts(access).Any(text => text.Contains("UBS Contas", StringComparison.Ordinal)), "A linha da conta deveria mostrar a UBS concedida.");
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });

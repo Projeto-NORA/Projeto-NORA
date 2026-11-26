@@ -45,8 +45,6 @@ internal static partial class Program
         PumpUntil(() => DateTime.UtcNow >= end);
     }
 
-    private static ListBox ListNamed(FrameworkElement content, string name) => Descendants<ListBox>(content).Single(list => AutomationProperties.GetName(list) == name);
-
     /// <summary>Seleciona itens da lista pelo mesmo caminho do usuário (a coleção de itens selecionados) e deixa o layout e o balão se ajustarem.</summary>
     private static void SelectRows(ShellWindow window, ListBox list, double width, double height, params object[] items)
     {

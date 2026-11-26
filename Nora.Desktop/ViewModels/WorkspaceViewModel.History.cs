@@ -25,7 +25,9 @@ public sealed partial class WorkspaceViewModel
     public bool CanQueryHistory => IsMunicipal && CanOperate;
     public string HistoryState => !IsAuthenticated ? "Entre na Secretaria para consultar o histórico."
         : !historyLoaded ? (historyLoading ? "Carregando o histórico…" : "O histórico ainda não foi carregado.")
-        : HistoryEvents.Count == 0 ? "Nenhuma ação registrada para este período e esta UBS."
+        : HistoryEvents.Count == 0 ? "Nenhuma ação registrada para este período e esta UBS." : "";
+    /// <summary>Rodapé da listagem: quantas ações aparecem e se há mais antigas (vazio sem ações).</summary>
+    public string HistoryFooter => !historyLoaded || HistoryEvents.Count == 0 ? ""
         : historyHasMore ? $"{HistoryEvents.Count} ações mostradas. Há ações mais antigas: use Carregar mais." : $"{HistoryEvents.Count} ações no total para este filtro.";
 
     /// <summary>Datas opcionais e inclusivas (dd/mm/aaaa): "Até" vai até a meia-noite seguinte.</summary>
@@ -58,7 +60,7 @@ public sealed partial class WorkspaceViewModel
             else foreach (var item in page) HistoryEvents.Add(item);
             historyLoaded = true; historyHasMore = page.Length >= HistoryPageSize;
         }
-        finally { historyLoading = false; if (!disposed) { Notify(nameof(HistoryState)); Notify(nameof(CanLoadMoreHistory)); } }
+        finally { historyLoading = false; if (!disposed) { Notify(nameof(HistoryState)); Notify(nameof(HistoryFooter)); Notify(nameof(CanLoadMoreHistory)); } }
     }
 
     public Task LoadHistoryAsync() => RunAsync(async () =>
@@ -68,10 +70,32 @@ public sealed partial class WorkspaceViewModel
     });
     public Task LoadMoreHistoryAsync() => RunAsync(() => LoadHistoryPageAsync(reset: false));
 
+    /// <summary>
+    /// Leitura do ciclo de 20 s: relê a primeira página com o filtro já aplicado, para as ações novas aparecerem sozinhas. Quando a pessoa já carregou páginas mais antigas
+    /// ("Carregar mais"), o ciclo não mexe na lista (as ações mais recentes entram quando ela refaz a consulta).
+    /// </summary>
+    private async Task RefreshHistoryFirstPageAsync()
+    {
+        if (!historyLoaded || HistoryEvents.Count > HistoryPageSize) return;
+        var version = ++historyVersion;
+        var page = await api.HistoryAsync(appliedHistory.From, appliedHistory.To, appliedHistory.Unit, HistoryPageSize, null);
+        if (disposed || !IsAuthenticated || version != historyVersion) return;
+        Replace(HistoryEvents, page);
+        historyHasMore = page.Length >= HistoryPageSize;
+        Notify(nameof(HistoryState)); Notify(nameof(HistoryFooter)); Notify(nameof(CanLoadMoreHistory));
+    }
+
+    /// <summary>Leitura da seção Usuários no ciclo de 20 s: contas (com as UBS de cada uma, relidas a cada 5 minutos) e a primeira página do histórico. As UBS da rede não entram: vêm do login e da seção Unidades.</summary>
+    private async Task LoadUsersSectionAsync()
+    {
+        await ReloadStaffAsync();
+        await RefreshHistoryFirstPageAsync();
+    }
+
     private void ClearHistory()
     {
         historyVersion++; HistoryEvents.Clear(); historyLoaded = false; historyLoading = false; historyHasMore = false; appliedHistory = default;
         historyFromText = historyToText = ""; historyRangeError = ""; historyUnitFilter = Guid.Empty;
-        foreach (var name in new[] { nameof(HistoryFromText), nameof(HistoryToText), nameof(HistoryUnitFilter), nameof(HasHistoryRangeError), nameof(HistoryState), nameof(CanLoadMoreHistory) }) Notify(name);
+        foreach (var name in new[] { nameof(HistoryFromText), nameof(HistoryToText), nameof(HistoryUnitFilter), nameof(HasHistoryRangeError), nameof(HistoryState), nameof(HistoryFooter), nameof(CanLoadMoreHistory) }) Notify(name);
     }
 }

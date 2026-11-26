@@ -10,7 +10,6 @@ public sealed partial class WorkspaceViewModel
             ObsRegistryStatusFilter = ObsRegistryPresenceFilter = "Todos";
             ObsRegistrySort = "Mais recentes";
         }
-        if (filters.Contains("units")) UnitSearch = "";
         if (filters.Contains("slots"))
         {
             SlotSearch = "";

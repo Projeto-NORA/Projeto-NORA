@@ -11,6 +11,7 @@ public sealed record Specialty(Guid Id, string Name, bool IsActive)
 {
     [JsonIgnore] public string StatusDisplay => IsActive ? "Ativa" : "Desativada";
     [JsonIgnore] public string SelectorLabel => IsActive ? Name : Name + " (desativada)";
+    [JsonIgnore] public Tone StatusTone => IsActive ? Tone.Green : Tone.Neutral;
 }
 public sealed record SpecialtyList(Specialty[] Specialties);
 

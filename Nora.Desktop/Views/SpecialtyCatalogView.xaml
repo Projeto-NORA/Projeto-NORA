@@ -1,34 +1,34 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.SpecialtyCatalogView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
-  <!-- Lista única de especialidades da rede (banco central): a Secretaria mantém, cada UBS escolhe dela. Não há exclusão: só ativar e desativar. -->
-  <UserControl.Resources>
-    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style>
-  </UserControl.Resources>
-  <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Lista de especialidades da rede">
-    <StackPanel>
-      <Border x:Name="SpecialtyForm" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="2" CornerRadius="10" Padding="16" Margin="0,0,0,20">
-        <StackPanel IsEnabled="{Binding CanSaveSpecialty}" HorizontalAlignment="Stretch">
-          <TextBlock Text="{Binding SpecialtyDraftTitle}" FontWeight="SemiBold" Margin="0,0,0,10" />
-          <TextBlock Text="Nome da especialidade (2 a 120 caracteres)" FontWeight="SemiBold" FontSize="12" />
-          <TextBox Text="{Binding SpecialtyDraftName, UpdateSourceTrigger=PropertyChanged}" MaxLength="120" AutomationProperties.Name="Nome da especialidade"  enter:EnterNavigation.Group="SpecialtyCatalogView.specialty"/>
-          <TextBlock Text="{Binding SpecialtyNameError}" Style="{StaticResource FieldError}" Visibility="{Binding SpecialtyNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-          <Button Content="{Binding SpecialtySaveLabel}" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Grava as alterações." enter:EnterNavigation.Group="SpecialtyCatalogView.specialty"/>
-        </StackPanel>
-      </Border>
-      <DockPanel Margin="0,0,0,8"><Button DockPanel.Dock="Right" Content="Atualizar lista" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar lista de especialidades" ToolTip="Atualizar lista de especialidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock ToolTip="Lista única da rede: as UBS escolhem dela ao cadastrar profissionais e grade, e o paciente vê só as ativas. Não existe exclusão. Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes (Cardiología = cardiologia)." Text="Especialidades da rede" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></DockPanel>
-      <views:PageFilterGroup Label="Cadastro de especialidades" SearchFields="Name,StatusDisplay" ItemsTarget="{Binding ElementName=SpecialtyFilterList}" />
-      <DataGrid x:Name="SpecialtyFilterList" ItemsSource="{Binding SpecialtyCatalog}" SelectedItem="{Binding SelectedSpecialty}" MaxHeight="300" MinHeight="64" CanUserSortColumns="True" AutomationProperties.Name="Lista de especialidades">
-        <DataGrid.Columns>
-          <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="*" MinWidth="200" />
-          <DataGridTextColumn Header="Situação" Binding="{Binding StatusDisplay}" Width="140" />
-        </DataGrid.Columns>
-      </DataGrid>
-      <TextBlock Text="{Binding SpecialtyCatalogState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding SpecialtyCatalogState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-      <WrapPanel Margin="0,12,0,0">
-        <Button Content="Editar nome da selecionada" Click="OnEdit" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" ToolTip="Renomeia a especialidade selecionada."/>
-        <Button Content="{Binding SpecialtyActiveLabel}" Click="OnToggleActive" IsEnabled="{Binding CanChangeSpecialty}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o item selecionado."/>
-        <Button Content="+ Nova especialidade" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" IsEnabled="{Binding CanSaveSpecialty}" Margin="0,0,8,8" ToolTip="Abre o cadastro de especialidade."/>
-      </WrapPanel>
-
+<UserControl x:Class="Nora.Desktop.Views.SpecialtyCatalogView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Lista única de especialidades da rede (banco central): a Secretaria mantém, cada UBS escolhe dela. Não há exclusão: só ativar e desativar (a lixeira desativa). Cadastro e renomeação são pop-ups. -->
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal">
+      <views:PageFilterGroup Label="Cadastro de especialidades" SearchFields="Name,StatusDisplay" ItemsTarget="{Binding ElementName=SpecialtyList}" />
+      <views:PageActions>
+        <Button Style="{StaticResource NewItemButton}" Content="Nova especialidade" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Nova especialidade" ToolTip="Abre o cadastro de especialidade." />
+      </views:PageActions>
     </StackPanel>
-  </Border>
+    <Grid Grid.Row="1">
+      <ListBox x:Name="SpecialtyList" Style="{StaticResource OpenList}" ItemsSource="{Binding SpecialtyCatalog}" AutomationProperties.Name="Lista de especialidades"
+               views:ListingBehavior.Balloon="{Binding ElementName=Balloon}" views:ListingBehavior.PluralName="especialidades" views:ListingBehavior.Feminine="True">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid AutomationProperties.Name="{Binding SelectorLabel}" ToolTip="Desativar tira a especialidade da lista do paciente e de novos vínculos e horários; o que já existe é preservado. Maiúsculas, acentos e espaços não diferenciam nomes.">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitleText}" VerticalAlignment="Center" />
+              <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding StatusTone}" Margin="12,0,0,0" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <views:ListEmptyText List="{Binding ElementName=SpecialtyList}" EmptyText="{Binding SpecialtyCatalogState}" NoMatchText="Nenhuma especialidade encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
+      <views:SelectionBalloon x:Name="Balloon">
+        <StackPanel Orientation="Horizontal">
+          <Button x:Name="RenameButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Renomear" Click="OnRename" IsEnabled="{Binding CanOperate}" ToolTip="Renomeia a especialidade selecionada." />
+          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivate" IsEnabled="{Binding CanOperate}" ToolTip="Reativa as especialidades desativadas selecionadas." />
+          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivate" IsEnabled="{Binding CanOperate}" ToolTip="Desativa as especialidades ativas selecionadas (pede confirmação)." AutomationProperties.Name="Desativar especialidade" />
+        </StackPanel>
+      </views:SelectionBalloon>
+    </Grid>
+  </Grid>
 </UserControl>

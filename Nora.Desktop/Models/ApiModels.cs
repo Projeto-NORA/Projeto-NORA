@@ -22,6 +22,10 @@ public sealed record HealthUnit(Guid Id, string Name, string Region, string Addr
     [JsonIgnore] public string DatabaseLabel => DatabaseState switch { "pending" => "Base não criada", "ready" => "Base pronta", _ => "" };
     /// <summary>Nome e região: unidades com o mesmo nome continuam distinguíveis no seletor.</summary>
     [JsonIgnore] public string SelectorLabel => string.IsNullOrWhiteSpace(Region) ? Name : $"{Name} · {Region}";
+    /// <summary>Linha de dados da listagem de UBS: região e endereço, só o que foi informado.</summary>
+    [JsonIgnore] public string MetaLine => ListText.Join([Region, Address]);
+    /// <summary>Tom da etiqueta do estado da base: pronta (verde), pendente (amarelo); sem informação da API, neutro.</summary>
+    [JsonIgnore] public Tone StatusTone => DatabaseState switch { "ready" => Tone.Green, "pending" => Tone.Yellow, _ => Tone.Neutral };
 }
 
 public sealed record StaffAccount(Guid Id, string FullName, string Role, string? Email = null, bool IsActive = true, bool MustChangePassword = false)
@@ -31,6 +35,15 @@ public sealed record StaffAccount(Guid Id, string FullName, string Role, string?
     [JsonIgnore] public string PendingDisplay => MustChangePassword ? "Pendente" : "Não";
     [JsonIgnore] public string EmailDisplay => string.IsNullOrWhiteSpace(Email) ? "—" : Email;
     [JsonIgnore] public string SelectorLabel => IsActive ? FullName : FullName + " (desativada)";
+    /// <summary>UBS com acesso, em texto ("UBS Centro, UBS Sul" ou "Sem UBS"); vazio enquanto os vínculos ainda não foram lidos. Preenchido pelo cliente.</summary>
+    [JsonIgnore] public string UnitsDisplay { get; init; } = "";
+    /// <summary>O texto de <see cref="UnitsDisplay"/> para a conta que não tem acesso a nenhuma UBS.</summary>
+    public const string NoUnitsDisplay = "Sem UBS";
+    /// <summary>Linha de dados da listagem de contas: e-mail, perfil e UBS com acesso, só o que foi informado.</summary>
+    [JsonIgnore] public string MetaLine => ListText.Join([string.IsNullOrWhiteSpace(Email) ? null : Email, RoleDisplay, UnitsDisplay]);
+    /// <summary>Texto e tom da etiqueta de situação da conta: desativada, senha provisória (troca pendente) ou ativa.</summary>
+    [JsonIgnore] public string TagText => !IsActive ? "Desativada" : MustChangePassword ? "Senha provisória" : "Ativa";
+    [JsonIgnore] public Tone StatusTone => !IsActive ? Tone.Pink : MustChangePassword ? Tone.Yellow : Tone.Green;
 }
 
 /// <summary>Ação registrada no histórico da gestão; sem CPF nem e-mail.</summary>
@@ -53,6 +66,8 @@ public sealed record HistoryEvent(DateTimeOffset OccurredAt, string Kind, string
     [JsonIgnore] public string ActorDisplay => string.IsNullOrWhiteSpace(ActorName) ? "Sistema" : ActorName;
     [JsonIgnore] public string AccountDisplay => string.IsNullOrWhiteSpace(AccountName) ? "—" : AccountName;
     [JsonIgnore] public string UnitDisplay => string.IsNullOrWhiteSpace(UnitName) ? "—" : UnitName;
+    /// <summary>Linha de dados da listagem do histórico: quando, quem fez, a conta e a UBS, só o que foi informado.</summary>
+    [JsonIgnore] public string MetaLine => ListText.Join([OccurredAtDisplay, "por " + ActorDisplay, string.IsNullOrWhiteSpace(AccountName) ? null : "Conta: " + AccountName, UnitName]);
 }
 
 /// <summary>

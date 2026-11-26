@@ -66,25 +66,24 @@ internal static partial class Program
                     PrepareWindow(window);
                     LoginFromControls(window, "https://fixture.invalid", "fixture@example.invalid", "isolated-test-password");
                     Require(window.ViewModel.Workspace.IsAuthenticated, "Login da fixture falhou.");
-                    window.ViewModel.Navigate("users");
+                    // Telas abertas (sem card): os textos de Usuários e do histórico ficam sobre o fundo da tela ou da linha da listagem, com contraste suficiente e fora de qualquer efeito (o efeito tira o ClearType).
+                    foreach (var route in new[] { "users:accounts", "users:history" })
                     foreach (var appearance in new[] { Appearance.Light, Appearance.Dark })
                     {
+                        window.ViewModel.Navigate(route);
                         window.ViewModel.SetAppearance(appearance);
                         var content = Layout(window, 1280, 860);
-                        var labels = Descendants<TextBlock>(content).Where(text => text.IsVisible &&
-                            text.Text is "Vínculos de contas OBS" or "UBS autorizadas" or "Histórico de ações").ToArray();
-                        Require(labels.Length == 3, "Faltam textos da tela Usuários e histórico.");
+                        var labels = Descendants<TextBlock>((FrameworkElement)window.FindName("PageContainer")).Where(text => text.IsVisible && text.Text.Length > 0).ToArray();
+                        Require(labels.Length >= 1, $"{route}: faltam textos na tela.");
+                        var surfaces = new[] { "BackgroundBrush", "ListItemBrush", "ListItemAlternateBrush" }.Select(key => ((SolidColorBrush)Application.Current.FindResource(key)).Color).ToArray();
                         foreach (var label in labels)
                         {
-                            var card = (Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(label));
                             var foreground = ((SolidColorBrush)label.Foreground).Color;
-                            var contrast = ((LinearGradientBrush)card.Background).GradientStops
-                                .Min(stop => Contrast(foreground, stop.Color));
-                            Console.WriteLine($"{appearance}: {label.Text}, contraste {contrast:F2}:1.");
-                            Require(contrast >= 4.5, $"Contraste insuficiente em {label.Text}.");
+                            var contrast = surfaces.Min(surface => Contrast(foreground, surface));
+                            Require(contrast >= 4.5, $"{route} ({appearance}): contraste insuficiente em \"{label.Text}\" ({contrast:F2}:1).");
                             for (DependencyObject? parent = label; parent != null; parent = VisualTreeHelper.GetParent(parent))
                             {
-                                if (parent is UIElement { Effect: { } effect })
+                                if (parent is UIElement { Effect: { } effect } && parent is not SelectionBalloon)
                                     throw new InvalidOperationException($"{label.Text} está dentro de {effect.GetType().Name}.");
                             }
                         }

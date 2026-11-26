@@ -365,13 +365,14 @@ internal static partial class Program
     /// <summary>Roda <paramref name="open"/> (que pede a ficha) e confere a ficha que abrir dentro do laço do modal; falha se nenhuma abrir.</summary>
     private static void OpenFicha(ShellWindow window, Action open, Action<ItemDetailsWindow> inspect)
     {
-        var observed = false; string? error = null; var attempts = 0;
+        // O prazo é de tempo, não de voltas: o segundo clique só abre a ficha depois do intervalo do duplo clique do Windows, e numa máquina rápida 3.000 voltas ociosas passavam antes dele.
+        var observed = false; string? error = null; var deadline = DateTime.UtcNow.AddSeconds(10);
         void Run()
         {
             var popup = window.OwnedWindows.OfType<ItemDetailsWindow>().SingleOrDefault();
             if (popup is null)
             {
-                if (++attempts < 3000) window.Dispatcher.BeginInvoke(Run, DispatcherPriority.ApplicationIdle);
+                if (DateTime.UtcNow < deadline) window.Dispatcher.BeginInvoke(Run, DispatcherPriority.ApplicationIdle);
                 else error = "A ficha não abriu.";
                 return;
             }

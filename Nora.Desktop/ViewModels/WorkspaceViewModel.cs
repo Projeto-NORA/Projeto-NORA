@@ -30,21 +30,21 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private int backgroundOperations;
     private static readonly string[] BusyDependents =
     [
-        nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(CanReadUnitRegistry),
+        nameof(IsBusy), nameof(ShowProgress), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanReadUnitRegistry),
         nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment),
-        nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
-        nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
-        nameof(CanEditCatalog), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
-        nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders),
+        nameof(CanConfirmObsUnit),
+        nameof(CanLoadMoreHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
+        nameof(CanEditCatalog), nameof(CanBook), nameof(CanEditGoals),
+        nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanLoadMoreAnnouncements),
         nameof(CanKeepSignedIn), nameof(CanActivateWithCode),
         nameof(CanEditProfile), nameof(CanSaveProfile)
     ];
     private static readonly string[] SessionDependents =
     [
-        nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(CanEditUnit), nameof(AccountName), nameof(AccountInitials),
+        nameof(IsAuthenticated), nameof(IsSignedOut), nameof(CanOperate), nameof(CanLogin), nameof(CanEditDraft), nameof(AccountName), nameof(AccountInitials),
         nameof(AccountRoleLabel), nameof(PhotoStateLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState), nameof(CanLoadMoreSlotsHistory),
-        nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
-        nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement),
+        nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanEditGoals),
+        nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement),
         nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode),
         nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice)
     ];

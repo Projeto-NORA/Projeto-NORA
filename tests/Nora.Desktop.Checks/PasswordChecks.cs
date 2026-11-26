@@ -115,9 +115,9 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 vm.MetricsPeriodDays = 7; vm.MetricsRegion = "Centro"; Settle(vm);
                 vm.SelectedUnit = vm.Units.First(); Pump(vm.LoadUnitRegistryAsync()); Pump(vm.LoadMunicipalAppointmentsAsync());
-                var content = Show(window, "users", 1280, 1900);
+                var content = Show(window, "users:accounts", 1280, 1900);
+                // As senhas só existem nos pop-ups (e são apagadas ao fechá-los): na tela só ficam o rascunho e a conta escolhida.
                 vm.SelectedStaff = vm.Staff.Single(); vm.StaffName = "Rascunho"; vm.StaffEmail = "rascunho@example.test";
-                Secret(content, "Senha provisória da nova conta").Password = "rascunho-123"; Secret(content, "Nova senha provisória da conta").Password = "rascunho-456";
                 Require(vm.Staff.Count == 1 && vm.HistoryEvents.Count >= 1 && vm.UnitPerformance.Count > 0 && vm.UnitRegistry.Count > 0 && vm.RegionOptions.Count > 1, "Pré-condição: dados carregados.");
                 vm.LogoutCommand.Execute(null); Settle(vm);
                 content = Layout(window, 1280, 1900);
@@ -156,7 +156,7 @@ internal static partial class Program
                     foreach (var route in new[] { "home", "units", "specialties", "indicators", "slots", "reports", "users", "settings" })
                     {
                         var content = Show(window, route, 1280, 1500);
-                        Require(Descendants<FrameworkElement>(content).Where(element => element.IsVisible && element.ActualWidth > content.ActualWidth + 1).All(element => element is ScrollViewer or Canvas or Grid or StackPanel), $"{mode}/{route}: conteúdo mais largo que a janela.");
+                        Require(Descendants<FrameworkElement>(content).Where(element => element.IsVisible && element.ActualWidth > content.ActualWidth + 1).All(element => element is ScrollViewer or Canvas or Grid or StackPanel or FillStackPanel), $"{mode}/{route}: conteúdo mais largo que a janela.");
                         if (mode != Appearance.System && route is "home" or "users") SaveScrolled(window, Path.Combine(previewRoot, $"municipal-{route}-theme-{mode.ToString().ToLowerInvariant()}.png"));
                     }
                 }
@@ -193,7 +193,7 @@ internal static partial class Program
                 }
                 Settle(vm); events = 0; changed.Clear();
                 Cycle("home", (1, 1, 0)); Cycle("units", (1, 1, 1)); Cycle("specialties", (1, 1, 0)); Cycle("indicators", (1, 1, 0));
-                Cycle("slots", (1, 0, 0)); Cycle("capacity", (1, 1, 0)); Cycle("alerts", (1, 0, 0)); Cycle("users", (1, 0, 0));
+                Cycle("slots", (1, 0, 0)); Cycle("capacity", (1, 1, 0)); Cycle("alerts", (1, 0, 0)); Cycle("users", (1, 0, 0)); Cycle("network", (1, 0, 1)); Cycle("communication", (1, 0, 0));
                 Require(events == 0 && changed.Count == 0, $"Ciclos sem mudança recriaram listas ({events} eventos) ou recalcularam {string.Join(", ", changed)}.");
             }
             finally { CloseWindow(window); }

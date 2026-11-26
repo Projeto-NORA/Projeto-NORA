@@ -1,57 +1,36 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.HealthUnitsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
-  <StackPanel>
-    <Border x:Name="UnitForm" Style="{StaticResource Card}" BorderBrush="{DynamicResource BrandBrush}" BorderThickness="2" Margin="0,0,0,22" ToolTip="Cadastre uma unidade ou edite os dados da UBS selecionada."><StackPanel IsEnabled="{Binding CanOperate}">
-      <TextBlock Text="{Binding UnitDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,16" />
-      <TextBlock Text="Nome da UBS" /><TextBox Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
-      <TextBlock Text="{Binding UnitNameError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitNameError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Região" /><TextBox Text="{Binding UnitRegion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Região da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
-      <TextBlock Text="{Binding UnitRegionError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitRegionError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="Endereço" /><TextBox Text="{Binding UnitAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Endereço da UBS" Margin="0,5,0,12"  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
-      <TextBlock Text="{Binding UnitAddressError}" Style="{StaticResource FieldError}" Visibility="{Binding UnitAddressError, Converter={StaticResource TextVisibility}}" />
-      <TextBlock Text="A localização será buscada pelo endereço. Dados: Photon e © colaboradores do OpenStreetMap." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
-      <Button Content="Salvar UBS" Click="OnSave" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" ToolTip="Grava os dados da UBS."  enter:EnterNavigation.Group="HealthUnitsView.unit"/>
-      <ItemsControl ItemsSource="{Binding UnitSaveSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,8,0,0" AutomationProperties.Name="Passos do cadastro da UBS" />
-    </StackPanel></Border>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18">
-      <StackPanel>
-        <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="Atualizar unidades" Style="{StaticResource IconRefreshButton}" AutomationProperties.Name="Atualizar unidades" ToolTip="Atualizar unidades" Click="OnRefresh" IsEnabled="{Binding CanOperate}" /><TextBlock Text="Unidades cadastradas" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" /></DockPanel>
-        <views:PageFilterGroup Label="Unidades cadastradas" FilterKey="units">
-          <StackPanel>
-            <TextBlock Text="Buscar unidades" FontWeight="SemiBold" Margin="0,0,0,6" ToolTip="Pesquise por nome, região ou endereço. A seleção permanece ao filtrar." />
-            <Grid Margin="0,0,0,12"><TextBox Text="{Binding UnitSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar UBS" Padding="38,10,10,10"  enter:EnterNavigation.Group="HealthUnitsView.search"/><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentTextBrush}" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0" /></Grid>
-          </StackPanel>
-        </views:PageFilterGroup>
-        <ListBox ItemsSource="{Binding FilteredUnits}" SelectedItem="{Binding SelectedUnit}" MaxHeight="260" AutomationProperties.Name="UBS cadastradas">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Margin="6">
-                <DockPanel LastChildFill="False">
-                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding DatabaseLabel, Converter={StaticResource TextVisibility}}" VerticalAlignment="Center">
-                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,5,0">
-                      <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE73E;" /><Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" /><Style.Triggers><DataTrigger Binding="{Binding DatabasePending}" Value="True"><Setter Property="Text" Value="&#xE7BA;" /><Setter Property="Foreground" Value="{DynamicResource WarningBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock Text="{Binding DatabaseLabel}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" DockPanel.Dock="Left" />
-                </DockPanel>
-                <TextBlock Text="{Binding Region}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" />
-                <TextBlock Text="{Binding Address}" Foreground="{DynamicResource SecondaryBrush}" FontSize="12" TextWrapping="Wrap" />
+<UserControl x:Class="Nora.Desktop.Views.HealthUnitsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Cadastro de UBS: listagem aberta na tela inteira. O cadastro e a edição são pop-ups (UnitFormView); a ação "Tentar criar a base de novo" mostra os passos num pop-up. -->
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal">
+      <views:PageFilterGroup Label="Cadastro de UBS" SearchFields="Name,Region,Address,DatabaseLabel" ItemsTarget="{Binding ElementName=UnitList}" />
+      <views:PageActions>
+        <Button Style="{StaticResource NewItemButton}" Content="Nova UBS" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Nova UBS" ToolTip="Abre o cadastro de uma nova UBS." />
+      </views:PageActions>
+    </StackPanel>
+    <Grid Grid.Row="1">
+      <ListBox x:Name="UnitList" Style="{StaticResource OpenList}" ItemsSource="{Binding Units}" AutomationProperties.Name="UBS cadastradas"
+               views:ListingBehavior.Balloon="{Binding ElementName=Balloon}" views:ListingBehavior.PluralName="UBS" views:ListingBehavior.Feminine="True">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid AutomationProperties.Name="{Binding SelectorLabel}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitleText}" />
+                <TextBlock Text="{Binding MetaLine}" Style="{StaticResource ItemMetaText}" />
               </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-        <TextBlock Text="{Binding UnitsState}" Style="{StaticResource Muted}" Margin="0,10,0,0" Visibility="{Binding UnitsState, Converter={StaticResource TextVisibility}}" />
-        <TextBlock Text="{Binding SelectedUnitLabel}" FontWeight="SemiBold" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite" />
-        <WrapPanel Margin="0,12,0,0"><Button Content="Editar selecionada" Click="OnEdit" IsEnabled="{Binding CanEditUnit}" Margin="0,0,8,0" ToolTip="Edita a UBS selecionada."/><Button Content="+ Nova UBS" Style="{StaticResource ObsPrimaryButton}" Click="OnNew" IsEnabled="{Binding CanOperate}" ToolTip="Abre o cadastro de uma nova UBS."/></WrapPanel>
-        <Border Margin="0,14,0,0" CornerRadius="10" Padding="14" BorderThickness="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource WarningBrush}" Visibility="{Binding SelectedUnitDatabasePending, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Base da UBS não criada">
-          <StackPanel>
-            <TextBlock Text="Base da UBS ainda não criada" FontWeight="SemiBold" />
-            <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,10" Text="UBS cadastrada, mas sem base de dados: fica fora da rede e do aplicativo. Dê à API permissão para criar bancos e tente de novo." />
-            <Button Content="Tentar criar a base" Click="OnProvision" IsEnabled="{Binding CanProvisionUnitDatabase}" HorizontalAlignment="Left" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
-          </StackPanel>
-        </Border>
-      </StackPanel>
-    </Border>
-
-  </StackPanel>
+              <views:StatusTag Grid.Column="1" Text="{Binding DatabaseLabel}" Tone="{Binding StatusTone}" Margin="12,0,0,0" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <views:ListEmptyText List="{Binding ElementName=UnitList}" EmptyText="{Binding UnitsState}" NoMatchText="Nenhuma UBS encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
+      <views:SelectionBalloon x:Name="Balloon">
+        <StackPanel Orientation="Horizontal">
+          <Button x:Name="EditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Editar" Click="OnEdit" IsEnabled="{Binding CanOperate}" ToolTip="Edita os dados da UBS selecionada." />
+          <Button x:Name="ProvisionButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Tentar criar a base de novo" Click="OnProvision" IsEnabled="{Binding CanOperate}" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
+        </StackPanel>
+      </views:SelectionBalloon>
+    </Grid>
+  </Grid>
 </UserControl>

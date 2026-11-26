@@ -38,19 +38,22 @@ public partial class MunicipalView : UserControl
         t.SetResourceReference(TextBlock.ForegroundProperty, muted ? "SecondaryBrush" : "TextBrush");
         return t;
     }
-    private void Heading(string title, string description)
-    {
-        ContentPanel.Children.Add(Text(title, 28, true));
-        ContentPanel.Children[^1].SetValue(ToolTipService.ToolTipProperty, description);
-        ((TextBlock)ContentPanel.Children[^1]).Margin = new Thickness(0, 0, 0, 22);
-    }
     private void Notice(string message)
     {
         var block = Text(message, 13); var border = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Margin = new Thickness(0, 0, 0, 20), Child = block };
         border.SetResourceReference(Border.BackgroundProperty, "BrandSoftBrush"); ContentPanel.Children.Add(border);
     }
     /// <summary>Parte da página que aparece só na subaba indicada (barra lateral em dois níveis).</summary>
-    private void Add(FrameworkElement part, string subPage) { var host = new ContentControl { Content = part, Focusable = false }; SubPage.SetKey(host, subPage); ContentPanel.Children.Add(host); }
+    private void Add(FrameworkElement part, string subPage, bool fill = false)
+    {
+        var host = new ContentControl { Content = part, Focusable = false };
+        SubPage.SetKey(host, subPage);
+        // Listagem aberta: a subtela recebe a altura inteira da área de conteúdo e a lista rola sozinha (o balão fica no pé da tela).
+        if (fill) { host.HorizontalContentAlignment = HorizontalAlignment.Stretch; host.VerticalContentAlignment = VerticalAlignment.Stretch; PageLayout.SetFill(host, true); }
+        ContentPanel.Children.Add(host);
+    }
+    /// <summary>Tela inteira de uma rota sem subtelas (Mapa da rede, Comunicação): recebe a altura inteira da área de conteúdo.</summary>
+    private void AddFill(FrameworkElement screen) { PageLayout.SetFill(screen, true); ContentPanel.Children.Add(screen); }
     private void Render()
     {
         ContentPanel.Children.Clear(); if (workspace == null) return;
@@ -59,16 +62,17 @@ public partial class MunicipalView : UserControl
         {
             // Telas de números: o nome da tela fica só no cabeçalho da janela; filtros, alternador e ações vão para o cabeçalho (PageFilterGroup e PageActions).
             case "home": ContentPanel.Children.Add(new NetworkOverviewView()); break;
-            case "units": Add(new HealthUnitsView(), "registry"); Add(new NetworkUnitsPerformanceView(), "performance"); Add(new UnitRegistryView(), "reference"); break;
-            case "specialties": Add(new SpecialtyCatalogView(), "catalog"); Add(new NetworkSpecialtiesView(), "demand"); break;
-            case "network": Heading("Mapa da rede", "Explore o território da rede de saúde."); ContentPanel.Children.Add(new NetworkMapView()); break;
+            case "units": Add(new HealthUnitsView(), "registry", fill: true); Add(new NetworkUnitsPerformanceView(), "performance"); Add(new UnitRegistryView(), "reference", fill: true); break;
+            case "specialties": Add(new SpecialtyCatalogView(), "catalog", fill: true); Add(new NetworkSpecialtiesView(), "demand"); break;
+            case "network": AddFill(new NetworkMapView()); break;
             case "indicators": ContentPanel.Children.Add(new NetworkIndicatorsView()); break;
             case "slots": ContentPanel.Children.Add(new NetworkSlotsView()); break;
             case "capacity": ContentPanel.Children.Add(new CapacityView()); break;
             case "alerts": ContentPanel.Children.Add(new NetworkAlertsView()); break;
             case "reports": ContentPanel.Children.Add(new GoalsView()); break;
-            case "communication": Heading("Comunicação", "Comunicados para equipes e pacientes, com leituras."); ContentPanel.Children.Add(new CommunicationView()); break;
-            case "users": Heading("Usuários", "Contas, acessos às UBS e histórico de ações."); Add(new StaffAccountsView(), "accounts"); Add(new StaffCreateView(), "create"); Add(new StaffAccessView(), "access"); Add(new HistoryView(), "history"); break;
+            case "communication": AddFill(new CommunicationView()); break;
+            // "Nova conta" leva à tela Contas com o pop-up de cadastro aberto: as duas subtelas mostram a mesma listagem.
+            case "users": Add(new StaffAccountsView(), "accounts,create", fill: true); Add(new StaffAccessView(), "access", fill: true); Add(new HistoryView(), "history", fill: true); break;
         }
     }
 }
