@@ -25,19 +25,28 @@ public partial class ShellWindow
         UpdatePageFilters();
     }
 
+    /// <summary>Grupos visíveis da tela que ficam no pop-up do botão Filtros (os em linha vão direto para o cabeçalho).</summary>
+    private PageFilterGroup[] PopupFilterGroups() => pageFilters.Where(group => group.IsVisible && group.Fields is not null && !group.IsInline).ToArray();
+
+    /// <summary>
+    /// Atualiza o cabeçalho com os filtros da tela visível: os grupos em linha (pesquisa, período…) aparecem no próprio cabeçalho e o botão
+    /// Filtros só aparece quando sobra algum grupo para o pop-up.
+    /// </summary>
     internal void UpdatePageFilters()
     {
-        if (FiltersButton is null) return;
-        var visible = pageFilters.Where(group => group.IsVisible && group.Fields is not null).ToArray();
-        if (FiltersPopup.IsOpen && !visible.SequenceEqual(openFilterGroups)) FiltersPopup.IsOpen = false;
-        FiltersButton.Visibility = visible.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (HeaderItems is null) return;
+        var popupGroups = PopupFilterGroups();
+        if (FiltersPopup.IsOpen && !popupGroups.SequenceEqual(openFilterGroups)) FiltersPopup.IsOpen = false;
+        FiltersButton.Visibility = popupGroups.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var inline = pageFilters.Where(group => group.IsVisible && group.Fields is not null && group.IsInline).ToArray();
+        SyncHeaderHosts(inlineFilterHosts, inline, group => group.Fields, group => group.Label, beforeFilters: true);
     }
 
     private void OnOpenFilters(object sender, RoutedEventArgs args)
     {
         if (filterClosedByButtonPress) { filterClosedByButtonPress = false; return; }
         if (FiltersPopup.IsOpen) { FiltersPopup.IsOpen = false; return; }
-        openFilterGroups = pageFilters.Where(group => group.IsVisible && group.Fields is not null).ToArray();
+        openFilterGroups = PopupFilterGroups();
         if (openFilterGroups.Length == 0) return;
         foreach (var group in openFilterGroups)
         {
@@ -81,10 +90,9 @@ public partial class ShellWindow
         Dispatcher.BeginInvoke(DispatcherPriority.Background, () => filterClosedByButtonPress = false);
     }
 
+    /// <summary>"Limpar filtros" vale para os grupos do pop-up; a pesquisa em linha é limpa ao sair da tela.</summary>
     private async void OnClearFilters(object sender, RoutedEventArgs args)
     {
-        foreach (var group in openFilterGroups)
-            if (group.Fields is ListSearchFilter search) search.Clear();
         try { await ViewModel.Workspace.ClearPageFiltersAsync(openFilterGroups.Select(group => group.FilterKey).ToHashSet(StringComparer.Ordinal)); }
         catch (Exception error) when (error is not OutOfMemoryException) { ViewModel.Workspace.ReportUnexpected(error); }
     }

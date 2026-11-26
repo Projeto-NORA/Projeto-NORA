@@ -29,7 +29,8 @@ public sealed partial class ShellViewModel : ObservableObject
     public bool IsSettings => Page == "settings" && !ShowPasswordRequired && !ShowCompactAccess;
     /// <summary>Senha provisória: a janela mostra só a definição da nova senha (e Sair), sem menu nem dados.</summary>
     public bool ShowPasswordRequired => Workspace.MustChangePassword;
-    public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : RouteTitle(Route);
+    /// <summary>Título do cabeçalho: "Subtela • Área" nas rotas de subtela (Listagem • Pacientes) e só o título nas demais (Painel da UBS, Agenda, Configurações).</summary>
+    public string PageLabel => ShowPasswordRequired ? "Definir nova senha" : Page == "settings" ? "Configurações" : RouteLabel(Route);
     public string SectionSummary => ShowPasswordRequired ? "Troca obrigatória da senha provisória" : Page switch
     {
         "home" => IsMunicipal ? "Panorama e prioridades da rede" : "Visão operacional e prioridades do dia",
@@ -178,12 +179,21 @@ public sealed partial class ShellViewModel : ObservableObject
     private IEnumerable<NavigationItem> AllItems => Navigation.SelectMany(item => item.HasChildren ? item.Children.Prepend(item) : [item]);
     private NavigationItem? AreaFor(string id) => Navigation.FirstOrDefault(item => item.Id == id && !item.HasChildren) ?? Navigation.FirstOrDefault(item => item.Children.Any(child => child.Id == id));
     private string? DefaultSub(string id) => AreaFor(id)?.Children.FirstOrDefault(child => child.Id == id)?.Sub;
+    private NavigationItem? RouteItem(string target, string? sub) =>
+        AllItems.FirstOrDefault(item => item.Id == target && (item.Sub ?? "") == (sub ?? "") && !item.HasChildren) ?? AllItems.FirstOrDefault(item => item.Id == target);
     private string RouteTitle(string route)
     {
         var (target, sub) = SplitRoute(route);
+        return target == "settings" ? "Configurações" : RouteItem(target, sub)?.Title ?? "Início";
+    }
+    /// <summary>Caminho da rota para o título do cabeçalho: item do menu que é subtela de uma área vira "Subtela • Área".</summary>
+    private string RouteLabel(string route)
+    {
+        var (target, sub) = SplitRoute(route);
         if (target == "settings") return "Configurações";
-        var leaf = AllItems.FirstOrDefault(item => item.Id == target && (item.Sub ?? "") == (sub ?? "") && !item.HasChildren) ?? AllItems.FirstOrDefault(item => item.Id == target);
-        return leaf?.Title ?? "Início";
+        if (RouteItem(target, sub) is not { } item) return "Início";
+        var area = Navigation.FirstOrDefault(parent => parent.Children.Any(child => ReferenceEquals(child, item)));
+        return area is null ? item.Title : $"{item.Title} • {area.Title}";
     }
     private static (string Target, string? Sub) SplitRoute(string route)
     {

@@ -46,20 +46,22 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "specialties");
+                var content = Show(window, "specialties:catalog");
                 vm.SpecialtyCatalog.Clear();
                 vm.SpecialtyCatalog.Add(new(Guid.NewGuid(), "Clínica geral", true));
                 vm.SpecialtyCatalog.Add(new(Guid.NewGuid(), "Pediatria", true));
                 var list = GridNamed(content, "Lista de especialidades");
-                var popupBody = OpenPageFilters(window);
-                var search = Descendants<TextBox>(popupBody).Single(box => AutomationProperties.GetLabeledBy(box) is TextBlock { Text: "Buscar na lista" });
+                // Tela só com pesquisa: o campo fica em linha no cabeçalho e não há botão Filtros.
+                var header = (FrameworkElement)window.FindName("PageHeader");
+                Require(!((Button)window.FindName("FiltersButton")).IsVisible, "Tela só com pesquisa não deveria mostrar o botão Filtros.");
+                var search = Descendants<TextBox>(header).Single(box => box.IsVisible);
                 search.Text = "clinica";
                 Require(list.Items.Cast<Specialty>().Single().Name == "Clínica geral" && vm.SpecialtyCatalog.Count == 2, "O catálogo não foi filtrado pela grafia sem acento.");
                 search.Text = "ausente";
-                popupBody.UpdateLayout();
-                Require(list.Items.Count == 0 && HasText(popupBody, "Nenhum resultado nesta lista."), $"A busca sem resultado deveria mostrar o estado vazio. Linhas: {list.Items.Count}. Textos: {string.Join(" | ", VisibleTexts(popupBody))}.");
-                InvokeButton(FindActionButton(popupBody, "Limpar filtros"));
-                Require(list.Items.Count == 2 && search.Text.Length == 0, "Limpar filtros não restaurou o catálogo.");
+                header.UpdateLayout();
+                Require(list.Items.Count == 0 && HasText(header, "Nenhum resultado nesta lista."), $"A busca sem resultado deveria avisar que não há resultado. Linhas: {list.Items.Count}. Textos: {string.Join(" | ", VisibleTexts(header))}.");
+                search.Text = "";
+                Require(list.Items.Count == 2, "Apagar a pesquisa não restaurou o catálogo.");
             }
             finally { CloseWindow(window); }
         });

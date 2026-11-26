@@ -119,11 +119,11 @@
       </Grid.RowDefinitions>
       <Border x:Name="PageHeader" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="32,0,32,0" Height="56">
         <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding ShowCompactAccess}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
-        <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <TextBlock Grid.Column="0" Text="{Binding PageLabel}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-          <Border Grid.Column="1" Background="{DynamicResource BrandSoftBrush}" CornerRadius="12" Padding="12,6" VerticalAlignment="Center" ToolTip="Unidade ou escopo da conta conectada. O ponto verde indica sessão ativa."><StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource SecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Workspace.IsAuthenticated}" Value="True"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse><TextBlock Text="{Binding Workspace.UnitLabel}" FontSize="11" Foreground="{DynamicResource TextBrush}" /></StackPanel></Border>
-          <Button x:Name="FiltersButton" Grid.Column="2" Visibility="Collapsed" VerticalAlignment="Center" Margin="12,0,0,0" Padding="14,7"
+        <!-- Título à esquerda; à direita, na ordem: filtros em linha, botão Filtros e ações da tela (ver HeaderRow, ShellWindow.Header.cs e ShellWindow.Filters.cs). -->
+        <views:HeaderRow x:Name="HeaderItems" Gap="12" ClipToBounds="True">
+          <TextBlock Text="{Binding PageLabel}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+          <Grid x:Name="FiltersHost" VerticalAlignment="Center">
+          <Button x:Name="FiltersButton" Visibility="Collapsed" VerticalAlignment="Center" Padding="14,7"
                   Click="OnOpenFilters" PreviewMouseLeftButtonUp="OnFiltersButtonMouseUp" AutomationProperties.Name="Filtros" ToolTip="Altere os filtros da tela atual.">
             <StackPanel Orientation="Horizontal">
               <Path Data="M 1,1 H 15 L 10,7 V 13 L 6,15 V 7 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,7,0" />
@@ -144,7 +144,8 @@
               </DockPanel>
             </Border>
           </Popup>
-        </Grid>
+          </Grid>
+        </views:HeaderRow>
       </Border>
       <ProgressBar Grid.Row="0" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding Workspace.ShowProgress, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Operação em andamento" />
       <!-- Faixa comum de retorno: vale para todas as abas dos dois perfis e para Configurações. -->

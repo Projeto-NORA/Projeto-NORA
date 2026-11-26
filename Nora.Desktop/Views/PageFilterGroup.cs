@@ -4,6 +4,10 @@ using System.Windows.Markup;
 
 namespace Nora.Desktop.Views;
 
+/// <summary>
+/// Declara os filtros de uma tela. A janela principal os leva para o cabeçalho: grupo só de pesquisa (<see cref="ItemsTarget"/>) e grupo
+/// com <see cref="Inline"/> ficam em linha; os demais ficam no pop-up do botão Filtros.
+/// </summary>
 [ContentProperty(nameof(Fields))]
 public sealed class PageFilterGroup : Decorator
 {
@@ -13,6 +17,10 @@ public sealed class PageFilterGroup : Decorator
     public string FilterKey { get; set; } = "";
     public FrameworkElement? Fields { get; set; }
     public string SearchFields { get; set; } = "";
+    /// <summary>Mostra o conteúdo do grupo direto no cabeçalho em vez de no pop-up do botão Filtros (ex.: o período).</summary>
+    public bool Inline { get; set; }
+    /// <summary>Em linha: o grupo declarado como tal ou o de pesquisa, que é sempre um campo "Pesquisar" no cabeçalho.</summary>
+    internal bool IsInline => Inline || Fields is ListSearchFilter;
 
     public ItemsControl? ItemsTarget
     {
@@ -29,6 +37,7 @@ public sealed class PageFilterGroup : Decorator
         {
             shell = Window.GetWindow(this) as ShellWindow;
             Child = shell is null ? Fields : null;
+            (Fields as ListSearchFilter)?.Describe(Label);
             shell?.RegisterPageFilter(this);
         };
         Unloaded += (_, _) =>
@@ -51,6 +60,7 @@ public sealed class PageFilterGroup : Decorator
     {
         if (Fields is ListSearchFilter previous) previous.Clear();
         Fields = target is null ? null : new ListSearchFilter(target, SearchFields);
+        (Fields as ListSearchFilter)?.Describe(Label);
         if (shell is null) Child = Fields;
         else shell.UpdatePageFilters();
     }

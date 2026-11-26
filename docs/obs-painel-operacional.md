@@ -24,7 +24,7 @@ Em Pacientes, o novo cadastro fica antes da listagem. Os registros têm espaçam
 
 Família separa pedidos pendentes e vínculos aprovados, com ações destacadas e orientações nos cartões. Vagas Relâmpago usa a identidade de raio e amarelo para destacar a área e as vagas aguardando aprovação; os estados e confirmações das decisões continuam visíveis.
 
-Abra **Filtros**, no canto superior direito, para pesquisar e ordenar a Fila e os Pacientes ou ajustar as opções de outras listas da tela. Na Fila, a ordenação muda a exibição e a API continua calculando a ordem de oferta. Em Indicadores, o painel oferece períodos como 14, 180 e 365 dias. A busca por especialidade e a situação atuam na tabela por especialidade, enquanto o período afeta toda a página. O gráfico de distribuição usa os totais de concluídas, faltas e canceladas da mesma leitura. Os valores também aparecem em texto na legenda.
+No cabeçalho, à direita, a tela mostra o campo **Pesquisar** (lupa à direita) quando só há pesquisa, como na Agenda, e o botão **Filtros** quando há filtros de verdade, como em Pacientes: ali se pesquisa, filtra e ordena a lista ou se ajustam as opções de outras listas da tela. Na Fila, a ordenação muda a exibição e a API continua calculando a ordem de oferta. Em Indicadores, o painel oferece períodos como 14, 180 e 365 dias. A busca por especialidade e a situação atuam na tabela por especialidade, enquanto o período afeta toda a página. O gráfico de distribuição usa os totais de concluídas, faltas e canceladas da mesma leitura. Os valores também aparecem em texto na legenda.
 
 O menu sinaliza alertas ativos ainda não vistos e novos comunicados até a pessoa abrir a respectiva aba. A visualização do comunicado não registra leitura: a confirmação continua sendo feita em “Marcar como lido”. Os avisos de navegação são locais à sessão do OBS; não são uma confirmação compartilhada entre computadores. A avaliação de alertas ocorre em qualquer aba, no máximo a cada cinco minutos, e uma falha preserva o último resultado conhecido.
 
@@ -93,7 +93,7 @@ O visual usa azul-escuro, branco e tons azuis de apoio. A barra lateral mostra o
 
 O acabamento visual usa gradientes azul-profundo, superfícies claras/escuras em camadas, sombras suaves para profundidade e animação curta de escala nos botões ao passar o cursor. Esses movimentos respeitam o foco por teclado e não alteram a ordem, o conteúdo ou o significado clínico dos controles. A paleta é aplicada pelos recursos compartilhados do desktop, portanto mantém os modos Claro, Escuro e Sistema consistentes.
 
-O cabeçalho explica a finalidade da aba atual, e os módulos Pacientes, Fila e Vaga Relâmpago usam uma categoria curta acima do título para tornar a rotina identificável sem depender apenas do ícone da navegação. Alertas permanecem informativos e categorizados em vez de interromper a operação com avisos invasivos.
+O cabeçalho mostra o caminho da tela (`Listagem • Pacientes` nas subtelas, só o título nas demais) para tornar a rotina identificável sem depender apenas do ícone da navegação; o chip da UBS saiu dele e o nome da UBS ativa fica no cartão do perfil. Alertas permanecem informativos e categorizados em vez de interromper a operação com avisos invasivos.
 
 As capturas de revisão do OBS incluem Painel, Agenda, Indicadores e Alertas, além dos fluxos de Pacientes, Fila, Vaga Relâmpago, acesso e Configurações. Dados individuais exibidos nessas capturas vêm apenas do fixture isolado de testes.
 

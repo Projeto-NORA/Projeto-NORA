@@ -26,7 +26,8 @@ public static class ScreenSearch
         {
             switch (element)
             {
-                case TextBlock text when Matches(text.Text, query):
+                // O texto-guia do campo Pesquisar e o aviso de resultados (invisível, só para leitor de tela) não são conteúdo da tela.
+                case TextBlock text when text.Opacity > 0 && text.TemplatedParent is not TextBox && Matches(text.Text, query):
                     result.Add(() => text);
                     break;
                 case TextBox { IsReadOnly: true } text when Matches(text.Text, query):

@@ -656,6 +656,32 @@
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
+  <!-- ===== Cabeçalho da tela (26/11/2026) ===== -->
+  <!-- Campo "Pesquisar" em linha: lupa DESENHADA à direita (não é fonte de ícones). O texto-guia vem do Tag. Altura 36 cabe nos 56 do cabeçalho. -->
+  <Style x:Key="SearchField" TargetType="TextBox">
+    <Setter Property="Height" Value="36" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CaretBrush" Value="{DynamicResource BrandBrush}" />
+    <Setter Property="Padding" Value="12,0,36,0" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox">
+      <Border x:Name="Frame" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+        <Grid>
+          <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Focusable="False" />
+          <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Margin="{TemplateBinding Padding}" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" Visibility="Collapsed" />
+          <Path x:Name="Magnifier" Data="M 6,1.5 A 4.5,4.5 0 1 1 6,10.5 A 4.5,4.5 0 1 1 6,1.5 Z M 9.4,9.4 L 13,13" Width="14" Height="14" Stretch="None" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Stroke="{DynamicResource SecondaryBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" IsHitTestVisible="False" />
+        </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="Text" Value=""><Setter TargetName="Hint" Property="Visibility" Value="Visible" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource AccentTextBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Magnifier" Property="Stroke" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="Watermark" TargetType="StackPanel">
     <Setter Property="Orientation" Value="Horizontal" />
     <Setter Property="HorizontalAlignment" Value="Center" />
