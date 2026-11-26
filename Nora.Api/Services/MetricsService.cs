@@ -22,7 +22,8 @@ internal sealed class MetricsAggregate
 public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao, SchedulingService scheduling, GoalService goals)
 {
     private const int MaxConcurrentUnits = 4;
-    public const int MaxWindowDays = 366;
+    /// <summary>Janela máxima dos indicadores: 20 anos (7.305 dias), para os períodos "5 anos" e "máximo" do OBS e do Painel Municipal. As demais listas por período continuam em 366 dias.</summary>
+    public const int MaxWindowDays = 7305;
 
     /// <summary>Indicadores de uma UBS (o chamador já autorizou o OBS pela concessão da unidade).</summary>
     public async Task<UnitMetrics> ReadUnitAsync(Guid unitId, DateTimeOffset from, DateTimeOffset to, CancellationToken ct)
@@ -86,7 +87,7 @@ public sealed class MetricsService(HealthUnitService units, UnitMetricsDao dao, 
 
     internal static void ValidateWindow(DateTimeOffset from, DateTimeOffset to)
     {
-        if (to <= from || to - from > TimeSpan.FromDays(MaxWindowDays)) throw new ApiInputException();
+        if (to <= from || to - from > TimeSpan.FromDays(MaxWindowDays)) throw new ApiCodedException(StatusCodes.Status400BadRequest, "invalid-period");
     }
 
     private static string NormalizeSpecialty(string? value)

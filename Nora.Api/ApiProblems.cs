@@ -18,6 +18,7 @@ internal static class ApiProblems
             "device-unit-mismatch" => ("device-unit-mismatch", "Unidade indisponível neste computador", "Confira se a conta tem acesso à unidade deste computador."),
             "device-no-authorized-units" => ("device-no-authorized-units", "Conta sem unidade", "Peça à Secretaria acesso à unidade antes de entrar no OBS."),
             "retention-item-unavailable" => ("retention-item-unavailable", "Cadastro indisponível", "Atualize a lista. O cadastro pode ter sido reativado, removido ou vinculado."),
+            "invalid-period" => ("invalid-input", "Período inválido", "Confira o período: o fim deve ser posterior ao início e o intervalo pode ter no máximo 20 anos (7.305 dias)."),
             "invalid-current-password" => ("invalid-current-password", "Senha atual incorreta", "A senha atual informada não confere."),
             "password-change-required" => ("password-change-required", "Troca de senha obrigatória", "Defina uma nova senha antes de continuar."),
             "unit-database-outdated" => ("unit-database-outdated", "Banco da UBS desatualizado", "O banco desta unidade ainda não recebeu a versão atual do schema. A equipe técnica precisa executar a migração das UBS."),

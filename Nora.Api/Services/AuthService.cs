@@ -71,8 +71,9 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
             ? current : null;
     }
     /// <summary>
-    /// Abre uma sessão de 8 h para a conta já identificada (senha ou Google); nulo se a conta deixou de estar ativa (conferido sob lock). No OBS, o computador do cabeçalho liga a sessão a ele;
-    /// "manter conectado" só vale com computador (sessão de <see cref="ObsDeviceOptions.KeepSignedInDays"/> dias, sem renovação); atendente sem computador válido (exigência ligada) → 403 device-required.
+    /// Abre uma sessão para a conta já identificada (senha ou Google); nulo se a conta deixou de estar ativa (conferido sob lock). Paciente: 24 h, ou <see cref="ObsDeviceOptions.KeepSignedInDays"/> dias
+    /// com "manter conectado" (sem renovação). Equipe: 8 h; no OBS, o computador do cabeçalho liga a sessão a ele e "manter conectado" só vale com computador (mesmos dias, sem renovação);
+    /// atendente sem computador válido (exigência ligada) → 403 device-required.
     /// </summary>
     public Task<LoginResponse?> StartSessionAsync(UserInfo user, CancellationToken ct, DeviceCredential? device = null, bool keepSignedIn = false) =>
         StartSessionCoreAsync(user, ct, device, keepSignedIn, null);
@@ -95,7 +96,8 @@ public sealed class AuthService(AccountDao accounts, SessionDao sessions, IPassw
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var now = time.GetUtcNow();
         // Com os computadores desligados, o cabeçalho de um OBS antigo é ignorado: a sessão vale só pelo login.
-        var request = new NewSession(user.Id, user.Scope, user.Role, HashToken(token), now.AddHours(desktop ? 24 : 8),
+        // Sem "manter conectado": 24 h para o desktop e para o paciente (que fica conectado no app) e 8 h para o restante da equipe.
+        var request = new NewSession(user.Id, user.Scope, user.Role, HashToken(token), now.AddHours(desktop || user.Scope == "patient" ? 24 : 8),
             now.AddDays(desktop ? 30 : devices.KeepSignedInDays), keepSignedIn, devices.Enabled ? device : null, devices.RequireForAttendants, now,
             desktop, unitId, deviceName, verifiedPasswordHash, devices.Enabled);
         var creation = await ObsDeviceService.RetryOnDeadlockAsync(() => sessions.CreateAsync(request, ct));

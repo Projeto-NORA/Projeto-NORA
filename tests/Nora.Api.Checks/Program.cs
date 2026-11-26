@@ -35,6 +35,9 @@ if (args.Contains("--unit-profile-only")) return await UnitProfileChecks.RunAsyn
 if (args.Contains("--cross-unit-only")) return await CrossUnitChecks.RunAsync(directory.FullName);
 if (args.Contains("--email-outbox-only")) return await EmailOutboxChecks.RunAsync(directory.FullName);
 if (args.Contains("--performance-only")) return await PerformanceChecks.RunAsync(directory.FullName);
+// Sessão do paciente (24 h ou 30 dias) e janela de 20 anos dos indicadores (2026-11-26).
+if (args.Contains("--patient-session-only")) return await PatientSessionChecks.RunAsync(directory.FullName);
+if (args.Contains("--metrics-window-only")) return await MetricsWindowChecks.RunAsync(directory.FullName);
 if (args.Contains("--alphabetical-only")) return await AlphabeticalChecks.RunAsync(directory.FullName);
 if (args.Contains("--platform-only")) return await PlatformChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
 if (args.Contains("--workflow-only")) return await WorkflowChecks.RunAsync(directory.FullName) == 0 ? 0 : 1;
@@ -323,12 +326,14 @@ var profileFailures = await UnitProfileChecks.RunAsync(directory.FullName);
 var crossUnitFailures = await CrossUnitChecks.RunAsync(directory.FullName);
 var outboxFailures = await EmailOutboxChecks.RunAsync(directory.FullName);
 var performanceFailures = await PerformanceChecks.RunAsync(directory.FullName);
+var patientSessionFailures = await PatientSessionChecks.RunAsync(directory.FullName);
+var metricsWindowFailures = await MetricsWindowChecks.RunAsync(directory.FullName);
 var closingFailures = await ClosingChecks.RunAsync(directory.FullName);
 var photoFailures = await PhotoChecks.RunAsync(directory.FullName);
 var alphabeticalFailures = await AlphabeticalChecks.RunAsync(directory.FullName);
 var retentionFailures = await RetentionChecks.RunAsync();
 var recoveryFailures = await PasswordRecoveryChecks.RunAsync();
-return configurationFailures + retentionFailures + recoveryFailures + alphabeticalFailures + photoFailures + closingFailures + performanceFailures + deviceFailures + lightningFailures + profileFailures + crossUnitFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
+return configurationFailures + retentionFailures + recoveryFailures + alphabeticalFailures + photoFailures + closingFailures + performanceFailures + patientSessionFailures + metricsWindowFailures + deviceFailures + lightningFailures + profileFailures + crossUnitFailures + outboxFailures == 0 && googlePushFailures == 0 && failures == 0 && workflowFailures == 0 && unitFailures == 0 && platformFailures == 0 && reviewFailures == 0 && communityFailures == 0 && schedulingFailures == 0 && familyFailures == 0 && familyReviewFailures == 0 && familyDecisionFailures == 0 && familyGapFailures == 0 ? 0 : 1;
 
 static string ThrowFailure() => throw new InvalidOperationException("private-exception");
 

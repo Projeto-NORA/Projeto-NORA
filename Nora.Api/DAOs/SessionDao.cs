@@ -24,7 +24,7 @@ public sealed class SessionDao(DatabaseHelper database, ObsDeviceDao devices)
     /// <summary>
     /// Abre a sessão numa transação: conta <c>FOR UPDATE</c> (como sempre) e, no OBS, o computador <c>FOR NO KEY UPDATE</c> se estiver ativo com aquele segredo (o mesmo lock do <c>UPDATE</c> de <c>last_login_at</c>, sem promoção de lock compartilhado, então dois logins no mesmo computador
     /// se enfileiram em vez de entrar em impasse), de modo que a revogação (que o bloqueia para escrita) espera o login e o login nunca deixa sessão ativa ligada a computador revogado. Computador que sumiu no meio do caminho vale como "sem computador". Administrador nunca fica trancado;
-    /// atendente com exigência ligada sem computador válido (ou de UBS em que não tem concessão) → <see cref="SessionOutcome.DeviceRequired"/>. "Manter conectado" só vale com computador.
+    /// atendente com exigência ligada sem computador válido (ou de UBS em que não tem concessão) → <see cref="SessionOutcome.DeviceRequired"/>. "Manter conectado" vale para o paciente e, na equipe, só com computador (ou no desktop da Secretaria e do OBS com os computadores desligados).
     /// </summary>
     public Task<SessionCreation> CreateAsync(NewSession request, CancellationToken ct) => database.UseAsync(async connection =>
     {
@@ -46,7 +46,8 @@ public sealed class SessionDao(DatabaseHelper database, ObsDeviceDao devices)
         }
         if (request.Scope == "obs" && device is null && ((request.Desktop && request.DevicesEnabled) || (request.Role == "attendant" && request.RequireDevice)))
             return new SessionCreation(SessionOutcome.DeviceRequired, request.DefaultExpiry, false, null);
-        var keep = request.KeepSignedIn && (device is not null || (request.Desktop && (request.Scope == "municipal" || !request.DevicesEnabled)));
+        // "Manter conectado" vale para o paciente (sem computador), para o OBS com computador e para o desktop (Secretaria, ou OBS com os computadores desligados). A equipe fora do desktop, sem computador, o ignora.
+        var keep = request.KeepSignedIn && (device is not null || request.Scope == "patient" || (request.Desktop && (request.Scope == "municipal" || !request.DevicesEnabled)));
         var expires = keep ? request.KeepSignedInExpiry : request.DefaultExpiry;
         await using (var insert = database.Command(connection, "INSERT INTO nora.sessions(token_hash,account_id,expires_at,device_id) VALUES($1,$2,$3,$4::uuid)", request.TokenHash, request.AccountId, expires, (object?)device?.Id ?? DBNull.Value))
             await insert.ExecuteNonQueryAsync(ct);

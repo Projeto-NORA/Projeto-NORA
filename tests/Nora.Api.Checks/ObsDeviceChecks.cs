@@ -153,7 +153,7 @@ internal static partial class ObsDeviceChecks
         });
 
         // ======== 5. Manter conectado ========
-        await suite.Check("Manter conectado: 30 dias só com computador (senão 8 h e keepSignedIn false); Secretaria e paciente ignoram cabeçalho e opção; KeepSignedInDays validado", async () =>
+        await suite.Check("Manter conectado na equipe: 30 dias só com computador (senão 8 h e keepSignedIn false); a Secretaria ignora cabeçalho e opção; o paciente ignora o cabeçalho, mas mantém a opção (30 dias, 24 h sem ela); KeepSignedInDays validado", async () =>
         {
             var (admin, _) = await f.StaffAsync("administrator", 16, [u1, u2]);
             var (_, device) = await ActivateThis(admin, u1, "Guichê");
@@ -167,7 +167,10 @@ internal static partial class ObsDeviceChecks
             Ensure(!manager.GetProperty("keepSignedIn").GetBoolean() && manager.GetProperty("device").ValueKind == JsonValueKind.Null && manager.GetProperty("expiresAt").GetDateTimeOffset() == T0.AddHours(8), "A Secretaria ignora o computador e a opção.");
             await f.Service<AccountService>().ProvisionAsync("patient", "patient", new("Paciente do login", Cpf(17), "paciente17@example.test", Password));
             var patient = await f.LoginAsync(f.NewClient(), "patient", Cpf(17), device, keepSignedIn: true);
-            Ensure(!patient.GetProperty("keepSignedIn").GetBoolean() && patient.GetProperty("device").ValueKind == JsonValueKind.Null && patient.GetProperty("expiresAt").GetDateTimeOffset() == T0.AddHours(8), "O paciente ignora o computador e a opção.");
+            // Desde 2026-11-26 o paciente fica conectado como nos desktops: 30 dias com a opção e 24 h sem ela (PatientSessionChecks); o computador do OBS continua ignorado.
+            Ensure(patient.GetProperty("keepSignedIn").GetBoolean() && patient.GetProperty("device").ValueKind == JsonValueKind.Null && patient.GetProperty("expiresAt").GetDateTimeOffset() == T0.AddDays(30), "O paciente ignora o computador e mantém a opção por 30 dias.");
+            var patientPlain = await f.LoginAsync(f.NewClient(), "patient", Cpf(17), device);
+            Ensure(!patientPlain.GetProperty("keepSignedIn").GetBoolean() && patientPlain.GetProperty("device").ValueKind == JsonValueKind.Null && patientPlain.GetProperty("expiresAt").GetDateTimeOffset() == T0.AddHours(24), "Sem a opção o paciente fica 24 h.");
             Ensure(patient.TryGetProperty("user", out _) && patient.TryGetProperty("token", out _), "Os campos de sempre continuam na resposta.");
             ObsDeviceOptions Options(string? days, string? enabled = null) => new(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {

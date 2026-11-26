@@ -111,6 +111,43 @@ internal static class GooglePushChecks
             Require((await Read(me)).GetProperty("id").GetGuid() == f.PatientIds[21], "A sessão criada pelo Google é da conta vinculada.");
         });
 
+        await Check("Google (2026-11-26): a sessão vale 24 h por padrão e 30 dias com keepSignedIn, a resposta informa o que foi aplicado, e a opção nunca vale para outra conta nem fora do login", async () =>
+        {
+            using var keepGoogle = new HttpClient { BaseAddress = f.Anonymous.BaseAddress }; keepGoogle.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.77");
+            var moment = f.Clock.GetUtcNow();
+            foreach (var (body, keepExpected, label) in new (object Body, bool Keep, string Label)[]
+            {
+                (new { idToken = IdToken("sub-21") }, false, "sem a opção"),
+                (new { idToken = IdToken("sub-21"), keepSignedIn = false }, false, "keepSignedIn falso"),
+                (new { idToken = IdToken("sub-21"), keepSignedIn = (bool?)null }, false, "keepSignedIn nulo"),
+                (new { idToken = IdToken("sub-21"), keepSignedIn = true, deviceName = "Pixel de teste" }, true, "keepSignedIn verdadeiro")
+            })
+            {
+                using var login = await keepGoogle.PostAsJsonAsync("/api/auth/google", body); Expect(login, 200);
+                var json = await Read(login);
+                Require(json.GetProperty("keepSignedIn").GetBoolean() == keepExpected && json.GetProperty("expiresAt").GetDateTimeOffset() == (keepExpected ? moment.AddDays(30) : moment.AddHours(24)) && json.GetProperty("device").ValueKind == JsonValueKind.Null,
+                    $"Google ({label}): esperava {(keepExpected ? "30 dias" : "24 h")} e keepSignedIn {keepExpected}; recebido {json}.");
+            }
+            // A sessão longa do Google vale no dia 29 e vence no 30; a curta vence em 24 h.
+            using var shortLogin = await keepGoogle.PostAsJsonAsync("/api/auth/google", new { idToken = IdToken("sub-21") }); Expect(shortLogin, 200);
+            using var longResponse = await keepGoogle.PostAsJsonAsync("/api/auth/google", new { idToken = IdToken("sub-21"), keepSignedIn = true }); Expect(longResponse, 200);
+            var shortToken = (await Read(shortLogin)).GetProperty("token").GetString(); var longToken = (await Read(longResponse)).GetProperty("token").GetString();
+            async Task<int> Me(string? token) { using var client = new HttpClient { BaseAddress = f.Anonymous.BaseAddress }; client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token); using var response = await client.GetAsync("/api/auth/me"); return (int)response.StatusCode; }
+            try
+            {
+                f.Clock.Set(moment.AddHours(24));
+                Require(await Me(shortToken) == 401 && await Me(longToken) == 200, "Às 24 h a sessão do Google sem a opção vence e a longa continua.");
+                f.Clock.Set(moment.AddDays(30));
+                Require(await Me(longToken) == 401, "Aos 30 dias a sessão longa do Google vence.");
+            }
+            finally { f.Clock.Set(moment); }
+            // O vínculo ignora a opção (não abre sessão) e o token inválido continua recusado com ou sem ela.
+            using (var link = await f.P24.PostAsJsonAsync("/api/patient/google/link", new { idToken = IdToken("sub-24-opcao"), keepSignedIn = true })) Expect(link, 204);
+            using (var bad = await keepGoogle.PostAsJsonAsync("/api/auth/google", new { idToken = "token-invalido", keepSignedIn = true })) Expect(bad, 401);
+            using (var wrongType = await keepGoogle.PostAsJsonAsync("/api/auth/google", new { idToken = IdToken("sub-21"), keepSignedIn = "sim" })) Expect(wrongType, 400);
+            using (var unlink = await f.P24.PostAsync("/api/patient/google/unlink", null)) Expect(unlink, 204);
+        });
+
         await Check("Google: ID tokens recusados no vínculo (400) e no login (401 igual à senha errada): alg none, HS256 com a chave pública, kid desconhecido, aud errado, iss errado, expirado além da folga, e-mail não verificado, sem sub e lixo; dentro da folga de 60 s vale", async () =>
         {
             var publicPem = System.Text.Encoding.ASCII.GetBytes(fake.GoogleKey.ExportSubjectPublicKeyInfoPem());
