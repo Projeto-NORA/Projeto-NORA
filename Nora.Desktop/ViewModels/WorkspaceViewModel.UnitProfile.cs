@@ -5,69 +5,64 @@ using Nora.Desktop.Services;
 
 namespace Nora.Desktop.ViewModels;
 
-/// <summary>Um dia da semana no editor do horário de funcionamento: "Fechado" ou até dois intervalos (manhã e tarde) no formato HH:mm.</summary>
+/// <summary>
+/// Um dia da semana no editor do horário de funcionamento: caixa marcada = aberto, com um único intervalo "abre às fecha" no formato HH:mm; desmarcada = fechado.
+/// Um dia gravado com dois intervalos (de uma versão anterior) aparece como o primeiro início e o último fim, e a tela avisa que o intervalo do meio será desconsiderado ao salvar.
+/// </summary>
 public sealed class OpeningDayEditor(int weekday, Action changed) : ObservableObject
 {
-    private bool closed = true;
-    private string opens1 = "", closes1 = "", opens2 = "", closes2 = "", error = "";
+    private bool closed = true, hadGap;
+    private string opens = "", closes = "", error = "";
     public int Weekday { get; } = weekday;
     public string Label => ScheduleTemplate.WeekdayName(Weekday);
-    public bool IsClosed { get => closed; set { if (closed == value) return; closed = value; error = ""; Touched(nameof(IsClosed)); Notify(nameof(HasIntervals)); Notify(nameof(Error)); } }
+    public bool IsClosed { get => closed; set { if (closed == value) return; closed = value; error = ""; Touched(nameof(IsClosed)); Notify(nameof(IsOpen)); Notify(nameof(HasIntervals)); Notify(nameof(Error)); } }
+    /// <summary>A caixa de seleção do dia: marcada é aberto (o inverso de <see cref="IsClosed"/>).</summary>
+    public bool IsOpen { get => !closed; set => IsClosed = !value; }
     public bool HasIntervals => !closed;
-    public string Opens1 { get => opens1; set { opens1 = value ?? ""; Touched(nameof(Opens1)); } }
-    public string Closes1 { get => closes1; set { closes1 = value ?? ""; Touched(nameof(Closes1)); } }
-    public string Opens2 { get => opens2; set { opens2 = value ?? ""; Touched(nameof(Opens2)); } }
-    public string Closes2 { get => closes2; set { closes2 = value ?? ""; Touched(nameof(Closes2)); } }
+    public string Opens { get => opens; set { opens = value ?? ""; Touched(nameof(Opens)); } }
+    public string Closes { get => closes; set { closes = value ?? ""; Touched(nameof(Closes)); } }
     public string Error { get => error; private set { error = value; Notify(); } }
-    private void Touched(string property) { Notify(property); if (error.Length > 0) { error = ""; Notify(nameof(Error)); } changed(); }
+    /// <summary>Linha discreta quando o dia foi gravado com dois intervalos; some quando o dia fica fechado.</summary>
+    public string GapNotice => hadGap && !closed ? "Havia dois intervalos gravados neste dia; ao salvar, o intervalo do meio será desconsiderado." : "";
+    private void Touched(string property) { Notify(property); Notify(nameof(GapNotice)); if (error.Length > 0) { error = ""; Notify(nameof(Error)); } changed(); }
 
     /// <summary>Preenche o editor pelo que a API devolveu (sem marcar como editado).</summary>
     public void Load(IEnumerable<OpeningInterval> intervals)
     {
-        var ordered = intervals.OrderBy(item => item.Opens, StringComparer.Ordinal).Take(2).ToArray();
+        var ordered = intervals.OrderBy(item => item.Opens, StringComparer.Ordinal).ToArray();
         closed = ordered.Length == 0;
-        opens1 = ordered.Length > 0 ? ordered[0].Opens : ""; closes1 = ordered.Length > 0 ? ordered[0].Closes : "";
-        opens2 = ordered.Length > 1 ? ordered[1].Opens : ""; closes2 = ordered.Length > 1 ? ordered[1].Closes : "";
+        opens = ordered.Length > 0 ? ordered[0].Opens : ""; closes = ordered.Length > 0 ? ordered.Max(item => item.Closes) ?? "" : "";
+        hadGap = ordered.Length > 1;
         error = "";
-        foreach (var name in new[] { nameof(IsClosed), nameof(HasIntervals), nameof(Opens1), nameof(Closes1), nameof(Opens2), nameof(Closes2), nameof(Error) }) Notify(name);
+        foreach (var name in new[] { nameof(IsClosed), nameof(IsOpen), nameof(HasIntervals), nameof(Opens), nameof(Closes), nameof(GapNotice), nameof(Error) }) Notify(name);
     }
 
-    /// <summary>Confere o dia como a API confere: até dois intervalos, "HH:mm", fim depois do início, sem sobreposição (encostar pode). Devolve os intervalos ou a mensagem do campo.</summary>
+    /// <summary>Confere o dia como a API confere: "HH:mm" nos dois campos e fechar depois de abrir. Devolve o intervalo (nenhum, se o dia está fechado) ou a mensagem do campo.</summary>
     public (OpeningInterval[] Intervals, string Error) Read()
     {
         if (closed) { Error = ""; return ([], ""); }
-        var list = new List<(TimeOnly Opens, TimeOnly Closes)>();
-        foreach (var (opens, closes, label) in new[] { (opens1, closes1, "primeiro"), (opens2, closes2, "segundo") })
-        {
-            if (opens.Trim().Length == 0 && closes.Trim().Length == 0) continue;
-            if (!OpeningHoursText.TryParseTime(opens, out var start) || !OpeningHoursText.TryParseTime(closes, out var end))
-            { Error = $"{Label}: informe o {label} intervalo como Abre e Fecha em HH:mm (por exemplo 07:30)."; return ([], Error); }
-            if (end <= start) { Error = $"{Label}: o horário de fechar precisa ser depois do de abrir."; return ([], Error); }
-            list.Add((start, end));
-        }
-        if (list.Count == 0) { Error = $"{Label}: informe ao menos um intervalo ou marque Fechado."; return ([], Error); }
-        list.Sort((left, right) => left.Opens.CompareTo(right.Opens));
-        if (list.Count == 2 && list[1].Opens < list[0].Closes) { Error = $"{Label}: os dois intervalos não podem se sobrepor."; return ([], Error); }
+        if (opens.Trim().Length == 0 && closes.Trim().Length == 0) { Error = $"{Label}: informe o horário de abrir e o de fechar, ou desmarque o dia."; return ([], Error); }
+        if (!OpeningHoursText.TryParseTime(opens, out var start) || !OpeningHoursText.TryParseTime(closes, out var end))
+        { Error = $"{Label}: informe Abre e Fecha em HH:mm (por exemplo 07:30)."; return ([], Error); }
+        if (end <= start) { Error = $"{Label}: o horário de fechar precisa ser depois do de abrir."; return ([], Error); }
         Error = "";
-        return ([.. list.Select(item => new OpeningInterval(Weekday, item.Opens.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), item.Closes.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)))], "");
+        return ([new OpeningInterval(Weekday, start.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture), end.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture))], "");
     }
 }
 
 /// <summary>
-/// Atendimento ao público da UBS (OBS, Configurações): horário de funcionamento por dia da semana, texto livre de serviços e as especialidades que vêm da grade (só leitura).
+/// Atendimento ao público da UBS (OBS, Informações da UBS): horário de funcionamento por dia da semana (um intervalo por dia) e texto livre de serviços.
 /// O administrador da UBS edita e salva tudo de uma vez; a equipe vê em leitura. O aplicativo do paciente mostra este conteúdo por UBS vinculada.
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
     public const int ServicesMaxLength = 1000;
     private UnitProfile? unitProfile;
-    private bool profileLoaded, profileFailed, profileDirty, forceProfileEditors;
+    private bool profileLoaded, profileFailed, profileDirty;
     private string unitServices = "", servicesError = "";
 
     public ObservableCollection<OpeningDayEditor> OpeningDays { get; } = [];
     public ObservableCollection<ProgressStep> ProfileSteps { get; } = [];
-    /// <summary>Especialidades que têm horário na grade (lidas da API; só para consulta).</summary>
-    public ObservableCollection<string> ProfileSpecialties { get; } = [];
 
     public bool CanEditProfile => CanEditCatalog;
     public bool CanSaveProfile => CanEditProfile && profileLoaded && !profileFailed;
@@ -80,19 +75,18 @@ public sealed partial class WorkspaceViewModel
     }
     public string ServicesCounter => $"{unitServices.Length}/{ServicesMaxLength}";
     public string ServicesError => servicesError;
-    public string ProfileSpecialtiesText => !profileLoaded ? "" : ProfileSpecialties.Count == 0 ? "Nenhuma especialidade com horário na grade ainda." : string.Join(", ", ProfileSpecialties);
-    public string ProfileSpecialtiesHint => "Vem da grade; para mudar, edite a grade.";
+    /// <summary>Estado da leitura (sem UBS, carregando, falha); o aviso de horário ainda não informado é <see cref="ProfileNotInformedNotice"/>.</summary>
     public string ProfileState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver o atendimento ao público."
-        : profileFailed && !profileLoaded ? "Não foi possível ler o atendimento da UBS agora. Use Atualizar informações da UBS para tentar de novo."
-        : profileFailed ? "A última leitura não concluiu; os dados são da leitura anterior. Use Atualizar informações da UBS para tentar de novo."
-        : !profileLoaded ? "Lendo o atendimento da UBS…"
-        : unitProfile is { Informed: false } ? "Ainda não informado. O aplicativo mostra \"Horário não informado\"." : "";
+        : profileFailed && !profileLoaded ? "Não foi possível ler o atendimento da UBS agora. A tela tenta de novo sozinha."
+        : profileFailed ? "A última leitura não concluiu; os dados são da leitura anterior. A tela tenta de novo sozinha."
+        : !profileLoaded ? "Lendo o atendimento da UBS…" : "";
+    /// <summary>O aviso amarelo do alto da tela: enquanto o horário não foi informado, o aplicativo do paciente mostra "Horário não informado".</summary>
+    public string ProfileNotInformedNotice => profileLoaded && unitProfile is { Informed: false } ? "Ainda não informado. O aplicativo mostra \"Horário não informado\"." : "";
     public string ProfileUpdatedLabel => unitProfile is { UpdatedAt: { } at } ? $"Última alteração em {at.ToLocalTime():dd/MM/yyyy HH:mm}." : "";
 
     private static readonly string[] ProfileNames =
     [
-        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice), nameof(ProfileSpecialtiesText), nameof(ProfileState), nameof(ProfileUpdatedLabel),
-        nameof(CanEditProfile)
+        nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice), nameof(ProfileState), nameof(ProfileNotInformedNotice), nameof(ProfileUpdatedLabel)
     ];
     private void NotifyProfile() { foreach (var name in ProfileNames) Notify(name); }
 
@@ -103,15 +97,14 @@ public sealed partial class WorkspaceViewModel
         foreach (var day in Enumerable.Range(0, 7)) OpeningDays.Add(new OpeningDayEditor(day, () => profileDirty = true));
     }
 
-    /// <summary>Aplica a leitura. Uma edição em andamento não é sobrescrita pelo ciclo automático; só o botão Atualizar (ou o salvar) refaz os campos.</summary>
+    /// <summary>Aplica a leitura. Uma edição em andamento não é sobrescrita pelo ciclo automático; só o salvar refaz os campos.</summary>
     private void ApplyProfile(Tolerant<UnitProfile> read)
     {
         profileFailed = read.Failed;
         if (read.Value is { } value)
         {
             unitProfile = value; profileLoaded = true;
-            Replace(ProfileSpecialties, value.Specialties.Select(item => item.Name).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray());
-            if (forceProfileEditors || !profileDirty) FillProfileEditors(value);
+            if (!profileDirty) FillProfileEditors(value);
         }
         NotifyProfile();
     }
@@ -139,7 +132,7 @@ public sealed partial class WorkspaceViewModel
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de salvar o atendimento ao público.");
         if (!IsAdministrator) throw new NoraApiException("Somente o administrador da UBS altera o atendimento ao público.");
-        if (!profileLoaded || profileFailed) throw new NoraApiException("Leia o atendimento da UBS (Atualizar informações da UBS) antes de salvar, para não apagar o que já está gravado.");
+        if (!profileLoaded || profileFailed) throw new NoraApiException("Aguarde a leitura do atendimento da UBS antes de salvar, para não apagar o que já está gravado.");
         EnsureOpeningDays();
         var intervals = new List<OpeningInterval>();
         var invalid = 0;
@@ -157,18 +150,17 @@ public sealed partial class WorkspaceViewModel
         if (disposed || ActiveObsUnit?.Id != unit.Id) return;
         unitProfile = saved;
         profileLoaded = true; profileFailed = false;
-        Replace(ProfileSpecialties, saved!.Specialties.Select(item => item.Name).OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray());
-        FillProfileEditors(unitProfile);
+        FillProfileEditors(unitProfile!);
         NotifyProfile();
         Say(MessageKind.Success, "Atendimento ao público salvo. O aplicativo passa a mostrar estes horários e serviços.");
     });
 
     private void ClearUnitProfile()
     {
-        unitProfile = null; profileLoaded = profileFailed = profileDirty = forceProfileEditors = false;
+        unitProfile = null; profileLoaded = profileFailed = profileDirty = false;
         EnsureOpeningDays();
         foreach (var day in OpeningDays) day.Load([]);
-        ProfileSpecialties.Clear(); ProfileSteps.Clear();
+        ProfileSteps.Clear();
         unitServices = ""; servicesError = "";
         Notify(nameof(UnitServices)); Notify(nameof(ServicesCounter)); Notify(nameof(ServicesError));
         NotifyProfile();

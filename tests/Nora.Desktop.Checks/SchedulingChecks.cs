@@ -31,7 +31,8 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 Require(fixture.Count("GET", "/professionals") == 1 && fixture.Count("GET", "/rooms") == 0 && fixture.Count("GET", "/schedule") == 0, "A abertura da UBS deveria ler só profissionais e especialidades (base do agendamento).");
                 var content = Show(window, "unit-settings", 1280, 3400);
-                Require(fixture.Count("GET", "/professionals") == 1 && fixture.Count("GET", "/rooms") == 1 && fixture.Count("GET", "/schedule") == 1 && fixture.Count("GET", "/schedule-blocks") == 1, "Entrar em Configurações da UBS deveria ler consultórios, grade e bloqueios uma vez (e não repetir os profissionais).");
+                // Sem botão Atualizar, entrar nas Informações da UBS relê tudo (profissionais inclusive); a leitura do login já tinha trazido os profissionais.
+                Require(fixture.Count("GET", "/professionals") == 2 && fixture.Count("GET", "/rooms") == 1 && fixture.Count("GET", "/schedule") == 1 && fixture.Count("GET", "/schedule-blocks") == 1, "Entrar em Informações da UBS deveria ler profissionais, consultórios, grade e bloqueios.");
                 Require(vm.CanEditCatalog && !vm.ShowCatalogReadOnlyNotice && window.ViewModel.Page == "unit-settings" && vm.ShowUnitSettings, "O administrador deveria poder editar, sem o aviso de somente leitura.");
                 Require(vm.ProfessionalSpecialtyChoices.Select(choice => choice.Name).SequenceEqual(["Cardiologia", "Pediatria"]), "Só as especialidades ativas da rede entram no formulário do profissional.");
                 // Profissional: validação antes de enviar.
@@ -75,17 +76,22 @@ internal static partial class Program
                 vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(); vm.ScheduleStart = "10:00"; vm.ScheduleEnd = "11:00";
                 Pump(vm.SaveScheduleAsync());
                 Require(vm.ScheduleOverlapError.Contains("Sobreposição") && vm.ScheduleRows.Count == 1 && vm.MessageKind == MessageKind.Error, "A sobreposição (409) não foi avisada no campo: " + vm.ScheduleOverlapError);
-                content = Layout(window, 1280, 3400);
-                Require(Descendants<Border>(content).Any(border => AutomationProperties.GetName(border) == "Aviso de sobreposição na grade" && border.IsVisible) && FullTexts(content).Contains(vm.ScheduleOverlapError), "O aviso de sobreposição não aparece junto aos campos da grade.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-configuracoes-sobreposicao-light.png"), 1280, 900);
+                // O aviso aparece junto aos campos, dentro do pop-up da grade.
+                OpenUnitForm(window, content, "Novo horário", dialog =>
+                {
+                    vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(); vm.ScheduleStart = "10:00"; vm.ScheduleEnd = "11:00";
+                    SubmitUnitForm(dialog, "Salvar horário na grade");
+                    Require(Descendants<Border>(dialog).Any(border => AutomationProperties.GetName(border) == "Aviso de sobreposição na grade" && border.IsVisible) && FullTexts(dialog).Contains(vm.ScheduleOverlapError), "O aviso de sobreposição não aparece junto aos campos da grade.");
+                    SavePreview(dialog, Path.Combine(previewRoot, "obs-configuracoes-sobreposicao-light.png"));
+                });
                 vm.ScheduleStart = "12:00"; vm.ScheduleEnd = "13:00"; Pump(vm.SaveScheduleAsync());
                 Require(vm.ScheduleOverlapError == "" && vm.ScheduleRows.Count == 2, "Horários que apenas encostam deveriam ser aceitos: " + vm.Message);
                 vm.SelectedSchedule = vm.ScheduleRows.Single(row => row.StartTime == "12:00"); vm.EditSelectedSchedule();
                 Require(vm.ScheduleStart == "12:00" && vm.ScheduleDraftTitle == "Editar horário da grade", "Editar não preencheu a grade.");
                 vm.ScheduleSlotMinutes = "20"; Pump(vm.SaveScheduleAsync());
                 Require(vm.ScheduleRows.Count == 2 && vm.ScheduleRows.Single(row => row.StartTime == "12:00").SlotMinutes == 20, "A edição da grade não foi gravada.");
-                vm.SelectedSchedule = vm.ScheduleRows.Single(row => row.StartTime == "12:00"); content = Layout(window, 1280, 3400);
-                Click(window, content, "Remover horário selecionado", 1280, 3400);
+                content = SelectUnitRows<ScheduleTemplate>(window, "Grade semanal da UBS", row => row.StartTime == "12:00", 1280, 3400);
+                Click(window, content, "Remover horário", 1280, 3400);
                 Require(asked.Contains("Remover horário da grade") && vm.ScheduleRows.Count == 1, "Remover a grade deveria pedir confirmação e remover.");
                 // Bloqueios: dia inteiro da UBS (meia-noite local) e intervalo de um profissional.
                 var holiday = DateTime.Today.AddDays(30);
@@ -103,20 +109,18 @@ internal static partial class Program
                 vm.BlockEndTime = "12:00"; Pump(vm.SaveBlockAsync());
                 var partial = fixture.BlocksOf(unit.Id).Single(block => block.ProfessionalId is not null);
                 Require(partial.EndsAt - partial.StartsAt == TimeSpan.FromHours(2) && vm.ScheduleBlocks.Count == 2 && vm.ScheduleBlocks.Any(block => block.ScopeDisplay == "Dra. Ana Lima Souza"), "O bloqueio parcial do profissional não foi gravado.");
-                vm.SelectedBlock = vm.ScheduleBlocks.Single(block => block.Reason == "Feriado municipal"); content = Layout(window, 1280, 3400);
-                Click(window, content, "Remover bloqueio selecionado", 1280, 3400);
+                content = SelectUnitRows<ScheduleBlock>(window, "Bloqueios da UBS", block => block.Reason == "Feriado municipal", 1280, 3400);
+                Click(window, content, "Remover bloqueio", 1280, 3400);
                 Require(asked.Contains("Remover bloqueio") && vm.ScheduleBlocks.Count == 1, "Remover o bloqueio deveria pedir confirmação e remover.");
-                // Renderização e temas.
+                // Renderização e temas: as quatro listagens abertas (sem tabela) e sem títulos repetidos.
                 content = Layout(window, 1280, 3400);
-                var shown = FullTexts(content);
-                Require(new[] { "Informações da UBS", "Profissionais", "Consultórios", "Grade semanal de horários", "Bloqueios (folgas e feriados)" }.All(shown.Contains), "Seções das informações da UBS ausentes: " + string.Join(" | ", shown.Take(12)));
-                Require(new[] { "Profissionais da UBS", "Consultórios da UBS", "Grade semanal da UBS", "Bloqueios da UBS" }.All(name => Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == name && grid.IsVisible)), "Alguma lista das configurações não aparece.");
+                Require(new[] { "Profissionais da UBS", "Consultórios da UBS", "Grade semanal da UBS", "Bloqueios da UBS" }.All(name => Descendants<ListBox>(content).Any(list => AutomationProperties.GetName(list) == name && list.IsVisible)) && !Descendants<DataGrid>(content).Any(grid => grid.IsVisible), "Alguma lista das informações da UBS não aparece, ou continua sendo tabela.");
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-configuracoes-admin-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 3400);
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-configuracoes-admin-dark.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Light);
                 // Desativar o último profissional ativo devolve a agenda ao texto livre (com confirmação).
-                vm.SelectedProfessional = vm.Professionals.Single(); content = Layout(window, 1280, 3400);
+                content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true, 1280, 3400);
                 Require(vm.UsesCatalogBooking, "Com profissional ativo a UBS deveria marcar pelo catálogo.");
                 Click(window, content, "Desativar profissional", 1280, 3400);
                 Require(asked.Contains("Desativar profissional") && !vm.Professionals.Single().IsActive && vm.UsesFreeTextBooking && !vm.UsesCatalogBooking, "Desativar o último profissional deveria voltar ao texto livre.");
@@ -138,10 +142,10 @@ internal static partial class Program
                 var content = Show(window, "unit-settings", 1280, 3400);
                 Require(!vm.IsAdministrator && !vm.CanEditCatalog && vm.ShowCatalogReadOnlyNotice && FullTexts(content).Contains(vm.CatalogReadOnlyNotice), "O atendente deveria ver o aviso de somente leitura.");
                 Require(vm.Professionals.Count == 1 && vm.Rooms.Count == 1 && vm.ScheduleRows.Count == 1 && vm.ScheduleBlocks.Count == 1, "O atendente deveria ler profissionais, consultórios, grade e bloqueios.");
-                foreach (var label in new[] { "Salvar profissional", "Salvar consultório", "Salvar horário na grade", "Criar bloqueio", "Novo profissional", "Novo consultório", "Novo horário" })
+                foreach (var label in new[] { "Novo profissional", "Novo consultório", "Novo horário", "Novo bloqueio" })
                     Require(!FindActionButton(content, label).IsEnabled, "Controle de edição habilitado para o atendente: " + label);
-                vm.SelectedProfessional = vm.Professionals.Single(); content = Layout(window, 1280, 3400);
-                Require(!FindActionButton(content, "Editar profissional selecionado").IsEnabled && !FindActionButton(content, "Desativar profissional").IsEnabled, "Editar e desativar deveriam ficar desabilitados para o atendente.");
+                content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true, 1280, 3400);
+                Require(!FindActionButton(content, "Editar profissional").IsEnabled && !FindActionButton(content, "Desativar profissional").IsEnabled, "Editar e desativar deveriam ficar desabilitados para o atendente.");
                 vm.ProfessionalName = "Tentativa"; Pump(vm.SaveProfessionalAsync());
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("administrador da UBS") && fixture.Count("POST", "/professionals") == 0, "A escrita do atendente deveria ser recusada antes de sair do cliente: " + vm.Message);
                 SaveScrolled(window, Path.Combine(previewRoot, "obs-configuracoes-atendente-light.png"), 1280, 900);

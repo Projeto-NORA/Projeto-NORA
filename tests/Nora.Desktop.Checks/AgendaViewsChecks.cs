@@ -26,7 +26,7 @@ internal static partial class Program
         row.RaiseEvent(MouseArgs(System.Windows.Input.Mouse.MouseUpEvent, row, clicks));
     }
 
-    private static Rect BoundsIn(FrameworkElement element, FrameworkElement ancestor) => element.TransformToAncestor(ancestor).TransformBounds(new Rect(element.RenderSize));
+    private static Rect BoundsIn(FrameworkElement element, FrameworkElement root) => element.TransformToVisual(root).TransformBounds(new Rect(element.RenderSize));
 
     private static Color BrushColor(Brush? brush) => brush is SolidColorBrush solid ? solid.Color : Colors.Transparent;
 

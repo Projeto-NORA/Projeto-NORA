@@ -108,7 +108,7 @@ internal static partial class Program
                 Require(fixture.DeviceHeaders.All(header => header is null) && !File.Exists(devices.DevicePath), "O OBS enviou ou guardou a identificação do computador.");
                 Show(first, "unit-settings");
                 Settle(vm);
-                Require(!vm.ShowDevicesSection && fixture.Count("GET", "/devices") == 0, "A seção Computadores apareceu ou foi lida com o recurso desligado.");
+                Require(fixture.Count("GET", "/devices") == 0, "As Informações da UBS leram a lista de computadores, que não é mais uma tela.");
             }
             finally { CloseWindow(first); }
 

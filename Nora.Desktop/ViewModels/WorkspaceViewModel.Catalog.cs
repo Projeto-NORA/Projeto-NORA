@@ -24,8 +24,8 @@ public sealed class SpecialtyChoice(Specialty specialty, bool isChecked) : Obser
 }
 
 /// <summary>
-/// Configurações da UBS (OBS): profissionais, consultórios, grade semanal e bloqueios. Todos lêem; só o administrador da UBS grava (o atendente vê os controles
-/// desabilitados com a explicação). Depois de cada alteração a API é relida, então a tela mostra o que ficou gravado.
+/// Informações da UBS (OBS): profissionais, consultórios, grade semanal e bloqueios. Todos lêem; só o administrador da UBS grava (o atendente vê as ações desabilitadas
+/// com a explicação). Depois de cada alteração a API é relida, então a tela mostra o que ficou gravado; sem botão Atualizar, a tela também relê sozinha ao entrar e no ciclo de 20 s.
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
@@ -34,12 +34,16 @@ public sealed partial class WorkspaceViewModel
     public static readonly TimeSpan CatalogRefreshAge = TimeSpan.FromMinutes(5);
     private static readonly string[] BrazilianStates = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
     public static IReadOnlyList<WeekdayOption> WeekdayOptions { get; } = [.. Enumerable.Range(0, 7).Select(day => new WeekdayOption(day, ScheduleTemplate.WeekdayName(day)))];
+    /// <summary>Os sete botões de dia da grade semanal, de segunda a domingo (o número do dia é o da API: 0 = domingo).</summary>
+    public static IReadOnlyList<WeekdayOption> ScheduleDayOptions { get; } = [.. new[] { 1, 2, 3, 4, 5, 6, 0 }.Select(day => new WeekdayOption(day, ScheduleTemplate.WeekdayName(day).Split('-')[0]))];
 
     /// <summary>Todas as especialidades da rede (com as desativadas), lidas de GET /api/obs/specialties.</summary>
     public ObservableCollection<Specialty> ObsSpecialties { get; } = [];
     public ObservableCollection<Professional> Professionals { get; } = [];
     public ObservableCollection<Room> Rooms { get; } = [];
     public ObservableCollection<ScheduleTemplate> ScheduleRows { get; } = [];
+    /// <summary>Os horários da grade só do dia escolhido nos botões de dia (a listagem da tela).</summary>
+    public ObservableCollection<ScheduleTemplate> ScheduleDayRows { get; } = [];
     public ObservableCollection<ScheduleBlock> ScheduleBlocks { get; } = [];
     public ObservableCollection<SpecialtyChoice> ProfessionalSpecialtyChoices { get; } = [];
     public ObservableCollection<Professional> ActiveProfessionalOptions { get; } = [];
@@ -51,27 +55,28 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Só o administrador da UBS grava profissionais, consultórios, grade e bloqueios; o atendente apenas lê.</summary>
     public bool CanEditCatalog => IsOperational && CanOperate && HasActiveObsUnit && IsAdministrator;
     public bool ShowCatalogReadOnlyNotice => IsAuthenticated && IsOperational && !IsAdministrator;
-    public string CatalogReadOnlyNotice => "Somente o administrador da UBS cadastra e altera profissionais, consultórios, grade de horários e bloqueios. Esta conta pode consultar tudo, mas os campos de edição ficam desabilitados.";
+    public string CatalogReadOnlyNotice => "Somente o administrador da UBS cadastra e altera profissionais, consultórios, grade de horários e bloqueios. Esta conta pode consultar tudo, mas os botões de alteração ficam desabilitados.";
     public bool NoSpecialtyChoices => ProfessionalSpecialtyChoices.Count == 0;
-    public bool HasActiveProfessional => catalogLoaded && !catalogFailed && Professionals.Any(item => item.IsActive);
     public string ProfessionalsState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os profissionais."
-        : catalogFailed ? "Não foi possível ler os profissionais agora. Use Atualizar informações da UBS para tentar de novo."
+        : catalogFailed ? "Não foi possível ler os profissionais agora. A tela tenta de novo sozinha."
         : !catalogLoaded ? "Carregando os profissionais…"
         : Professionals.Count == 0 ? "Nenhum profissional cadastrado. Enquanto não houver profissional ativo, a agenda aceita especialidade e profissional em texto livre." : "";
     public string RoomsState => !HasActiveObsUnit ? "Escolha uma UBS para ver os consultórios."
-        : setupFailed ? "Não foi possível ler os consultórios agora. Use Atualizar informações da UBS para tentar de novo."
+        : setupFailed ? "Não foi possível ler os consultórios agora. A tela tenta de novo sozinha."
         : !setupLoaded ? "Carregando os consultórios…" : Rooms.Count == 0 ? "Nenhum consultório cadastrado." : "";
     public string ScheduleState => !HasActiveObsUnit ? "Escolha uma UBS para ver a grade."
-        : setupFailed ? "Não foi possível ler a grade agora. Use Atualizar informações da UBS para tentar de novo."
+        : setupFailed ? "Não foi possível ler a grade agora. A tela tenta de novo sozinha."
         : !setupLoaded ? "Carregando a grade…" : ScheduleRows.Count == 0 ? "Nenhum horário na grade. Sem grade, a UBS não oferece horários livres." : "";
+    /// <summary>O que a lista do dia escolhido diz quando está vazia: o estado da grade inteira ou, com a grade preenchida, a ausência de horário naquele dia.</summary>
+    public string ScheduleListState => ScheduleState.Length > 0 ? ScheduleState : ScheduleDayRows.Count == 0 ? $"Nenhum horário na grade de {ScheduleTemplate.WeekdayName(scheduleDay.Day).ToLowerInvariant()}." : "";
     public string BlocksState => !HasActiveObsUnit ? "Escolha uma UBS para ver os bloqueios."
-        : setupFailed ? "Não foi possível ler os bloqueios agora. Use Atualizar informações da UBS para tentar de novo."
+        : setupFailed ? "Não foi possível ler os bloqueios agora. A tela tenta de novo sozinha."
         : !setupLoaded ? "Carregando os bloqueios…" : ScheduleBlocks.Count == 0 ? "Nenhum bloqueio nos próximos 12 meses." : "";
     private bool CatalogDue => catalogAttemptedAt is null || DateTimeOffset.Now - catalogAttemptedAt >= CatalogRefreshAge;
 
     private static readonly string[] CatalogNames =
     [
-        nameof(HasActiveProfessional), nameof(NoSpecialtyChoices), nameof(ProfessionalsState), nameof(RoomsState), nameof(ScheduleState), nameof(BlocksState), nameof(CanEditCatalog), nameof(UsesCatalogBooking), nameof(BookingState), nameof(CanBook)
+        nameof(NoSpecialtyChoices), nameof(ProfessionalsState), nameof(RoomsState), nameof(ScheduleState), nameof(ScheduleListState), nameof(BlocksState), nameof(CanEditCatalog), nameof(UsesCatalogBooking), nameof(BookingState), nameof(CanBook)
     ];
     private void NotifyCatalog() { foreach (var name in CatalogNames) Notify(name); }
 
@@ -111,12 +116,11 @@ public sealed partial class WorkspaceViewModel
             var selectedId = SelectedSchedule?.Id;
             Replace(ScheduleRows, DecorateSchedule(data.Schedule?.Value is { } schedule ? schedule : [.. ScheduleRows]));
             if (selectedId is { } id) SelectedSchedule = ScheduleRows.FirstOrDefault(item => item.Id == id);
+            RebuildScheduleDay();
         }
         if (data.Blocks?.Value is not null || data.Professionals is not null)
         {
-            var selectedId = SelectedBlock?.Id;
             Replace(ScheduleBlocks, DecorateBlocks(data.Blocks?.Value is { } blocks ? blocks : [.. ScheduleBlocks]));
-            if (selectedId is { } id) SelectedBlock = ScheduleBlocks.FirstOrDefault(item => item.Id == id);
         }
         RebuildCatalogChoices();
         NotifyCatalog();
@@ -155,6 +159,16 @@ public sealed partial class WorkspaceViewModel
         RebuildBookingOptions();
     }
 
+    // ---- Resultado dos pop-ups de cadastro ----
+
+    /// <summary>
+    /// Os pop-ups de cadastro (<c>DialogService.ShowForm</c>) só fecham quando o salvamento deu certo. As operações de gravar marcam isto assim que a API aceita; a leitura de novo que vem
+    /// depois não conta (se ela falha, a alteração continua gravada e a tela avisa que pode estar desatualizada).
+    /// </summary>
+    private bool formSaved;
+    /// <summary>A mensagem de erro da última operação, para o pop-up mostrar dentro dele; vazia quando a última mensagem não era de erro.</summary>
+    public string FormError => messageKind == MessageKind.Error ? message : "";
+
     // ---- Profissionais ----
 
     private Professional? selectedProfessional;
@@ -163,10 +177,8 @@ public sealed partial class WorkspaceViewModel
     private Guid[] editingSpecialtyIds = [];
     private bool professionalSubmitted;
     private string professionalName = "", councilAcronym = "", councilNumber = "", councilState = "", professionalNameServerError = "";
-    public Professional? SelectedProfessional { get => selectedProfessional; set { selectedProfessional = value; Notify(); Notify(nameof(HasSelectedProfessional)); Notify(nameof(ProfessionalActiveLabel)); Notify(nameof(CanChangeProfessional)); } }
-    public bool HasSelectedProfessional => selectedProfessional is not null;
-    public bool CanChangeProfessional => CanEditCatalog && HasSelectedProfessional;
-    public string ProfessionalActiveLabel => selectedProfessional is { IsActive: false } ? "Reativar profissional" : "Desativar profissional";
+    /// <summary>O profissional sobre o qual a ação do balão atua (e que "Editar" abre no pop-up).</summary>
+    public Professional? SelectedProfessional { get => selectedProfessional; set { selectedProfessional = value; Notify(); } }
     public string ProfessionalDraftTitle => editingProfessionalId is null ? "Cadastrar profissional" : "Editar profissional";
     public string ProfessionalName { get => professionalName; set { professionalName = value; professionalNameServerError = ""; NotifyProfessionalErrors(); Notify(); } }
     public string CouncilAcronym { get => councilAcronym; set { councilAcronym = value ?? ""; NotifyProfessionalErrors(); Notify(); } }
@@ -175,7 +187,7 @@ public sealed partial class WorkspaceViewModel
     private bool ShowProfessionalError(string value) => professionalSubmitted || value.Length > 0;
     public string ProfessionalNameError => professionalNameServerError.Length > 0 ? professionalNameServerError
         : ShowProfessionalError(professionalName) && (professionalName.Trim().Length is < 2 or > 160 || professionalName.Any(char.IsControl)) ? "Informe o nome do profissional, de 2 a 160 caracteres." : "";
-    public string ProfessionalSpecialtyError => professionalSubmitted && !ProfessionalSpecialtyChoices.Any(choice => choice.IsChecked) ? "Marque ao menos uma especialidade da lista da rede." : "";
+    public string ProfessionalSpecialtyError => professionalSubmitted && !ProfessionalSpecialtyChoices.Any(choice => choice.IsChecked) ? "Marque ao menos uma especialidade." : "";
     /// <summary>Conselho é opcional, mas sigla, número e UF vêm juntos (ou nenhum).</summary>
     public string CouncilError
     {
@@ -237,21 +249,50 @@ public sealed partial class WorkspaceViewModel
             else await api.CreateProfessionalAsync(unit.Id, professionalName.Trim(), ids, noCouncil ? null : councilAcronym.Trim(), noCouncil ? null : councilNumber.Trim(), noCouncil ? null : councilState.Trim().ToUpperInvariant());
         }
         catch (NoraApiException error) when (error.Status == 409) { professionalNameServerError = error.Message; NotifyProfessionalErrors(); throw; }
+        formSaved = true;
         NewProfessionalDraft();
         await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, editing is null ? "Profissional cadastrado." : "Profissional atualizado.");
     });
 
-    /// <summary>Estado que a pessoa escolheu na tela: se o cadastro já foi mudado por outra pessoa para ele, nada é enviado (alternar a partir da leitura nova faria o contrário do que foi confirmado).</summary>
-    public Task ChangeProfessionalActiveAsync(Guid professionalId, bool activate) => RunAsync(async () =>
+    /// <summary>Grava o profissional do pop-up e diz se deu certo (o pop-up só fecha com verdadeiro); o motivo da recusa fica em <see cref="FormError"/> e nos campos.</summary>
+    public async Task<bool> SaveProfessionalFormAsync() { formSaved = false; await SaveProfessionalAsync(); return formSaved; }
+
+    /// <summary>
+    /// Desativa ou reativa profissionais (um ou vários, com uma só leitura depois). Vale o estado que a pessoa escolheu na tela: quem já está nele não recebe nada
+    /// (alternar a partir da leitura nova faria o contrário do que foi confirmado).
+    /// </summary>
+    public Task ChangeProfessionalsActiveAsync(IReadOnlyList<Guid> professionalIds, bool activate) => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar o profissional.");
         RequireAdministrator();
-        var professional = Professionals.FirstOrDefault(item => item.Id == professionalId) ?? throw new NoraApiException("O profissional não está mais na lista desta UBS. Atualize as configurações.");
-        if (professional.IsActive == activate) { Say(MessageKind.Info, AlreadyInStateText(professional.FullName, "profissional", activate)); return; }
-        await api.SetProfessionalActiveAsync(unit.Id, professional.Id, activate);
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, activate ? "Profissional reativado." : "Profissional desativado. As consultas já marcadas continuam como estavam.");
-        if (ActiveObsUnit?.Id == unit.Id) SelectedProfessional = Professionals.FirstOrDefault(item => item.Id == professional.Id);
+        var chosen = professionalIds.Select(id => Professionals.FirstOrDefault(item => item.Id == id) ?? throw new NoraApiException("O profissional não está mais na lista desta UBS.")).ToArray();
+        var changing = chosen.Where(item => item.IsActive != activate).ToArray();
+        if (changing.Length == 0)
+        {
+            Say(MessageKind.Info, chosen.Length == 1 ? AlreadyInStateText(chosen[0].FullName, "profissional", activate) : $"Os {chosen.Length} profissionais já estão {(activate ? "ativos" : "desativados")} (outra pessoa alterou). Nada foi enviado.");
+            return;
+        }
+        await ChangeEachAsync(unit, changing, item => api.SetProfessionalActiveAsync(unit.Id, item.Id, activate), UnitScope.Catalog | UnitScope.Setup,
+            changing.Length == 1 ? (activate ? "Profissional reativado." : "Profissional desativado. As consultas já marcadas continuam como estavam.")
+            : activate ? $"{changing.Length} profissionais reativados." : $"{changing.Length} profissionais desativados. As consultas já marcadas continuam como estavam.");
     });
+
+    /// <summary>Aplica a mesma alteração a vários itens e relê uma vez no fim. Se a API recusa no meio, o que já foi aceito fica gravado e a tela é relida antes de a recusa ser mostrada.</summary>
+    private async Task ChangeEachAsync<T>(HealthUnit unit, IReadOnlyList<T> items, Func<T, Task> change, UnitScope scope, string success)
+    {
+        var done = 0;
+        try
+        {
+            foreach (var item in items) { await change(item); done++; }
+        }
+        catch (NoraApiException) when (done > 0)
+        {
+            try { await LoadUnitScopeAsync(unit, scope); }
+            catch (NoraApiException reading) when (!reading.Unauthorized) { MarkStale(); }
+            throw;
+        }
+        await ReloadCatalogAfterChangeAsync(unit, scope, success);
+    }
 
     private static string AlreadyInStateText(string name, string kind, bool activate) =>
         $"{name} já está {(activate ? "ativo" : "desativado")} (outra pessoa alterou este {kind}). Nada foi enviado.";
@@ -262,11 +303,9 @@ public sealed partial class WorkspaceViewModel
     private Guid? editingRoomId;
     private bool roomSubmitted;
     private string roomName = "", roomServerError = "";
-    public Room? SelectedRoom { get => selectedRoom; set { selectedRoom = value; Notify(); Notify(nameof(HasSelectedRoom)); Notify(nameof(RoomActiveLabel)); Notify(nameof(CanChangeRoom)); } }
-    public bool HasSelectedRoom => selectedRoom is not null;
-    public bool CanChangeRoom => CanEditCatalog && HasSelectedRoom;
-    public string RoomActiveLabel => selectedRoom is { IsActive: false } ? "Reativar consultório" : "Desativar consultório";
-    public string RoomDraftTitle => editingRoomId is null ? "Cadastrar consultório" : "Renomear consultório";
+    /// <summary>O consultório sobre o qual a ação do balão atua (e que "Editar" abre no pop-up).</summary>
+    public Room? SelectedRoom { get => selectedRoom; set { selectedRoom = value; Notify(); } }
+    public string RoomDraftTitle => editingRoomId is null ? "Cadastrar consultório" : "Editar consultório";
     public string RoomName { get => roomName; set { roomName = value; roomServerError = ""; Notify(); Notify(nameof(RoomNameError)); } }
     public string RoomNameError => roomServerError.Length > 0 ? roomServerError : (roomSubmitted || roomName.Length > 0) && roomName.Trim().Length is < 1 or > 80 ? "Informe o nome do consultório, de 1 a 80 caracteres." : "";
     public void NewRoomDraft() { editingRoomId = null; roomSubmitted = false; roomName = roomServerError = ""; Notify(nameof(RoomName)); Notify(nameof(RoomNameError)); Notify(nameof(RoomDraftTitle)); }
@@ -284,19 +323,29 @@ public sealed partial class WorkspaceViewModel
             if (editing is { } id) await api.RenameRoomAsync(unit.Id, id, roomName.Trim()); else await api.CreateRoomAsync(unit.Id, roomName.Trim());
         }
         catch (NoraApiException error) when (error.Status == 409) { roomServerError = error.Message; Notify(nameof(RoomNameError)); throw; }
+        formSaved = true;
         NewRoomDraft();
         await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, editing is null ? "Consultório cadastrado." : "Consultório renomeado.");
     });
 
-    public Task ChangeRoomActiveAsync(Guid roomId, bool activate) => RunAsync(async () =>
+    /// <summary>Grava o consultório do pop-up e diz se deu certo.</summary>
+    public async Task<bool> SaveRoomFormAsync() { formSaved = false; await SaveRoomAsync(); return formSaved; }
+
+    /// <summary>Desativa ou reativa consultórios (um ou vários, com uma só leitura depois), pelo estado que a pessoa escolheu na tela.</summary>
+    public Task ChangeRoomsActiveAsync(IReadOnlyList<Guid> roomIds, bool activate) => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar o consultório.");
         RequireAdministrator();
-        var room = Rooms.FirstOrDefault(item => item.Id == roomId) ?? throw new NoraApiException("O consultório não está mais na lista desta UBS. Atualize as configurações.");
-        if (room.IsActive == activate) { Say(MessageKind.Info, AlreadyInStateText(room.Name, "consultório", activate)); return; }
-        await api.SetRoomActiveAsync(unit.Id, room.Id, activate);
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, activate ? "Consultório reativado." : "Consultório desativado. Ele sai dos horários livres.");
-        if (ActiveObsUnit?.Id == unit.Id) SelectedRoom = Rooms.FirstOrDefault(item => item.Id == room.Id);
+        var chosen = roomIds.Select(id => Rooms.FirstOrDefault(item => item.Id == id) ?? throw new NoraApiException("O consultório não está mais na lista desta UBS.")).ToArray();
+        var changing = chosen.Where(item => item.IsActive != activate).ToArray();
+        if (changing.Length == 0)
+        {
+            Say(MessageKind.Info, chosen.Length == 1 ? AlreadyInStateText(chosen[0].Name, "consultório", activate) : $"Os {chosen.Length} consultórios já estão {(activate ? "ativos" : "desativados")} (outra pessoa alterou). Nada foi enviado.");
+            return;
+        }
+        await ChangeEachAsync(unit, changing, item => api.SetRoomActiveAsync(unit.Id, item.Id, activate), UnitScope.Setup,
+            changing.Length == 1 ? (activate ? "Consultório reativado." : "Consultório desativado. Ele sai dos horários livres.")
+            : activate ? $"{changing.Length} consultórios reativados." : $"{changing.Length} consultórios desativados. Eles saem dos horários livres.");
     });
 
     // ---- Grade semanal ----
@@ -308,10 +357,21 @@ public sealed partial class WorkspaceViewModel
     private Room? scheduleRoom;
     private Specialty? scheduleSpecialty;
     private int scheduleWeekday = 1;
+    private WeekdayOption scheduleDay = ScheduleDayOptions[0];
     private string scheduleStart = "08:00", scheduleEnd = "12:00", scheduleSlotMinutes = "30", scheduleValidFrom = "", scheduleValidUntil = "", scheduleServerError = "";
-    public ScheduleTemplate? SelectedSchedule { get => selectedSchedule; set { selectedSchedule = value; Notify(); Notify(nameof(HasSelectedSchedule)); Notify(nameof(CanChangeSchedule)); } }
-    public bool HasSelectedSchedule => selectedSchedule is not null;
-    public bool CanChangeSchedule => CanEditCatalog && HasSelectedSchedule;
+    /// <summary>O horário da grade sobre o qual a ação do balão atua (e que "Editar" abre no pop-up).</summary>
+    public ScheduleTemplate? SelectedSchedule { get => selectedSchedule; set { selectedSchedule = value; Notify(); } }
+    /// <summary>O dia dos botões da grade semanal (segunda-feira ao abrir). Trocar de dia troca a listagem e o dia que o próximo "Novo horário" já traz.</summary>
+    public WeekdayOption ScheduleDay
+    {
+        get => scheduleDay;
+        set { if (value is null || scheduleDay.Day == value.Day) return; scheduleDay = value; Notify(); RebuildScheduleDay(); }
+    }
+    private void RebuildScheduleDay()
+    {
+        Replace(ScheduleDayRows, ScheduleRows.Where(row => row.Weekday == scheduleDay.Day).ToArray());
+        Notify(nameof(ScheduleListState));
+    }
     public string ScheduleDraftTitle => editingScheduleId is null ? "Adicionar horário à grade" : "Editar horário da grade";
     public Professional? ScheduleProfessional { get => scheduleProfessional; set { if (choiceSync > 0 && value is null) return; scheduleProfessional = value; ClearScheduleServerError(); Notify(); RebuildScheduleSpecialties(); NotifyScheduleErrors(); } }
     public Room? ScheduleRoom { get => scheduleRoom; set { if (choiceSync > 0 && value is null) return; scheduleRoom = value; ClearScheduleServerError(); Notify(); NotifyScheduleErrors(); } }
@@ -371,10 +431,11 @@ public sealed partial class WorkspaceViewModel
         return null;
     }
 
+    /// <summary>Rascunho novo da grade: já vem com o dia escolhido nos botões de dia.</summary>
     public void NewScheduleDraft()
     {
         editingScheduleId = null; scheduleSubmitted = false; scheduleServerError = "";
-        scheduleProfessional = null; scheduleRoom = null; scheduleSpecialty = null; scheduleWeekday = 1; scheduleStart = "08:00"; scheduleEnd = "12:00"; scheduleSlotMinutes = "30"; scheduleValidFrom = scheduleValidUntil = "";
+        scheduleProfessional = null; scheduleRoom = null; scheduleSpecialty = null; scheduleWeekday = scheduleDay.Day; scheduleStart = "08:00"; scheduleEnd = "12:00"; scheduleSlotMinutes = "30"; scheduleValidFrom = scheduleValidUntil = "";
         RebuildScheduleSpecialties();
         foreach (var name in new[] { nameof(ScheduleProfessional), nameof(ScheduleRoom), nameof(ScheduleSpecialty), nameof(ScheduleWeekday), nameof(ScheduleStart), nameof(ScheduleEnd), nameof(ScheduleSlotMinutes), nameof(ScheduleValidFrom), nameof(ScheduleValidUntil), nameof(ScheduleDraftTitle) }) Notify(name);
         NotifyScheduleErrors();
@@ -415,29 +476,30 @@ public sealed partial class WorkspaceViewModel
             if (inactive is null) throw;
             throw new NoraApiException(inactive, code: error.Code, status: error.Status);
         }
+        formSaved = true;
         NewScheduleDraft();
         await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, editing is null ? "Horário adicionado à grade." : "Horário da grade atualizado.");
     });
 
-    public Task DeleteScheduleAsync() => RunAsync(async () =>
+    /// <summary>Grava o horário do pop-up da grade e diz se deu certo.</summary>
+    public async Task<bool> SaveScheduleFormAsync() { formSaved = false; await SaveScheduleAsync(); return formSaved; }
+
+    /// <summary>Remove horários da grade (um ou vários, com uma só leitura depois). Consultas já marcadas não são afetadas.</summary>
+    public Task DeleteSchedulesAsync(IReadOnlyList<Guid> scheduleIds) => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de alterar a grade.");
         RequireAdministrator();
-        var row = SelectedSchedule ?? throw new NoraApiException("Selecione um horário da grade.");
-        await api.DeleteScheduleAsync(unit.Id, row.Id);
+        if (scheduleIds.Count == 0) throw new NoraApiException("Selecione um horário da grade.");
+        await ChangeEachAsync(unit, scheduleIds, id => api.DeleteScheduleAsync(unit.Id, id), UnitScope.Catalog | UnitScope.Setup,
+            scheduleIds.Count == 1 ? "Horário removido da grade. Consultas já marcadas não foram afetadas." : $"{scheduleIds.Count} horários removidos da grade. Consultas já marcadas não foram afetadas.");
         SelectedSchedule = null;
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Catalog | UnitScope.Setup, "Horário removido da grade. Consultas já marcadas não foram afetadas.");
     });
 
     // ---- Bloqueios ----
 
-    private ScheduleBlock? selectedBlock;
     private bool blockSubmitted, blockFullDay = true;
     private Guid blockScope = Guid.Empty;
     private string blockFrom = "", blockTo = "", blockStartTime = "08:00", blockEndTime = "12:00", blockReason = "", blockServerError = "";
-    public ScheduleBlock? SelectedBlock { get => selectedBlock; set { selectedBlock = value; Notify(); Notify(nameof(HasSelectedBlock)); Notify(nameof(CanChangeBlock)); } }
-    public bool HasSelectedBlock => selectedBlock is not null;
-    public bool CanChangeBlock => CanEditCatalog && HasSelectedBlock;
     public Guid BlockScope { get => blockScope; set { blockScope = value; Notify(); } }
     public bool BlockFullDay { get => blockFullDay; set { blockFullDay = value; Notify(); Notify(nameof(BlockTimesEnabled)); Notify(nameof(BlockError)); } }
     public bool BlockTimesEnabled => !blockFullDay;
@@ -477,30 +539,48 @@ public sealed partial class WorkspaceViewModel
         var problem = BlockProblem(out var startsAt, out var endsAt); Notify(nameof(BlockError));
         if (problem is not null) throw new NoraApiException(problem);
         await api.CreateScheduleBlockAsync(unit.Id, blockScope == Guid.Empty ? null : blockScope, startsAt, endsAt, blockReason.Trim());
+        formSaved = true;
         NewBlockDraft();
         await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, "Bloqueio criado. Os horários que ele cruza saem da disponibilidade.");
     });
 
-    public Task DeleteBlockAsync() => RunAsync(async () =>
+    /// <summary>Grava o bloqueio do pop-up e diz se deu certo.</summary>
+    public async Task<bool> SaveBlockFormAsync() { formSaved = false; await SaveBlockAsync(); return formSaved; }
+
+    /// <summary>Remove bloqueios (um ou vários, com uma só leitura depois); os horários que eles cobriam voltam a ser oferecidos.</summary>
+    public Task DeleteBlocksAsync(IReadOnlyList<Guid> blockIds) => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de remover o bloqueio.");
         RequireAdministrator();
-        var block = SelectedBlock ?? throw new NoraApiException("Selecione um bloqueio.");
-        await api.DeleteScheduleBlockAsync(unit.Id, block.Id);
-        SelectedBlock = null;
-        await ReloadCatalogAfterChangeAsync(unit, UnitScope.Setup, "Bloqueio removido.");
+        if (blockIds.Count == 0) throw new NoraApiException("Selecione um bloqueio.");
+        await ChangeEachAsync(unit, blockIds, id => api.DeleteScheduleBlockAsync(unit.Id, id), UnitScope.Setup, blockIds.Count == 1 ? "Bloqueio removido." : $"{blockIds.Count} bloqueios removidos.");
     });
 
-    public Task LoadCatalogAsync() => RunAsync(async () =>
+    // ---- Fichas (segundo clique e Enter) ----
+
+    /// <summary>Ficha em linhas de um item das listagens de Informações da UBS; nulo para outro tipo de item.</summary>
+    public ItemDetails? BuildCatalogDetails(object item) => item switch
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de consultar as configurações.");
-        // O botão Atualizar informações da UBS refaz também o atendimento ao público (os campos voltam ao que está gravado) e, para o administrador, a lista de computadores.
-        forceProfileEditors = true;
-        try { await LoadUnitScopeAsync(unit, UnitScope.Catalog | UnitScope.Setup | UnitScope.Profile | UnitScope.Devices); }
-        finally { forceProfileEditors = false; }
-        var failed = catalogFailed || setupFailed || profileFailed || (IsAdministrator && devicesFailed);
-        if (ActiveObsUnit?.Id == unit.Id) Say(failed ? MessageKind.Error : MessageKind.Success, failed ? "Parte das configurações não pôde ser lida agora. O que já estava na tela foi mantido." : "Informações da UBS atualizadas.");
-    });
+        Professional professional => new(professional.FullName, "Profissional da UBS",
+        [
+            new("Nome completo", professional.FullName, true, "Identificação"),
+            new("Especialidades", professional.SpecialtiesDisplay.Length > 0 ? professional.SpecialtiesDisplay : "Nenhuma", Group: "Identificação"),
+            new("Registro no conselho", professional.CouncilDisplay, !string.IsNullOrWhiteSpace(professional.CouncilAcronym), "Identificação"),
+            new("Situação", professional.StatusDisplay, Group: "Identificação")
+        ]),
+        Room room => new(room.Name, "Consultório da UBS", [new("Nome", room.Name, true, "Identificação"), new("Situação", room.StatusDisplay, Group: "Identificação")]),
+        ScheduleTemplate row => new($"{row.WeekdayDisplay} · {row.RangeDisplay}", "Horário da grade semanal",
+        [
+            new("Dia", row.WeekdayDisplay, Group: "Horário"), new("Horário", row.RangeDisplay, Group: "Horário"), new("Duração do atendimento", row.SlotDisplay, Group: "Horário"),
+            new("Profissional", row.ProfessionalName, Group: "Atendimento"), new("Especialidade", row.SpecialtyName, Group: "Atendimento"), new("Consultório", row.RoomName, Group: "Atendimento"),
+            new("Vigência", row.ValidityDisplay, Group: "Horário")
+        ]),
+        ScheduleBlock block => new(block.Reason, "Bloqueio da agenda",
+        [
+            new("Motivo", block.Reason, true, "Bloqueio"), new("Vale para", block.ScopeDisplay, Group: "Bloqueio"), new("Período", block.PeriodDisplay, Group: "Bloqueio")
+        ]),
+        _ => null
+    };
 
     /// <summary>Depois de uma alteração do catálogo: relê o que mudou e, se o agendamento tem especialidade e profissional escolhidos, busca os horários de novo (a grade ou os bloqueios podem ter mudado).</summary>
     private async Task ReloadCatalogAfterChangeAsync(HealthUnit unit, UnitScope scope, string success)
@@ -517,9 +597,9 @@ public sealed partial class WorkspaceViewModel
     private void ClearCatalog()
     {
         catalogLoaded = catalogFailed = setupLoaded = setupFailed = false; catalogAttemptedAt = null;
-        ObsSpecialties.Clear(); Professionals.Clear(); Rooms.Clear(); ScheduleRows.Clear(); ScheduleBlocks.Clear(); ProfessionalSpecialtyChoices.Clear(); ActiveProfessionalOptions.Clear(); ActiveRoomOptions.Clear(); ScheduleSpecialtyOptions.Clear();
+        ObsSpecialties.Clear(); Professionals.Clear(); Rooms.Clear(); ScheduleRows.Clear(); ScheduleDayRows.Clear(); ScheduleBlocks.Clear(); ProfessionalSpecialtyChoices.Clear(); ActiveProfessionalOptions.Clear(); ActiveRoomOptions.Clear(); ScheduleSpecialtyOptions.Clear();
         Replace(BlockScopeOptions, new[] { new GuidChoice(Guid.Empty, "UBS inteira") });
-        SelectedProfessional = null; SelectedRoom = null; SelectedSchedule = null; SelectedBlock = null;
+        SelectedProfessional = null; SelectedRoom = null; SelectedSchedule = null;
         NewProfessionalDraft(); NewRoomDraft(); NewScheduleDraft(); NewBlockDraft(); ClearBooking();
         NotifyCatalog();
     }

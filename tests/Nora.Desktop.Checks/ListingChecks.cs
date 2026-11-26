@@ -34,7 +34,7 @@ internal static partial class Program
                     ("slots", "Nenhuma vaga cadastrada nesta UBS até agora.", "Fila"),
                     ("indicators", "Por especialidade", "Nenhum alerta."),
                     ("alerts", "Nenhum alerta.", "Por especialidade"),
-                    ("unit-settings", "Informações da UBS", "Resumo do dia")
+                    ("unit-settings", "Serviços oferecidos", "Resumo do dia")
                 })
                 {
                     window.ViewModel.Navigate(route); Settle(vm);
