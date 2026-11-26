@@ -136,11 +136,11 @@ internal static partial class Program
                     Require(days.Count == 30 && vm.UnitChart.Rows.Count == 2 && days.Count(day => day.Completed == 0 && day.Missed == 0 && day.Cancelled == 0) == 28, $"A série deveria cobrir 30 dias com 28 deles zerados: {days.Count} dias.");
                     Require(days[^1].Date == DateOnly.FromDateTime(DateTime.Today) && days[^1].Completed == 2 && days[^1].Cancelled == 1 && days[^5].Completed == 3 && days[^5].Missed == 1, "Os dias com dado não ficaram nas datas certas.");
                     var chart = Descendants<EvolutionChartView>(content).Single();
-                    var rectangles = Descendants<System.Windows.Shapes.Rectangle>((Canvas)chart.FindName("Plot")).ToArray(); // só a área do gráfico: a tabela recolhida também tem retângulos de moldura
+                    var rectangles = Descendants<System.Windows.Shapes.Rectangle>(chart).ToArray(); // as áreas sensíveis do gráfico (uma por dia, com a dica)
                     Require(rectangles.Where(rectangle => rectangle.ToolTip is string).Select(rectangle => (string)rectangle.ToolTip).SequenceEqual(days.Select(day => day.Description)), "As dicas do gráfico não trazem o número exato de cada dia.");
-                    var expectedBars = days.Sum(day => (day.Completed > 0 ? 1 : 0) + (day.Missed > 0 ? 1 : 0) + (day.Cancelled > 0 ? 1 : 0));
-                    Require(rectangles.Count(rectangle => rectangle.ToolTip is null && rectangle.Fill is SolidColorBrush) == expectedBars && expectedBars == 4, $"{mode}: o gráfico desenhou {rectangles.Count(rectangle => rectangle.ToolTip is null && rectangle.Fill is SolidColorBrush)} barras; esperadas {expectedBars}.");
-                    var expander = Descendants<Expander>(chart).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 2600);
+                    Require(Descendants<System.Windows.Shapes.Polyline>(chart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(chart).Count() == days.Count * 3, $"{mode}: o gráfico deveria ter 3 linhas e {days.Count * 3} pontos.");
+                    Require(!Descendants<Expander>(chart).Any(), "O gráfico não deveria ter o expansor da tabela.");
+                    var expander = Descendants<Expander>(content).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 2600);
                     Require(GridNamed(content, "Consultas por dia").Items.Cast<DailyPoint>().SequenceEqual(vm.UnitChart.Rows), "A tabela do gráfico não traz os mesmos valores.");
                     expander.IsExpanded = false;
                     // Contraste dos textos de apoio e dos ícones de estado sobre a superfície dos cartões.

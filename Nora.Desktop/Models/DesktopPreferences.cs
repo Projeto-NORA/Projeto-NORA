@@ -15,6 +15,8 @@ public sealed class DesktopPreferences
     public bool FullScreen { get; set; }
     public string LastPage { get; set; } = "home";
     public Dictionary<string, string> Shortcuts { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>Como cada tela com cards e gráficos aparece: rota da tela → "cards" ou "charts". Tela fora da lista abre em cards.</summary>
+    public Dictionary<string, string> ViewModes { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed record DesktopProfile(string Id, string Name, bool IsMunicipal)

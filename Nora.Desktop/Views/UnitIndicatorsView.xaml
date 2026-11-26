@@ -64,6 +64,7 @@
       <StackPanel>
         <TextBlock Text="Série no tempo" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" ToolTip="Consultas por dia, pela data marcada, no período escolhido." />
         <views:EvolutionChartView Data="{Binding UnitChart}" />
+        <views:ChartDataTable Data="{Binding UnitChart}" />
       </StackPanel>
     </Border>
     <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Capacidade da UBS no período">

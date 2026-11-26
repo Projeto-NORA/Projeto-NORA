@@ -74,14 +74,8 @@ public partial class ShellWindow : Window, IDialogHost
     /// <summary>Mini botão de gráfico dos cartões de indicador: abre o pop-up com Linha e Pizza.</summary>
     private void OnShowChart(object sender, ExecutedRoutedEventArgs args)
     {
-        var (title, value) = args.Parameter switch
-        {
-            MetricCard card => (card.Title, card.Value),
-            string text when text.Split('|') is { Length: 2 } parts => (parts[0], parts[1]),
-            string text => (text, ""),
-            _ => ("Indicador", "")
-        };
-        var chart = ViewModel.Workspace.BuildIndicatorChart(title, value);
+        var title = args.Parameter switch { MetricCard card => card.Title, string text => text, _ => "Indicador" };
+        var chart = ViewModel.Workspace.BuildIndicatorChart(title);
         DialogService.ShowModal(new IndicatorChartWindow(chart), this);
         args.Handled = true;
     }

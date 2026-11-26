@@ -1,0 +1,36 @@
+<Window x:Class="Nora.Desktop.Views.FormDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="760" SizeToContent="Height" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" Foreground="{DynamicResource TextBrush}" FontFamily="Segoe UI" FontSize="14" Title="NORA">
+  <!-- Pop-up de cadastro da marca (mesmo padrão do NoraDialog): sem moldura do Windows, cantos arredondados, o fundo da janela principal escurece. Título e X no topo, o formulário no corpo (com rolagem) e o botão primário à direita no rodapé. Sem card dentro do pop-up: o pop-up já é o card. -->
+  <Border x:Name="Frame" Margin="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16" RenderTransformOrigin="0.5,0.5" Opacity="0" AutomationProperties.Name="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}">
+    <Border.Effect><DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.22" Color="#061E3B" /></Border.Effect>
+    <Border.RenderTransform><ScaleTransform x:Name="Zoom" ScaleX="0.96" ScaleY="0.96" /></Border.RenderTransform>
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <Grid Margin="24,18,14,8" Background="Transparent" MouseLeftButtonDown="OnDrag">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock x:Name="TitleText" Style="{StaticResource SectionTitle}" FontSize="20" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+        <Button x:Name="CloseButton" Grid.Column="1" Style="{StaticResource CircleIconButton}" IsCancel="True" Click="OnClose" ToolTip="Fechar sem salvar" AutomationProperties.Name="Fechar sem salvar">
+          <Path Data="{StaticResource IconCloseGeometry}" Width="18" Height="18" Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+        </Button>
+      </Grid>
+      <ProgressBar x:Name="Progress" Grid.Row="1" Height="3" IsIndeterminate="True" Margin="24,0" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="Collapsed" AutomationProperties.Name="Salvando" />
+      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <ContentPresenter x:Name="Body" Margin="24,10,24,10" />
+      </ScrollViewer>
+      <Border x:Name="ErrorBox" Grid.Row="3" Margin="24,4,24,0" Padding="12,9" CornerRadius="8" Background="{DynamicResource ErrorSurfaceBrush}" BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1" Visibility="Collapsed" AutomationProperties.LiveSetting="Assertive" AutomationProperties.Name="Erro ao salvar">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Path Data="{StaticResource IconWarningGeometry}" Width="18" Height="18" Stretch="None" VerticalAlignment="Top" Margin="0,1,10,0" Stroke="{DynamicResource ErrorBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <TextBlock x:Name="ErrorText" Grid.Column="1" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+        </Grid>
+      </Border>
+      <Grid Grid.Row="4" Margin="24,14,24,20">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock x:Name="BusyText" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryBrush}" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="SecondaryButton" MinWidth="112" MinHeight="40" Margin="0,0,10,0" Visibility="Collapsed" Click="OnSecondary" />
+          <Button x:Name="PrimaryButton" MinWidth="132" MinHeight="40" IsDefault="True" Style="{StaticResource ObsPrimaryButton}" Click="OnPrimary" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

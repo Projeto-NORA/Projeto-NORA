@@ -27,6 +27,8 @@ public sealed class PreferencesService
             // A antiga Fila virou o painel automático da Vaga Relâmpago.
             if (preferences.LastPage == "queue" && applicationId != "municipal") preferences.LastPage = "slots";
             if (!allowedPages.Contains(preferences.LastPage)) preferences.LastPage = "home";
+            // Modo cards/gráficos: só o que o programa entende (um valor desconhecido ou uma chave vazia volta ao padrão, cards).
+            preferences.ViewModes = (preferences.ViewModes ?? new Dictionary<string, string>()).Where(mode => !string.IsNullOrWhiteSpace(mode.Key) && mode.Value == "charts").ToDictionary(mode => mode.Key, mode => mode.Value, StringComparer.Ordinal);
             return preferences;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)

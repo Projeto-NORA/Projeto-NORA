@@ -947,4 +947,72 @@
       <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
     </Style.Triggers>
   </Style>
+  <!-- ===== Alternadores, gráficos e pop-ups (26/11/2026) ===== -->
+  <!-- Ícones desenhados (18x18) do alternador cards / gráficos. -->
+  <Geometry x:Key="IconCardsGeometry">M 3.4,3.4 L 7.8,3.4 L 7.8,7.8 L 3.4,7.8 Z M 10.2,3.4 L 14.6,3.4 L 14.6,7.8 L 10.2,7.8 Z M 3.4,10.2 L 7.8,10.2 L 7.8,14.6 L 3.4,14.6 Z M 10.2,10.2 L 14.6,10.2 L 14.6,14.6 L 10.2,14.6 Z</Geometry>
+  <Geometry x:Key="IconChartGeometry">M 2.8,2.8 L 2.8,15.2 L 15.2,15.2 M 5.6,11.6 L 8.6,8 L 11,10.2 L 15,4.6</Geometry>
+  <Geometry x:Key="IconCopyGeometry">M 6.4,6.4 L 14.6,6.4 L 14.6,14.6 L 6.4,14.6 Z M 11.6,6.4 L 11.6,3.4 L 3.4,3.4 L 3.4,11.6 L 6.4,11.6</Geometry>
+  <!-- Um segmento do alternador: o selecionado vira uma pílula branca com contorno da marca e texto em destaque (nunca só a cor); o hover é azul bebê. -->
+  <Style x:Key="SegmentedToggleItem" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+      <Border x:Name="Frame" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="7" Padding="{TemplateBinding Padding}" MinHeight="{TemplateBinding MinHeight}">
+        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" TextElement.FontWeight="{TemplateBinding FontWeight}" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></Trigger>
+        <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsSelected" Value="True" /><Condition Property="IsMouseOver" Value="True" /></MultiTrigger.Conditions><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></MultiTrigger>
+        <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsSelected" Value="True" /><Condition Property="IsKeyboardFocused" Value="True" /></MultiTrigger.Conditions><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></MultiTrigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="views:SegmentedToggle">
+    <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="3" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource SegmentedToggleItem}" />
+    <Setter Property="ItemsPanel"><Setter.Value><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></Setter.Value></Setter>
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="views:SegmentedToggle">
+      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+        <ItemsPresenter />
+      </Border>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Botão do cabeçalho que alterna cards e gráficos: mostra o ícone do modo em que a tela está. -->
+  <Style TargetType="views:ViewModeToggle">
+    <Setter Property="Width" Value="36" /><Setter Property="Height" Value="36" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="views:ViewModeToggle">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Path x:Name="Icon" Data="{StaticResource IconCardsGeometry}" Width="18" Height="18" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="Mode" Value="Charts"><Setter TargetName="Icon" Property="Data" Value="{StaticResource IconChartGeometry}" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
 </ResourceDictionary>

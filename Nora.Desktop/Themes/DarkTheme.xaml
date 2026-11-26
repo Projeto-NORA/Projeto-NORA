@@ -39,8 +39,8 @@
   <SolidColorBrush x:Key="DividerBrush" Color="#1D3D5C" />
   <SolidColorBrush x:Key="ChartBrush1" Color="#5EA8F5" />
   <SolidColorBrush x:Key="ChartBrush2" Color="#4FD1A5" />
-  <SolidColorBrush x:Key="ChartBrush3" Color="#F2C55C" />
-  <SolidColorBrush x:Key="ChartBrush4" Color="#F28699" />
+  <SolidColorBrush x:Key="ChartBrush3" Color="#F7C948" />
+  <SolidColorBrush x:Key="ChartBrush4" Color="#F2708A" />
   <SolidColorBrush x:Key="ChartBrush5" Color="#A895F2" />
   <SolidColorBrush x:Key="ChartBrush6" Color="#62CDE3" />
   <!-- ===== Listagens abertas, balão de ações, botões de ação, tons e situações (26/11/2026) ===== -->

@@ -35,6 +35,7 @@
         <TextBlock Text="Série no tempo" Style="{StaticResource SectionTitle}"  ToolTip="Consultas por dia, pela data marcada, com os filtros acima." Margin="0,0,0,12" />
 
         <views:EvolutionChartView Data="{Binding NetworkChart}" />
+        <views:ChartDataTable Data="{Binding NetworkChart}" />
       </StackPanel>
     </Border>
   </StackPanel>

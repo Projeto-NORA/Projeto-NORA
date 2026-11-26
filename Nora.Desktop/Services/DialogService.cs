@@ -42,6 +42,19 @@ public static class DialogService
     public static void Warning(Window? owner, string title, string message) => Show(owner, DialogKind.Warning, title, message);
     public static void Error(Window? owner, string title, string message) => Show(owner, DialogKind.Error, title, message);
 
+    /// <summary>
+    /// Pop-up de cadastro da marca: título, X, o formulário (<paramref name="content"/>, com o próprio DataContext) numa área com rolagem e o botão primário à direita.
+    /// <paramref name="save"/> roda quando a pessoa aciona o primário (clique ou Enter no último campo) com o botão desabilitado enquanto espera: verdadeiro fecha e
+    /// este método devolve verdadeiro; falso mantém o pop-up aberto com a mensagem de <paramref name="error"/> dentro dele. X e Esc fecham sem salvar (devolve falso).
+    /// <paramref name="secondary"/> é um botão opcional à esquerda do primário que roda <paramref name="secondaryAction"/> sem fechar.
+    /// </summary>
+    public static bool ShowForm(Window? owner, string title, FrameworkElement content, Func<Task<bool>> save, string primary = "Salvar", string? secondary = null, Func<Task>? secondaryAction = null, Func<string?>? error = null)
+    {
+        var dialog = new FormDialog(new FormDialogRequest(title, content, save, primary, secondary, secondaryAction, error));
+        ShowModal(dialog, owner);
+        return dialog.Saved;
+    }
+
     /// <summary>Abre uma janela modal da marca: escurece a janela dona enquanto o diálogo está aberto.</summary>
     public static bool? ShowModal(Window dialog, Window? owner)
     {

@@ -52,6 +52,7 @@
         <StackPanel>
           <TextBlock Text="Consultas dos últimos 7 dias" Style="{StaticResource SectionTitle}" />
           <views:EvolutionChartView Data="{Binding PanelChart}" Margin="0,14,0,0" />
+          <views:ChartDataTable Data="{Binding PanelChart}" />
         </StackPanel>
       </Border>
       <Border Grid.Column="1" Style="{StaticResource Card}" Margin="12,0,0,0" ToolTip="Acompanha fila alta, espera longa, faltas, ocupação da grade e metas fora do limite.">

@@ -189,6 +189,7 @@ internal static partial class Program
             RunHeaderChecks(root);
             RunTitleBarChecks(application, root);
             RunListingComponentsChecks(application, themes, root, args);
+            RunChartAndDialogChecks(application, themes, root, args);
             RunDesktopAccessChecks(root, args);
             RunApiClientChecks(application, root, args);
             RunEndToEndChecks(root, args);

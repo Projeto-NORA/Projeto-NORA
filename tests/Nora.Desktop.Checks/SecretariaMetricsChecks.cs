@@ -113,10 +113,11 @@ internal static partial class Program
                 var rectangles = Descendants<System.Windows.Shapes.Rectangle>(chart).ToArray();
                 var tips = rectangles.Where(rectangle => rectangle.ToolTip is string).Select(rectangle => (string)rectangle.ToolTip).ToArray();
                 Require(tips.SequenceEqual(days.Select(day => day.Description)), "As dicas do gráfico não trazem o número exato de cada dia.");
-                var expectedBars = days.Sum(day => (day.Completed > 0 ? 1 : 0) + (day.Missed > 0 ? 1 : 0) + (day.Cancelled > 0 ? 1 : 0));
-                var bars = rectangles.Count(rectangle => rectangle.ToolTip is null && rectangle.Fill is SolidColorBrush) - 3;
-                Require(bars == expectedBars && expectedBars > 0, $"O gráfico desenhou {bars} barras; esperadas {expectedBars}.");
-                var expander = Descendants<Expander>(chart).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 1900);
+                // Linha grossa com área em degradê e um ponto por dia (até 31 dias): três séries, 30 dias.
+                var plot = Descendants<System.Windows.Shapes.Polyline>(chart).ToArray();
+                Require(plot.Length == 3 && Descendants<System.Windows.Shapes.Polygon>(chart).Count() == 3 && Descendants<System.Windows.Shapes.Ellipse>(chart).Count() == days.Count * 3, $"O gráfico deveria ter 3 linhas, 3 áreas e {days.Count * 3} pontos: {plot.Length} linhas, {Descendants<System.Windows.Shapes.Ellipse>(chart).Count()} pontos.");
+                Require(!Descendants<Expander>(chart).Any(), "O gráfico não deveria ter o expansor da tabela (a tabela é das telas, no modo cards).");
+                var expander = Descendants<Expander>(content).Single(item => AutomationProperties.GetName(item) == "Tabela dos dados do gráfico"); expander.IsExpanded = true; content = Layout(window, 1280, 1900);
                 var table = GridNamed(content, "Consultas por dia");
                 var rows = table.Items.Cast<DailyPoint>().ToArray();
                 Require(rows.Length == 5 && rows.Sum(row => row.Completed) == days.Sum(day => day.Completed) && rows.Sum(row => row.Missed) == days.Sum(day => day.Missed) && rows.Sum(row => row.Cancelled) == days.Sum(day => day.Cancelled) && rows.All(row => days.Contains(row)), "A tabela não tem os mesmos valores do gráfico.");
@@ -125,7 +126,7 @@ internal static partial class Program
                 SaveScrolled(window, Path.Combine(previewRoot, "municipal-overview-light.png"));
                 // Período longo: o mesmo gráfico vira linhas, com a mesma tabela.
                 vm.MetricsPeriodDays = 90; Settle(vm); content = Layout(window, 1280, 1900);
-                Require(vm.ChartDays.Count == 90 && Descendants<System.Windows.Shapes.Polyline>(Descendants<EvolutionChartView>(content).First()).Count() == 3, "Acima de 31 dias o gráfico deveria usar três linhas.");
+                Require(vm.ChartDays.Count == 90 && Descendants<System.Windows.Shapes.Polyline>(Descendants<EvolutionChartView>(content).First()).Count() == 3, "Com 90 dias o gráfico deveria continuar com três linhas (um ponto por dia).");
                 // Score nulo.
                 fixture.NoClosedAppointments = true; vm.MetricsPeriodDays = 7; Settle(vm); content = Layout(window, 1280, 1900);
                 Require(Card(vm, "Comparecimento").Value == "—" && HasText(content, "Sem consulta encerrada no período para calcular.") && vm.ChartState == "Nenhuma consulta com data marcada no período." && HasText(content, "Nenhuma consulta com data marcada no período."), "Score nulo e gráfico vazio deveriam explicar o motivo.");
