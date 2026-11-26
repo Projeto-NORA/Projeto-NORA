@@ -51,7 +51,18 @@ public sealed partial class ShellViewModel : ObservableObject
         "settings" => "Aparência, atalhos e preferências deste computador",
         _ => ""
     };
-    public bool SidebarExpanded { get => expanded; set { expanded = value; Notify(); if (RememberSidebar) { preferences.SidebarExpanded = value; Persist(); } } }
+    /// <summary>Barra lateral aberta. Fechada, ela e o divisor somem e a tela ocupa a largura toda; ao reabrir volta à largura salva.</summary>
+    public bool SidebarExpanded
+    {
+        get => expanded;
+        set
+        {
+            if (expanded == value) return;
+            expanded = value;
+            Notify(); Notify(nameof(SidebarColumnWidth)); Notify(nameof(SidebarSplitterWidth));
+            if (RememberSidebar) { preferences.SidebarExpanded = value; Persist(); }
+        }
+    }
     public double SidebarWidth
     {
         get => sidebarWidth;
@@ -65,14 +76,18 @@ public sealed partial class ShellViewModel : ObservableObject
             if (RememberSidebar) { preferences.SidebarWidth = normalized; Persist(); }
         }
     }
+    /// <summary>Largura da coluna da barra lateral: a largura salva quando aberta e zero quando recolhida.</summary>
     public GridLength SidebarColumnWidth
     {
-        get => new(SidebarWidth, GridUnitType.Pixel);
+        get => new(SidebarExpanded ? SidebarWidth : 0, GridUnitType.Pixel);
         set
         {
-            if (value.IsAbsolute) SidebarWidth = value.Value;
+            // Recolhida, a coluna vale zero: esse valor não é uma largura escolhida pela pessoa e não pode ser guardado.
+            if (SidebarExpanded && value.IsAbsolute) SidebarWidth = value.Value;
         }
     }
+    /// <summary>Largura da alça de arrasto entre a barra lateral e a tela: some junto com a barra.</summary>
+    public GridLength SidebarSplitterWidth => new(SidebarExpanded ? 6 : 0, GridUnitType.Pixel);
     public Appearance Appearance => preferences.Appearance;
     public bool LightSelected => Appearance == Appearance.Light;
     public bool DarkSelected => Appearance == Appearance.Dark;
@@ -85,6 +100,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public bool FullScreen { get => preferences.FullScreen; set { preferences.FullScreen = value; Changed(); } }
     public ICommand NavigateCommand { get; }
     public ICommand BackCommand { get; }
+    public ICommand ForwardCommand { get; }
     public ICommand MainMenuCommand { get; }
     public ICommand AppearanceCommand { get; }
     public ICommand ToggleSidebarCommand { get; }
@@ -98,7 +114,7 @@ public sealed partial class ShellViewModel : ObservableObject
             if (change.PropertyName == nameof(WorkspaceViewModel.AnnouncementBadgeCount)) { SetBadge("announcements", Workspace.AnnouncementBadgeCount); return; }
             if (change.PropertyName == nameof(WorkspaceViewModel.AlertBadgeCount)) { SetBadge("alerts", Workspace.AlertBadgeCount); return; }
             if (change.PropertyName != nameof(WorkspaceViewModel.MustChangePassword)) return;
-            foreach (var name in new[] { nameof(ShowPasswordRequired), nameof(IsHome), nameof(IsSettings), nameof(PageLabel), nameof(SectionSummary) }) Notify(name);
+            foreach (var name in new[] { nameof(ShowPasswordRequired), nameof(IsHome), nameof(IsSettings), nameof(PageLabel), nameof(SectionSummary), nameof(CanGoBack), nameof(CanGoForward) }) Notify(name);
         };
         this.storage = storage;
         this.themes = themes;
@@ -115,9 +131,10 @@ public sealed partial class ShellViewModel : ObservableObject
         MarkSelectedNavigation();
         NavigateCommand = new RelayCommand(p => Navigate(p?.ToString() ?? "home"));
         BackCommand = new RelayCommand(_ => GoBack(), _ => CanGoBack);
+        ForwardCommand = new RelayCommand(_ => GoForward(), _ => CanGoForward);
         MainMenuCommand = new RelayCommand(_ => ShowMainMenu());
         AppearanceCommand = new RelayCommand(p => { if (Enum.TryParse<Appearance>(p?.ToString(), out var mode)) SetAppearance(mode); });
-        ToggleSidebarCommand = new RelayCommand(_ => SidebarWidth = SidebarWidth < 240 ? 264 : 208);
+        ToggleSidebarCommand = new RelayCommand(_ => SidebarExpanded = !SidebarExpanded);
         RestoreCommand = new RelayCommand(_ => RestoreDefaults());
         themes.Apply(preferences.Appearance);
     }
@@ -139,10 +156,12 @@ public sealed partial class ShellViewModel : ObservableObject
         }
     }
 
-    // ---- Navegação em dois níveis e histórico (seta de voltar) ----
+    // ---- Navegação em dois níveis e histórico (voltar e avançar, na barra de título) ----
+    private const int HistoryLimit = 50;
     private string? subPage;
     private NavigationItem? activeArea;
     private readonly List<string> history = [];
+    private readonly List<string> forward = [];
     /// <summary>Parte da página mostrada pela subaba ("list", "register"...); nulo quando a página não tem subabas.</summary>
     public string? SubPage { get => subPage; private set { subPage = value; Notify(); } }
     /// <summary>Área principal aberta na barra lateral: com ela, a barra mostra as subabas e o item "Voltar ao menu".</summary>
@@ -152,8 +171,10 @@ public sealed partial class ShellViewModel : ObservableObject
     public IReadOnlyList<NavigationItem> SidebarItems => ActiveArea?.Children ?? Navigation;
     public string SidebarHeading => ActiveArea?.Title.ToUpperInvariant() ?? NavigationHeading;
     public bool CanGoBack => history.Count > 0 && !ShowPasswordRequired;
+    public bool CanGoForward => forward.Count > 0 && !ShowPasswordRequired;
     public string Route => SubPage is null ? Page : $"{Page}:{SubPage}";
-    public string BackTip => history.Count > 0 ? $"Voltar para {RouteTitle(history[^1])}" : "Nenhuma página anterior";
+    public string BackTip => history.Count > 0 ? $"Voltar para {RouteTitle(history[^1])} (Alt + ←)" : "Nenhuma página anterior";
+    public string ForwardTip => forward.Count > 0 ? $"Avançar para {RouteTitle(forward[^1])} (Alt + →)" : "Nenhuma página para avançar";
     private IEnumerable<NavigationItem> AllItems => Navigation.SelectMany(item => item.HasChildren ? item.Children.Prepend(item) : [item]);
     private NavigationItem? AreaFor(string id) => Navigation.FirstOrDefault(item => item.Id == id && !item.HasChildren) ?? Navigation.FirstOrDefault(item => item.Children.Any(child => child.Id == id));
     private string? DefaultSub(string id) => AreaFor(id)?.Children.FirstOrDefault(child => child.Id == id)?.Sub;
@@ -171,20 +192,36 @@ public sealed partial class ShellViewModel : ObservableObject
     }
     /// <summary>"Voltar ao menu": a barra lateral volta às áreas principais sem trocar a página aberta.</summary>
     public void ShowMainMenu() => ActiveArea = null;
-    /// <summary>Volta para a página anterior da pilha de histórico.</summary>
-    public void GoBack()
+    /// <summary>Volta para a página anterior da pilha de histórico; a página que ficou para trás passa a ser a próxima do "avançar".</summary>
+    public void GoBack() => Traverse(history, forward, CanGoBack);
+    /// <summary>Avança para a página de que se voltou; a página atual volta para a pilha do "voltar".</summary>
+    public void GoForward() => Traverse(forward, history, CanGoForward);
+    private void Traverse(List<string> source, List<string> other, bool allowed)
     {
-        if (!CanGoBack) return;
-        var route = history[^1];
-        history.RemoveAt(history.Count - 1);
-        Navigate(route, remember: false);
+        if (!allowed) return;
+        var current = Route;
+        var route = source[^1];
+        source.RemoveAt(source.Count - 1);
+        if (Navigate(route, remember: false)) Push(other, current);
+        else RaiseHistoryChanged();
+    }
+    private static void Push(List<string> stack, string route)
+    {
+        stack.Add(route);
+        if (stack.Count > HistoryLimit) stack.RemoveAt(0);
+    }
+    private void RaiseHistoryChanged()
+    {
+        Notify(nameof(CanGoBack)); Notify(nameof(BackTip)); Notify(nameof(CanGoForward)); Notify(nameof(ForwardTip));
+        CommandManager.InvalidateRequerySuggested();
     }
     public void Navigate(string destination) => Navigate(destination, remember: true);
-    private void Navigate(string destination, bool remember)
+    /// <summary>Abre a página. Devolve falso quando o destino é recusado (senha provisória pendente ou rota indisponível).</summary>
+    private bool Navigate(string destination, bool remember)
     {
         var (target, sub) = SplitRoute(destination);
         if (target == "queue" && IsOperational) target = "slots";
-        if (ShowPasswordRequired || (target != "settings" && !AllItems.Any(n => n.Id == target && n.Available))) return;
+        if (ShowPasswordRequired || (target != "settings" && !AllItems.Any(n => n.Id == target && n.Available))) return false;
         var area = AreaFor(target);
         // Sem subaba (atalho, página restaurada ou chamada direta), a página aparece inteira; a subaba vem do clique no menu.
         if (area is { HasChildren: true } && sub is not null && !area.Children.Any(child => child.Id == target && child.Sub == sub)) sub = null;
@@ -193,18 +230,20 @@ public sealed partial class ShellViewModel : ObservableObject
         var changed = previous != (sub is null ? target : $"{target}:{sub}");
         if (remember && changed)
         {
-            history.Add(previous);
-            if (history.Count > 50) history.RemoveAt(0);
+            // Rota nova encerra o caminho do "avançar".
+            Push(history, previous);
+            forward.Clear();
         }
         if (target == "slots" && IsOperational) Workspace.SlotPanelScope = sub ?? "";
         Workspace.Section = target;
         subPage = sub;
         Page = target;
-        Notify(nameof(SubPage)); Notify(nameof(Route)); Notify(nameof(CanGoBack)); Notify(nameof(BackTip));
+        Notify(nameof(SubPage)); Notify(nameof(Route));
         ActiveArea = area is { HasChildren: true } ? area : null;
         MarkSelectedNavigation();
-        CommandManager.InvalidateRequerySuggested();
+        RaiseHistoryChanged();
         if (SaveNavigation) { preferences.LastPage = Page; Persist(); }
+        return true;
     }
 
     private static NavigationItem Leaf(string id, string icon, string title, string tip, string? sub = null) => new(id, icon, title, true, tip, sub);
@@ -270,7 +309,7 @@ public sealed partial class ShellViewModel : ObservableObject
         expanded = true;
         sidebarWidth = preferences.SidebarWidth;
         themes.Apply(preferences.Appearance);
-        foreach (var name in new[] { nameof(ShowSidebarTips), nameof(ConfirmClose), nameof(SaveNavigation), nameof(Animations), nameof(RememberSidebar), nameof(FullScreen), nameof(SidebarExpanded), nameof(SidebarWidth), nameof(SidebarColumnWidth), nameof(Appearance), nameof(LightSelected), nameof(DarkSelected), nameof(SystemSelected) }) Notify(name);
+        foreach (var name in new[] { nameof(ShowSidebarTips), nameof(ConfirmClose), nameof(SaveNavigation), nameof(Animations), nameof(RememberSidebar), nameof(FullScreen), nameof(SidebarExpanded), nameof(SidebarWidth), nameof(SidebarColumnWidth), nameof(SidebarSplitterWidth), nameof(Appearance), nameof(LightSelected), nameof(DarkSelected), nameof(SystemSelected) }) Notify(name);
         // The restored persisted navigation starts at home on the next launch; settings stays visible now.
         Persist();
         Notify(nameof(ShortcutRows));

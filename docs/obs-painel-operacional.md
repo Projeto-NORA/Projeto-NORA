@@ -89,7 +89,7 @@ A aba lista os pedidos pendentes (mais antigo primeiro) e os vínculos aprovados
 
 O OBS passa a apresentar a operação da unidade em abas: Painel da UBS, Fila, Agenda, Pacientes, Família, Vaga Relâmpago, Indicadores, Alertas, Comunicados, Informações da UBS e Configurações. A navegação organiza a rotina da equipe sem misturar dados da gestão municipal.
 
-O visual usa azul-escuro, branco e tons azuis de apoio. A barra lateral mostra o nome da conta conectada, um avatar formado pelas iniciais e a identificação de que os dados são da unidade conectada. A largura é ajustável pela divisória arrastável, sem botão de recolher. Uma foto real do usuário exige que esse dado exista na conta/API; a interface não inventa imagens pessoais.
+O visual usa azul-escuro, branco e tons azuis de apoio. A barra lateral mostra o nome da conta conectada, um avatar formado pelas iniciais e a identificação de que os dados são da unidade conectada. A largura é ajustável pela divisória arrastável, e o botão da barra de título (ou Ctrl + B) recolhe e reabre a barra. Uma foto real do usuário exige que esse dado exista na conta/API; a interface não inventa imagens pessoais.
 
 O acabamento visual usa gradientes azul-profundo, superfícies claras/escuras em camadas, sombras suaves para profundidade e animação curta de escala nos botões ao passar o cursor. Esses movimentos respeitam o foco por teclado e não alteram a ordem, o conteúdo ou o significado clínico dos controles. A paleta é aplicada pelos recursos compartilhados do desktop, portanto mantém os modos Claro, Escuro e Sistema consistentes.
 

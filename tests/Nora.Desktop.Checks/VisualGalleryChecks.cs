@@ -141,8 +141,10 @@ internal static partial class Program
         var scrolling = Descendants<ScrollViewer>(content).First();
         scrolling.ScrollToVerticalOffset(scrolling.ScrollableHeight * scrollRatio);
         Layout(window, width, height);
-        Require(content is Grid shell && Math.Abs(shell.ColumnDefinitions[0].ActualWidth - window.ViewModel.SidebarWidth) < 1,
-            $"A captura não refletiu a largura atual da barra lateral (renderizada: {(content is Grid current ? current.ColumnDefinitions[0].ActualWidth : 0):F1}; esperada: {window.ViewModel.SidebarWidth:F1}).");
+        var expectedSidebar = window.ViewModel.SidebarExpanded ? window.ViewModel.SidebarWidth : 0;
+        var renderedSidebar = ((ColumnDefinition)window.FindName("SidebarColumn")).ActualWidth;
+        Require(Math.Abs(renderedSidebar - expectedSidebar) < 1,
+            $"A captura não refletiu a largura atual da barra lateral (renderizada: {renderedSidebar:F1}; esperada: {expectedSidebar:F1}).");
         var appearance = window.ViewModel.Appearance.ToString().ToLowerInvariant();
         var name = $"visual-{window.ViewModel.Profile.Id}-{screen}-{appearance}-{position}.png";
         var directory = VisualGalleryDirectory(args);

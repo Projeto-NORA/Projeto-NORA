@@ -12,8 +12,8 @@ Estado em 2026-11-16: os três clientes usam só o fluxo por UBS (o legado globa
 
 - `Models`: preferências, perfis e descritores de navegação/cards/linhas.
 - `ViewModels`: estado e comandos do shell; navegação, seleção e configuração.
-- `Views`: shell, Home e Configurações; integração visual de teclado, animação e confirmação de fechamento.
-- `Services`: persistência JSON, temas do Windows e tela cheia.
+- `Views`: shell (com barra de título própria e barra lateral recolhível), Home e Configurações; integração visual de teclado, animação e confirmação de fechamento.
+- `Services`: persistência JSON, temas do Windows, tela cheia e medidas do monitor.
 - `Generics`: notificação de propriedades e comando reutilizável.
 - `Themes`: paletas Clara/Escura e templates compartilhados de controles.
 

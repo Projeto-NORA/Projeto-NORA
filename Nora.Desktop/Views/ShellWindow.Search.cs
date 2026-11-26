@@ -35,8 +35,8 @@ public partial class ShellWindow
         screenSearch = new Border
         {
             Child = row, Padding = new Thickness(10), CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 9, 12, 0), Visibility = Visibility.Collapsed
+            BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 8, 24, 0), Visibility = Visibility.Collapsed
         };
         screenSearch.SetResourceReference(BorderBrushProperty, "AccentTextBrush");
         screenSearch.SetResourceReference(BackgroundProperty, "SurfaceBrush");

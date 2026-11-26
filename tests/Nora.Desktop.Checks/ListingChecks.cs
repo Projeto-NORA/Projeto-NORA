@@ -28,9 +28,9 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 foreach (var (route, visibleText, hiddenText) in new[]
                 {
-                    ("home", "Resumo do dia", "Agenda"),
-                    ("agenda", "Agenda", "Resumo do dia"),
-                    ("patients", "Pacientes", "Agenda"),
+                    ("home", "Resumo do dia", "+ Agendar nova consulta"),
+                    ("agenda", "+ Agendar nova consulta", "Resumo do dia"),
+                    ("patients", "Pacientes", "+ Agendar nova consulta"),
                     ("slots", "Vaga Relâmpago", "Fila"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
                     ("alerts", "Central de alertas", "Indicadores da UBS"),

@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 
@@ -22,13 +21,11 @@ public sealed class FullScreenService(Window window)
             window.WindowState = WindowState.Normal;
             window.WindowStyle = WindowStyle.None;
             window.ResizeMode = ResizeMode.NoResize;
-            var monitor = MonitorFromWindow(new WindowInteropHelper(window).Handle, 2);
-            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-            if (GetMonitorInfo(monitor, ref info))
+            if (MonitorArea.TryGet(new WindowInteropHelper(window).Handle, out var monitor, out _))
             {
                 var matrix = PresentationSource.FromVisual(window)?.CompositionTarget?.TransformFromDevice ?? System.Windows.Media.Matrix.Identity;
-                var origin = matrix.Transform(new Point(info.Monitor.Left, info.Monitor.Top));
-                var end = matrix.Transform(new Point(info.Monitor.Right, info.Monitor.Bottom));
+                var origin = matrix.Transform(new Point(monitor.Left, monitor.Top));
+                var end = matrix.Transform(new Point(monitor.Right, monitor.Bottom));
                 window.Left = origin.X; window.Top = origin.Y; window.Width = end.X - origin.X; window.Height = end.Y - origin.Y;
             }
             else { window.Left = 0; window.Top = 0; window.Width = SystemParameters.PrimaryScreenWidth; window.Height = SystemParameters.PrimaryScreenHeight; }
@@ -41,8 +38,4 @@ public sealed class FullScreenService(Window window)
         }
         active = enabled;
     }
-    [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
-    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
-    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
 }

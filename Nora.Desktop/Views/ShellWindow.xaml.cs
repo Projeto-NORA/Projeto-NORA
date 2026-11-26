@@ -32,7 +32,7 @@ public partial class ShellWindow : Window, IDialogHost
         }
         InitializeScreenSearch();
         fullScreen = new(this);
-        SourceInitialized += (_, _) => ApplyWindowCorners();
+        InitializeTitleBar();
         StateChanged += (_, _) => ApplyWindowCorners();
         ViewModel.PropertyChanged += OnPreferenceChanged;
         PreviewKeyDown += OnKeyDown;
@@ -48,7 +48,8 @@ public partial class ShellWindow : Window, IDialogHost
     }
     private void OnPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ShellViewModel.FullScreen) && IsLoaded) { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); }
+        if (args.PropertyName == nameof(ShellViewModel.FullScreen)) { UpdateChrome(); if (IsLoaded) { fullScreen.Apply(ViewModel.FullScreen); ApplyWindowCorners(); } }
+        if (args.PropertyName == nameof(ShellViewModel.SidebarExpanded)) ApplySidebarState(animate: true);
         if (args.PropertyName == nameof(ShellViewModel.Page))
         {
             CloseScreenSearch(restoreFocus: false);
@@ -104,7 +105,7 @@ public partial class ShellWindow : Window, IDialogHost
             MaxHeight = Math.Max(320, Math.Min(SystemParameters.WorkArea.Height - 40, ActualHeight - 40))
         };
         CloseDetailsOnSessionChange(dialog);
-        dialog.ShowDialog();
+        DialogService.ShowModal(dialog, this);
     }
     /// <summary>A ficha fecha se a sessão termina ou a UBS ativa muda, para nunca mostrar dados de outra unidade.</summary>
     private void CloseDetailsOnSessionChange(Window dialog)
@@ -131,8 +132,9 @@ public partial class ShellWindow : Window, IDialogHost
     private void OnKeyDown(object sender, KeyEventArgs args)
     {
         if (HandleScreenSearchKey(args)) { args.Handled = true; return; }
-        // Voltar para a página anterior (Alt + seta para a esquerda): atalho fixo da pilha de histórico.
+        // Voltar e avançar pelo histórico (Alt + seta para a esquerda e para a direita): atalhos fixos, os mesmos botões da barra de título.
         if (args.SystemKey == Key.Left && Keyboard.Modifiers == ModifierKeys.Alt) { ViewModel.GoBack(); args.Handled = true; return; }
+        if (args.SystemKey == Key.Right && Keyboard.Modifiers == ModifierKeys.Alt) { ViewModel.GoForward(); args.Handled = true; return; }
         var shortcut = DesktopShortcuts.Definitions.FirstOrDefault(item => item.Id != "close" && ViewModel.ResolveShortcut(item).Matches(this, args));
         switch (shortcut?.Id)
         {

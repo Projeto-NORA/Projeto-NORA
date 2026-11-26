@@ -128,8 +128,9 @@ internal static partial class Program
                 var root = Layout(window, 1280, 740);
                 var originalWidth = window.ViewModel.SidebarWidth;
                 window.ViewModel.ToggleSidebarCommand.Execute(null);
-                Require(window.ViewModel.SidebarWidth != originalWidth, "Comando da barra lateral não alterna a largura.");
+                Require(!window.ViewModel.SidebarExpanded && window.ViewModel.SidebarWidth == originalWidth, "Comando da barra lateral não recolhe e preserva a largura salva.");
                 window.ViewModel.ToggleSidebarCommand.Execute(null);
+                Require(window.ViewModel.SidebarExpanded && window.ViewModel.SidebarWidth == originalWidth, "Comando da barra lateral não reabre na largura salva.");
                 var account = Descendants<Button>(root).Single(button => AutomationProperties.GetName(button) == "Menu da conta NORA");
                 Require(account.TranslatePoint(new Point(0, 0), root).Y > root.ActualHeight / 2, "Conta não está na parte inferior da navegação.");
                 InvokeButton(account);
@@ -163,7 +164,7 @@ internal static partial class Program
                     window.ViewModel.FullScreen = true;
                     Require(DwmGetWindowAttribute(handle, 33, out corner, sizeof(int)) == 0 && corner == 1 && window.WindowStyle == WindowStyle.None, "Tela cheia manteve cantos ou bordas.");
                     window.ViewModel.FullScreen = false;
-                    Require(DwmGetWindowAttribute(handle, 33, out corner, sizeof(int)) == 0 && corner == 3 && window.WindowStyle == WindowStyle.SingleBorderWindow, "Sair de tela cheia não restaurou cantos/moldura.");
+                    Require(DwmGetWindowAttribute(handle, 33, out corner, sizeof(int)) == 0 && corner == 3 && window.WindowStyle == WindowStyle.None && window.ResizeMode == ResizeMode.CanResize, "Sair de tela cheia não restaurou cantos/moldura.");
                 }
                 finally { window.Close(); }
             }

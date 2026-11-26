@@ -16,18 +16,26 @@ As preferências controlam dicas na sidebar, confirmação de fechamento, restau
 
 Navegar entre Home e Configurações abre a tela pelo topo, sem herdar a rolagem da anterior. O comportamento vale nos dois desktops com animações ativadas ou desativadas, verificado por invocação dos botões na janela nativa. O diálogo de fechamento também foi medido: seus botões cabem na área cliente no ambiente testado; DPI ampliado continua em P-007.
 
-Tela cheia cobre os limites do monitor e remove a borda da janela. Ao sair, restaura dimensão, estilo e estado anteriores. A validação de múltiplos monitores e DPI diferentes ainda depende de conferência manual.
+Tela cheia cobre os limites do monitor e remove a borda da janela e a barra de título; a faixa de arrasto e as bordas de redimensionar saem junto, para não engolirem cliques no topo. Ao sair, a barra de título volta e restaura dimensão, estilo e estado anteriores. A validação de múltiplos monitores e DPI diferentes ainda depende de conferência manual.
+
+**Barra de título própria (26/11/2026).** Os dois desktops desenham a própria barra de título (faixa de 35 px sobre a janela inteira, na mesma superfície da barra lateral, com `WindowChrome`). O nome do aplicativo não aparece nela (continua em `Window.Title`, usado pela barra de tarefas). À esquerda ficam quatro botões, nesta ordem: **abrir ou fechar a barra de navegação** (Ctrl + B), **voltar** (Alt + ←), **avançar** (Alt + →) e **pesquisar na tela** (Ctrl + F, a mesma busca de sempre, que agora abre logo abaixo da barra, à direita). À direita ficam minimizar, maximizar ou restaurar e fechar; o Fechar passa pela confirmação de fechamento, como Alt + F4. A área livre arrasta a janela, o duplo clique maximiza e restaura, e as bordas redimensionam. Maximizada, a janela ocupa a área de trabalho do monitor, sem vazar e sem cobrir a barra de tarefas. Na tela de acesso e na troca obrigatória de senha só aparecem os três botões da janela.
+
+Voltar e avançar usam duas pilhas de até 50 rotas cada. Voltar empilha a página atual para o avançar; abrir uma página nova (não a que já está aberta) apaga o avanço. Os botões ficam desabilitados, com a dica "Nenhuma página anterior" ou "Nenhuma página para avançar", quando a pilha está vazia.
+
+A barra lateral recolhe de verdade: fechada, ela e o divisor somem e a tela ocupa a largura toda. Abrir de novo volta à largura salva (a que foi arrastada, entre 208 e 380 px). A troca dura 200 ms e não acontece com as animações desligadas. O estado aberto ou fechado é gravado junto com a largura quando a preferência "lembrar a barra lateral" está ligada. Com a barra fechada o menu da conta, que mora nela, fica fora do alcance até reabri-la.
 
 | Atalho | Ação |
 | --- | --- |
 | Ctrl + 1 | Visão geral |
 | Ctrl + , | Configurações |
 | Ctrl + F | Pesquisar texto e itens carregados na tela |
-| Ctrl + B | Alternar entre as larguras compacta e normal da barra lateral |
+| Ctrl + B | Recolher ou reabrir a barra lateral |
 | Ctrl + Shift + T | Ciclar Clara, Escura e Sistema |
 | F11 | Entrar/sair de tela cheia |
 | Esc | Fechar pesquisa ou sair da tela cheia |
 | Alt + F4 | Fechar, respeitando confirmação |
+| Alt + ← | Voltar para a página anterior (fixo) |
+| Alt + → | Avançar para a página seguinte (fixo) |
 
 Os atalhos editáveis ficam ao lado de Aparência e Preferências da interface. Clique na combinação e pressione a nova tecla. O NORA rejeita combinações que conflitam com outras ações. Em janelas estreitas, a seção passa para baixo das preferências. Restaurar padrões pede confirmação e restaura também as combinações alteradas.
 
@@ -125,7 +133,7 @@ O seletor de paciente da Fila mostra somente o nome, tanto selecionado quanto na
 
 ## Painel OBS da UBS — 2026-10-15
 
-O OBS apresenta Painel da UBS, Fila, Agenda, Pacientes, Família, Vaga Relâmpago, Indicadores, Alertas, Comunicados e Configurações da UBS pela barra lateral. Cada aba mostra somente o seu conteúdo: Painel concentra o resumo, Agenda concentra o calendário, Pacientes concentra a listagem e cadastro, Fila concentra as entradas e Vaga Relâmpago concentra as ofertas. A troca de aba usa uma única área de conteúdo, portanto não mantém a tela anterior por trás ou abaixo da atual. A lateral não possui botão de recolher; sua largura é ajustada arrastando a divisória entre navegação e conteúdo, entre 208 e 380 px, e essa escolha é preservada quando a preferência estiver ativada. Um botão de engrenagem chamado Configurações no rodapé abre a tela correspondente. A conta no rodapé também mostra o nome da sessão e um avatar de iniciais; o menu dela preserva Configurações e Sair. O cabeçalho informa a seção e que os dados pertencem à unidade conectada, sem alegar que o isolamento de unidade já é aplicado pela API.
+O OBS apresenta Painel da UBS, Fila, Agenda, Pacientes, Família, Vaga Relâmpago, Indicadores, Alertas, Comunicados e Configurações da UBS pela barra lateral. Cada aba mostra somente o seu conteúdo: Painel concentra o resumo, Agenda concentra o calendário, Pacientes concentra a listagem e cadastro, Fila concentra as entradas e Vaga Relâmpago concentra as ofertas. A troca de aba usa uma única área de conteúdo, portanto não mantém a tela anterior por trás ou abaixo da atual. A lateral abre e fecha pelo botão da barra de título (ou Ctrl + B); sua largura é ajustada arrastando a divisória entre navegação e conteúdo, entre 208 e 380 px, e essa escolha, junto com o estado aberto ou fechado, é preservada quando a preferência estiver ativada. Um botão de engrenagem chamado Configurações no rodapé abre a tela correspondente. A conta no rodapé também mostra o nome da sessão e um avatar de iniciais; o menu dela preserva Configurações e Sair. O cabeçalho informa a seção e que os dados pertencem à unidade conectada, sem alegar que o isolamento de unidade já é aplicado pela API.
 
 A seleção de tema preserva Clara, Escura e Sistema, com a nova paleta azul-escuro e branca aplicada aos desktops. Configurações também reúne o cartão Perfil e unidade, com a identidade da sessão e as opções de nome, e-mail, senha e localidade. Nome, e-mail e localidade continuam indisponíveis porque a API não tem rota para salvá-los; os controles explicam a dependência em vez de aparentarem uma mudança local que não seria real. A senha já pode ser trocada (ver Senha da conta). Agenda, Indicadores e Alertas mostram o que a API entrega (consultas, métricas e alertas avaliados) e mantêm estados vazios claros quando não há dado. O calendário não cria consultas de exemplo e os gráficos não mostram séries inventadas.
 

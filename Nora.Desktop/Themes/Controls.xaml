@@ -599,6 +599,63 @@
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
   </Style>
+  <!-- ===== Barra de título própria (26/11/2026) ===== -->
+  <!-- Anel de foco só para o teclado: o mouse não deixa marca na barra. -->
+  <Style x:Key="TitleBarFocus">
+    <Setter Property="Control.Template"><Setter.Value><ControlTemplate>
+      <Rectangle Margin="3,5" RadiusX="5" RadiusY="5" Stroke="{DynamicResource BrandBrush}" StrokeThickness="1.5" SnapsToDevicePixels="True" />
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Ferramentas da barra de título (alternar menu, voltar, avançar, pesquisar): 36x35, ícone desenhado na cor do texto. O painel que as guarda é que fica clicável na faixa de arrasto (IsHitTestVisibleInChrome), para o botão desabilitado também mostrar a dica. -->
+  <Style x:Key="TitleBarToolButton" TargetType="Button">
+    <Setter Property="Width" Value="36" /><Setter Property="Height" Value="35" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Arrow" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource TitleBarFocus}" />
+    <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Margin="2,4" CornerRadius="6" Background="{TemplateBinding Background}">
+        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Background" Value="Transparent" /><Setter Property="Opacity" Value="0.38" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Minimizar, maximizar e fechar: 46x35, sem foco de teclado (o Windows já os atende por Win + setas e Alt + F4). -->
+  <Style x:Key="TitleBarWindowButton" TargetType="Button">
+    <Setter Property="Width" Value="46" /><Setter Property="Height" Value="35" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Arrow" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}">
+        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="TitleBarCloseButton" TargetType="Button" BasedOn="{StaticResource TitleBarWindowButton}">
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}">
+        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource TitleBarCloseHoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.75" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="Watermark" TargetType="StackPanel">
     <Setter Property="Orientation" Value="Horizontal" />
     <Setter Property="HorizontalAlignment" Value="Center" />

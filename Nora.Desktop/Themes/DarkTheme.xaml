@@ -32,6 +32,9 @@
   <SolidColorBrush x:Key="ErrorSurfaceBrush" Color="#4A1E2A" />
   <SolidColorBrush x:Key="InfoSurfaceBrush" Color="#133A5E" />
   <SolidColorBrush x:Key="HoverBrush" Color="#123352" />
+  <!-- Barra de título própria: mesma superfície da barra lateral (cor do topo do degradê), para as duas lerem como uma peça só. -->
+  <SolidColorBrush x:Key="TitleBarBrush" Color="#0C2947" />
+  <SolidColorBrush x:Key="TitleBarCloseHoverBrush" Color="#E3262E" />
   <SolidColorBrush x:Key="DividerBrush" Color="#1D3D5C" />
   <SolidColorBrush x:Key="ChartBrush1" Color="#5EA8F5" />
   <SolidColorBrush x:Key="ChartBrush2" Color="#4FD1A5" />

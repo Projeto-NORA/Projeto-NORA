@@ -136,4 +136,11 @@ OBS e Painel Municipal com o visual e o comportamento do software WPF de referê
 
 ## Estado
 
-- 26/11/2026: skills carregadas, branch e worktree criados, pedido registrado. Análise em andamento. Nenhum código alterado ainda.
+- 26/11/2026: skills carregadas, branch e worktree criados, pedido registrado.
+- 26/11/2026: análise concluída. Três levantamentos: o código do NORA ([anexo](anexos/2026-11-26-mapa-desktops-nora.md)), o sistema de estoque e o AEV ([anexo](anexos/2026-11-26-referencia-aev.md)). O padrão que o usuário descreve vem do **AEV**, não do estoque; do estoque fica só a ficha em linhas horizontais. Grafo do código montado pelo graphify (8.337 nós; `graph.html` em `Mateus-Projects/Claude-HTML/Projeto-NORA/graphify/`).
+- 26/11/2026: [especificação](2026-11-26-redesenho-especificacao.md) escrita (fundação F1–F9, telas, dados e ordem de execução).
+- **Linha de base antes de qualquer mudança:** `dotnet build NORA.slnx --configuration Release -m:1` com 0 erros; `Nora.Desktop.Checks` com **189 de 191** (falhavam "faixa de retorno … home" e "cada aba operacional renderiza somente o conteúdo selecionado … agenda").
+- 26/11/2026: `Nora.Desktop/Views/FormGrid.cs` criado (painel dos cadastros). O método `ColumnsFor` foi deixado para o usuário escrever; devolve 1 coluna enquanto isso.
+- 26/11/2026: **fundação em execução** por um fluxo de seis agentes em série nesta pasta (barra de título e navegação; cabeçalho; estilos e listagem; pop-ups, ficha e gráficos; perfil e sessão; revisão). Cada etapa faz commit na branch. Para saber até onde chegou: `git log --oneline` a partir de `ecc4ba1`.
+- **Falta depois da fundação:** telas do OBS e do Painel, login salvo no app e período longo na API (F8 e F9), script de dados, integração, revisão item a item, capturas, Excel e documentação.
+- 26/11/2026: **F1 e F2 feitas** (barra de título própria com alternar menu, voltar, avançar e pesquisar; avançar e Alt + →; barra lateral que recolhe de verdade; cabeçalho sem a seta de voltar). Build com 0 erros; checagens do desktop 201 PASS e 1 FAIL conhecido (P-066); a segunda falha da linha de base (aba Agenda) era expectativa velha do texto "Agenda" e foi adaptada. Falta, dessa parte, só o teste manual na tela real (P-067 em `PENDENCIAS.md`).
