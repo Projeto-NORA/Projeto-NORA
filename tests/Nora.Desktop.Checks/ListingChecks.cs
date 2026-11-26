@@ -34,7 +34,7 @@ internal static partial class Program
                     ("slots", "Vaga Relâmpago", "Fila"),
                     ("indicators", "Indicadores da UBS", "Central de alertas"),
                     ("alerts", "Central de alertas", "Indicadores da UBS"),
-                    ("unit-settings", "Informações da UBS", "Resumo do dia")
+                    ("unit-settings", "Serviços oferecidos", "Resumo do dia")
                 })
                 {
                     window.ViewModel.Navigate(route); Settle(vm);

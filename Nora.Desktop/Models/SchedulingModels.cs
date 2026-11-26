@@ -22,6 +22,9 @@ public sealed record Professional(Guid Id, string FullName, string? CouncilAcron
     [JsonIgnore] public string StatusDisplay => IsActive ? "Ativo" : "Desativado";
     [JsonIgnore] public string CouncilDisplay => string.IsNullOrWhiteSpace(CouncilAcronym) ? "Não informado" : $"{CouncilAcronym} {CouncilNumber}/{CouncilState}";
     [JsonIgnore] public string SelectorLabel => IsActive ? FullName : FullName + " (desativado)";
+    /// <summary>Segunda linha do item da listagem: especialidades e registro no conselho, só o que foi informado, separados por " | ".</summary>
+    [JsonIgnore] public string MetaLine => string.Join(" | ", new[] { SpecialtiesDisplay, string.IsNullOrWhiteSpace(CouncilAcronym) ? "" : CouncilDisplay }.Where(part => part.Length > 0));
+    [JsonIgnore] public Tone StatusTone => IsActive ? Tone.Green : Tone.Neutral;
 
     // Igualdade pelo conteúdo: o record compararia o vetor de especialidades pela referência, e cada leitura da API traz um vetor novo.
     // Sem isto toda releitura trocaria todos os itens das listas e os seletores perderiam a escolha em andamento.
@@ -35,6 +38,7 @@ public sealed record Room(Guid Id, string Name, bool IsActive)
 {
     [JsonIgnore] public string StatusDisplay => IsActive ? "Ativo" : "Desativado";
     [JsonIgnore] public string SelectorLabel => IsActive ? Name : Name + " (desativado)";
+    [JsonIgnore] public Tone StatusTone => IsActive ? Tone.Green : Tone.Neutral;
 }
 public sealed record RoomList(Room[] Rooms);
 
@@ -47,6 +51,10 @@ public sealed record ScheduleTemplate(Guid Id, Guid ProfessionalId, int Weekday,
     [JsonIgnore] public string WeekdayDisplay => WeekdayName(Weekday);
     [JsonIgnore] public string RangeDisplay => $"{StartTime}–{EndTime}";
     [JsonIgnore] public string SlotDisplay => $"{SlotMinutes} min";
+    /// <summary>Primeira linha do item da grade: "08:00 às 12:00 · atendimentos de 20 min".</summary>
+    [JsonIgnore] public string TitleDisplay => $"{StartTime} às {EndTime} · atendimentos de {SlotMinutes} min";
+    /// <summary>Segunda linha do item da grade: profissional, especialidade, consultório e vigência (só quando há limite), separados por " | ".</summary>
+    [JsonIgnore] public string MetaLine => string.Join(" | ", new[] { ProfessionalName, SpecialtyName, RoomName, ValidFrom is null && ValidUntil is null ? "" : ValidityDisplay }.Where(part => part.Length > 0));
     [JsonIgnore] public string ValidityDisplay => (ValidFrom, ValidUntil) switch
     {
         (null, null) => "Sem limite",
@@ -64,6 +72,19 @@ public sealed record ScheduleBlock(Guid Id, Guid? ProfessionalId, DateTimeOffset
 {
     [JsonIgnore] public string ScopeDisplay { get; init; } = "";
     [JsonIgnore] public string PeriodDisplay => IntervalDisplay(StartsAt, EndsAt);
+    /// <summary>Segunda linha do item de bloqueio: quem é atingido, o início e o fim (dia inteiro mostra só as datas; um dia só vira uma data).</summary>
+    [JsonIgnore] public string MetaLine
+    {
+        get
+        {
+            var from = StartsAt.ToLocalTime(); var to = EndsAt.ToLocalTime();
+            if (from.TimeOfDay != TimeSpan.Zero || to.TimeOfDay != TimeSpan.Zero) return string.Join(" | ", new[] { ScopeDisplay, "início " + from.ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture), "fim " + to.ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture) }.Where(part => part.Length > 0));
+            var last = to.Date.AddDays(-1);
+            return string.Join(" | ", last == from.Date
+                ? new[] { ScopeDisplay, from.ToString("dd/MM/yyyy", DisplayFormat.Culture) + " (dia inteiro)" }.Where(part => part.Length > 0)
+                : new[] { ScopeDisplay, "início " + from.ToString("dd/MM/yyyy", DisplayFormat.Culture), "fim " + last.ToString("dd/MM/yyyy", DisplayFormat.Culture) }.Where(part => part.Length > 0));
+        }
+    }
     /// <summary>Dia inteiro (da meia-noite local à meia-noite local seguinte, em um ou mais dias) aparece só com as datas.</summary>
     public static string IntervalDisplay(DateTimeOffset starts, DateTimeOffset ends)
     {

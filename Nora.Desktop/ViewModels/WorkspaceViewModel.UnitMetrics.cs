@@ -128,14 +128,9 @@ public sealed partial class WorkspaceViewModel
         if (name == "home" && PanelMetricsDue) scope |= UnitScope.PanelMetrics;
         // Catálogo (profissionais e especialidades): lido na troca de UBS; as abas que o usam só o repetem depois de 5 minutos.
         if (name == "agenda" && CatalogDue) scope |= UnitScope.Catalog;
-        if (name == "unit-settings")
-        {
-            if (!CatalogDue) scope &= ~UnitScope.Catalog;
-            if (setupLoaded && !CatalogDue) scope &= ~UnitScope.Setup;
-        }
-        // Atendimento ao público e computadores mudam pouco: depois da primeira leitura bem-sucedida só são lidos de novo a cada 5 minutos (e no botão Atualizar).
-        if (profileLoaded && !CatalogDue) scope &= ~UnitScope.Profile;
-        if (devicesLoaded && !CatalogDue) scope &= ~UnitScope.Devices;
+        // Informações da UBS não têm botão Atualizar: enquanto a tela está aberta ela relê o cadastro, a grade, os bloqueios e o atendimento ao entrar e a cada ciclo.
+        // Nas outras telas o atendimento ao público muda pouco: depois da primeira leitura bem-sucedida só é lido de novo a cada 5 minutos.
+        if (name != "unit-settings" && profileLoaded && !CatalogDue) scope &= ~UnitScope.Profile;
         if (scope.HasFlag(UnitScope.Alerts) && !AlertsDue) scope &= ~UnitScope.Alerts;
         return scope;
     }

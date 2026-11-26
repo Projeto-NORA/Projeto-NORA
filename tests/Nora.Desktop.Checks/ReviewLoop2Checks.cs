@@ -63,14 +63,19 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "unit-settings", 1280, 3400);
-                vm.SelectedProfessional = vm.Professionals.Single(); vm.EditSelectedProfessional(); content = Layout(window, 1280, 3400);
-                var kept = vm.ProfessionalSpecialtyChoices.SingleOrDefault(choice => choice.Specialty.Id == pediatria.Id);
-                Require(kept is { IsChecked: true } && kept.Name.Contains("desativada", StringComparison.Ordinal), "A especialidade desativada já vinculada deveria continuar marcada no formulário, com o aviso: " + string.Join(", ", vm.ProfessionalSpecialtyChoices.Select(choice => choice.Name)));
-                vm.CouncilAcronym = "CRM"; vm.CouncilNumber = "4321"; vm.CouncilState = "SP";
-                SaveScrolled(window, Path.Combine(previewRoot, "revisao2-profissional-especialidade-desativada-light.png"), 1280, 900);
-                window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 3400); SaveScrolled(window, Path.Combine(previewRoot, "revisao2-profissional-especialidade-desativada-dark.png"), 1280, 900);
-                Pump(vm.SaveProfessionalAsync()); Settle(vm);
+                var content = Show(window, "unit-settings:professionals", 1280, 900);
+                content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true);
+                OpenUnitForm(window, content, "Editar profissional", dialog =>
+                {
+                    var kept = vm.ProfessionalSpecialtyChoices.SingleOrDefault(choice => choice.Specialty.Id == pediatria.Id);
+                    Require(kept is { IsChecked: true } && kept.Name.Contains("desativada", StringComparison.Ordinal), "A especialidade desativada já vinculada deveria continuar marcada no formulário, com o aviso: " + string.Join(", ", vm.ProfessionalSpecialtyChoices.Select(choice => choice.Name)));
+                    Require(Descendants<CheckBox>(dialog).Any(box => box.IsVisible && box.IsChecked == true && box.Content?.ToString() == kept!.Name), "A especialidade desativada deveria aparecer marcada no pop-up.");
+                    vm.CouncilAcronym = "CRM"; vm.CouncilNumber = "4321"; vm.CouncilState = "SP";
+                    SavePreview(dialog, Path.Combine(previewRoot, "revisao2-profissional-especialidade-desativada-light.png"));
+                    window.ViewModel.SetAppearance(Appearance.Dark); dialog.UpdateLayout(); dialog.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); SavePreview(dialog, Path.Combine(previewRoot, "revisao2-profissional-especialidade-desativada-dark.png")); window.ViewModel.SetAppearance(Appearance.Light);
+                    SubmitUnitForm(dialog, "Salvar profissional");
+                });
+                Settle(vm);
                 var stored = fixture.ProfessionalsOf(unit.Id).Single();
                 Require(vm.MessageKind == MessageKind.Success && stored.CouncilNumber == "4321" && stored.SpecialtyIds.Contains(pediatria.Id) && stored.SpecialtyIds.Contains(clinica.Id), "Corrigir o conselho deveria ser gravado mantendo a especialidade desativada: " + vm.Message);
                 // Desmarcar uma especialidade que tem grade: o 409 explica sem mandar apagar a grade.

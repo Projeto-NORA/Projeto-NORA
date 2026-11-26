@@ -213,17 +213,17 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "unit-settings", 1280, 3400);
-                vm.SelectedProfessional = vm.Professionals.Single(); content = Layout(window, 1280, 3400);
-                whileAsking = () => { fixture.SetProfessionalActive(unit.Id, ana.Id, false); Pump(vm.LoadCatalogAsync()); };
+                var content = Show(window, "unit-settings:professionals", 1280, 900);
+                content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true);
+                whileAsking = () => { fixture.SetProfessionalActive(unit.Id, ana.Id, false); Pump(vm.RefreshAutomaticallyAsync()); };
                 InvokeButton(FindActionButton(content, "Desativar profissional")); Settle(vm);
                 Require(fixture.Count("PATCH", "/active") == 0 && !fixture.ProfessionalsOf(unit.Id).Single().IsActive, "O profissional desativado por outra pessoa foi reativado ao confirmar a DESATIVAÇÃO.");
                 Require(vm.Message.Contains("já está desativado", StringComparison.Ordinal), "A tela deveria explicar que outra pessoa já desativou: " + vm.Message);
                 // Sem concorrência, reativar e desativar continuam funcionando.
-                whileAsking = null; vm.SelectedProfessional = vm.Professionals.Single(); content = Layout(window, 1280, 3400);
+                whileAsking = null; content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true);
                 InvokeButton(FindActionButton(content, "Reativar profissional")); Settle(vm);
                 Require(fixture.ProfessionalsOf(unit.Id).Single().IsActive && fixture.Count("PATCH", "/active") == 1, "Reativar sem concorrência deveria ser enviado.");
-                vm.SelectedProfessional = vm.Professionals.Single(); content = Layout(window, 1280, 3400);
+                content = SelectUnitRows<Professional>(window, "Profissionais da UBS", _ => true);
                 InvokeButton(FindActionButton(content, "Desativar profissional")); Settle(vm);
                 Require(!fixture.ProfessionalsOf(unit.Id).Single().IsActive && fixture.Count("PATCH", "/active") == 2, "Desativar sem concorrência deveria ser enviado.");
             }
@@ -241,16 +241,16 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "unit-settings", 1280, 3400);
-                vm.SelectedRoom = vm.Rooms.Single(); content = Layout(window, 1280, 3400);
-                whileAsking = () => { fixture.SetRoomActive(unit.Id, room.Id, false); Pump(vm.LoadCatalogAsync()); };
+                var content = Show(window, "unit-settings:rooms", 1280, 900);
+                content = SelectUnitRows<Room>(window, "Consultórios da UBS", _ => true);
+                whileAsking = () => { fixture.SetRoomActive(unit.Id, room.Id, false); Pump(vm.RefreshAutomaticallyAsync()); };
                 InvokeButton(FindActionButton(content, "Desativar consultório")); Settle(vm);
                 Require(fixture.Count("PATCH", "/active") == 0 && !fixture.RoomsOf(unit.Id).Single().IsActive && vm.Message.Contains("já está desativado", StringComparison.Ordinal), "O consultório desativado por outra pessoa foi reativado ao confirmar a DESATIVAÇÃO: " + vm.Message);
                 // Sem concorrência, reativar e desativar continuam funcionando.
-                whileAsking = null; vm.SelectedRoom = vm.Rooms.Single(); content = Layout(window, 1280, 3400);
+                whileAsking = null; content = SelectUnitRows<Room>(window, "Consultórios da UBS", _ => true);
                 InvokeButton(FindActionButton(content, "Reativar consultório")); Settle(vm);
                 Require(fixture.RoomsOf(unit.Id).Single().IsActive && fixture.Count("PATCH", "/active") == 1, "Reativar sem concorrência deveria ser enviado.");
-                vm.SelectedRoom = vm.Rooms.Single(); content = Layout(window, 1280, 3400);
+                content = SelectUnitRows<Room>(window, "Consultórios da UBS", _ => true);
                 InvokeButton(FindActionButton(content, "Desativar consultório")); Settle(vm);
                 Require(!fixture.RoomsOf(unit.Id).Single().IsActive && fixture.Count("PATCH", "/active") == 2, "Desativar sem concorrência deveria ser enviado.");
             }
@@ -484,25 +484,29 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "unit-settings", 1280, 3400);
-                vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dra. Ana"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 1");
-                fixture.SetProfessionalActive(unit.Id, ana.Id, false);
-                var reads = fixture.Count("GET", "/professionals");
-                Pump(vm.SaveScheduleAsync()); Settle(vm); content = Layout(window, 1280, 3400);
-                Require(vm.ScheduleOverlapError.StartsWith("O profissional escolhido foi desativado", StringComparison.Ordinal) && !vm.ScheduleOverlapError.StartsWith("Sobreposição", StringComparison.Ordinal),
-                    "O 409 de um profissional desativado não pode ser descrito como sobreposição de horário: " + vm.ScheduleOverlapError);
-                Require(fixture.Count("GET", "/professionals") == reads + 1 && !vm.ActiveProfessionalOptions.Any(item => item.Id == ana.Id) && FullTexts(content).Contains(vm.ScheduleOverlapError), "O cadastro deveria ser relido no erro e o aviso aparecer na tela.");
-                SaveScrolled(window, Path.Combine(previewRoot, "revisao-grade-desativado-light.png"), 1280, 900);
-                // Consultório desativado.
-                vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dr. Bruno"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 2");
-                fixture.SetRoomActive(unit.Id, room2.Id, false); Pump(vm.SaveScheduleAsync()); Settle(vm);
-                Require(vm.ScheduleOverlapError.StartsWith("O consultório escolhido foi desativado", StringComparison.Ordinal), "O 409 de um consultório desativado deveria dizer isso: " + vm.ScheduleOverlapError);
-                // Sobreposição verdadeira continua com o aviso de sobreposição.
-                vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dr. Bruno"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 1");
-                fixture.AddScheduleRow(unit.Id, bruno, room1, cardio.Id, 1, "08:00", "12:00");
-                vm.ScheduleSpecialty = vm.ScheduleSpecialtyOptions.Single(); vm.ScheduleWeekday = 1; vm.ScheduleStart = "09:00"; vm.ScheduleEnd = "10:00";
-                Pump(vm.SaveScheduleAsync()); Settle(vm);
-                Require(vm.ScheduleOverlapError.StartsWith("Sobreposição", StringComparison.Ordinal), "A sobreposição de verdade continua avisada como tal: " + vm.ScheduleOverlapError);
+                var content = Show(window, "unit-settings:schedule", 1280, 900);
+                // O cadastro agora é um pop-up: o aviso do 409 aparece dentro dele, junto dos campos.
+                OpenUnitForm(window, content, "Novo horário", dialog =>
+                {
+                    vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dra. Ana"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 1");
+                    fixture.SetProfessionalActive(unit.Id, ana.Id, false);
+                    var reads = fixture.Count("GET", "/professionals");
+                    SubmitUnitForm(dialog, "Salvar horário na grade"); Settle(vm);
+                    Require(vm.ScheduleOverlapError.StartsWith("O profissional escolhido foi desativado", StringComparison.Ordinal) && !vm.ScheduleOverlapError.StartsWith("Sobreposição", StringComparison.Ordinal),
+                        "O 409 de um profissional desativado não pode ser descrito como sobreposição de horário: " + vm.ScheduleOverlapError);
+                    Require(fixture.Count("GET", "/professionals") == reads + 1 && !vm.ActiveProfessionalOptions.Any(item => item.Id == ana.Id) && FullTexts(dialog).Contains(vm.ScheduleOverlapError), "O cadastro deveria ser relido no erro e o aviso aparecer no pop-up.");
+                    SavePreview(dialog, Path.Combine(previewRoot, "revisao-grade-desativado-light.png"));
+                    // Consultório desativado.
+                    vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dr. Bruno"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 2");
+                    fixture.SetRoomActive(unit.Id, room2.Id, false); SubmitUnitForm(dialog, "Salvar horário na grade"); Settle(vm);
+                    Require(vm.ScheduleOverlapError.StartsWith("O consultório escolhido foi desativado", StringComparison.Ordinal), "O 409 de um consultório desativado deveria dizer isso: " + vm.ScheduleOverlapError);
+                    // Sobreposição verdadeira continua com o aviso de sobreposição.
+                    vm.ScheduleProfessional = vm.ActiveProfessionalOptions.Single(item => item.FullName == "Dr. Bruno"); vm.ScheduleRoom = vm.ActiveRoomOptions.Single(item => item.Name == "Consultório 1");
+                    fixture.AddScheduleRow(unit.Id, bruno, room1, cardio.Id, 1, "08:00", "12:00");
+                    vm.ScheduleSpecialty = vm.ScheduleSpecialtyOptions.Single(); vm.ScheduleWeekday = 1; vm.ScheduleStart = "09:00"; vm.ScheduleEnd = "10:00";
+                    SubmitUnitForm(dialog, "Salvar horário na grade"); Settle(vm);
+                    Require(vm.ScheduleOverlapError.StartsWith("Sobreposição", StringComparison.Ordinal), "A sobreposição de verdade continua avisada como tal: " + vm.ScheduleOverlapError);
+                });
             }
             finally { CloseWindow(window); }
         });

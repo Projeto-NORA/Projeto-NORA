@@ -337,7 +337,7 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices();
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile();
         Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
     }
 

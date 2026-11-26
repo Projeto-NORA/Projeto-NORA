@@ -15,7 +15,7 @@ internal static partial class Program
 {
     private static void RunRetryTextsChecks(string storageRoot, string[] args)
     {
-        Check("Textos de nova tentativa do OBS (comunicados, alertas da UBS, profissionais): a frase cita o botão da própria tela e ele refaz a leitura", () =>
+        Check("Textos de nova tentativa do OBS (comunicados, alertas da UBS) e profissionais: a frase cita o botão da própria tela (ou diz que a tela tenta de novo) e a leitura é refeita", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
             var unit = fixture.AddUnit("UBS Tentar de novo", "Centro");
@@ -37,11 +37,12 @@ internal static partial class Program
                 Click(window, content, "Atualizar alertas", 1280, 1800);
                 Require(vm.UnitAlertsState.StartsWith("Nenhum alerta.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria avaliar os alertas de novo: " + vm.UnitAlertsState);
                 // Profissionais, consultórios, grade e bloqueios das Configurações.
-                content = Show(window, "unit-settings", 1280, 5200);
-                Require(vm.ProfessionalsState == "Não foi possível ler os profissionais agora. Use Atualizar informações da UBS para tentar de novo." && ButtonIn(content, "Atualizar informações da UBS").IsEnabled, "A falha do catálogo deveria citar a ação de atualização: " + vm.ProfessionalsState);
+                // As Informações da UBS não têm botão Atualizar: a falha diz que a tela tenta de novo sozinha e a leitura automática seguinte refaz o catálogo.
+                content = Show(window, "unit-settings:professionals", 1280, 900);
+                Require(vm.ProfessionalsState == "Não foi possível ler os profissionais agora. A tela tenta de novo sozinha." && !Descendants<Button>(content).Any(button => button.IsVisible && (System.Windows.Automation.AutomationProperties.GetName(button) ?? "").StartsWith("Atualizar", StringComparison.Ordinal)), "A falha do catálogo deveria dizer que a tela tenta de novo, sem botão: " + vm.ProfessionalsState);
                 fixture.FailCatalogUnits.Clear();
-                Click(window, content, "Atualizar informações da UBS", 1280, 5200);
-                Require(vm.ProfessionalsState.StartsWith("Nenhum profissional cadastrado.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success, "O botão deveria ler o catálogo de novo: " + vm.ProfessionalsState);
+                Pump(vm.RefreshAutomaticallyAsync()); content = Layout(window, 1280, 900);
+                Require(vm.ProfessionalsState.StartsWith("Nenhum profissional cadastrado.", StringComparison.Ordinal), "A leitura automática deveria ler o catálogo de novo: " + vm.ProfessionalsState);
             }
             finally { CloseWindow(window); }
         });

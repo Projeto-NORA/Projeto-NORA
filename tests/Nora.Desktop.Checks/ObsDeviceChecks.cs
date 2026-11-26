@@ -17,6 +17,7 @@ internal static partial class Program
     {
         RunObsDeviceChecks(storageRoot, args);
         RunUnitProfileChecks(storageRoot, args);
+        RunUnitInformationChecks(storageRoot, args);
         RunRetryTextsChecks(storageRoot, args);
         RunScoreHistoryChecks(storageRoot, args);
     }
@@ -251,7 +252,7 @@ internal static partial class Program
             {
                 withDevice.Endpoint = "https://fixture.invalid"; withDevice.Identifier = "fixture@example.invalid";
                 Pump(withDevice.LoginAsync("isolated-test-password"));
-                Require(withDevice.IsAuthenticated && withDevice.AccountRoleLabel == "Atendente" && !withDevice.ShowDevicesSection, "A atendente com computador ativado deveria entrar, sem ver a seção Computadores.");
+                Require(withDevice.IsAuthenticated && withDevice.AccountRoleLabel == "Atendente", "A atendente com computador ativado deveria entrar.");
             }
             finally { withDevice.Dispose(); }
         });
@@ -322,84 +323,6 @@ internal static partial class Program
             finally { relaxed.Dispose(); }
         });
 
-        Check("Computador do OBS: seção Computadores do administrador (lista, vazio, falha com botão que refaz a leitura, ativar este, código que some, revogar este) e a atendente não a vê", () =>
-        {
-            using var fixture = new ApiFixture { UseWorkspaceIdentity = true };
-            var unit = fixture.AddUnit("UBS Computadores", "Centro");
-            var store = ComputerStore(Path.Combine(storageRoot, "device-section"));
-            var window = OpenOperationalWithDevices(fixture, storageRoot, "device-section", store, Appearance.Light);
-            var asked = new List<(string Title, string Text)>(); Confirmation.Handler = (_, title, text) => { asked.Add((title, text)); return true; };
-            try
-            {
-                var vm = LoginObs(window);
-                var content = Show(window, "unit-settings", 1280, 4200);
-                Require(vm.ShowDevicesSection && Descendants<Border>(content).Any(border => AutomationProperties.GetName(border) == "Computadores" && border.IsVisible), "O administrador deveria ver a seção Computadores.");
-                Require(vm.DevicesState == "Nenhum computador ativado ainda. A atendente só entra em computadores ativados.", "Estado vazio errado: " + vm.DevicesState);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-computadores-vazio-light.png"), 1280, 900);
-                // Falha: o texto aponta para um botão da mesma seção que refaz a leitura.
-                fixture.FailDevices = true;
-                Click(window, content, "Atualizar computadores", 1280, 4200);
-                Require(vm.DevicesState.Contains("Use Atualizar computadores", StringComparison.Ordinal) && ButtonIn(content, "Atualizar computadores").IsEnabled && vm.MessageKind == MessageKind.Error, "A falha deveria apontar para o botão Atualizar computadores: " + vm.DevicesState);
-                Require(vm.DeviceSteps.Single() is { Text: "Lendo os computadores…", IsFailed: true }, "O passo da leitura deveria ficar marcado como falho.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-computadores-falha-light.png"), 1280, 900);
-                fixture.FailDevices = false; var reads = fixture.Count("GET", "/devices");
-                Click(window, content, "Atualizar computadores", 1280, 4200);
-                Require(fixture.Count("GET", "/devices") == reads + 1 && vm.DevicesState.StartsWith("Nenhum computador ativado ainda.", StringComparison.Ordinal) && vm.MessageKind == MessageKind.Success && vm.DeviceSteps.Single().IsDone, "O botão deveria refazer a leitura e limpar a falha.");
-                // Nome obrigatório (1 a 60) e ativar este computador: duas etapas visíveis, segredo guardado só aqui.
-                vm.DeviceDraftName = "   "; Pump(vm.ActivateThisComputerAsync());
-                Require(vm.DeviceNameError.Contains("1 a 60") && fixture.Devices.Count == 0, "Nome vazio não pode chegar à API.");
-                vm.DeviceDraftName = "Recepção   1"; Pump(vm.ActivateThisComputerAsync());
-                var activated = fixture.Devices.Single();
-                Require(vm.DeviceActivated && activated is { Status: "active", Name: "Recepção 1" } && store.ReadDevice() is { } saved && saved.DeviceId == activated.Id && saved.Secret == activated.Secret && !vm.ShowActivateThisComputer, "Ativar este computador deveria gravar a ativação e esconder o botão.");
-                Require(vm.DeviceSteps.Select(step => (step.Text, step.IsDone)).SequenceEqual([("Ativando este computador…", true), ("Guardando a ativação neste computador…", true)]) && vm.ObsDevices.Single().IsThisDevice, "Os passos concluídos deveriam acumular e a lista marcar este computador.");
-                // Código para outro computador: aparece uma única vez e some ao fechar.
-                vm.DeviceDraftName = "Sala 2"; Pump(vm.CreateDeviceCodeAsync());
-                var other = fixture.Devices.Single(item => item.Name == "Sala 2");
-                content = Layout(window, 1280, 4200);
-                Require(vm.HasIssuedCode && vm.IssuedCodeText == other.Code && vm.IssuedCodeValidity.Contains("uma única vez", StringComparison.Ordinal) && FullTexts(content).Contains(other.Code!) && other.Status == "pending", "O código deveria aparecer grande, com a validade.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-computadores-codigo-light.png"), 1280, 900);
-                Click(window, content, "Fechar", 1280, 4200);
-                Require(!vm.HasIssuedCode && vm.IssuedCodeText == "" && !FullTexts(Layout(window, 1280, 4200)).Contains(other.Code!), "Fechar o painel deveria apagar o código da memória e da tela.");
-                vm.SelectedObsDevice = vm.ObsDevices.Single(item => item.Name == "Sala 2"); Pump(vm.IssueNewDeviceCodeAsync());
-                Require(vm.HasIssuedCode && vm.IssuedCodeText == other.Code && vm.MessageKind == MessageKind.Success, "Gerar novo código deveria mostrar o código novo.");
-                vm.CloseIssuedCode();
-                // Revogar outro computador e depois este: a confirmação de este avisa da sessão.
-                vm.SelectedObsDevice = vm.ObsDevices.Single(item => item.Name == "Sala 2"); content = Layout(window, 1280, 4200);
-                Click(window, content, "Revogar computador selecionado", 1280, 4200);
-                Require(asked.Last().Title == "Revogar computador" && other.Status == "revoked" && vm.IsAuthenticated, "Revogar outro computador deveria pedir confirmação e manter a sessão.");
-                vm.SelectedObsDevice = vm.ObsDevices.Single(item => item.IsThisDevice); content = Layout(window, 1280, 4200);
-                Require(vm.RevokeConfirmationText.Contains("Sua sessão neste computador será encerrada e a atendente não poderá mais entrar aqui.", StringComparison.Ordinal), "A confirmação de revogar este computador deveria avisar da sessão: " + vm.RevokeConfirmationText);
-                Click(window, content, "Revogar computador selecionado", 1280, 4200);
-                Require(asked.Last().Text.Contains("Sua sessão neste computador será encerrada", StringComparison.Ordinal) && !vm.IsAuthenticated && store.ReadDevice() is null && store.ReadSession() is null && !vm.DeviceActivated, "Revogar este computador deveria apagar a ativação e encerrar a sessão.");
-                // Desfazer a revogação não existe: revogado não gera código.
-                Require(fixture.Devices.All(item => item.Status == "revoked"), "Os dois computadores deveriam estar revogados na API.");
-            }
-            finally { Confirmation.Handler = null; CloseWindow(window); }
-            // A atendente não vê a seção nem lê computadores.
-            using var attendantFixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant" };
-            attendantFixture.AddUnit("UBS Computadores", "Centro");
-            var attendantWindow = OpenOperational(attendantFixture, storageRoot, "device-section-attendant", Appearance.Light);
-            try
-            {
-                var vm = LoginObs(attendantWindow);
-                var content = Show(attendantWindow, "unit-settings", 1280, 4200);
-                Require(!vm.ShowDevicesSection && !Descendants<Border>(content).Any(border => AutomationProperties.GetName(border) == "Computadores" && border.IsVisible) && attendantFixture.Count("GET", "/devices") == 0, "A atendente não deveria ver nem ler a seção Computadores.");
-            }
-            finally { CloseWindow(attendantWindow); }
-            // Copiar o código usa a área de transferência injetada.
-            using var copyFixture = new ApiFixture { UseWorkspaceIdentity = true };
-            copyFixture.AddUnit("UBS Copiar", "Centro");
-            var clipboard = new ClipboardFixture();
-            var copyVm = new WorkspaceViewModel(DesktopProfile.Operational, new NoraApiClient(copyFixture), ComputerStore(Path.Combine(storageRoot, "device-copy")), clipboard);
-            try
-            {
-                copyVm.Endpoint = "https://fixture.invalid"; copyVm.Identifier = "fixture@example.invalid"; Pump(copyVm.LoginAsync("isolated-test-password"));
-                copyVm.DeviceDraftName = "Sala 5"; Pump(copyVm.CreateDeviceCodeAsync()); copyVm.CopyIssuedCode();
-                Require(clipboard.Values.Count == 1 && clipboard.Values[0] == copyFixture.Devices.Single().Code, "Copiar código deveria usar a área de transferência.");
-            }
-            finally { copyVm.Dispose(); }
-        });
-
         Check("Computador do OBS: mensagens dos códigos novos (ativação inválida, computador já ativado, computador desativado) e erro de permissão do administrador", () => Task.Run(async () =>
         {
             using var fixture = new ApiFixture();
@@ -455,25 +378,23 @@ internal static partial class Program
             _ = await api.ObsDevicesAsync(unit.Id);
         }).GetAwaiter().GetResult());
 
-        Check("E2E computadores do OBS: administrador ativa este e gera código → atendente ativa com o código e entra com Manter conectado → administrador revoga → atendente volta à ativação", () =>
+        // A tela Computadores saiu do OBS (26/11/2026): o administrador gera o código e revoga pelo cliente da API; o resto do fluxo da atendente é o do programa.
+        Check("E2E computadores do OBS: código gerado pela API → atendente ativa com o código e entra com Manter conectado → revogação pela API → atendente volta à ativação", () =>
         {
             var identifier = Environment.GetEnvironmentVariable("NORA_E2E_IDENTIFIER") ?? throw new InvalidOperationException("Falta identificador E2E.");
             var password = Environment.GetEnvironmentVariable("NORA_E2E_PASSWORD") ?? throw new InvalidOperationException("Falta senha E2E.");
             var suffix = Guid.NewGuid().ToString("N")[..8];
-            var adminStore = ComputerStore(Path.Combine(storageRoot, "e2e-device-admin")); var attendantStore = ComputerStore(Path.Combine(storageRoot, "e2e-device-attendant"));
-            var admin = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "e2e-admin-prefs"), devices: adminStore);
+            var attendantStore = ComputerStore(Path.Combine(storageRoot, "e2e-device-attendant"));
             var attendant = new ShellWindow(DesktopProfile.Operational, Path.Combine(storageRoot, "e2e-attendant-prefs"), devices: attendantStore);
+            using var admin = new NoraApiClient();
             try
             {
-                foreach (var window in new[] { admin, attendant }) { window.ViewModel.ConfirmClose = false; window.ViewModel.Animations = false; PrepareWindow(window); }
-                LoginFromControls(admin, address, identifier, password);
-                var adminVm = admin.ViewModel.Workspace;
-                Require(adminVm.IsAuthenticated && adminVm.IsAdministrator, "O administrador deveria entrar sem computador ativado: " + adminVm.Message);
-                adminVm.CandidateObsUnit = adminVm.ObsUnits.First(); Pump(adminVm.ConfirmObsUnitAsync());
-                adminVm.DeviceDraftName = "Recepção E2E " + suffix; Pump(adminVm.ActivateThisComputerAsync());
-                Require(adminVm.DeviceActivated && adminStore.ReadDevice() is not null, "O administrador não ativou este computador na API real: " + adminVm.Message);
-                adminVm.DeviceDraftName = "Sala E2E " + suffix; Pump(adminVm.CreateDeviceCodeAsync());
-                var code = adminVm.IssuedCodeText;
+                attendant.ViewModel.ConfirmClose = false; attendant.ViewModel.Animations = false; PrepareWindow(attendant);
+                admin.Configure(address);
+                Task.Run(() => admin.LoginAsync("obs", identifier, password)).GetAwaiter().GetResult();
+                var unit = Task.Run(() => admin.ObsUnitsAsync()).GetAwaiter().GetResult().First(item => !item.DatabasePending);
+                var created = Task.Run(() => admin.CreateObsDeviceAsync(unit.Id, "Sala E2E " + suffix, false)).GetAwaiter().GetResult();
+                var code = created.ActivationCode ?? "";
                 Require(code.Length == 9 && code[4] == '-', "A API real deveria devolver o código no formato XXXX-XXXX: " + code);
                 // Atendente: sem computador a API recusa; com o código ativa e entra mantendo a sessão.
                 attendant.ViewModel.Workspace.Endpoint = address; attendant.ViewModel.Workspace.Identifier = attendantIdentifier;
@@ -484,11 +405,11 @@ internal static partial class Program
                 Require(attendantVm.DeviceActivated && attendantStore.ReadDevice() is not null, "A atendente não ativou o computador com o código: " + attendantVm.Message);
                 attendantVm.KeepSignedIn = true; Pump(attendantVm.LoginAsync(attendantPassword));
                 Require(attendantVm.IsAuthenticated && attendantStore.ReadSession() is not null && attendantVm.ObsUnits.Count == 1, "A atendente deveria entrar presa à UBS do computador e guardar a sessão: " + attendantVm.Message);
-                adminVm.SelectedObsDevice = adminVm.ObsDevices.Single(item => item.Name == "Sala E2E " + suffix); Pump(adminVm.RevokeDeviceAsync());
+                Task.Run(() => admin.RevokeDeviceAsync(unit.Id, created.Device.Id)).GetAwaiter().GetResult();
                 Pump(attendantVm.RefreshAutomaticallyAsync()); Pump(attendantVm.DeviceCheckCompletion);
                 Require(!attendantVm.IsAuthenticated && !attendantVm.DeviceActivated && attendantStore.ReadDevice() is null && attendantVm.ShowActivation, "Depois da revogação a atendente deveria voltar à tela de ativação: " + attendantVm.Message);
             }
-            finally { CloseWindow(attendant); CloseWindow(admin); }
+            finally { CloseWindow(attendant); }
         });
     }
 }

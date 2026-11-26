@@ -34,9 +34,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(CanCallAppointment), nameof(CanCompleteAppointment), nameof(CanMissAppointment), nameof(CanCancelAppointment),
         nameof(CanConfirmObsUnit), nameof(CanProvisionUnitDatabase), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit),
         nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(CanLoadMoreHistory), nameof(CanLoadMoreSlotsHistory), nameof(CanQueryHistory), nameof(MetricsLoading),
-        nameof(CanEditCatalog), nameof(CanChangeProfessional), nameof(CanChangeRoom), nameof(CanChangeSchedule), nameof(CanChangeBlock), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
+        nameof(CanEditCatalog), nameof(CanBook), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements), nameof(CanLoadAnnouncementReaders),
-        nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
+        nameof(CanKeepSignedIn), nameof(CanActivateWithCode),
         nameof(CanEditProfile), nameof(CanSaveProfile)
     ];
     private static readonly string[] SessionDependents =
@@ -45,7 +45,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         nameof(AccountRoleLabel), nameof(PhotoStateLabel), nameof(UnitLabel), nameof(ConnectionLabel), nameof(UnitsState), nameof(ObsUnitPrompt), nameof(NeedsObsUnitChoice), nameof(CanConfirmObsUnit), nameof(MustChangePassword), nameof(CanFilterNetwork), nameof(StaffState), nameof(HistoryState), nameof(CanLoadMoreSlotsHistory),
         nameof(IsAdministrator), nameof(CanEditCatalog), nameof(ShowCatalogReadOnlyNotice), nameof(CanFilterAlerts), nameof(SpecialtyCatalogState), nameof(GoalsState), nameof(NetworkAlertsState), nameof(CapacityState), nameof(CapacityCatalogState), nameof(UnitAlertsState), nameof(CanChangeSpecialty), nameof(CanSaveSpecialty), nameof(CanEditGoals),
         nameof(AnnouncementsState), nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(MyAnnouncementsState), nameof(CanDecideFamily), nameof(CanEndFamily), nameof(CanPublishAnnouncement), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement),
-        nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode), nameof(ShowDevicesSection), nameof(CanManageDevices), nameof(CanActivateThisComputer), nameof(CanCreateDeviceCode), nameof(CanIssueNewDeviceCode), nameof(CanRevokeDevice),
+        nameof(ShowActivation), nameof(CanKeepSignedIn), nameof(CanActivateWithCode),
         nameof(CanEditProfile), nameof(CanSaveProfile), nameof(ShowProfileReadOnlyNotice)
     ];
     private static readonly string[] SectionDependents =
@@ -56,14 +56,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     ];
 
     /// <param name="devices">Armazenamento local da sessão no Windows e da identificação do computador do OBS.</param>
-    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IClipboardService? clipboard = null, IHealthUnitGeocoder? unitGeocoder = null)
+    public WorkspaceViewModel(DesktopProfile profile, NoraApiClient? api = null, IObsDeviceStore? devices = null, IHealthUnitGeocoder? unitGeocoder = null)
     {
         this.profile = profile;
         this.api = api ?? new();
         this.unitGeocoder = unitGeocoder ?? new HealthUnitGeocoder();
         this.devices = devices;
         if (profile.IsMunicipal) this.api.SetDeviceCredential(null, null);
-        this.clipboard = clipboard ?? new WindowsClipboardService();
         OpeningSteps.CollectionChanged += (_, _) => Notify(nameof(HasOpeningSteps));
         EnsureOpeningDays();
         refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };

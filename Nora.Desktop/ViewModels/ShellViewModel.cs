@@ -275,13 +275,12 @@ public sealed partial class ShellViewModel : ObservableObject
             Leaf("indicators", "\uE9D9", "Desempenho", "Espera, produção, comparecimento e Vaga Relâmpago no período."),
             Leaf("alerts", "\uE7BA", "Alertas", "Situações que pedem atenção, avaliadas pela API.")),
         Leaf("announcements", "\uE715", "Comunicados", "Comunicados da Secretaria para a equipe."),
-        Area("unit-settings", "\uE946", "Informações da UBS", "Atendimento, equipe, consultórios, grade, bloqueios e computadores.",
-            Leaf("unit-settings", "\uE8BF", "Atendimento", "Horários de funcionamento, serviços e especialidades.", "profile"),
+        Area("unit-settings", "\uE946", "Informações da UBS", "Atendimento, equipe, consultórios, grade e bloqueios.",
+            Leaf("unit-settings", "\uE8BF", "Atendimento", "Horários de funcionamento e serviços oferecidos.", "profile"),
             Leaf("unit-settings", "\uE716", "Profissionais", "Cadastre e edite os profissionais da UBS.", "professionals"),
             Leaf("unit-settings", "\uE80F", "Consultórios", "Salas de atendimento da UBS.", "rooms"),
             Leaf("unit-settings", "\uE787", "Grade semanal", "Horários de atendimento de cada profissional.", "schedule"),
-            Leaf("unit-settings", "\uE8C9", "Bloqueios", "Folgas e feriados que retiram horários da grade.", "blocks"),
-            Leaf("unit-settings", "\uE7F4", "Computadores", "Computadores autorizados a entrar no OBS.", "devices"))
+            Leaf("unit-settings", "\uE8C9", "Bloqueios", "Folgas e feriados que retiram horários da grade.", "blocks"))
     ];
     private static IReadOnlyList<NavigationItem> BuildMunicipalNavigation() =>
     [
