@@ -35,12 +35,14 @@
         </Grid>
       </views:FormGrid>
       <TextBlock Text="Cadastros desativados" Style="{StaticResource FieldLabelText}" Margin="0,18,0,6" />
-      <Grid x:Name="ListCell" MinHeight="124">
+      <!-- A segunda linha é a faixa fixa onde o balão flutua: a lista é curta e não rola até o fim, então o balão não pode cobrir os últimos cadastros. A faixa existe sempre (nada pula ao selecionar). -->
+      <Grid x:Name="ListCell">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" MinHeight="64" /><RowDefinition Height="66" /></Grid.RowDefinitions>
         <ListBox x:Name="Items" Style="{StaticResource OpenList}" MaxHeight="300" VerticalAlignment="Top" ItemTemplate="{StaticResource RetentionRow}" AutomationProperties.Name="Cadastros desativados"
                  views:NestedListScroll.PassWheelToParent="True"
                  views:ListingBehavior.Balloon="{Binding ElementName=ItemBalloon}" views:ListingBehavior.LabelPath="Name" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.ComplementPath="Tag" views:ListingBehavior.PluralName="cadastros" />
-        <TextBlock x:Name="ItemsEmpty" Text="Nenhum cadastro desativado." Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,26,0,0" IsHitTestVisible="False" Visibility="Collapsed" />
-        <views:SelectionBalloon x:Name="ItemBalloon" Margin="0,0,0,14">
+        <TextBlock x:Name="ItemsEmpty" Text="Nenhum cadastro desativado." Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,18,0,0" IsHitTestVisible="False" Visibility="Collapsed" />
+        <views:SelectionBalloon x:Name="ItemBalloon" Grid.RowSpan="2" Margin="0,0,0,4">
           <StackPanel Orientation="Horizontal">
             <Button x:Name="Schedule" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Agendar exclusão" Click="OnSchedule" ToolTip="Programa a exclusão definitiva do cadastro para daqui a alguns dias. Pede o prazo e uma confirmação." />
             <Button x:Name="CancelSchedule" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Cancelar exclusão" Click="OnCancelSchedule" ToolTip="Cancela a exclusão programada deste cadastro. Pede confirmação." />

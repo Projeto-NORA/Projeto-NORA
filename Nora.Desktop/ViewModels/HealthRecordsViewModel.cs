@@ -74,8 +74,8 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public string ListState => !loaded ? (failed ? "Não foi possível ler a Jornada agora. O NORA tenta de novo sozinho." : "Carregando a Jornada…")
         : failed && loadedWithVoided != includeVoided ? $"A leitura com o filtro novo não concluiu: a lista abaixo ainda é a da leitura anterior, que {(loadedWithVoided ? "inclui os anulados" : "não inclui os anulados")}. O NORA tenta de novo sozinho."
         : Exams.Count + Vaccines.Count == 0 ? (loadedWithVoided ? "Nenhum exame ou vacina registrado, nem anulado." : "Nenhum exame ou vacina registrado. Os registros anulados ficam ocultos: marque \"Mostrar anulados\" para vê-los.") : "";
-    public string ExamsState => loaded && Exams.Count == 0 ? "Nenhum exame." : "";
-    public string VaccinesState => loaded && Vaccines.Count == 0 ? "Nenhuma vacina." : "";
+    public string ExamsState => loaded && Exams.Count == 0 ? "Nenhum exame registrado." : "";
+    public string VaccinesState => loaded && Vaccines.Count == 0 ? "Nenhuma vacina registrada." : "";
 
     public bool IncludeVoided
     {
@@ -333,7 +333,10 @@ public sealed class HealthRecordsViewModel : ObservableObject
     public bool IsVoidReasonValid()
     {
         submittedVoid = true; Notify(nameof(VoidReasonError));
-        return VoidReasonError.Length == 0;
+        var valid = VoidReasonError.Length == 0;
+        // Motivo corrigido: o erro da tentativa anterior sai da faixa antes da confirmação (recusar a confirmação não deixa um erro velho na tela).
+        if (valid && messageKind == MessageKind.Error) Say(MessageKind.Info, "");
+        return valid;
     }
 
     public Task<bool> VoidSelectedAsync() => RunThenCloseAsync(async () =>
@@ -344,10 +347,10 @@ public sealed class HealthRecordsViewModel : ObservableObject
         if (VoidReasonError.Length > 0) throw new NoraApiException(VoidReasonError);
         var reason = voidReason.Trim();
         string what;
-        if (selectedExam is { } exam) { await api.VoidExamAsync(unitId, exam.Id, reason); what = $"Exame \"{exam.Name}\""; }
-        else { var vaccine = selectedVaccine!; await api.VoidVaccineAsync(unitId, vaccine.Id, reason); what = $"Vacina \"{vaccine.Name}\""; }
+        if (selectedExam is { } exam) { await api.VoidExamAsync(unitId, exam.Id, reason); what = $"Exame \"{exam.Name}\" anulado"; }
+        else { var vaccine = selectedVaccine!; await api.VoidVaccineAsync(unitId, vaccine.Id, reason); what = $"Vacina \"{vaccine.Name}\" anulada"; }
         voidReason = ""; submittedVoid = false; Notify(nameof(VoidReason)); Notify(nameof(VoidReasonError));
-        await ReloadAfterChangeAsync($"{what} anulado, com o motivo registrado. O registro permanece no histórico.");
+        await ReloadAfterChangeAsync($"{what}, com o motivo registrado. O registro permanece no histórico.");
     });
 
     // ---- Apoio ----

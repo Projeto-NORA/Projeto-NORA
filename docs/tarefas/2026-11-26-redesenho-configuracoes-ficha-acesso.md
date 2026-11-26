@@ -56,7 +56,7 @@ As telas do grupo no padrão novo da fundação, sem perder nenhuma regra, mensa
 
 ### Exames e vacinas (`HealthRecordsView` e `HealthRecordsViewModel`)
 
-- Duas `OpenListLow` (Exames e Vacinas) com item em duas linhas (nome; dados informados com " | ": data, observação, anulação, dose) e etiqueta de situação à direita (Solicitado azul, Realizado e Aplicada verde, Cancelado amarelo, Anulado neutro). Nomes de automação das listas mantidos ("Exames do paciente", "Vacinas do paciente").
+- Duas `OpenListLow` (Exames e Vacinas) com item em duas linhas (nome; a linha de dados `MetaLine` do modelo, só com o que foi informado, separado por " | ": dose, data, observação, anulação) e etiqueta de situação à direita (Solicitado azul, Realizado e Aplicada verde, Cancelado amarelo, Anulado neutro). Nomes de automação das listas mantidos ("Exames do paciente", "Vacinas do paciente").
 - Balão: **Marcar como realizado** (só exame solicitado), **Cancelar exame** (lixeira, só solicitado) e **Anular** (lixeira, não anulado); na lista de vacinas, **Anular**. Só um balão por vez (selecionar uma vacina solta o exame, como antes). Cadastro desativado: nenhuma ação, aviso no visual de `NoticeItem`.
 - "Registrar exame" e "Registrar vacina" viraram **Novo exame** e **Nova vacina** (`NewItemButton`, à direita do "Mostrar anulados"). **Decisão:** como a ficha já é um pop-up, o formulário abre **no lugar das listas, dentro dela** (um pop-up por vez), com título, X, `FormGrid`, **Cancelar** e o primário à direita. O mesmo vale para a data de "Marcar como realizado" e para o motivo de "Anular" (a confirmação de sempre continua sendo um diálogo da marca por cima). Esc e Cancelar descartam o rascunho e voltam às listas; erro mantém o formulário aberto com o aviso junto ao campo.
 - Duplo clique, segundo clique e Enter abrem a **ficha em linhas do registro**, também no lugar das listas (uma por vez), com "Voltar às listas".
@@ -71,7 +71,7 @@ As telas do grupo no padrão novo da fundação, sem perder nenhuma regra, mensa
 
 ## Arquivos
 
-Telas: `SettingsView`, `RetentionSettingsView`, `StaffProfileWindow`, `ChangePasswordView`, `PasswordChangeRequiredView`, `HealthRecordsView`, `DesktopAccessView`, `OperationalAccessView`, `ObsUnitNoticeView` (`.xaml` e `.cs`). Novos: `Views/HealthRecordConverters.cs` (linha de dados com " | " e tom da etiqueta), `Views/NestedListScroll.cs` (roda do mouse numa lista dentro de tela que rola). ViewModels e modelos: `HealthRecordsViewModel`, `Models/RetentionModels.cs` (etiqueta e tom), `WorkspaceViewModel.cs` (remoção das duas propriedades sem uso). Checagens: `tests/Nora.Desktop.Checks/ConfigAccessChecks.cs` (novo), `ApiFixture.Retention.cs` (novo: política, cadastros desativados e agendamentos na fixture) e adaptações em `ApiFixture.cs` (uma linha), `CommunityChecks.cs`, `ListingChecks.cs` e `PasswordChecks.cs` (uma linha que chama as checagens novas).
+Telas: `SettingsView`, `RetentionSettingsView`, `StaffProfileWindow`, `ChangePasswordView`, `PasswordChangeRequiredView`, `HealthRecordsView`, `DesktopAccessView`, `OperationalAccessView`, `ObsUnitNoticeView` (`.xaml` e `.cs`). Novo: `Views/NestedListScroll.cs` (roda do mouse numa lista dentro de tela que rola). ViewModels e modelos: `HealthRecordsViewModel`, `Models/RetentionModels.cs` (etiqueta e tom), `Models/CommunityModels.cs` (`ExamInfo`/`VaccineInfo` ganham `MetaLine` e `TagTone` no lugar do `StatusGlyph` sem uso), `WorkspaceViewModel.cs` (remoção das duas propriedades sem uso). Checagens: `tests/Nora.Desktop.Checks/ConfigAccessChecks.cs` (novo), `ApiFixture.Retention.cs` (novo: política, cadastros desativados e agendamentos na fixture) e adaptações em `ApiFixture.cs` (uma linha), `CommunityChecks.cs`, `ListingChecks.cs` e `PasswordChecks.cs` (uma linha que chama as checagens novas).
 
 ## Checklist
 
@@ -96,6 +96,21 @@ Telas: `SettingsView`, `RetentionSettingsView`, `StaffProfileWindow`, `ChangePas
 - Capturas conferidas (claro e escuro, com dados e vazio, janela mínima) em `.build/redesenho/configuracoes-ficha-acesso/`: `{obs,municipal}-configuracoes-*`, `-exclusao-programada-{claro,escuro}-0N`, `obs-exclusao-programada-vazia-*`, `-dados-do-perfil-*`, `-troca-obrigatoria-*` (e `-janela-minima`), `-acesso-{claro,escuro,janela-minima}`, `obs-aviso-ubs-*`, `obs-acesso-protegido-claro`, `obs-ficha-exames-vacinas-*`, `obs-ficha-novo-exame-*`, `obs-ficha-nova-vacina-claro`, `obs-ficha-anular-claro`, `obs-ficha-registro-claro`.
 - Loop de verificação: conferido item a item contra o pedido; varridos compilação e referências (chaves de recurso, nomes de automação), lógica (listas vazias, seleção, duplo clique, formulário aberto durante a releitura), temporizadores (parados no `Unloaded`), handlers (registrados uma vez) e código sem uso (saíram `AccessRequiredTitle` e `AccessRequiredDescription`). Achados corrigidos durante o trabalho: marca d'água da janela aparecendo atrás do cartão de login, caixa do login longe do texto, linha de status do pop-up Dados do perfil ocupando espaço vazio, indicador de leitura ligando na releitura automática (os botões do balão piscavam desabilitados) e o balão que só atualizava depois de um quadro quando a lista era trocada (ajuste só nas checagens, que não passam quadros).
 
+## Revisão crítica (branch `worktree-wf_ca153789-8ce-9`, a partir de `99a456b`)
+
+Conferido item a item contra o pedido do grupo, os itens A e a especificação; diff inteiro lido; fronteiras conferidas (nenhum tema, janela principal, componente da fundação, `FormGrid.ColumnsFor`, API, app, script ou outro documento foi alterado; as mudanças em arquivos compartilhados de teste são as listadas abaixo e são necessárias). Linha de base da revisão: build com 0 erros e checagens **257 PASS e 1 FAIL** (o P-066). Achados e correções:
+
+1. **Balão cobrindo os últimos itens das listas curtas** (Exclusão programada e as duas listas da aba Exames e vacinas). Essas listas não ocupam a tela inteira (estão dentro de Configurações e da ficha) e, cabendo inteiras, não rolam: o balão ficava por cima dos dois últimos registros sem como mostrá-los. Correção: a célula da lista ganhou uma faixa fixa de 66 px embaixo, onde o balão flutua; a faixa existe sempre (nada pula ao selecionar e a lista não ganha `Padding`). Checagem nova (`BalloonClearsList`) nas duas telas.
+2. **Linha de dados montada na tela, não no modelo** (a especificação manda `MetaLine` no ViewModel/modelo). `ExamInfo` e `VaccineInfo` ganharam `MetaLine` e `TagTone`; saíram o arquivo `Views/HealthRecordConverters.cs` e o `StatusGlyph` dos dois modelos, que ficaram sem uso com o desenho novo.
+3. **Erro velho na faixa do formulário Anular**: motivo curto dava erro; depois de corrigir o motivo e recusar a confirmação, a faixa continuava dizendo "Informe o motivo…". Agora um motivo válido tira o erro da tentativa anterior antes da confirmação (checagem nova).
+4. **Concordância**: "Vacina "Hepatite B" anulado" passou a "anulada" (o exame continua "anulado").
+5. **Estados vazios** das listas da aba: "Nenhum exame." e "Nenhuma vacina." passaram a "Nenhum exame registrado." e "Nenhuma vacina registrada." (regra dos estados vazios).
+6. **Confirmação de "Restaurar padrões"** em Configurações tinha o primário à esquerda do Cancelar; passou à direita, como nos pop-ups e cadastros (checagem nova).
+7. **Rótulos dos formulários da aba** usavam um estilo local; passaram ao `FieldLabelText` do tema, igual aos outros formulários do grupo.
+8. **Capturas**: o bloco de tema saía com o hover azul na captura (o estado do mouse falso não era limpo antes de salvar); o pop-up Dados do perfil saía cortado à direita e embaixo (capturava o conteúdo com a margem da sombra); o pop-up Agendar exclusão saía esmaecido (animação de entrada). Corrigido nas checagens, que também passaram a gerar o pop-up Agendar exclusão (com o erro dentro), a ficha do cadastro desativado e Configurações na janela mínima.
+
+**Resultado da revisão:** build com **0 erros**; checagens do desktop **257 PASS e 1 FAIL** (o P-066, conhecido; as checagens novas da revisão entraram como verificações dentro das já existentes). Nenhuma checagem foi apagada ou afrouxada. Capturas refeitas e conferidas em `.build/redesenho/configuracoes-ficha-acesso/` (claro e escuro, com dados, vazio, balão, pop-up de cadastro, ficha e janela mínima).
+
 ## Decisões onde a especificação não dizia
 
 - **Formulário da aba Exames e vacinas abre no lugar das listas, dentro da ficha** (e não como segundo pop-up por cima), por causa do "um pop-up por vez". O mesmo vale para a data de "Marcar como realizado" e o motivo de "Anular". A confirmação continua sendo o diálogo da marca por cima (não é formulário).
@@ -106,6 +121,7 @@ Telas: `SettingsView`, `RetentionSettingsView`, `StaffProfileWindow`, `ChangePas
 - **Seção "Exclusão programada"** (e não "Exclusão de itens desativados"), como o usuário chama a tela; o título das confirmações segue o mesmo nome.
 - **Política geral:** `FormGrid` com as linhas inteiras (`FullRow`): é um bloco curto de um campo só, e um campo sozinho centralizado no meio da página ficaria deslocado do texto ao redor.
 - **Dados do perfil escurece o fundo sozinho** (a janela liga e desliga o `SetDimmed`), porque quem a abre é a janela principal (`ShellWindow.OnOpenProfile`, que não era para mexer) e chama `ShowDialog` direto.
+- **Faixa fixa do balão nas listas curtas** (revisão): em lista que não ocupa a tela inteira e não rola, o balão flutua numa faixa própria logo abaixo dela, para não cobrir os últimos itens; nas listagens de tela inteira (`PageLayout.Fill`) continua por cima da lista, como manda a fundação.
 - **Tela de acesso:** continua cartão centralizado (não é cadastro); só trocada a marca desenhada pela logo, colada a caixa ao texto e pintado o fundo (`BackgroundGradientBrush`), porque a marca d'água dos desenvolvedores, que mora na rolagem da janela principal, aparecia atrás do cartão.
 
 ## Mudanças em arquivos compartilhados (para a integração)
@@ -114,6 +130,7 @@ Telas: `SettingsView`, `RetentionSettingsView`, `StaffProfileWindow`, `ChangePas
 - `tests/Nora.Desktop.Checks/ListingChecks.cs`: três linhas da checagem "OBS desconectado: cada aba mantém sua própria orientação" (Pacientes, Vagas e Informações da UBS: o texto esperado passa a ser o aviso da tela protegida, e não mais o nome da área, que agora fica só no cabeçalho).
 - `tests/Nora.Desktop.Checks/CommunityChecks.cs`: a checagem da Jornada (balão, formulário do motivo, nomes das listas).
 - `tests/Nora.Desktop.Checks/PasswordChecks.cs`: uma linha que chama `RunConfigAccessChecks` ao fim de `RunPasswordChecks`.
+- `Nora.Desktop/Models/CommunityModels.cs` (revisão): só os registros `ExamInfo` e `VaccineInfo` (a linha `StatusGlyph` de cada um virou `TagTone` e `MetaLine`); os outros registros do arquivo não mudaram.
 - `Nora.Desktop/ViewModels/WorkspaceViewModel.cs`: saem `AccessRequiredTitle` e `AccessRequiredDescription` (e seus `nameof`) por falta de uso. Nenhum arquivo de tema, da janela principal ou de componente da fundação foi alterado.
 
 ## Pendências (P-125 a P-129, para consolidar em `PENDENCIAS.md`)

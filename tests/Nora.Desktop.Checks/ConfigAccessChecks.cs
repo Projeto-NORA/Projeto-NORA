@@ -27,6 +27,17 @@ internal static partial class Program
     private static bool HasRefreshButton(DependencyObject root) =>
         Descendants<Button>(root).Any(button => button.IsVisible && ((button.Content as string)?.Contains("Atualizar", StringComparison.OrdinalIgnoreCase) == true || AutomationProperties.GetName(button).Contains("Atualizar", StringComparison.OrdinalIgnoreCase)));
 
+    /// <summary>O balão de uma lista curta (que não rola) fica abaixo da última linha, sem cobri-la.</summary>
+    private static bool BalloonClearsList(ListBox list, SelectionBalloon balloon)
+    {
+        var rows = Descendants<ListBoxItem>(list).Where(row => row.IsVisible).ToArray();
+        if (rows.Length == 0) return true;
+        // Linha que passou do fim da área visível da lista conta só até onde a lista vai (ela rola até ela).
+        var listBottom = list.TranslatePoint(new Point(0, list.ActualHeight), balloon).Y;
+        var lastBottom = Math.Min(listBottom, rows.Max(row => row.TranslatePoint(new Point(0, row.ActualHeight), balloon).Y));
+        return lastBottom <= 1;
+    }
+
     private static bool HasCardBorder(DependencyObject root) =>
         Descendants<Border>(root).Any(border => ReferenceEquals(border.Style, Application.Current.FindResource("Card")));
 
@@ -84,16 +95,28 @@ internal static partial class Program
                     var tile = (Border)idle.Template.FindName("Tile", idle);
                     idle.SetValue(MouseOverKey!, true); view.UpdateLayout();
                     Require(((SolidColorBrush)tile.Background).Color == CfaBrush("ButtonHoverBrush").Color, $"{mode}: o bloco de tema deveria ficar em azul bebê ao passar o mouse.");
-                    idle.ClearValue(MouseOverKey!);
+                    idle.ClearValue(MouseOverKey!); view.UpdateLayout();
+                    Require(((SolidColorBrush)tile.Background).Color != CfaBrush("ButtonHoverBrush").Color, $"{mode}: sem o mouse o bloco de tema volta ao fundo normal.");
                     SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-configuracoes-{mode.ToString().ToLowerInvariant()}.png"));
                 }
                 // Preferências continuam valendo: a confirmação ao fechar liga e desliga (e persiste no estado da janela).
+                // Janela mínima (980): a coluna da direita desce para baixo das preferências e nada passa da borda.
+                var narrow = Show(window, "settings", 980, 640);
+                SaveScrolled(window, Path.Combine(previewRoot, $"{profile.Id}-configuracoes-janela-minima.png"), 980, 640);
+                Require(Grid.GetRow((FrameworkElement)Descendants<SettingsView>(narrow).Single(item => item.IsVisible).FindName("ShortcutCard")) == 1, "Na janela mínima os atalhos e a Exclusão programada descem para baixo das preferências.");
                 var view2 = Descendants<SettingsView>(Show(window, "settings", 1280, 900)).Single(item => item.IsVisible);
                 var toggle = Descendants<ToggleButton>(view2).Single(item => AutomationProperties.GetName(item) == "Confirmar antes de fechar o aplicativo");
                 toggle.IsChecked = true; Require(window.ViewModel.ConfirmClose, "Ligar a confirmação ao fechar não chegou ao estado da janela.");
                 toggle.IsChecked = false; Require(!window.ViewModel.ConfirmClose, "Desligar a confirmação ao fechar não chegou ao estado da janela.");
                 var photo = Descendants<Button>(view2).Single(button => AutomationProperties.GetName(button) == "Alterar foto de perfil");
                 Require(photo.IsVisible, "O botão da foto sumiu das Configurações.");
+                // Restaurar padrões: a confirmação na própria tela tem o primário à direita do Cancelar; Cancelar recolhe sem restaurar.
+                InvokeButton(Descendants<Button>(view2).Single(button => button.Content as string == "Restaurar padrões")); view2.UpdateLayout();
+                var confirmRestore = (Button)view2.FindName("ConfirmRestore");
+                var cancelRestore = Descendants<Button>((FrameworkElement)view2.FindName("RestoreConfirmation")).Single(button => button.Content as string == "Cancelar");
+                Require(confirmRestore.IsVisible && confirmRestore.TranslatePoint(new Point(0, 0), view2).X > cancelRestore.TranslatePoint(new Point(0, 0), view2).X, "Na confirmação de restaurar, o primário fica à direita do Cancelar.");
+                InvokeButton(cancelRestore); view2.UpdateLayout();
+                Require(!confirmRestore.IsVisible, "Cancelar deveria recolher a confirmação de restaurar.");
             }
             finally { CloseWindow(window); }
         });
@@ -132,6 +155,7 @@ internal static partial class Program
                 void Select(params RetentionItem[] items) { PumpFrames(2); list.SelectedItems.Clear(); foreach (var item in items) list.SelectedItems.Add(list.Items.Cast<RetentionItem>().Single(entry => entry.Id == item.Id)); list.UpdateLayout(); balloon.UpdateLayout(); }
                 Select(free);
                 Require(balloon.IsVisible && balloon.Label == "Sala 3 antiga" && schedule.IsVisible && !cancel.IsVisible && balloon.HasActions, "Cadastro elegível sem agendamento: só Agendar exclusão.");
+                Require(BalloonClearsList(list, balloon), "A lista é curta e não rola até o fim: o balão não pode cobrir o último cadastro.");
                 Select(planned);
                 Require(schedule.IsVisible && cancel.IsVisible, "Cadastro com exclusão programada: Agendar de novo e Cancelar exclusão.");
                 Select(reverted);
@@ -155,6 +179,10 @@ internal static partial class Program
                     Require(dialog.Title == "Agendar exclusão de Sala 3 antiga" && days.Text == "30" && Descendants<FormGrid>(dialog).Count() == 1, "O pop-up deveria vir com o prazo de 30 dias, na grade de cadastro.");
                     days.Text = "0"; InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
                     Require(dialog.ErrorMessage == "Informe um prazo de 1 a 36.500 dias." && asked.Count == 0 && fixture.RetentionWrites.Count == 0, "Prazo fora de 1 a 36.500 dias não pode chegar à confirmação nem à API.");
+                    // Captura com o erro dentro do pop-up, sem a animação curta de entrada (que deixaria a imagem esmaecida).
+                    ((FrameworkElement)dialog.FindName("Frame")).BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.Zero));
+                    if (dialog.FindName("Zoom") is ScaleTransform zoom) { zoom.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.Zero)); zoom.BeginAnimation(ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.Zero)); }
+                    dialog.UpdateLayout(); SavePreview(dialog, Path.Combine(previewRoot, $"{profile.Id}-exclusao-programada-agendar-claro.png"));
                     days.Text = "45"; InvokeButton(primary); PumpUntil(() => !dialog.IsBusy);
                     Require(dialog.IsVisible && dialog.ErrorMessage == "Nada foi agendado." && asked.Count == 1 && asked[0] == "Exclusão programada|Agendar a exclusão de Sala 3 antiga para daqui a 45 dias?" && fixture.RetentionWrites.Count == 0, "Recusar a confirmação não agenda nada e mantém o pop-up aberto.");
                     answer = true; InvokeButton(primary); PumpUntil(() => !dialog.IsVisible);
@@ -190,6 +218,7 @@ internal static partial class Program
                     var fields = VisibleTexts(popup);
                     Require(fields.Contains("Consultório 1") && fields.Contains("Não: há vínculos ou histórico de uso") && fields.Contains("Situação") && fields.Contains(profile.IsMunicipal ? "Conta OBS desativada" : "Consultório desativado"), "A ficha deveria mostrar o cadastro em linhas.");
                     Require(!Descendants<Border>(popup).Any(border => border.Background is SolidColorBrush brush && brush.Color == CfaBrush("SurfaceAltBrush").Color && border.CornerRadius.TopLeft >= 8), "A ficha não deveria ter cards.");
+                    popup.UpdateLayout(); SavePreview(popup, Path.Combine(previewRoot, $"{profile.Id}-exclusao-programada-ficha-claro.png"));
                 }, () => PressKey(list, Key.Enter));
 
                 // Política: o prazo automático só aparece desmarcando "Nunca excluir sozinho"; salvar pede confirmação.
@@ -282,6 +311,7 @@ internal static partial class Program
                 void SelectExam(string name) { vaccineList.SelectedItems.Clear(); examList.SelectedItems.Clear(); examList.SelectedItems.Add(examList.Items.Cast<ExamInfo>().Single(item => item.Name == name)); popup.UpdateLayout(); }
                 SelectExam("Raio-X de tórax");
                 Require(examBalloon.IsVisible && done.IsVisible && cancel.IsVisible && voidExam.IsVisible && ReferenceEquals(cancel.Style, application.FindResource("ListActionDangerButton")) && ReferenceEquals(voidExam.Style, application.FindResource("ListActionDangerButton")), "Exame solicitado: marcar realizado, cancelar e anular (cancelar e anular em lixeira vermelha).");
+                Require(BalloonClearsList(examList, examBalloon), "A lista da ficha é curta: o balão não pode cobrir os últimos exames.");
                 SelectExam("Hemograma");
                 Require(!done.IsVisible && !cancel.IsVisible && voidExam.IsVisible, "Exame realizado só pode ser anulado.");
                 vaccineList.SelectedItems.Add(vaccineList.Items.Cast<VaccineInfo>().Single()); popup.UpdateLayout();
@@ -345,6 +375,7 @@ internal static partial class Program
                 Require(asked.Count == 0 && health.VoidReasonError.Contains("3 a 280") && fixture.Count("POST", "/void") == 0, "Motivo curto demais não chega à confirmação.");
                 reason.Text = "Aplicada no paciente errado"; answer = false; InvokeButton(voidButton); PumpUntil(() => !health.IsBusy);
                 Require(asked.Count == 1 && asked[0].Title == "Anular registro" && asked[0].Text.Contains("Hepatite B") && fixture.Count("POST", "/void") == 0 && health.Panel == HealthPanel.Void, "Recusar a confirmação mantém o formulário aberto e não anula.");
+                Require(health.MessageKind != MessageKind.Error || !health.HasMessage, "Com o motivo corrigido, o erro da tentativa anterior não pode continuar na faixa.");
                 SavePopupScrolled(popup, Path.Combine(previewRoot, "obs-ficha-anular-claro"));
                 answer = true; InvokeButton(voidButton); PumpUntil(() => !health.IsBusy && health.Panel == HealthPanel.Lists);
                 Require(fixture.Count("POST", "/void") == 1 && health.Vaccines.All(item => item.Name != "Hepatite B"), "Confirmar anula com o motivo e tira o registro da lista.");
@@ -426,7 +457,8 @@ internal static partial class Program
                     foreach (var mode in new[] { Appearance.Light, Appearance.Dark })
                     {
                         window.ViewModel.SetAppearance(mode); dialog.UpdateLayout();
-                        SavePreview(content, Path.Combine(previewRoot, $"{profile.Id}-dados-do-perfil-{mode.ToString().ToLowerInvariant()}.png"));
+                        // A janela inteira (com a margem da sombra): o conteúdo sozinho sai deslocado pela margem e cortado à direita e embaixo.
+                        SavePreview(dialog, Path.Combine(previewRoot, $"{profile.Id}-dados-do-perfil-{mode.ToString().ToLowerInvariant()}.png"));
                     }
                     window.ViewModel.SetAppearance(Appearance.Light);
                     InvokeButton(close);

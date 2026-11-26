@@ -4,25 +4,22 @@
        Duas listas abertas (exames e vacinas) com balão de ações; "Novo exame" e "Nova vacina" abrem o formulário NO LUGAR das listas, porque a ficha já é um pop-up e só pode haver um por vez.
        Sem botão Atualizar: a aba lê ao abrir, a cada 20 s, depois de cada ação e ao marcar "Mostrar anulados". -->
   <UserControl.Resources>
-    <views:RecordMetaLineConverter x:Key="MetaLine" />
-    <views:RecordStatusToneConverter x:Key="StatusTone" />
-    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,10" /></Style>
-    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="Margin" Value="0,6,0,10" /></Style>
-    <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontSize" Value="12" /></Style>
+    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,2,0,10" /></Style>
+    <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"><Setter Property="Margin" Value="0,2,0,10" /></Style>
     <Style x:Key="ListSectionTitle" TargetType="TextBlock"><Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /><Setter Property="Margin" Value="0,6,0,8" /></Style>
     <Style x:Key="RecordMeta" TargetType="TextBlock" BasedOn="{StaticResource ItemMetaText}"><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
     <Style x:Key="EmptyListText" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
-      <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Top" /><Setter Property="Margin" Value="0,26,0,0" /><Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Top" /><Setter Property="Margin" Value="0,18,0,0" /><Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <!-- Cada linha é um registro: nome e, embaixo, só os dados informados separados por " | "; a situação vai à direita como etiqueta. -->
+    <!-- Cada linha é um registro: nome e, embaixo, a linha de dados do modelo (MetaLine: só o que foi informado, separado por " | "); a situação vai à direita como etiqueta. -->
     <DataTemplate x:Key="ExamRow">
       <Grid AutomationProperties.Name="{Binding AutomationLabel}">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <StackPanel>
           <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitleText}" ToolTip="{Binding Name}" />
-          <TextBlock Style="{StaticResource RecordMeta}"><TextBlock.Text><MultiBinding Converter="{StaticResource MetaLine}"><Binding Path="DateDisplay" /><Binding Path="NoteDisplay" /><Binding Path="VoidDisplay" /></MultiBinding></TextBlock.Text></TextBlock>
+          <TextBlock Text="{Binding MetaLine}" Style="{StaticResource RecordMeta}" />
         </StackPanel>
-        <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding Status, Converter={StaticResource StatusTone}}" Margin="12,0,0,0" />
+        <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding TagTone}" Margin="12,0,0,0" />
       </Grid>
     </DataTemplate>
     <DataTemplate x:Key="VaccineRow">
@@ -30,9 +27,9 @@
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <StackPanel>
           <TextBlock Text="{Binding Name}" Style="{StaticResource ItemTitleText}" ToolTip="{Binding Name}" />
-          <TextBlock Style="{StaticResource RecordMeta}"><TextBlock.Text><MultiBinding Converter="{StaticResource MetaLine}"><Binding Path="DoseDisplay" /><Binding Path="DateDisplay" /><Binding Path="NoteDisplay" /><Binding Path="VoidDisplay" /></MultiBinding></TextBlock.Text></TextBlock>
+          <TextBlock Text="{Binding MetaLine}" Style="{StaticResource RecordMeta}" />
         </StackPanel>
-        <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding Status, Converter={StaticResource StatusTone}}" Margin="12,0,0,0" />
+        <views:StatusTag Grid.Column="1" Text="{Binding StatusDisplay}" Tone="{Binding TagTone}" Margin="12,0,0,0" />
       </Grid>
     </DataTemplate>
     <!-- Cabeçalho de um formulário ou da ficha aberta no lugar das listas: título, o que está selecionado e o X (volta às listas). -->
@@ -72,12 +69,14 @@
 
       <!-- Exames -->
       <TextBlock Text="Exames" Style="{StaticResource ListSectionTitle}" />
-      <Grid MinHeight="124" AutomationProperties.Name="Exames">
+      <!-- A segunda linha é a faixa fixa onde o balão flutua: a lista da ficha é curta e não rola até o fim, então o balão não pode cobrir os últimos registros. A faixa existe sempre (nada pula ao selecionar). -->
+      <Grid AutomationProperties.Name="Exames">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" MinHeight="64" /><RowDefinition Height="66" /></Grid.RowDefinitions>
         <ListBox x:Name="ExamList" Style="{StaticResource OpenListLow}" MaxHeight="220" ItemsSource="{Binding Exams}" SelectedItem="{Binding SelectedExam, Mode=TwoWay}" ItemTemplate="{StaticResource ExamRow}"
                  AutomationProperties.Name="Exames do paciente" views:NestedListScroll.PassWheelToParent="True" VerticalAlignment="Top"
                  views:ListingBehavior.Balloon="{Binding ElementName=ExamBalloon}" views:ListingBehavior.LabelPath="Name" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.ComplementPath="StatusDisplay" views:ListingBehavior.PluralName="exames" />
         <TextBlock Text="{Binding ExamsState}" Style="{StaticResource EmptyListText}" Visibility="{Binding ExamsState, Converter={StaticResource TextVisibility}}" />
-        <views:SelectionBalloon x:Name="ExamBalloon" Margin="0,0,0,14">
+        <views:SelectionBalloon x:Name="ExamBalloon" Grid.RowSpan="2" Margin="0,0,0,4">
           <StackPanel Orientation="Horizontal">
             <Button x:Name="ExamDoneButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconCheckGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Marcar como realizado" Click="OnExamDoneAction" IsEnabled="{Binding CanSubmit}" ToolTip="Informa a data em que o exame foi feito." />
             <Button x:Name="ExamCancelButton" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Cancelar exame" Click="OnExamCancelAction" IsEnabled="{Binding CanSubmit}" ToolTip="Cancela o exame solicitado. Pede confirmação." />
@@ -87,13 +86,14 @@
       </Grid>
 
       <!-- Vacinas -->
-      <TextBlock Text="Vacinas" Style="{StaticResource ListSectionTitle}" Margin="0,16,0,8" />
-      <Grid MinHeight="124" AutomationProperties.Name="Vacinas">
+      <TextBlock Text="Vacinas" Style="{StaticResource ListSectionTitle}" />
+      <Grid AutomationProperties.Name="Vacinas">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" MinHeight="64" /><RowDefinition Height="66" /></Grid.RowDefinitions>
         <ListBox x:Name="VaccineList" Style="{StaticResource OpenListLow}" MaxHeight="220" ItemsSource="{Binding Vaccines}" SelectedItem="{Binding SelectedVaccine, Mode=TwoWay}" ItemTemplate="{StaticResource VaccineRow}"
                  AutomationProperties.Name="Vacinas do paciente" views:NestedListScroll.PassWheelToParent="True" VerticalAlignment="Top"
                  views:ListingBehavior.Balloon="{Binding ElementName=VaccineBalloon}" views:ListingBehavior.LabelPath="Name" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.ComplementPath="DoseDisplay" views:ListingBehavior.PluralName="vacinas" views:ListingBehavior.Feminine="True" />
         <TextBlock Text="{Binding VaccinesState}" Style="{StaticResource EmptyListText}" Visibility="{Binding VaccinesState, Converter={StaticResource TextVisibility}}" />
-        <views:SelectionBalloon x:Name="VaccineBalloon" Margin="0,0,0,14">
+        <views:SelectionBalloon x:Name="VaccineBalloon" Grid.RowSpan="2" Margin="0,0,0,4">
           <StackPanel Orientation="Horizontal">
             <Button x:Name="VaccineVoidButton" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Anular" Click="OnVoidAction" IsEnabled="{Binding CanSubmit}" ToolTip="Tira um registro errado da lista, sem apagar. O motivo fica gravado." />
           </StackPanel>
@@ -115,12 +115,12 @@
       <StackPanel Visibility="{Binding ShowExamForm, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanRegister}">
         <views:FormGrid>
           <StackPanel>
-            <TextBlock Text="Nome do exame" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Nome do exame" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding ExamName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome do exame" enter:EnterNavigation.Group="HealthRecordsView.exam" />
             <TextBlock Text="{Binding ExamNameError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding ExamNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
           <StackPanel>
-            <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding ExamNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação do exame" enter:EnterNavigation.Group="HealthRecordsView.exam" />
             <TextBlock Text="{Binding ExamNoteError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding ExamNoteError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
@@ -135,22 +135,22 @@
       <StackPanel Visibility="{Binding ShowVaccineForm, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanRegister}">
         <views:FormGrid>
           <StackPanel>
-            <TextBlock Text="Nome da vacina" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Nome da vacina" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding VaccineName, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" AutomationProperties.Name="Nome da vacina" enter:EnterNavigation.Group="HealthRecordsView.vaccine" />
             <TextBlock Text="{Binding VaccineNameError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding VaccineNameError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
           <StackPanel>
-            <TextBlock Text="Dose" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Dose" Style="{StaticResource FieldLabelText}" />
             <ComboBox ItemsSource="{x:Static vm:HealthRecordsViewModel.DoseOptions}" DisplayMemberPath="Label" SelectedItem="{Binding VaccineDoseChoice}" AutomationProperties.Name="Dose da vacina" enter:EnterNavigation.Group="HealthRecordsView.vaccine" />
             <TextBlock Text="{Binding VaccineDoseError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding VaccineDoseError, Converter={StaticResource TextVisibility}}" />
           </StackPanel>
           <StackPanel>
-            <TextBlock Text="Data de aplicação (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Data de aplicação (dd/mm/aaaa)" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding VaccineDate, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" AutomationProperties.Name="Data de aplicação da vacina" enter:EnterNavigation.Group="HealthRecordsView.vaccine" />
             <TextBlock Text="{Binding VaccineDateError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding VaccineDateError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
           <StackPanel>
-            <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Observação (opcional, até 280 caracteres, sem anexo)" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding VaccineNote, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Observação da vacina" enter:EnterNavigation.Group="HealthRecordsView.vaccine" />
             <TextBlock Text="{Binding VaccineNoteError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding VaccineNoteError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
@@ -166,7 +166,7 @@
         <TextBlock Text="{Binding SelectedRecordLabel}" FontWeight="SemiBold" Margin="0,0,0,12" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
         <views:FormGrid>
           <StackPanel>
-            <TextBlock Text="Data de realização (dd/mm/aaaa)" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Data de realização (dd/mm/aaaa)" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding ExamDoneDate, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" ToolTip="Data de realização, dd/mm/aaaa" AutomationProperties.Name="Data de realização do exame" enter:EnterNavigation.Group="HealthRecordsView.done" />
             <TextBlock Text="{Binding ExamDoneError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding ExamDoneError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
@@ -183,7 +183,7 @@
         <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap" Text="Anular tira o registro errado da lista sem apagar; o motivo fica gravado e o paciente não o vê." />
         <views:FormGrid>
           <StackPanel views:FormGrid.FullRow="True">
-            <TextBlock Text="Motivo da anulação (3 a 280 caracteres)" Style="{StaticResource FieldLabel}" />
+            <TextBlock Text="Motivo da anulação (3 a 280 caracteres)" Style="{StaticResource FieldLabelText}" />
             <TextBox Text="{Binding VoidReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Motivo da anulação" enter:EnterNavigation.Group="HealthRecordsView.void" />
             <TextBlock Text="{Binding VoidReasonError}" Style="{StaticResource FieldError}" Margin="0,-6,0,0" Visibility="{Binding VoidReasonError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
