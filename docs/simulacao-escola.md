@@ -134,6 +134,10 @@ Na simulação, a recepção registra o nome, o CPF fictício válido e o e-mail
    gh release delete-asset v1.0-escola Painel-Municipal.zip --repo Projeto-NORA/NORA-downloads --yes
    ```
 
+## Dados fictícios para capturas de tela (cuidado com a simulação)
+
+O script `scripts\popular-dados-demonstracao.ps1` ([dados-demonstracao.md](dados-demonstracao.md)) enche a UBS de pacientes, consultas, vagas, comunicados e metas **fictícios** para as capturas de tela dos slides. Se você o rodar no Neon, esses dados aparecem para os alunos e funcionários. Ele deixa pelo menos 60% dos horários livres, por especialidade, em cada dia de hoje em diante, então a simulação funciona; mesmo assim, **apague tudo com `-Remover` antes do ensaio e da simulação**, para a agenda e as listas ficarem só com o que vocês cadastrarem na hora.
+
 ## Dados criados em casa, uso na escola
 
 Os dados não ficam no seu computador, e sim no banco Neon. O que você criar em casa aparece na escola sem copiar nada:
