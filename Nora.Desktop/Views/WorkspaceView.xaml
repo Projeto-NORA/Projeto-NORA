@@ -17,7 +17,7 @@
       <Setter Property="Margin" Value="0,6,0,16" />
     </Style>
   </UserControl.Resources>
-  <!-- Grade (e não pilha): as listagens com PageLayout.Fill (Pacientes) precisam receber a altura da tela. O bloco de entrada e o da sessão aberta nunca aparecem juntos. -->
+  <!-- Grid (e não StackPanel): as telas com PageLayout.Fill (Vaga Relâmpago, Pacientes) precisam receber a altura da área de conteúdo para a lista rolar sozinha. -->
   <Grid>
     <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="32" MaxWidth="560" HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
       <StackPanel>

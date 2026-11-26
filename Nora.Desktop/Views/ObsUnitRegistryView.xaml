@@ -11,8 +11,7 @@
     <!-- Subtela Cadastro: sem título da tela e sem card; o formulário (referência do paciente na UBS e endereço opcional) em grade, com o botão primário embaixo à direita. -->
     <StackPanel Grid.Row="1" views:SubPage.Key="register" IsEnabled="{Binding CanEditDraft}">
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
-        <TextBlock Text="{Binding ObsRegistryDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,4" />
-        <TextBlock Text="Nome, CPF e e-mail são obrigatórios; o resto é opcional." Style="{StaticResource Muted}" Margin="0,0,0,16" />
+        <TextBlock Text="{Binding ObsRegistryDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
         <views:FormGrid>
           <StackPanel><TextBlock Text="Nome completo" /><TextBox Text="{Binding ObsRegistryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
           <StackPanel><TextBlock Text="CPF" /><TextBox Text="{Binding ObsRegistryCpf, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditingObsRegistry}" AutomationProperties.Name="CPF no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>

@@ -43,7 +43,7 @@ Pacientes (listagem e cadastro), Família e Vínculos aprovados do OBS no padrã
 
 ### Pacientes • Cadastro (subtela `register`)
 
-- Sem título da tela e sem card. Cabeçalho do formulário "Cadastrar referência na UBS" (ou "Editar cadastro da UBS" ao editar), nome completo, CPF, e-mail e telefone num `FormGrid`; "Endereço (opcional)" em outro `FormGrid` (CEP, logradouro, número, complemento, bairro, cidade, UF), com a consulta automática de CEP preservada (600 ms depois dos 8 dígitos).
+- Sem título da tela, sem card e sem texto de apresentação (a frase "Nome, CPF e e-mail são obrigatórios; o resto é opcional." saiu na revisão: os rótulos já dizem o que é opcional). Cabeçalho do formulário "Cadastrar referência na UBS" (ou "Editar cadastro da UBS" ao editar), nome completo, CPF, e-mail e telefone num `FormGrid`; "Endereço (opcional)" em outro `FormGrid` (CEP, logradouro, número, complemento, bairro, cidade, UF), com a consulta automática de CEP preservada (600 ms depois dos 8 dígitos).
 - Botão primário **Cadastrar paciente** embaixo à direita ("Salvar alterações" ao editar; "Cancelar edição" ao lado só na edição). Enter continua avançando de campo.
 - O painel colapsável do cadastro (`ObsRegistryDraftOpen`) saiu: a subtela é o próprio formulário.
 
@@ -96,6 +96,26 @@ Pacientes (listagem e cadastro), Família e Vínculos aprovados do OBS no padrã
 - Com a janela estreita (lista abaixo de 860 px) o balão de Pacientes mostra só os ícones, mantendo nome de automação e dica.
 - Família e Vínculos aprovados guardam a rota salva `family` como Família (pedidos); a rota `family:approved` só vem do menu.
 - A ficha em linhas também abre para pedidos e vínculos de Família (duplo clique), por coerência com as outras listagens.
+- Recusar: a pergunta "Recusar pedido de família" que vinha depois do clique foi substituída pelo próprio pop-up (abrir "Recusar" e apertar "Enviar" já são os dois passos da confirmação, e o pop-up repete o pedido e que o responsável poderá pedir de novo). Aprovar, Desativar, Reativar, Corrigir e-mail e Encerrar vínculo mantêm a pergunta de antes.
+- A rota salva `patients` (sem subtela) continua abrindo as duas subtelas empilhadas, como a fundação faz com toda página de subtelas aberta sem subtela; só `family` foi ligada a uma subtela, porque as duas listagens da Família ficam na mesma célula.
+
+## Revisão (26/11/2026)
+
+Revisão crítica do grupo contra o pedido (itens A, C1–C3, D1–D3), a especificação e o bloco de regras das telas, com correção na mesma branch. Achados e correções:
+
+1. **Texto de apresentação no Cadastro:** a frase "Nome, CPF e e-mail são obrigatórios; o resto é opcional." ficava sob o cabeçalho do formulário (A1 proíbe texto de apresentação). Saiu; os rótulos já dizem o que é opcional.
+2. **Corrigir e-mail reabria com o texto digitado antes:** fechar o pop-up sem corrigir e abri-lo de novo trazia o que tinha sido digitado, não o e-mail do cadastro. Agora o pop-up abre sempre com o e-mail atual (checagem nova).
+3. **Trocar de UBS com Família aberta:** sem o botão Atualizar, os pedidos da UBS nova só apareciam no ciclo de 20 s. A troca de UBS passa a ler também os pedidos e vínculos quando a página aberta é Família ou Vínculos aprovados (leitura tolerante, não derruba a troca); com a UBS escolhida, o estado das duas listas passa de vazio a "Carregando…" na hora (checagem nova).
+4. **Aviso de lista cortada da Família** mandava "Decida estes e os seguintes aparecem em seguida"; reescrito para "Conforme estes forem decididos, os próximos aparecem sozinhos.".
+5. **Indicador de carregamento da Família** ocupava a largura toda; ficou com 220 px à esquerda, igual ao de Pacientes.
+6. **Ficha do paciente:** o CPF estava no grupo "Contato"; passou para "Identificação".
+7. **Checagem da rota salva** deixava o tema da aplicação no escuro para as capturas seguintes (a janela reaberta aplica o tema dela); agora a janela da checagem volta ao claro.
+8. **Conflitos na integração:** `WorkspaceView.xaml` ficou idêntico ao da branch de Vaga Relâmpago (mesma troca de `StackPanel` por `Grid`, mesmo comentário) e a linha de `ResetUnitState` que a branch de Informações da UBS também muda ficou intocada (o "voltar a Carregando" foi para uma linha própria), para a junção não conflitar.
+9. **Capturas que faltavam:** Vínculos aprovados com dados e com o balão (lixeira) nos dois temas, pop-up Recusar nos dois temas e Família sem pedidos nos dois temas (checagem estendida, também confere que Fechar não recusa).
+
+Conferido sem achado: listagem aberta na tela inteira com uma rolagem só; balão por cima da lista sem reservar espaço; seleção e balão sem piscar no ciclo (checagem); Desativar/Reativar e Encerrar vínculo com a lixeira e as confirmações de antes; ações de item único somem com seleção múltipla; Recusar e Corrigir e-mail mostram o erro dentro do pop-up e só fecham com a API aceitando; rota salva e atalho `family` abrem Família; nomes de automação mantidos; sem botão Atualizar nem código morto dele; cores só por chave do tema.
+
+Validação da revisão: build com 0 erros (2 avisos de nulabilidade já existentes, fora do grupo); filtros `OBS Família` (2 de 2) e `OBS Pacientes` (5 de 5) passam; suíte completa do desktop com **248 PASS e 1 FAIL**, o conhecido da linha de base (P-066, "faixa de retorno … home"); nenhum FAIL novo. Capturas regeneradas em `.build/redesenho/pacientes-familia/` e conferidas (claro e escuro, com dados, vazio, balão, pop-ups, ficha e 980 px).
 
 ## Pendências
 

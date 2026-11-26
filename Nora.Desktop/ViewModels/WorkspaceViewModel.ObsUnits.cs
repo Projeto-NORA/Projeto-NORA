@@ -95,6 +95,8 @@ public sealed partial class WorkspaceViewModel
             Notify(); Notify(nameof(ActiveObsUnitLabel)); Notify(nameof(ActiveObsUnitRegion)); Notify(nameof(HasActiveObsUnit)); Notify(nameof(ObsRegistryListState)); Notify(nameof(ObsRegistryLoading)); Notify(nameof(NeedsObsUnitChoice)); Notify(nameof(CanConfirmObsUnit)); Notify(nameof(ObsUnitPrompt)); Notify(nameof(UnitLabel)); Notify(nameof(AgendaStateText));
             NotifyUnitMetrics(); Notify(nameof(UnitMetricsScopeLabel));
             NotifyUnitCounts();
+            // Família e Vínculos aprovados: com a UBS escolhida agora, o estado das listas passa de vazio para "Carregando…" até a primeira leitura.
+            NotifyFamily();
         }
     }
     public string ActiveObsUnitLabel => ActiveObsUnit?.Name ?? "Nenhuma UBS confirmada";
@@ -203,7 +205,8 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Lê tudo da nova UBS antes de trocar qualquer coisa: se a leitura falhar, a UBS ativa anterior e seus dados continuam intactos.</summary>
     private async Task ActivateUnitAsync(HealthUnit unit)
     {
-        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics | UnitScope.Catalog | UnitScope.Profile);
+        // Trocar de UBS com Família ou Vínculos aprovados aberto já traz os pedidos e vínculos da nova UBS (a tela não tem mais o botão Atualizar; leitura tolerante, não derruba a troca).
+        var snapshot = await FetchUnitDataAsync(unit, UnitScope.Everything | UnitScope.Agenda | UnitScope.PanelMetrics | UnitScope.Catalog | UnitScope.Profile | (Section == "family" ? UnitScope.Family : UnitScope.None));
         if (disposed || !IsAuthenticated) return;
         if (ActiveObsUnit?.Id != unit.Id) ResetUnitState();
         ActiveObsUnit = unit;
@@ -241,7 +244,7 @@ public sealed partial class WorkspaceViewModel
             editing is null ? "Paciente cadastrado na UBS. Ele poderá criar a conta no aplicativo." : "Cadastro atualizado nesta UBS.");
     });
 
-    /// <summary>Corrige só o e-mail do cadastro selecionado. Devolve se a API aceitou (o pop-up "Corrigir e-mail" fecha só nesse caso); o motivo da recusa fica na faixa de retorno.</summary>
+    /// <summary>Corrige só o e-mail do cadastro selecionado. Devolve se a API aceitou (o pop-up "Corrigir e-mail" fecha só nesse caso); a mensagem de erro fica em <see cref="Message"/>, que o pop-up mostra.</summary>
     public async Task<bool> UpdateObsRegistryEmailAsync()
     {
         var updated = false;
@@ -338,8 +341,10 @@ public sealed partial class WorkspaceViewModel
     /// <summary>Esvazia os dados da UBS (cadastro, rascunhos, agenda e vagas) sem mexer na UBS ativa nem na lista de UBS.</summary>
     private void ResetUnitState()
     {
-        ObsRegistry.Clear(); obsRegistryLoaded = false; ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices();
-        Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); Notify(nameof(ObsRegistryListState)); Notify(nameof(ObsRegistryLoading));
+        ObsRegistry.Clear(); ObsRegistrySearch = ""; SelectedObsRegistry = null; ClearObsRegistryDraft(); ClearAppointmentData(); ClearUnitLightningData(); ClearUnitMetrics(); ClearUnitScheduling(); ClearFamily(); ClearUnitProfile(); ClearDevices();
+        Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
+        // A listagem de Pacientes volta a "Carregando os pacientes…" até a primeira leitura da UBS nova.
+        obsRegistryLoaded = false; Notify(nameof(ObsRegistryListState)); Notify(nameof(ObsRegistryLoading));
     }
 
     private void DeactivateObsUnit()

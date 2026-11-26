@@ -196,6 +196,16 @@ internal static partial class Program
                     InvokeButton(primary); PumpUntil(() => !dialog.IsVisible && !vm.IsBusy);
                 }, () => InvokeButton(ButtonIn(content, "Corrigir e-mail")));
                 Require(asked.Count == 1 && fixture.Count("PATCH", "/registry/email") == 1 && vm.ObsRegistry.First(patient => patient.Cpf == patients[0].Cpf).Email == "ana.nova@example.test" && vm.Message == "E-mail atualizado no cadastro da UBS.", "Confirmar deveria corrigir o e-mail e fechar o pop-up: " + vm.Message);
+                // Fechar sem corrigir e abrir de novo: o campo volta ao e-mail atual do cadastro, não ao que foi digitado antes.
+                vm.SelectedObsRegistry = Pick(0); content = Layout(window, 1280, 760);
+                TextBox EmailBox(FormDialog dialog) => Descendants<TextBox>(dialog).Single(input => AutomationProperties.GetName(input) == "E-mail corrigido da UBS");
+                InspectModal<FormDialog>(window, dialog => { EmailBox(dialog).Text = "digitado@example.test"; dialog.Close(); }, () => InvokeButton(ButtonIn(content, "Corrigir e-mail")));
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    Require(EmailBox(dialog).Text == "ana.nova@example.test", "Reaberto, o pop-up deveria trazer o e-mail atual do cadastro: " + EmailBox(dialog).Text);
+                    dialog.Close();
+                }, () => InvokeButton(ButtonIn(content, "Corrigir e-mail")));
+                Require(fixture.Count("PATCH", "/registry/email") == 1, "Fechar o pop-up não deveria corrigir o e-mail.");
                 // Editar ficha: abre o cadastro com o paciente e o botão Cancelar edição.
                 vm.SelectedObsRegistry = vm.ObsRegistry.First(patient => patient.Cpf == patients[2].Cpf); content = Layout(window, 1280, 760);
                 InvokeButton(ButtonIn(content, "Editar ficha")); content = Layout(window, 1280, 900);
@@ -248,10 +258,11 @@ internal static partial class Program
                 window.ViewModel.GoBack();
                 Require(window.ViewModel.Route == "family:requests" && area.Children[2].IsSelected, "Voltar deveria levar a Família.");                // Preferência salva com a rota antiga: reabrir volta para Família.
                 var savedPath = Path.Combine(storageRoot, "pf-family-saved");
-                Require(new PreferencesService(DesktopProfile.Operational.Id, savedPath).Save(new() { LastPage = "family" }), "A rota não foi salva.");
+                Require(new PreferencesService(DesktopProfile.Operational.Id, savedPath).Save(new() { LastPage = "family", Appearance = Appearance.Light }), "A rota não foi salva.");
                 var reopened = new ShellWindow(DesktopProfile.Operational, savedPath);
                 try { Require(reopened.ViewModel.Route == "family:requests" && reopened.ViewModel.PageLabel == "Família • Pacientes", "A rota salva \"family\" deveria reabrir Família: " + reopened.ViewModel.Route); }
-                finally { reopened.ViewModel.ConfirmClose = false; reopened.Close(); }
+                // O tema é da aplicação inteira: a janela reaberta aplicou o dela, então a janela da checagem volta ao claro antes das capturas.
+                finally { reopened.ViewModel.ConfirmClose = false; reopened.Close(); window.ViewModel.SetAppearance(Appearance.Light); }
                 // Seleção e balão no ciclo.
                 var content = Show(window, "family:requests", 1280, 760);
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Pedidos de família pendentes");
@@ -295,6 +306,47 @@ internal static partial class Program
                 content = Show(window, "family:approved", 1280, 760);
                 Require(VisibleTexts(content).Contains("Nenhum vínculo aprovado nesta UBS."), "Sem vínculos aprovados a tela deveria dizer \"Nenhum vínculo aprovado nesta UBS.\".");
                 SavePreview(content, Path.Combine(previewRoot, "vinculos-vazio-claro.png"));
+                // Vínculos aprovados com dados: a lista, o balão com a lixeira (Encerrar vínculo) e o pop-up Recusar da Família, nos dois temas.
+                fixture.AddFamilyRequest(unit.Id, "Carla Lima", "98765432100", lia.Cpf, status: "approved", requestedAt: now.AddDays(-30));
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 760);
+                var approvedList = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Vínculos de família aprovados");
+                Require(approvedList.Items.Count == 1 && VisibleTexts(content).Contains("Carla Lima → Lia Santos") && !VisibleTexts(content).Contains("Nenhum vínculo aprovado nesta UBS."), "Vínculos aprovados deveria listar o vínculo lido no ciclo: " + string.Join(" | ", VisibleTexts(content)));
+                foreach (var mode in new[] { Appearance.Light, Appearance.Dark })
+                {
+                    var suffix = mode == Appearance.Light ? "claro" : "escuro";
+                    window.ViewModel.SetAppearance(mode); vm.SelectedApprovedFamily = null; content = Layout(window, 1280, 760);
+                    SavePreview(content, Path.Combine(previewRoot, $"vinculos-{suffix}.png"));
+                    vm.SelectedApprovedFamily = vm.FamilyApproved[0]; content = Layout(window, 1280, 760);
+                    Require(FindActionButton(content, "Encerrar vínculo selecionado").Style == (Style)application.FindResource("ListActionDangerButton"), "Encerrar vínculo deveria ser a lixeira branca em fundo vermelho.");
+                    SavePreview(content, Path.Combine(previewRoot, $"vinculos-selecionado-{suffix}.png"));
+                    content = Show(window, "family:requests", 1280, 760); vm.SelectedPendingFamily = vm.FamilyPending[0]; content = Layout(window, 1280, 760);
+                    InspectModal<FormDialog>(window, dialog =>
+                    {
+                        Descendants<TextBox>(dialog).Single(box => AutomationProperties.GetName(box) == "Motivo da recusa").Text = "Documento do dependente ilegível";
+                        // O pop-up abre com uma animação curta de entrada: a captura espera ela terminar.
+                        dialog.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle); System.Threading.Thread.Sleep(400); dialog.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle); dialog.UpdateLayout();
+                        SavePreview(dialog, Path.Combine(previewRoot, $"familia-recusar-{suffix}.png"));
+                        InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Fechar")); PumpUntil(() => !dialog.IsVisible);
+                    }, () => InvokeButton(FindActionButton(content, "Recusar pedido")));
+                    Require(vm.FamilyPending.Count == 3 && vm.FamilyRejectReason == "", "Fechar o pop-up Recusar não deveria recusar nem guardar o motivo.");
+                    content = Show(window, "family:approved", 1280, 760);
+                }
+                window.ViewModel.SetAppearance(Appearance.Light);
+                // Trocar de UBS com a Família aberta: os pedidos da nova UBS vêm junto com a troca (sem botão Atualizar e sem esperar o ciclo de 20 s).
+                var other = fixture.AddUnit("UBS Família Vizinha", "Norte");
+                var neighbor = fixture.AddRegistry(other.Id, "Rui Prado", "52998224725");
+                fixture.AddFamilyRequest(other.Id, "Vera Prado", "11144477735", neighbor.Cpf, requestedAt: now.AddHours(-5));
+                Show(window, "family:requests", 1280, 760);
+                vm.CandidateObsUnit = other; Pump(vm.ConfirmObsUnitAsync()); Settle(vm); content = Layout(window, 1280, 760);
+                Require(vm.ActiveObsUnit?.Id == other.Id && vm.FamilyPending.Select(link => link.GuardianName).SequenceEqual(["Vera Prado"]) && VisibleTexts(content).Contains("Vera Prado → Rui Prado"),
+                    "Trocar de UBS na Família deveria trazer na hora os pedidos da nova UBS: " + string.Join(", ", vm.FamilyPending.Select(link => link.GuardianName)));
+                // Sem pedido aguardando: o aviso de lista vazia (diferente do "encontrado para esta busca"), nos dois temas.
+                fixture.FamilyLinks.Clear(); Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 760);
+                Require(VisibleTexts(content).Contains("Nenhum pedido aguardando decisão nesta UBS.") && !VisibleTexts(content).Contains("Nenhum pedido encontrado para esta busca."), "Sem pedidos a Família deveria dizer \"Nenhum pedido aguardando decisão nesta UBS.\": " + string.Join(" | ", VisibleTexts(content)));
+                SavePreview(content, Path.Combine(previewRoot, "familia-vazia-claro.png"));
+                window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 760);
+                SavePreview(content, Path.Combine(previewRoot, "familia-vazia-escuro.png"));
+                window.ViewModel.SetAppearance(Appearance.Light);
             }
             finally { CloseWindow(window); }
         });

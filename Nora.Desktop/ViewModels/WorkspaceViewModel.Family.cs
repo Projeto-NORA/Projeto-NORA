@@ -34,7 +34,7 @@ public sealed partial class WorkspaceViewModel
     public string FamilyPendingState => !HasActiveObsUnit ? ""
         : !familyPendingLoaded ? (familyPendingFailed ? "Não foi possível ler os pedidos agora. A tela tenta de novo sozinha." : "Carregando os pedidos…")
         : familyPendingFailed ? "A última leitura não concluiu; estes são os pedidos da leitura anterior."
-        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Decida estes e os seguintes aparecem em seguida."
+        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Conforme estes forem decididos, os próximos aparecem sozinhos."
         : FamilyPending.Count == 0 ? "Nenhum pedido aguardando decisão nesta UBS." : "";
     public string FamilyApprovedState => !HasActiveObsUnit ? ""
         : !familyApprovedLoaded ? (familyApprovedFailed ? "Não foi possível ler os vínculos agora. A tela tenta de novo sozinha." : "Carregando os vínculos…")

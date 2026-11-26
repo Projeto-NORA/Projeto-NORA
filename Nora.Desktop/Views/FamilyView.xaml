@@ -24,7 +24,7 @@
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
       <StackPanel>
         <views:PageFilterGroup Label="Pedidos de vínculo" SearchFields="GuardianName,DependentDisplay,GuardianCpfDisplay,DependentCpfDisplay" ItemsTarget="{Binding ElementName=PendingList}" />
-        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyPendingLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os pedidos" />
+        <ProgressBar IsIndeterminate="True" Height="3" Width="220" HorizontalAlignment="Left" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyPendingLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os pedidos" />
         <TextBlock Text="{Binding FamilyPendingState}" Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="{Binding FamilyPendingState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <TextBlock x:Name="PendingSearchEmpty" Text="Nenhum pedido encontrado para esta busca." Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
@@ -44,7 +44,7 @@
       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
       <StackPanel>
         <views:PageFilterGroup Label="Vínculos aprovados" SearchFields="GuardianName,DependentDisplay,GuardianCpfDisplay,DependentCpfDisplay" ItemsTarget="{Binding ElementName=ApprovedList}" />
-        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyApprovedLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os vínculos" />
+        <ProgressBar IsIndeterminate="True" Height="3" Width="220" HorizontalAlignment="Left" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyApprovedLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os vínculos" />
         <TextBlock Text="{Binding FamilyApprovedState}" Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="{Binding FamilyApprovedState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
         <TextBlock x:Name="ApprovedSearchEmpty" Text="Nenhum vínculo encontrado para esta busca." Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>

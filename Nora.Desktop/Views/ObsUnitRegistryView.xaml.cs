@@ -88,6 +88,8 @@ public partial class ObsUnitRegistryView : UserControl
     private void OnCorrectEmail(object sender, RoutedEventArgs e)
     {
         if (Workspace is not { } vm || SelectedPatient(vm) is not { } patient) return;
+        // O pop-up abre sempre com o e-mail atual do cadastro (não com o que foi digitado num pop-up fechado antes sem corrigir).
+        vm.CorrectedObsEmail = patient.Email;
         var form = new ObsEmailCorrectionForm { DataContext = vm };
         string? error = null;
         async Task<bool> Save()
