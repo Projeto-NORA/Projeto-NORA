@@ -183,6 +183,57 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
+        Check("Cabeçalho: ligações por ElementName entre a tela e o conteúdo levado ao cabeçalho continuam valendo nos dois sentidos", () =>
+        {
+            var window = OpenHidden(DesktopProfile.Operational, storageRoot, "header-element-name");
+            try
+            {
+                window.ViewModel.Navigate("patients:list");
+                var stage = HeaderStage(window, "list");
+                // Como as telas fazem: a tela segue o Mode do alternador que mora no cabeçalho, e o botão do cabeçalho lê um texto da tela.
+                var declared = (StackPanel)System.Windows.Markup.XamlReader.Parse(
+                    "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:views=\"clr-namespace:Nora.Desktop.Views;assembly=Nora.Desktop\">" +
+                    "<TextBlock x:Name=\"Origem\" Text=\"antes\" /><TextBlock x:Name=\"Seguidor\" Text=\"{Binding Mode, ElementName=Alternador}\" />" +
+                    "<views:PageActions><StackPanel Orientation=\"Horizontal\"><views:ViewModeToggle x:Name=\"Alternador\" ScreenKey=\"teste-element-name\" />" +
+                    "<Button Content=\"{Binding Text, ElementName=Origem}\" AutomationProperties.Name=\"Botão ligado à tela\" /></StackPanel></views:PageActions></StackPanel>");
+                stage.Children.Add(declared);
+                var header = (FrameworkElement)window.FindName("PageHeader");
+                Layout(window, 1280, 740); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                var toggle = Descendants<ViewModeToggle>(header).Single();
+                var bound = Descendants<Button>(header).Single(item => AutomationProperties.GetName(item) == "Botão ligado à tela");
+                var origin = (TextBlock)declared.FindName("Origem"); var follower = (TextBlock)declared.FindName("Seguidor");
+                Require(Equals(bound.Content, "antes") && follower.Text == "Cards", $"As ligações deveriam valer com o conteúdo no cabeçalho (botão \"{bound.Content}\", tela \"{follower.Text}\").");
+                origin.Text = "depois"; InvokeButton(toggle);
+                Require(Equals(bound.Content, "depois") && follower.Text == "Charts", $"As ligações deveriam acompanhar as mudanças (botão \"{bound.Content}\", tela \"{follower.Text}\").");
+                window.ViewModel.Navigate("patients:register"); Layout(window, 1280, 740);
+                window.ViewModel.Navigate("patients:list"); Layout(window, 1280, 740); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                origin.Text = "de novo"; InvokeButton(toggle);
+                Require(Equals(bound.Content, "de novo") && follower.Text == "Cards", $"Depois de sair e voltar à tela as ligações deveriam continuar (botão \"{bound.Content}\", tela \"{follower.Text}\").");
+            }
+            finally { CloseWindow(window); }
+        });
+        Check("Cabeçalho: \"Limpar filtros\" também apaga a pesquisa em linha da tela, como antes do cabeçalho novo", () =>
+        {
+            var window = OpenHidden(DesktopProfile.Operational, storageRoot, "header-clear-search");
+            try
+            {
+                window.ViewModel.Navigate("patients:list");
+                var stage = HeaderStage(window, "list");
+                var list = new ListBox { ItemsSource = new[] { "Ana", "Bruno" } };
+                stage.Children.Add(list);
+                stage.Children.Add(new PageFilterGroup { Label = "Lista de teste", SearchFields = "Length", ItemsTarget = list });
+                stage.Children.Add(new PageFilterGroup { Label = "Outro filtro", FilterKey = "teste", Fields = new TextBox { Text = "valor" } });
+                var header = (FrameworkElement)window.FindName("PageHeader");
+                Layout(window, 1280, 740);
+                var search = Descendants<TextBox>(header).Single(box => box.IsVisible);
+                search.Text = "5";
+                Require(list.Items.Count == 1 && ((Button)window.FindName("FiltersButton")).IsVisible, "A pesquisa deveria filtrar e o botão Filtros deveria aparecer pelo outro grupo.");
+                InvokeButton(FindActionButton(OpenPageFilters(window), "Limpar filtros"));
+                ((Popup)window.FindName("FiltersPopup")).IsOpen = false;
+                Require(search.Text.Length == 0 && list.Items.Count == 2, "Limpar filtros deveria apagar a pesquisa em linha e devolver a lista inteira.");
+            }
+            finally { CloseWindow(window); }
+        });
         Check("Cabeçalho: fora da janela principal as ações e a pesquisa aparecem na própria tela", () =>
         {
             var button = new Button { Content = "Ação solta" };

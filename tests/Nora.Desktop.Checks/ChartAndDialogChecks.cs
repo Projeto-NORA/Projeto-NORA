@@ -486,6 +486,15 @@ internal static partial class Program
                 InvokeButton(home); InvokeButton(byRoute);
                 saved = new PreferencesService(profile.Id, Path.Combine(storageRoot, name)).Load();
                 Require(saved.ViewModes.Count == 0 && home.Mode == ViewMode.Cards, "Voltar a cards deveria tirar a tela do arquivo (cards é o padrão).");
+                // Sem chave, o botão de uma tela escondida (todas carregam juntas ao abrir a janela) não assume o modo da rota aberta; ao aparecer, assume.
+                window.ViewModel.SetViewMode(routeKey, ViewMode.Charts);
+                var hidden = new ViewModeToggle { Visibility = Visibility.Collapsed }; container.Children.Add(hidden);
+                Layout(window, 1280, 740); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Require(hidden.IsLoaded && hidden.Mode == ViewMode.Cards, "Escondido e sem chave, o botão não deveria ler o modo da rota aberta (seria o de outra tela).");
+                hidden.Visibility = Visibility.Visible;
+                Layout(window, 1280, 740); window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Require(hidden.Mode == ViewMode.Charts, "Ao aparecer, o botão sem chave deveria assumir o modo lembrado da rota aberta.");
+                window.ViewModel.SetViewMode(routeKey, ViewMode.Cards);
             }
             finally { CloseWindow(window); }
         });

@@ -90,9 +90,11 @@ public partial class ShellWindow
         Dispatcher.BeginInvoke(DispatcherPriority.Background, () => filterClosedByButtonPress = false);
     }
 
-    /// <summary>"Limpar filtros" vale para os grupos do pop-up; a pesquisa em linha é limpa ao sair da tela.</summary>
+    /// <summary>"Limpar filtros" limpa tudo o que filtra a tela, como antes do cabeçalho novo: os grupos do pop-up e a pesquisa em linha da tela visível.</summary>
     private async void OnClearFilters(object sender, RoutedEventArgs args)
     {
+        foreach (var group in pageFilters)
+            if (group.IsVisible && group.Fields is ListSearchFilter search) search.Clear();
         try { await ViewModel.Workspace.ClearPageFiltersAsync(openFilterGroups.Select(group => group.FilterKey).ToHashSet(StringComparer.Ordinal)); }
         catch (Exception error) when (error is not OutOfMemoryException) { ViewModel.Workspace.ReportUnexpected(error); }
     }

@@ -66,6 +66,8 @@ public partial class ShellWindow : Window, IDialogHost
             SidebarSlide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
             SidebarList.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
         }
+        // A visibilidade da tela com Fill pode não mudar entre "patients:list" e "patients" (todas as subtelas): a rota decide também.
+        if (args.PropertyName == nameof(ShellViewModel.Route)) UpdatePageFill();
         if (args.PropertyName == nameof(ShellViewModel.Route) && ViewModel.Animations)
             PageSlide.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         if (args.PropertyName == nameof(ShellViewModel.Animations) && !ViewModel.Animations)

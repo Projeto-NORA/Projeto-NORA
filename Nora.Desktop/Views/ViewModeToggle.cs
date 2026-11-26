@@ -25,6 +25,9 @@ public sealed class ViewModeToggle : Button
     public ViewModeToggle()
     {
         Loaded += (_, _) => Restore();
+        // Sem ScreenKey a chave é a rota aberta: só vale enquanto o botão está à vista. Todas as telas carregam juntas ao abrir a janela
+        // (escondidas), e o botão de uma tela escondida leria o modo da rota de outra; por isso a leitura também acontece quando ele aparece.
+        IsVisibleChanged += (_, args) => { if (args.NewValue is true) Restore(); };
         Describe();
     }
 
@@ -34,7 +37,8 @@ public sealed class ViewModeToggle : Button
     public string ScreenKey { get => (string)GetValue(ScreenKeyProperty); set => SetValue(ScreenKeyProperty, value ?? ""); }
 
     private ShellViewModel? Shell => (Window.GetWindow(this) as ShellWindow)?.ViewModel;
-    private string Key => ScreenKey.Length > 0 ? ScreenKey : Shell?.Page ?? "";
+    /// <summary>A chave do modo nas preferências: a <see cref="ScreenKey"/> ou, sem ela, a rota aberta (só com o botão à vista; escondido, sem chave).</summary>
+    private string Key => ScreenKey.Length > 0 ? ScreenKey : IsVisible ? Shell?.Page ?? "" : "";
 
     protected override void OnClick()
     {

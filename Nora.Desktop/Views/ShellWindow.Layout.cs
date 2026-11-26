@@ -26,7 +26,8 @@ public partial class ShellWindow
     internal void UpdatePageFill()
     {
         if (PageScroll is null) return;
-        var fill = fillPages.Any(page => page.IsVisible);
+        // Rota sem subtela escolhida numa página que tem subtelas: todas aparecem empilhadas e uma tela que encolhesse à altura da área cortaria as outras.
+        var fill = !ViewModel.ShowsAllSubPages && fillPages.Any(page => page.IsVisible);
         PageScroll.VerticalScrollBarVisibility = fill ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         // Linha Auto: a tela vale o que o conteúdo pede (como antes, com a rolagem). Linha *: a tela recebe a altura inteira da área de conteúdo.
         PageRow.Height = fill ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;

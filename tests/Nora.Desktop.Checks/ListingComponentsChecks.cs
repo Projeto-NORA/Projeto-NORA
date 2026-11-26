@@ -627,6 +627,13 @@ internal static partial class Program
                 window.ViewModel.Navigate("patients:list");
                 Layout(window, 1280, 740);
                 Require(page.IsVisible && scroll.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled, "Voltar à subtela deveria ligar o Fill de novo.");
+                // A página sem subtela escolhida (atalho ou página restaurada) mostra todas as subtelas empilhadas: o Fill cortaria as outras, então a página rola.
+                window.ViewModel.Navigate("patients");
+                Layout(window, 1280, 740);
+                Require(page.IsVisible && scroll.VerticalScrollBarVisibility == ScrollBarVisibility.Auto && pageRow.Height.IsAuto, "Com todas as subtelas empilhadas a página deveria rolar, sem Fill.");
+                window.ViewModel.Navigate("patients:list");
+                Layout(window, 1280, 740);
+                Require(scroll.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled && pageRow.Height.IsStar, "Escolher a subtela de novo deveria religar o Fill.");
                 container.Children.Remove(page);
                 Layout(window, 1280, 740);
                 Require(scroll.VerticalScrollBarVisibility == ScrollBarVisibility.Auto && watermark.IsVisible, "Tirar a tela da janela deveria devolver a rolagem.");

@@ -174,6 +174,8 @@ public sealed partial class ShellViewModel : ObservableObject
     public bool CanGoBack => history.Count > 0 && !ShowPasswordRequired;
     public bool CanGoForward => forward.Count > 0 && !ShowPasswordRequired;
     public string Route => SubPage is null ? Page : $"{Page}:{SubPage}";
+    /// <summary>A página tem subtelas, mas nenhuma foi escolhida (atalho, página restaurada ou chamada direta): todas aparecem empilhadas e a página precisa rolar.</summary>
+    public bool ShowsAllSubPages => SubPage is null && Navigation.Any(area => area.Children.Any(child => child.Id == Page && child.Sub is not null));
     public string BackTip => history.Count > 0 ? $"Voltar para {RouteTitle(history[^1])} (Alt + ←)" : "Nenhuma página anterior";
     public string ForwardTip => forward.Count > 0 ? $"Avançar para {RouteTitle(forward[^1])} (Alt + →)" : "Nenhuma página para avançar";
     private IEnumerable<NavigationItem> AllItems => Navigation.SelectMany(item => item.HasChildren ? item.Children.Prepend(item) : [item]);

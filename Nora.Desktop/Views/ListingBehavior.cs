@@ -180,8 +180,13 @@ public static class ListingBehavior
             CancelPendingOpen();
             // Quem saiu da seleção, mas continua na lista, foi desfeito pela pessoa. Quem sumiu da lista (fonte trocada, filtro, ciclo de 20 s) guarda a chave
             // para voltar à seleção quando reaparecer.
-            foreach (var removed in args.RemovedItems)
-                if (IsInItems(removed)) keys.Remove(KeyOf(removed));
+            // Um conjunto dos itens da lista, montado uma vez: desfazer uma seleção grande não percorre a lista inteira para cada item.
+            if (args.RemovedItems.Count > 0)
+            {
+                var items = new HashSet<object>(list.Items.Cast<object>(), ReferenceEqualityComparer.Instance);
+                foreach (var removed in args.RemovedItems)
+                    if (items.Contains(removed)) keys.Remove(KeyOf(removed));
+            }
             foreach (var added in args.AddedItems) keys.Add(KeyOf(added));
             Refresh();
         }
