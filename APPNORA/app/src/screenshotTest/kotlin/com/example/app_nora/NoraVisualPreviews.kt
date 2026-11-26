@@ -522,6 +522,38 @@ fun StepListLight() = PlainScreen(Appearance.LIGHT) {
 }
 
 @PreviewTest
+@Preview(name = "55 Entrada com manter conectado marcado clara", widthDp = 400, heightDp = 1100, locale = "pt-rBR")
+@Composable
+fun LoginKeepSignedInLight() = NoraPatientContent(UserSettings(Appearance.LIGHT), {},
+    PatientState(address = "https://unidade.example.test", keepSignedIn = true), onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "56 Entrada com manter conectado marcado e Google escura", widthDp = 400, heightDp = 1500, locale = "pt-rBR")
+@Composable
+fun LoginKeepSignedInGoogleDark() = NoraPatientContent(UserSettings(Appearance.DARK), {},
+    PatientState(address = "https://unidade.example.test", keepSignedIn = true), onLogin = { _, _ -> },
+    google = GoogleActions(webClientId = "cliente-web-fixture-visual"))
+
+@PreviewTest
+@Preview(name = "57 Entrada com manter conectado fonte ampliada 130 escura", widthDp = 360, heightDp = 1500, locale = "pt-rBR", fontScale = 1.3f)
+@Composable
+fun LoginKeepSignedInLargeFontDark() = NoraPatientContent(UserSettings(Appearance.DARK), {},
+    PatientState(address = "https://unidade.example.test"), onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "58 Restaurando a sessao clara", widthDp = 400, heightDp = 700, locale = "pt-rBR")
+@Composable
+fun RestoringSessionLight() = NoraPatientContent(UserSettings(Appearance.LIGHT), {},
+    PatientState(address = "https://unidade.example.test", restoring = true), onLogin = { _, _ -> })
+
+@PreviewTest
+@Preview(name = "59 Restaurando a sessao com o Inicio aberto escura", widthDp = 400, heightDp = 1900, locale = "pt-rBR")
+@Composable
+fun RestoringSessionHomeDark() = Fixed {
+    NoraPatientContent(UserSettings(Appearance.DARK), {}, connected(offers = emptyList(), appointments = listOf(nextAppointment)).copy(restoring = true))
+}
+
+@PreviewTest
 @Preview(name = "54 Configuracoes com conta Google vinculada escura", widthDp = 400, heightDp = 2900, locale = "pt-rBR")
 @Composable
 fun SettingsGoogleLinkedDark() = NoraPatientContent(UserSettings(Appearance.DARK), {},

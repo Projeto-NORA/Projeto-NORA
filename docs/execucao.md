@@ -1,5 +1,9 @@
 # Execução e validação
 
+## Validação do app: login salvo — 2026-11-26
+
+`gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:validateDebugScreenshotTest --rerun` (JDK 21 Adoptium) passou: 341 testes locais, 0 falhas; lint 0 erros e 17 avisos antigos; 58 referências de prévia (5 novas, entrada atualizada de propósito). Sem emulador: os instrumentados novos ou alterados só compilaram (P-070). Detalhes em [app-paciente.md](app-paciente.md#login-salvo-1-dia-ou-30-dias--26112026) e `tarefas/2026-11-26-app-login-salvo.md`.
+
 ## Validação do fechamento das pendências — 2026-11-17
 
 Código do fechamento (score em pontos de 0 a 1000, prioridade na Vaga Relâmpago pelo score, contas de equipe sem CPF, P3, P4 e P5, marcar a qualquer horário), conferido de novo em 2026-11-18, depois das correções das voltas 1 a 3 da revisão, com PostgreSQL 18 descartável, sem commit:

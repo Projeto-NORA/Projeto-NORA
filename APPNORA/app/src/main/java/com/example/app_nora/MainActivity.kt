@@ -26,6 +26,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import com.example.app_nora.api.FirebasePush
 import com.example.app_nora.api.PatientController
 import com.example.app_nora.api.PushHub
@@ -131,5 +133,10 @@ class PatientViewModel(application: Application) : AndroidViewModel(application)
         // Sem app/google-services.json o provedor é nulo: o push fica desligado e nada mais muda.
         it.pushTokenProvider = FirebasePush.tokenProvider(application)
         PushHub.attach(it)
+    }
+
+    init {
+        // Sessão guardada (cifrada): lê, confere no servidor e entra direto. Roda no escopo do ViewModel, que sobrevive à rotação da tela.
+        viewModelScope.launch { controller.restoreSession() }
     }
 }

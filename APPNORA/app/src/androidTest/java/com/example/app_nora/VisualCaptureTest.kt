@@ -11,6 +11,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
+import com.example.app_nora.api.NoSessionStorage
 import com.example.app_nora.api.PatientController
 import com.example.app_nora.preferences.Appearance
 import com.example.app_nora.preferences.UserSettings
@@ -34,7 +35,7 @@ class VisualCaptureTest {
             override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
                 super.getSharedPreferences(name + suffix, mode)
         }
-        val controller = PatientController(isolated)
+        val controller = PatientController(isolated, NoSessionStorage)
         val output = File(requireNotNull(context.getExternalFilesDir(null)), "nora-visual-2026-10-10").apply { mkdirs() }
         var settings by mutableStateOf(UserSettings(appearance = Appearance.LIGHT))
         var fontScale by mutableFloatStateOf(1f)

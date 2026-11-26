@@ -218,6 +218,38 @@ class PatientInteractionTest {
         compose.onNodeWithText("Você não tem consulta agendada nas suas UBS.").assertExists()
     }
 
+    @Test fun keepSignedInBoxStartsUntickedExplainsTheDefaultAndReportsTheChoice() {
+        var state by mutableStateOf(PatientState(address = "https://nora.example.test"))
+        val choices = mutableListOf<Boolean>()
+        compose.setContent { NoraPatientContent(UserSettings(), {}, state, onLogin = { _, _ -> }, onKeepSignedInChange = { choices += it; state = state.copy(keepSignedIn = it) }) }
+        compose.onNodeWithText("Sem marcar, fica conectado por 1 dia.").assertExists()
+        val box = compose.onNode(isToggleable())
+        box.assertIsOff().assertIsEnabled()
+        compose.onNodeWithText("Manter conectado por 30 dias").performScrollTo().performClick()
+        box.assertIsOn()
+        compose.onNodeWithText("Manter conectado por 30 dias").performClick()
+        box.assertIsOff()
+        compose.runOnIdle { assertEquals(listOf(true, false), choices) }
+    }
+
+    @Test fun keepSignedInBoxIsLockedWhileTheLoginIsRunning() {
+        compose.setContent { NoraPatientContent(UserSettings(), {}, PatientState(address = "https://nora.example.test", busy = true), onLogin = { _, _ -> }) }
+        compose.onNode(isToggleable()).assertIsNotEnabled()
+    }
+
+    @Test fun restoringTheSavedSessionShowsTheStepInPlaceOfTheLoginForm() {
+        var state by mutableStateOf(PatientState(address = "https://nora.example.test", restoring = true))
+        compose.setContent { NoraPatientContent(UserSettings(), {}, state, onLogin = { _, _ -> }) }
+        compose.onNodeWithText("Restaurando a sua sessão…").assertExists()
+        compose.onNodeWithText("Acessar minha conta").assertDoesNotExist()
+        compose.onNode(hasText("Entrar") and hasClickAction()).assertDoesNotExist()
+        // A sessão abre e o servidor ainda confere: a linha continua no Início já aberto.
+        compose.runOnIdle { state = connected().copy(restoring = true) }
+        compose.onNodeWithText("Restaurando a sua sessão…").assertExists()
+        compose.runOnIdle { state = connected() }
+        compose.onNodeWithText("Restaurando a sua sessão…").assertDoesNotExist()
+    }
+
     @Test fun endingTheSessionOutsideHomeReturnsToTheLoginForm() {
         var state by mutableStateOf(connected())
         compose.setContent { NoraPatientContent(UserSettings(), {}, state, onLogin = { _, _ -> }) }

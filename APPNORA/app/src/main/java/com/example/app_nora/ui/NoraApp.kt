@@ -80,6 +80,8 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val session = controller.state.session
+    // Controlador próprio (sem o da Activity, que restaura no ViewModel): a sessão guardada também é restaurada aqui.
+    LaunchedEffect(controller) { if (retainedController == null) controller.restoreSession() }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Log.w("NORA", "Notificações desativadas pelo usuário; a conexão continua indicada pelo gerenciador de tarefas do Android.")
     }
@@ -124,7 +126,7 @@ fun NoraApp(store: SettingsStore, retainedController: PatientController? = null,
     // Depois de entrar o aparelho se registra no push do servidor (P1); sem Firebase configurado isto não faz nada.
     LaunchedEffect(controller, session?.token) { if (session != null) controller.syncPushToken() }
     NoraPatientContent(store.settings, store::update, controller.state,
-        onAddressChange = controller::changeAddress,
+        onAddressChange = controller::changeAddress, onKeepSignedInChange = controller::setKeepSignedIn,
         google = GoogleActions(
             requestIdToken = {
                 if (allowLocalNetwork()) GoogleSignIn.requestIdToken(activityContext, BuildConfig.NORA_GOOGLE_WEB_CLIENT_ID)
@@ -340,7 +342,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     onLoadAvailability: (String, Int) -> Unit = { _, _ -> }, onBookSlot: (AvailableSlot) -> Unit = {},
     onDismissMessage: () -> Unit = {}, photo: PhotoActions = PhotoActions(),
     family: FamilyActions = FamilyActions(), community: CommunityActions = CommunityActions(), email: EmailActions = EmailActions(),
-    google: GoogleActions = GoogleActions(), onLoadAbout: (String) -> Unit = {},
+    google: GoogleActions = GoogleActions(), onLoadAbout: (String) -> Unit = {}, onKeepSignedInChange: (Boolean) -> Unit = {},
     openFlashUnit: String? = null, onFlashOpened: () -> Unit = {}, openFlashDependent: String? = null, openAppointments: Boolean = false,
     openNotices: Boolean = false, onNoticesOpened: () -> Unit = {}, openFamily: Boolean = false, onFamilyOpened: () -> Unit = {},
     notificationOfferId: String? = null, notificationUnitId: String? = null, notificationDependentId: String? = null,
@@ -378,7 +380,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
     val flashRequest = openFlashUnit?.let { it to openFlashDependent } ?: offerRequest
     // O push de janela de presença usa a mesma decisão (troca de pessoa e de UBS), mas abre Consultas em vez da Vaga Relâmpago.
     val requestDestination = if (openFlashUnit != null && openAppointments) PatientDestination.APPOINTMENTS else PatientDestination.FLASH
-    LaunchedEffect(flashRequest, patient.session?.token, patient.units, patient.family.links, patient.busy) {
+    LaunchedEffect(flashRequest, patient.session?.token, patient.restoring, patient.units, patient.family.links, patient.busy) {
         val (target, dependentId) = flashRequest ?: return@LaunchedEffect
         fun finish() { offerRequest = null; if (openFlashUnit != null) onFlashOpened() }
         when (flashOpenDecision(target, dependentId, patient)) {
@@ -401,14 +403,15 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
         }
     }
     // Toque na notificação de comunicado: abre a aba Avisos.
-    LaunchedEffect(openNotices, patient.session?.token) {
-        if (!openNotices) return@LaunchedEffect
+    // Com a sessão guardada ainda sendo restaurada (app aberto pelo toque), o pedido espera em vez de se perder.
+    LaunchedEffect(openNotices, patient.session?.token, patient.restoring) {
+        if (!openNotices || patient.restoring) return@LaunchedEffect
         if (patient.session != null) { navigate(PatientDestination.NOTICES.name) }
         onNoticesOpened()
     }
     // Push de pedido de família decidido: abre a aba Família.
-    LaunchedEffect(openFamily, patient.session?.token) {
-        if (!openFamily) return@LaunchedEffect
+    LaunchedEffect(openFamily, patient.session?.token, patient.restoring) {
+        if (!openFamily || patient.restoring) return@LaunchedEffect
         if (patient.session != null) { navigate(PatientDestination.FAMILY.name) }
         onFamilyOpened()
     }
@@ -598,7 +601,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
                         when (destination) {
                         PatientDestination.HOME -> HomeScreen(settings.showGuidance,
                             onOpenSettings = { navigate("SETTINGS") }, onNavigate = { navigate(it.name) },
-                            patient = view, onAddressChange = onAddressChange, onLogin = onLogin,
+                            patient = view, onAddressChange = onAddressChange, onLogin = onLogin, onKeepSignedInChange = onKeepSignedInChange,
                             onRefresh = onRefresh, onLoadUnits = onLoadUnits,
                             onConfirmPresence = onConfirmPresence,
                             // O Início mostra as ofertas da visão em tela: agindo por um dependente, as dele.
@@ -641,7 +644,7 @@ fun NoraPatientContent(settings: UserSettings, onSettingsChange: (UserSettings) 
 
 @Composable
 private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
-    onLogin: (String, String) -> Unit, onRegister: () -> Unit,
+    onLogin: (String, String) -> Unit, onKeepSignedInChange: (Boolean) -> Unit, onRegister: () -> Unit,
     onOpenSettings: () -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean, google: GoogleActions) {
@@ -775,6 +778,8 @@ private fun LoginCard(patient: PatientState, onAddressChange: (String) -> Unit,
                 shape = RoundedCornerShape(16.dp), keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 trailingIcon = { PasswordEyeButton(showPassword) { showPassword = !showPassword } })
+            // Vale para a senha e para o Google; sem marcar, o servidor mantém a pessoa conectada por 1 dia.
+            KeepSignedInOption(patient.keepSignedIn, !patient.busy, googleLoginAvailable(google.webClientId), onKeepSignedInChange)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = {
                     recoveryOpen = true
@@ -1084,14 +1089,19 @@ private fun RegisterScreen(onBack: () -> Unit, onLoadUnits: suspend () -> List<R
 @Composable
 private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
     onNavigate: (PatientDestination) -> Unit, patient: PatientState,
-    onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?,
+    onAddressChange: (String) -> Unit, onLogin: ((String, String) -> Unit)?, onKeepSignedInChange: (Boolean) -> Unit,
     onRefresh: () -> Unit, onLoadUnits: () -> Unit, onOpenOffer: (String) -> Unit,
     onOpenDependentOffer: (String, String) -> Unit, onOpenProfile: () -> Unit,
     onConfirmPresence: (String, String) -> Unit,
     onRequestPasswordReset: suspend (String) -> String,
     onConfirmPasswordReset: suspend (String, String, String) -> Boolean, google: GoogleActions) {
+    // A sessão guardada está sendo lida do disco: nem o formulário de entrada aparece (piscaria antes de a pessoa entrar sozinha).
+    if (patient.session == null && patient.restoring) {
+        RestoringSessionCard()
+        return
+    }
     if (patient.session == null && onLogin != null) {
-        LoginCard(patient, onAddressChange, onLogin,
+        LoginCard(patient, onAddressChange, onLogin, onKeepSignedInChange,
             onRegister = { onNavigate(PatientDestination.REGISTER) },
             onOpenSettings = onOpenSettings,
             onRequestPasswordReset = onRequestPasswordReset,
@@ -1158,6 +1168,8 @@ private fun HomeScreen(showGuidance: Boolean, onOpenSettings: () -> Unit,
         }
     }
     if (patient.busy || patient.loadingUnits) LinearProgressIndicator(Modifier.fillMaxWidth())
+    // A sessão guardada já abriu o app; o servidor ainda a está conferindo.
+    if (patient.restoring) BusyLine(RESTORING_SESSION_TEXT)
     if (patient.session != null) EmailSuggestionNotice(patient, onOpenProfile)
     if (showGuidance && patient.session != null && patient.units?.isEmpty() == true)
         MutedText("Vincule uma UBS para acompanhar sua saúde.")

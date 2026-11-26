@@ -43,7 +43,7 @@ class PatientPresenceServiceTest {
                 if (online) onlineCount.incrementAndGet() else offline.incrementAndGet()
             }
         }
-        val controller = PatientController(isolated) { api }
+        val controller = PatientController(isolated, NoSessionStorage) { api }
         var originalActivity: MainActivity? = null
         var originalViewModel: PatientViewModel? = null
         // O toque na notificação entrega um Intent sem ação nem categoria e a MainActivity o adota (setIntent em onNewIntent). O
@@ -110,7 +110,7 @@ class PatientPresenceServiceTest {
             override suspend fun logout(token: String) = Unit
             override suspend fun presence(token: String, online: Boolean) = Unit
         }
-        val controller = PatientController(isolated) { api }
+        val controller = PatientController(isolated, NoSessionStorage) { api }
         val title = "Vaga Relâmpago · Cardiologia"
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             try {

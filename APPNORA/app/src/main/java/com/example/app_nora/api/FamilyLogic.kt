@@ -82,6 +82,8 @@ enum class FlashOpen { WAIT, DROP, OPEN_OWN, OPEN_DEPENDENT }
  * errada e perder o pedido. Sem sessão, ou sem a UBS/vínculo, o pedido é descartado.
  */
 fun flashOpenDecision(unitId: String, dependentId: String?, state: PatientState): FlashOpen {
+    // A sessão guardada ainda está sendo restaurada (toque na notificação com o app fechado): o pedido espera, não se perde.
+    if (state.session == null && state.restoring) return FlashOpen.WAIT
     if (state.session == null) return FlashOpen.DROP
     if (dependentId != null) {
         val links = state.family.links ?: return FlashOpen.WAIT

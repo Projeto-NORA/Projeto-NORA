@@ -3,6 +3,7 @@ package com.example.app_nora.ui
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -108,5 +110,38 @@ internal fun FullScreenAlertSetting() {
             MutedText(if (allowed) "Permitido: a vaga aparece mesmo com a tela bloqueada." else "Desligado no Android.")
         }
         if (!allowed) TextButton(onClick = { runCatching { context.startActivity(LightningAlerts.fullScreenSettingsIntent(context)) } }) { Text("Permitir") }
+    }
+}
+
+internal const val RESTORING_SESSION_TEXT = "Restaurando a sua sessão…"
+internal const val KEEP_SIGNED_IN_LABEL = "Manter conectado por 30 dias"
+private const val KEEP_SIGNED_IN_HINT = "Sem marcar, fica conectado por 1 dia."
+
+/**
+ * "Manter conectado por 30 dias" da entrada (desmarcada por padrão). A linha inteira é o alvo do toque e leva o papel de caixa de seleção para
+ * o leitor de tela; o texto de apoio quebra em fonte ampliada. [withGoogle] avisa que o "Continuar com Google" usa a mesma escolha.
+ */
+@Composable
+internal fun KeepSignedInOption(checked: Boolean, enabled: Boolean, withGoogle: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+        Column(Modifier.padding(vertical = 4.dp)) {
+            Text(KEEP_SIGNED_IN_LABEL, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface)
+            Text(KEEP_SIGNED_IN_HINT + if (withGoogle) " Vale também para o Google." else "", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** No lugar do formulário de entrada enquanto a sessão guardada é lida do disco: o N da marca e o passo atual, com o indicador na cor do app. */
+@Composable
+internal fun RestoringSessionCard() {
+    Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        NoraMark(64.dp)
+        BusyLine(RESTORING_SESSION_TEXT)
     }
 }
