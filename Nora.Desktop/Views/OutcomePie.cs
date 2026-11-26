@@ -13,8 +13,21 @@ public sealed class OutcomePie : FrameworkElement
     /// <summary>Fatias genéricas (gráfico dos cartões de indicador); quando definidas, substituem as consultas encerradas e usam a paleta ChartBrush do tema.</summary>
     public static readonly DependencyProperty SlicesProperty = DependencyProperty.Register(nameof(Slices), typeof(IReadOnlyList<ChartPoint>), typeof(OutcomePie), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     public IReadOnlyList<ChartPoint>? Slices { get => (IReadOnlyList<ChartPoint>?)GetValue(SlicesProperty); set => SetValue(SlicesProperty, value); }
+    /// <summary>Cores das consultas encerradas: as chaves de situação do tema, ligadas por recurso dinâmico (a pizza se redesenha quando o tema troca).</summary>
+    public static readonly DependencyProperty CompletedBrushProperty = DependencyProperty.Register(nameof(CompletedBrush), typeof(Brush), typeof(OutcomePie), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty MissedBrushProperty = DependencyProperty.Register(nameof(MissedBrush), typeof(Brush), typeof(OutcomePie), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty CancelledBrushProperty = DependencyProperty.Register(nameof(CancelledBrush), typeof(Brush), typeof(OutcomePie), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public Brush? CompletedBrush { get => (Brush?)GetValue(CompletedBrushProperty); set => SetValue(CompletedBrushProperty, value); }
+    public Brush? MissedBrush { get => (Brush?)GetValue(MissedBrushProperty); set => SetValue(MissedBrushProperty, value); }
+    public Brush? CancelledBrush { get => (Brush?)GetValue(CancelledBrushProperty); set => SetValue(CancelledBrushProperty, value); }
     /// <summary>Raio interno (0 = pizza cheia; maior que zero = rosca).</summary>
     public double HoleRatio { get; set; }
+    public OutcomePie()
+    {
+        SetResourceReference(CompletedBrushProperty, "StatusCompletedBrush");
+        SetResourceReference(MissedBrushProperty, "StatusMissedBrush");
+        SetResourceReference(CancelledBrushProperty, "StatusCancelledBrush");
+    }
     private void Describe()
     {
         var a = Metrics?.Appointments;
@@ -34,7 +47,7 @@ public sealed class OutcomePie : FrameworkElement
             var a = Metrics?.Appointments;
             if (a is null) return;
             values = [Math.Max(0, a.Completed), Math.Max(0, a.Missed), Math.Max(0, a.Cancelled)];
-            brushes = new[] { "#137A52", "#B4233E", "#C68800" }.Select(color => (Brush)new BrushConverter().ConvertFromString(color)!).ToArray();
+            brushes = [CompletedBrush ?? Brushes.SeaGreen, MissedBrush ?? Brushes.IndianRed, CancelledBrush ?? Brushes.Goldenrod];
         }
         var total = values.Sum();
         if (total == 0) return;

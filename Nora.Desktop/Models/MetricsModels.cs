@@ -18,8 +18,8 @@ public sealed record NetworkMetrics(DateTimeOffset From, DateTimeOffset To, Metr
 /// <summary>Opção de um filtro: valor enviado à API (vazio = sem filtro) e rótulo mostrado.</summary>
 public sealed record FilterOption(string Value, string Label);
 
-/// <summary>Cartão de indicador: título, valor já formatado e uma linha de contexto.</summary>
-public sealed record MetricCard(string Title, string Value, string Hint)
+/// <summary>Cartão de indicador: título, valor já formatado, uma linha de contexto e o tom de cor (sem tom, Neutro: o visual de sempre).</summary>
+public sealed record MetricCard(string Title, string Value, string Hint, Tone Tone = Tone.Neutral)
 {
     [JsonIgnore] public string AutomationLabel => $"{Title}: {Value}. {Hint}";
 }

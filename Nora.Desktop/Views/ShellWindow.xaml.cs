@@ -92,8 +92,10 @@ public partial class ShellWindow : Window, IDialogHost
         menu.Placement = PlacementMode.Top;
         menu.IsOpen = true;
     }
-    /// <summary>Abre a ficha do item. A da Vaga Relâmpago espera a leitura das ofertas, por isso o método é assíncrono (chamado só por eventos da tela).</summary>
-    public async void OpenItemDetails(object item)
+    /// <summary>Abre a ficha do item (chamado só por eventos da tela). A fila de fichas da listagem usa <see cref="OpenItemDetailsAsync"/>, que espera a ficha fechar.</summary>
+    public async void OpenItemDetails(object item) => await OpenItemDetailsAsync(item);
+    /// <summary>Abre a ficha do item e só termina quando ela fecha. A da Vaga Relâmpago espera a leitura das ofertas.</summary>
+    public async Task OpenItemDetailsAsync(object item)
     {
         var details = item is UnitLightningSlot ? await ViewModel.Workspace.BuildDetailsAsync(item) : ViewModel.Workspace.BuildDetails(item);
         if (details == null) return;

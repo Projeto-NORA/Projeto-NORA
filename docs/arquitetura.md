@@ -10,9 +10,9 @@ Estado em 2026-11-16: os três clientes usam só o fluxo por UBS (o legado globa
 
 `Nora.Desktop` concentra as responsabilidades comuns:
 
-- `Models`: preferências, perfis e descritores de navegação/cards/linhas.
+- `Models`: preferências, perfis e descritores de navegação/cards/linhas; `Tone`, o tom de cor dos cartões (`MetricCard`) e das etiquetas.
 - `ViewModels`: estado e comandos do shell; navegação, seleção e configuração.
-- `Views`: shell (com barra de título própria, cabeçalho em `HeaderRow` e barra lateral recolhível), Home e Configurações; `PageFilterGroup` e `PageActions`, que levam os filtros e as ações de cada tela para o cabeçalho; integração visual de teclado, animação e confirmação de fechamento.
+- `Views`: shell (com barra de título própria, cabeçalho em `HeaderRow` e barra lateral recolhível), Home e Configurações; `PageFilterGroup` e `PageActions`, que levam os filtros e as ações de cada tela para o cabeçalho; integração visual de teclado, animação e confirmação de fechamento. Os componentes de listagem também moram aqui: `ListingBehavior` (liga a lista `OpenList` ao `SelectionBalloon`), `StatusTag`, `ListAction` e `PageLayout.Fill` (a tela que ocupa a altura inteira; `ShellWindow.Layout.cs`).
 - `Services`: persistência JSON, temas do Windows, tela cheia e medidas do monitor.
 - `Generics`: notificação de propriedades e comando reutilizável.
 - `Themes`: paletas Clara/Escura e templates compartilhados de controles.
@@ -21,7 +21,7 @@ A API usa PostgreSQL 18 via Npgsql10.0.3. Models define contratos; Services vali
 
 `Nora.Desktop/Services/NoraApiClient.cs` encapsula HTTP e guarda token somente em memória. `WorkspaceViewModel` publica dados após recarga completa, controla busy/erros e limpa dados ao sair ou receber401; WorkspaceView contém login, cadastro, pacientes/fila/vagas e Municipal agregado. O endpoint pode vir de NORA_API_URL ou da tela; senhas não são preferências.
 
-`WorkspaceViewModel.Listings.cs` concentra seleção contextual, filtro de cadastro, mutação de acesso e composição de fichas `ItemDetails`/`DetailField`. `ItemDetailsViewModel` controla cópia explícita e feedback através de `IClipboardService`; a implementação Windows usa o clipboard do sistema. Views identificam linha/duplo clique e apresentam ficha modal; Themes mantém o template de item e a barra flutuante. Presença da Fila usa o paciente recebido na mesma recarga, sem consultas por linha. A listagem operacional de pacientes não é enviada ao Municipal; a consulta nominal de referência por UBS possui rota própria para a gestão.
+`WorkspaceViewModel.Listings.cs` concentra seleção contextual, filtro de cadastro, mutação de acesso e composição de fichas `ItemDetails`/`DetailField`. `ItemDetailsViewModel` controla cópia explícita e feedback através de `IClipboardService`; a implementação Windows usa o clipboard do sistema. A listagem aberta (estilo `OpenList`, com o `SelectionBalloon` e o `ListingBehavior`) identifica a linha, o segundo clique e o Enter e apresenta a ficha modal em fila (`ShellWindow.OpenItemDetailsAsync`); Themes mantém o template de item, o balão de ações e os botões de ação. Presença da Fila usa o paciente recebido na mesma recarga, sem consultas por linha. A listagem operacional de pacientes não é enviada ao Municipal; a consulta nominal de referência por UBS possui rota própria para a gestão.
 
 A migração 004 adiciona estado de conta. `WorkflowDao` aplica desativação e avanço FIFO em uma transação sob advisory lock; `SessionDao` revalida acesso antes de criar sessão, e operações do paciente revalidam sessão sob o lock da fila. Reativação não recupera sessões nem entradas canceladas. Os contratos acrescentam estado/data ao paciente; telefone e presença anteriores continuam compatíveis.
 

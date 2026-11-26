@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
     <AssemblyMetadata Include="NoraServiceUrl" Value="https://nora-api-kw8x.onrender.com" />
+    <!-- As checagens de interface trocam o intervalo do duplo clique da listagem (ListingBehavior.DoubleClickInterval). -->
+    <InternalsVisibleTo Include="Nora.Desktop.Checks" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\nora_n_navy.png" />

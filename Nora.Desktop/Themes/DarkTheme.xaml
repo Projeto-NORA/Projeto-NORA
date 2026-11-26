@@ -12,7 +12,8 @@
   <SolidColorBrush x:Key="TextBrush" Color="#F4F8FC" />
   <SolidColorBrush x:Key="BrandSoftBrush" Color="#123A5D" />
   <SolidColorBrush x:Key="SecondaryBrush" Color="#D1E0F0" />
-  <SolidColorBrush x:Key="ButtonHoverBrush" Color="#20E1F0FF" />
+  <!-- Hover de todo botão (e de itens de menu): azul bebê. -->
+  <SolidColorBrush x:Key="ButtonHoverBrush" Color="#2A5F94" />
   <SolidColorBrush x:Key="ErrorBrush" Color="#FDA4B3" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#0C2744" />
   <SolidColorBrush x:Key="SurfaceAltBrush" Color="#102F50" />
@@ -31,7 +32,7 @@
   <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#163C33" />
   <SolidColorBrush x:Key="ErrorSurfaceBrush" Color="#4A1E2A" />
   <SolidColorBrush x:Key="InfoSurfaceBrush" Color="#133A5E" />
-  <SolidColorBrush x:Key="HoverBrush" Color="#123352" />
+  <SolidColorBrush x:Key="HoverBrush" Color="#1A456F" />
   <!-- Barra de título própria: mesma superfície da barra lateral (cor do topo do degradê), para as duas lerem como uma peça só. -->
   <SolidColorBrush x:Key="TitleBarBrush" Color="#0C2947" />
   <SolidColorBrush x:Key="TitleBarCloseHoverBrush" Color="#E3262E" />
@@ -42,4 +43,44 @@
   <SolidColorBrush x:Key="ChartBrush4" Color="#F28699" />
   <SolidColorBrush x:Key="ChartBrush5" Color="#A895F2" />
   <SolidColorBrush x:Key="ChartBrush6" Color="#62CDE3" />
+  <!-- ===== Listagens abertas, balão de ações, botões de ação, tons e situações (26/11/2026) ===== -->
+  <!-- Item da listagem solta: fundo, faixa alternada, passar o cursor, selecionado (borda de destaque) e foco de teclado. -->
+  <SolidColorBrush x:Key="ListItemBrush" Color="#0C2744" />
+  <SolidColorBrush x:Key="ListItemAlternateBrush" Color="#0E2B4A" />
+  <SolidColorBrush x:Key="ListItemHoverBrush" Color="#143C60" />
+  <SolidColorBrush x:Key="ListItemSelectedBrush" Color="#1A4A78" />
+  <SolidColorBrush x:Key="ListItemSelectedBorderBrush" Color="#6CB6F2" />
+  <SolidColorBrush x:Key="ListItemFocusBrush" Color="#6E9BD4" />
+  <!-- Balão de ações: um degrau azul acima da lista, para nunca se confundir com as linhas. -->
+  <SolidColorBrush x:Key="SelectionBalloonBrush" Color="#2A3A52" />
+  <SolidColorBrush x:Key="SelectionBalloonBorderBrush" Color="#3F5A7D" />
+  <!-- Botões de ação do balão: neutro, editar e perigo (lixeira branca em fundo vermelho), cada um com o seu hover. -->
+  <SolidColorBrush x:Key="ListActionBrush" Color="#0C2744" />
+  <SolidColorBrush x:Key="ListActionBorderBrush" Color="#4F6F91" />
+  <SolidColorBrush x:Key="ListActionHoverBrush" Color="#2A5F94" />
+  <SolidColorBrush x:Key="ListActionEditBrush" Color="#2272B8" />
+  <SolidColorBrush x:Key="ListActionEditHoverBrush" Color="#2778C2" />
+  <SolidColorBrush x:Key="ListActionDangerBrush" Color="#A83A3A" />
+  <SolidColorBrush x:Key="ListActionDangerHoverBrush" Color="#BF4545" />
+  <!-- Tons dos cartões e das etiquetas de situação: fundo suave + cor do texto (contraste de pelo menos 4,5:1 entre os dois). -->
+  <SolidColorBrush x:Key="ToneBlueSurfaceBrush" Color="#133A5E" />
+  <SolidColorBrush x:Key="ToneBlueTextBrush" Color="#8EC5FF" />
+  <SolidColorBrush x:Key="ToneGreenSurfaceBrush" Color="#163C33" />
+  <SolidColorBrush x:Key="ToneGreenTextBrush" Color="#7DDBAC" />
+  <SolidColorBrush x:Key="ToneYellowSurfaceBrush" Color="#493B1C" />
+  <SolidColorBrush x:Key="ToneYellowTextBrush" Color="#F5CE6A" />
+  <SolidColorBrush x:Key="TonePinkSurfaceBrush" Color="#4A1E2A" />
+  <SolidColorBrush x:Key="TonePinkTextBrush" Color="#FDA4B3" />
+  <SolidColorBrush x:Key="ToneVioletSurfaceBrush" Color="#33275C" />
+  <SolidColorBrush x:Key="ToneVioletTextBrush" Color="#C4B3FF" />
+  <SolidColorBrush x:Key="ToneTealSurfaceBrush" Color="#12414A" />
+  <SolidColorBrush x:Key="ToneTealTextBrush" Color="#7ADCEB" />
+  <SolidColorBrush x:Key="ToneNeutralSurfaceBrush" Color="#153453" />
+  <SolidColorBrush x:Key="ToneNeutralTextBrush" Color="#D1E0F0" />
+  <!-- Situação da consulta em cor viva (bolinha do calendário, legenda e gráficos). A etiqueta e o fundo usam os tons: Agendada azul, Chamada violeta, Concluída verde, Falta rosa, Cancelada amarelo. -->
+  <SolidColorBrush x:Key="StatusScheduledBrush" Color="#5EA8F5" />
+  <SolidColorBrush x:Key="StatusCalledBrush" Color="#A895F2" />
+  <SolidColorBrush x:Key="StatusCompletedBrush" Color="#4FD1A5" />
+  <SolidColorBrush x:Key="StatusMissedBrush" Color="#F2708A" />
+  <SolidColorBrush x:Key="StatusCancelledBrush" Color="#F7C948" />
 </ResourceDictionary>

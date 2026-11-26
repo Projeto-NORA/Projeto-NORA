@@ -183,18 +183,19 @@
         </Border>
       </StackPanel>
       <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="32,32,32,16"><Grid x:Name="PageContainer" views:SubPage.Current="{Binding SubPage}">
+        <!-- Grade de duas linhas (a tela e a marca d'água): a linha da tela é Auto (a tela vale o que o conteúdo pede e a página rola, como sempre); as telas com PageLayout.Fill passam a linha para * e desligam a rolagem (ShellWindow.Layout.cs). -->
+        <Grid Margin="32,32,32,16"><Grid.RowDefinitions><RowDefinition x:Name="PageRow" Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions><Grid x:Name="PageContainer" views:SubPage.Current="{Binding SubPage}">
           <Grid.RenderTransform><TranslateTransform x:Name="PageSlide" /></Grid.RenderTransform>
           <views:HomeView Visibility="{Binding IsHome, Converter={StaticResource BoolVisibility}}" />
           <views:SettingsView Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}" />
           <views:PasswordChangeRequiredView DataContext="{Binding Workspace}" Visibility="{Binding MustChangePassword, Converter={StaticResource BoolVisibility}}" />
         </Grid>
         <!-- Marca d'água discreta dos desenvolvedores, no estilo dos rodapés de softwares conhecidos. -->
-        <StackPanel x:Name="Watermark" Style="{StaticResource Watermark}">
+        <StackPanel x:Name="Watermark" Grid.Row="1" Style="{StaticResource Watermark}">
           <Image Source="{DynamicResource BrandMarkImage}" Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
           <TextBlock Text="Elaborado por: Luana Pinheiro (luana.pinheiro.cruz@gmail.com) e Mateus Todeschini (mateustodeschini123@gmail.com)" FontSize="10.5" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
-        </StackPanel>
+        </Grid>
       </ScrollViewer>
       <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Visibility="{Binding ShowCompactAccess, Converter={StaticResource BoolVisibility}}">
         <Grid MinHeight="{Binding ViewportHeight, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">

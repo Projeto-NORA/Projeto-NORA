@@ -44,13 +44,9 @@
         <ControlTemplate TargetType="Button">
           <Grid x:Name="ButtonChrome">
             <Border x:Name="Frame" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" />
-            <Border x:Name="Hover" CornerRadius="9" Background="{DynamicResource ButtonHoverBrush}" Visibility="Collapsed" IsHitTestVisible="False" />
             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True" />
           </Grid>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="Hover" Property="Visibility" Value="Visible" />
-            </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.75" />
             </Trigger>
@@ -60,13 +56,19 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.5" />
-              <Setter TargetName="Hover" Property="Visibility" Value="Collapsed" />
               <Setter Property="Cursor" Value="Arrow" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+    <Style.Triggers>
+      <!-- Hover azul bebê (ButtonHoverBrush) em todo botão padrão. Fica no estilo, e não no modelo, para os estilos derivados que têm fundo próprio (primário, dia selecionado da agenda) vencerem: os gatilhos deles vêm depois. -->
+      <MultiTrigger>
+        <MultiTrigger.Conditions><Condition Property="IsMouseOver" Value="True" /><Condition Property="IsEnabled" Value="True" /></MultiTrigger.Conditions>
+        <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      </MultiTrigger>
+    </Style.Triggers>
   </Style>
   <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
     <Setter Property="Background" Value="{DynamicResource BrandGradientBrush}" />
@@ -112,7 +114,7 @@
       </Border>
       <ControlTemplate.Triggers>
         <EventTrigger RoutedEvent="Button.Click"><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="Rotation" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:0.55" /></Storyboard></BeginStoryboard></EventTrigger>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ButtonHoverBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Frame" Property="BorderThickness" Value="2" /></Trigger>
         <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /></Trigger>
       </ControlTemplate.Triggers>
@@ -126,9 +128,9 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-      <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter /></Border>
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="6"><ContentPresenter /></Border>
       <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource BrandBrush}" /><Setter Property="TextBlock.TextDecorations" Value="Underline" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" /><Setter Property="TextBlock.TextDecorations" Value="Underline" /></Trigger>
         <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="TextBlock.TextDecorations" Value="Underline" /></Trigger>
         <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
       </ControlTemplate.Triggers>
@@ -402,11 +404,6 @@
     <Setter Property="Padding" Value="12,8" />
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridCell"><Border Padding="{TemplateBinding Padding}" Background="Transparent"><ContentPresenter VerticalAlignment="Center" /></Border></ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style x:Key="FloatingActions" TargetType="Border">
-    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="14,8" /><Setter Property="Margin" Value="24,0,24,16" /><Setter Property="MaxWidth" Value="860" /><Setter Property="VerticalAlignment" Value="Bottom" />
-    <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="16" ShadowDepth="3" Opacity="0.16" /></Setter.Value></Setter>
-  </Style>
   <!-- Mensagem junto ao campo: a cor reforça, mas o texto sempre diz o que corrigir. -->
   <Style x:Key="FieldError" TargetType="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
@@ -421,17 +418,30 @@
     <Setter Property="TextWrapping" Value="Wrap" />
     <Setter Property="Margin" Value="0,-6,0,12" />
   </Style>
+  <!-- Cartão de indicador. O Tone (Azul, Verde, Amarelo, Rosa, Violeta, Turquesa, Neutro) tinge o fundo de leve e colore a faixa, o valor e o ícone; sem tom definido é Neutro e fica como sempre foi. -->
   <DataTemplate x:Key="MetricCardTemplate">
-    <Border Style="{StaticResource Card}" Margin="8" Padding="20" AutomationProperties.Name="{Binding AutomationLabel}" ToolTip="{Binding Hint}">
+    <Border x:Name="CardFrame" Style="{StaticResource Card}" Margin="8" Padding="20" AutomationProperties.Name="{Binding AutomationLabel}" ToolTip="{Binding Hint}">
       <Grid>
-        <StackPanel Margin="0,0,24,0">
-          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource SecondaryBrush}" />
-          <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,8,0,4" />
-          <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="11" LineHeight="16" />
-        </StackPanel>
-        <Button Style="{DynamicResource ChartButton}" Command="{x:Static views:ChartCommands.Show}" CommandParameter="{Binding}" />
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <Border x:Name="ToneStripe" Width="4" CornerRadius="2" Margin="0,2,14,2" Visibility="Collapsed" />
+        <Grid Grid.Column="1">
+          <StackPanel Margin="0,0,24,0">
+            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource SecondaryBrush}" />
+            <TextBlock x:Name="ValueText" Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,8,0,4" />
+            <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" FontSize="11" LineHeight="16" />
+          </StackPanel>
+          <Button x:Name="ChartToggle" Style="{DynamicResource ChartButton}" Command="{x:Static views:ChartCommands.Show}" CommandParameter="{Binding}" />
+        </Grid>
       </Grid>
     </Border>
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding Tone}" Value="Blue"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource ToneBlueTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource ToneBlueTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource ToneBlueTextBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Green"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource ToneGreenSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource ToneGreenTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource ToneGreenTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource ToneGreenTextBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Yellow"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource ToneYellowSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource ToneYellowTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource ToneYellowTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource ToneYellowTextBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Pink"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource TonePinkSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource TonePinkTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource TonePinkTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource TonePinkTextBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Violet"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource ToneVioletSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource ToneVioletTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource ToneVioletTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource ToneVioletTextBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding Tone}" Value="Teal"><Setter TargetName="CardFrame" Property="Background" Value="{DynamicResource ToneTealSurfaceBrush}" /><Setter TargetName="ToneStripe" Property="Background" Value="{DynamicResource ToneTealTextBrush}" /><Setter TargetName="ToneStripe" Property="Visibility" Value="Visible" /><Setter TargetName="ValueText" Property="Foreground" Value="{DynamicResource ToneTealTextBrush}" /><Setter TargetName="ChartToggle" Property="Foreground" Value="{DynamicResource ToneTealTextBrush}" /></DataTrigger>
+    </DataTemplate.Triggers>
   </DataTemplate>
   <!-- Situação de uma meta: ícone + palavra + detalhe (valor e meta). O estado nunca depende só da cor. -->
   <DataTemplate x:Key="GoalCellTemplate">
@@ -568,7 +578,7 @@
     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
       <Border x:Name="Ring" CornerRadius="40" BorderThickness="2" BorderBrush="Transparent" Padding="1"><ContentPresenter /></Border>
       <ControlTemplate.Triggers>
-        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Ring" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
@@ -594,7 +604,7 @@
         </StackPanel>
       </Border>
       <ControlTemplate.Triggers>
-        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource BrandSoftBrush}" /></Trigger>
+        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
         <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.45" /></Trigger>
       </ControlTemplate.Triggers>
     </ControlTemplate></Setter.Value></Setter>
@@ -689,5 +699,252 @@
     <Setter Property="Opacity" Value="0.4" />
     <Setter Property="TextElement.Foreground" Value="{DynamicResource SecondaryBrush}" />
     <Setter Property="AutomationProperties.Name" Value="Identificação dos desenvolvedores" />
+  </Style>
+  <!-- ===== Listagens abertas, balão de ações e componentes de lista (26/11/2026) ===== -->
+  <!-- Ícones desenhados (grade 18x18, traço 1,5, pontas redondas): a mesma geometria do software de referência. -->
+  <Geometry x:Key="IconTrashGeometry">M 3.2,4.6 L 14.8,4.6 M 7,4.6 L 7,3 L 11,3 L 11,4.6 M 4.8,4.6 L 5.6,15.2 L 12.4,15.2 L 13.2,4.6 M 7.6,7.4 L 7.8,12.6 M 10.4,7.4 L 10.2,12.6</Geometry>
+  <Geometry x:Key="IconEditGeometry">M 3.1,14.9 L 3.9,11.5 L 11.6,3.8 L 14.2,6.4 L 6.5,14.1 Z M 12.5,2.9 L 13.6,1.8 C 14,1.4 14.6,1.4 15,1.8 L 16.2,3 C 16.6,3.4 16.6,4 16.2,4.4 L 15.1,5.5 Z</Geometry>
+  <Geometry x:Key="IconRestoreGeometry">M 9,2.8 L 9,10.2 M 5.8,6 L 9,2.8 L 12.2,6 M 3.6,11.4 L 3.6,15.2 L 14.4,15.2 L 14.4,11.4</Geometry>
+  <Geometry x:Key="IconEyeGeometry">M 1.8,9 C 4,5.4 6.4,3.8 9,3.8 C 11.6,3.8 14,5.4 16.2,9 C 14,12.6 11.6,14.2 9,14.2 C 6.4,14.2 4,12.6 1.8,9 Z M 6.9,9 A 2.1,2.1 0 1 1 11.1,9 A 2.1,2.1 0 1 1 6.9,9 Z</Geometry>
+  <Geometry x:Key="IconCheckGeometry">M 3.2,9.6 L 7.1,13.5 L 14.8,5</Geometry>
+  <Geometry x:Key="IconCheckAllGeometry">M 1.6,9.8 L 4.8,13 L 10.8,6.2 M 7.6,12.7 L 9.3,14.4 L 16.4,6.2</Geometry>
+  <Geometry x:Key="IconCloseGeometry">M 4.4,4.4 L 13.6,13.6 M 13.6,4.4 L 4.4,13.6</Geometry>
+  <Geometry x:Key="IconMailGeometry">M 2.6,4.6 L 15.4,4.6 L 15.4,13.4 L 2.6,13.4 Z M 2.6,5 L 9,9.8 L 15.4,5</Geometry>
+  <Geometry x:Key="IconPhoneGeometry">M 4.4,3.4 C 5.6,3.4 5.6,3.4 6.2,5 C 6.6,6 6,6.4 5.6,6.8 C 6.4,9 8.6,11.2 11,12 C 11.4,11.6 11.8,11 12.8,11.4 C 14.4,12 14.4,12 14.4,13.2 C 14.4,14.4 13.4,14.8 12.4,14.6 C 8,13.8 4,9.8 3.2,5.4 C 3,4.4 3.4,3.4 4.4,3.4 Z</Geometry>
+  <Geometry x:Key="IconBellGeometry">M 9,2.6 C 6.4,2.6 4.9,4.4 4.9,7 C 4.9,10.4 3.7,11.5 3.7,12.3 L 14.3,12.3 C 14.3,11.5 13.1,10.4 13.1,7 C 13.1,4.4 11.6,2.6 9,2.6 Z M 7.4,12.3 C 7.4,13.8 8.1,14.8 9,14.8 C 9.9,14.8 10.6,13.8 10.6,12.3</Geometry>
+  <Geometry x:Key="IconWarningGeometry">M 9,2.6 L 16.6,15.6 L 1.4,15.6 Z M 9,7 L 9,11 M 9,13.2 L 9,13.3</Geometry>
+  <Geometry x:Key="IconPlusGeometry">M 9,3.2 L 9,14.8 M 3.2,9 L 14.8,9</Geometry>
+  <!-- As duas linhas do item da listagem: o título em destaque e a linha de dados (montada no ViewModel, só com o que foi informado). -->
+  <Style x:Key="ItemTitleText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style x:Key="ItemMetaText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+    <Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <!-- Item da listagem aberta: cartão arredondado solto na tela (canto 8, 12,8, espaço de 4). A moldura de seleção é uma segunda borda por cima, para a seleção (1,6 px) não empurrar o conteúdo. -->
+  <Style x:Key="OpenListItem" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+      <Grid>
+        <Border x:Name="Frame" Background="{DynamicResource ListItemBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+          <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Border>
+        <Border x:Name="Ring" CornerRadius="8" BorderThickness="1.6" BorderBrush="Transparent" IsHitTestVisible="False" />
+      </Grid>
+      <ControlTemplate.Triggers>
+        <Trigger Property="ItemsControl.AlternationIndex" Value="1"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListItemAlternateBrush}" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListItemHoverBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource ListItemFocusBrush}" /><Setter TargetName="Ring" Property="BorderThickness" Value="1.4" /></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListItemSelectedBrush}" /><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource ListItemSelectedBorderBrush}" /><Setter TargetName="Ring" Property="BorderThickness" Value="1.6" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Variante baixa, para listas com muitos itens (11,6 e espaço de 3). -->
+  <Style x:Key="OpenListItemLow" TargetType="ListBoxItem" BasedOn="{StaticResource OpenListItem}">
+    <Setter Property="Padding" Value="11,6" /><Setter Property="Margin" Value="0,0,0,3" />
+  </Style>
+  <!-- Listagem aberta: sem borda nem fundo, seleção do Windows Explorer (SelectionMode Extended: clique, setas, Ctrl, Shift), rolagem por pixel e virtualização ligada. A seleção NÃO é reimplementada: o balão e o segundo clique vêm do ListingBehavior. -->
+  <Style x:Key="OpenList" TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="SelectionMode" Value="Extended" />
+    <Setter Property="AlternationCount" Value="2" />
+    <Setter Property="IsSynchronizedWithCurrentItem" Value="False" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+    <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+    <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource OpenListItem}" />
+  </Style>
+  <Style x:Key="OpenListLow" TargetType="ListBox" BasedOn="{StaticResource OpenList}">
+    <Setter Property="ItemContainerStyle" Value="{StaticResource OpenListItemLow}" />
+  </Style>
+  <!-- Botões de ação do balão: 38 px de altura, canto 6, ícone desenhado (ListAction.Icon) e rótulo curto ao lado (o Content). Sem rótulo, o botão é só o ícone. -->
+  <Style x:Key="ListActionButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ListActionBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ListActionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1.4" />
+    <Setter Property="Height" Value="38" /><Setter Property="MinWidth" Value="38" />
+    <Setter Property="Padding" Value="10,0,12,0" />
+    <Setter Property="Margin" Value="4,0" />
+    <Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}">
+          <Path x:Name="Glyph" Data="{Binding (views:ListAction.Icon), RelativeSource={RelativeSource TemplatedParent}}" Width="18" Height="18" Stretch="None" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <ContentPresenter x:Name="Label" Margin="7,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True" />
+        </StackPanel>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="views:ListAction.Icon" Value="{x:Null}"><Setter TargetName="Glyph" Property="Visibility" Value="Collapsed" /><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="HasContent" Value="False"><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListActionHoverBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.8" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /><Setter Property="Cursor" Value="Arrow" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="ListActionEditButton" TargetType="Button" BasedOn="{StaticResource ListActionButton}">
+    <Setter Property="Foreground" Value="{DynamicResource BrandTextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ListActionEditBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ListActionEditBrush}" />
+    <Setter Property="views:ListAction.Icon" Value="{StaticResource IconEditGeometry}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}">
+          <Path x:Name="Glyph" Data="{Binding (views:ListAction.Icon), RelativeSource={RelativeSource TemplatedParent}}" Width="18" Height="18" Stretch="None" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <ContentPresenter x:Name="Label" Margin="7,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True" />
+        </StackPanel>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="views:ListAction.Icon" Value="{x:Null}"><Setter TargetName="Glyph" Property="Visibility" Value="Collapsed" /><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="HasContent" Value="False"><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListActionEditHoverBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource ListActionEditHoverBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandTextBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.8" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /><Setter Property="Cursor" Value="Arrow" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Perigo: lixeira BRANCA em fundo VERMELHO. É o único jeito de remover, desativar, revogar, encerrar ou cancelar a partir de uma listagem (e sempre com confirmação). -->
+  <Style x:Key="ListActionDangerButton" TargetType="Button" BasedOn="{StaticResource ListActionEditButton}">
+    <Setter Property="Background" Value="{DynamicResource ListActionDangerBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ListActionDangerBrush}" />
+    <Setter Property="views:ListAction.Icon" Value="{StaticResource IconTrashGeometry}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}">
+          <Path x:Name="Glyph" Data="{Binding (views:ListAction.Icon), RelativeSource={RelativeSource TemplatedParent}}" Width="18" Height="18" Stretch="None" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <ContentPresenter x:Name="Label" Margin="7,0,0,0" VerticalAlignment="Center" RecognizesAccessKey="True" />
+        </StackPanel>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="views:ListAction.Icon" Value="{x:Null}"><Setter TargetName="Glyph" Property="Visibility" Value="Collapsed" /><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="HasContent" Value="False"><Setter TargetName="Label" Property="Margin" Value="0" /></Trigger>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListActionDangerHoverBrush}" /><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource ListActionDangerHoverBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandTextBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.8" /></Trigger>
+        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Frame" Property="Opacity" Value="0.5" /><Setter Property="Cursor" Value="Arrow" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- O X do balão: 30x30, sem peso visual. -->
+  <Style x:Key="SelectionBalloonCloseButton" TargetType="Button">
+    <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+      <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1.4" CornerRadius="6">
+        <Path Data="{StaticResource IconCloseGeometry}" Width="18" Height="18" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ListActionHoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /></Trigger>
+        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
+        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Frame" Property="Opacity" Value="0.8" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- O balão de ações: canto 12, 18,10, a 26 da base, sombra 20/6/0,22 e fundo tingido de azul. Flutua sobre a lista (mesma célula, embaixo) e NUNCA reserva espaço nela. Esconde-se sozinho: o ListingBehavior mostra e esconde. -->
+  <Style TargetType="views:SelectionBalloon">
+    <Setter Property="Visibility" Value="Collapsed" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="Margin" Value="0,0,0,26" />
+    <Setter Property="Panel.ZIndex" Value="15" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="AutomationProperties.Name" Value="{Binding Label, RelativeSource={RelativeSource Self}}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="views:SelectionBalloon">
+      <Border x:Name="Balloon" Background="{DynamicResource SelectionBalloonBrush}" BorderBrush="{DynamicResource SelectionBalloonBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="18,10" SnapsToDevicePixels="True">
+        <Border.Effect><DropShadowEffect BlurRadius="20" ShadowDepth="6" Direction="270" Opacity="0.22" Color="Black" /></Border.Effect>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="{TemplateBinding Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" MaxWidth="320" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{TemplateBinding Label}" AutomationProperties.LiveSetting="Polite" />
+          <TextBlock x:Name="ComplementText" Text="{TemplateBinding Complement}" Margin="8,0,0,0" FontSize="12" Foreground="{DynamicResource SecondaryBrush}" VerticalAlignment="Center" MaxWidth="280" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Visibility="{Binding Complement, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource TextVisibility}}" />
+          <Border x:Name="LeadingDivider" Width="1" Margin="14,3" Background="{DynamicResource SelectionBalloonBorderBrush}" />
+          <ContentPresenter x:Name="ActionsHost" VerticalAlignment="Center" />
+          <Border x:Name="TrailingDivider" Width="1" Margin="14,3" Background="{DynamicResource SelectionBalloonBorderBrush}" />
+          <Button x:Name="PART_Close" Style="{StaticResource SelectionBalloonCloseButton}" ToolTip="Cancelar seleção (Esc)" AutomationProperties.Name="Cancelar seleção" />
+        </StackPanel>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="HasActions" Value="False"><Setter TargetName="LeadingDivider" Property="Visibility" Value="Collapsed" /><Setter TargetName="ActionsHost" Property="Visibility" Value="Collapsed" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Botão "+ Novo ..." (primário, com o mais desenhado). O Content é só o texto ("Novo profissional"). -->
+  <Style x:Key="NewItemButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+    <Setter Property="MinHeight" Value="40" /><Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="ContentTemplate">
+      <Setter.Value>
+        <DataTemplate>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Path Data="{StaticResource IconPlusGeometry}" Width="18" Height="18" Stretch="None" VerticalAlignment="Center" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            <TextBlock Text="{Binding}" Margin="8,0,0,0" VerticalAlignment="Center" TextWrapping="NoWrap" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+          </StackPanel>
+        </DataTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <!-- Aviso destacado em amarelo (ex.: "Horário ainda não informado"). O Content é o texto. -->
+  <Style x:Key="NoticeItem" TargetType="ContentControl">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContentControl">
+      <Border Background="{DynamicResource WarningSurfaceBrush}" BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Path Data="{StaticResource IconWarningGeometry}" Width="18" Height="18" Stretch="None" VerticalAlignment="Center" Margin="0,0,12,0" Stroke="{DynamicResource WarningBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+          <ContentPresenter Grid.Column="1" VerticalAlignment="Center" TextElement.FontWeight="SemiBold" />
+        </Grid>
+      </Border>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <!-- Etiqueta de situação: arredondada, no tom do tema (Tone). Sem texto, some. -->
+  <Style TargetType="views:StatusTag">
+    <Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="AutomationProperties.Name" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="views:StatusTag">
+      <Border x:Name="Frame" Background="{DynamicResource ToneNeutralSurfaceBrush}" CornerRadius="10" Padding="10,3">
+        <TextBlock x:Name="Label" Text="{TemplateBinding Text}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource ToneNeutralTextBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="Tone" Value="Blue"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneBlueSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource ToneBlueTextBrush}" /></Trigger>
+        <Trigger Property="Tone" Value="Green"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneGreenSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource ToneGreenTextBrush}" /></Trigger>
+        <Trigger Property="Tone" Value="Yellow"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneYellowSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource ToneYellowTextBrush}" /></Trigger>
+        <Trigger Property="Tone" Value="Pink"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource TonePinkSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource TonePinkTextBrush}" /></Trigger>
+        <Trigger Property="Tone" Value="Violet"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneVioletSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource ToneVioletTextBrush}" /></Trigger>
+        <Trigger Property="Tone" Value="Teal"><Setter TargetName="Frame" Property="Background" Value="{DynamicResource ToneTealSurfaceBrush}" /><Setter TargetName="Label" Property="Foreground" Value="{DynamicResource ToneTealTextBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+    <Style.Triggers>
+      <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+    </Style.Triggers>
   </Style>
 </ResourceDictionary>
