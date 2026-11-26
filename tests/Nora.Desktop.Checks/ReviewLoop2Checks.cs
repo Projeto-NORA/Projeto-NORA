@@ -32,7 +32,7 @@ internal static partial class Program
                 var vm = LoginObs(window);
                 var content = Show(window, "family", 1280, 2200);
                 Require(vm.FamilyApproved.Count == 250 && vm.FamilyApproved.Any(link => link.GuardianName == "Responsável 249"), $"Os vínculos depois do 200º deveriam aparecer ({vm.FamilyApproved.Count} na tela).");
-                Require(vm.FamilySummary == "3 pedidos aguardando · 250 vínculos aprovados" && vm.FamilyApprovedState == "" && vm.FamilyPendingState == "", "O resumo deveria contar todos os vínculos, sem aviso: " + vm.FamilySummary + " / " + vm.FamilyApprovedState);
+                Require(vm.FamilyPending.Count == 3 && vm.FamilyApprovedState == "" && vm.FamilyPendingState == "", "As duas listas deveriam trazer tudo, sem aviso: " + vm.FamilyPending.Count + " pedidos / " + vm.FamilyApprovedState);
                 var approved = fixture.FamilyLinkQueries.Where(query => query["status"] == "approved").ToArray();
                 Require(fixture.FamilyLinkQueries.Count == 3 && approved.Length == 2 && approved[0]["after"] is null && approved[1]["after"] is { Length: > 0 } && approved.All(query => query["limit"] == "200"),
                     "A segunda página deveria partir do cursor da primeira (uma chamada por página): " + string.Join(" | ", fixture.FamilyLinkQueries.Select(query => query.ToString())));
@@ -40,11 +40,11 @@ internal static partial class Program
                 fixture.FamilyPageCap = 2;
                 for (var index = 0; index < 120; index++) fixture.AddFamilyRequest(unit.Id, $"Pedido extra {index:D3}", "11144477735", "52998224725", requestedAt: start.AddHours(400 + index));
                 var before = fixture.FamilyLinkQueries.Count;
-                Pump(vm.LoadFamilyAsync()); Settle(vm); content = Layout(window, 1280, 2200);
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm); content = Layout(window, 1280, 2200);
                 Require(fixture.FamilyLinkQueries.Count == before + 100, $"Cada lista deveria parar em 50 páginas ({fixture.FamilyLinkQueries.Count - before} chamadas).");
                 Require(vm.FamilyPending.Count == 100 && vm.FamilyPendingState.Contains("mostrando os 100 mais antigos", StringComparison.Ordinal) && vm.FamilyApprovedState.Contains("mostrando os 100 mais antigos", StringComparison.Ordinal),
                     $"No teto a aba deveria avisar que a lista foi cortada: \"{vm.FamilyPendingState}\" / \"{vm.FamilyApprovedState}\".");
-                Require(vm.FamilySummary == "100 ou mais pedidos aguardando · 100 ou mais vínculos aprovados" && FullTexts(content).Contains(vm.FamilyPendingState) && FullTexts(content).Contains(vm.FamilySummary), "O resumo não pode afirmar um total exato quando a lista foi cortada: " + vm.FamilySummary);
+                Require(FullTexts(content).Contains(vm.FamilyPendingState), "O aviso de lista cortada deveria aparecer na tela: " + vm.FamilyPendingState);
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao2-familia-teto-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 2200); SaveScrolled(window, Path.Combine(previewRoot, "revisao2-familia-teto-dark.png"), 1280, 900);
             }
@@ -288,16 +288,16 @@ internal static partial class Program
                     $"Só os pedidos falharam: os vínculos lidos agora não podem aparecer como da leitura anterior (\"{vm.FamilyPendingState}\" / \"{vm.FamilyApprovedState}\").");
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao2-familia-falha-parcial-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1600); SaveScrolled(window, Path.Combine(previewRoot, "revisao2-familia-falha-parcial-dark.png"), 1280, 900);
-                Pump(vm.LoadFamilyAsync()); Settle(vm);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("pedidos", StringComparison.Ordinal) && !vm.Message.Contains("vínculos", StringComparison.Ordinal), "A mensagem deveria falar só dos pedidos: " + vm.Message);
+                // Sem botão Atualizar: a releitura é a automática; a falha dos pedidos continua falando só dos pedidos.
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                Require(vm.FamilyPendingState.Contains("Não foi possível ler os pedidos", StringComparison.Ordinal) && !vm.FamilyApprovedState.Contains("Não foi possível", StringComparison.Ordinal), "O aviso deveria falar só dos pedidos: " + vm.FamilyPendingState + " / " + vm.FamilyApprovedState);
                 // Lista aprovada vazia: a mensagem verdadeira continua.
-                fixture.FamilyLinks.Clear(); Pump(vm.LoadFamilyAsync()); Settle(vm);
+                fixture.FamilyLinks.Clear(); Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
                 Require(vm.FamilyApprovedState == "Nenhum vínculo aprovado nesta UBS.", "A falha dos pedidos não pode esconder que não há vínculo aprovado: " + vm.FamilyApprovedState);
                 // Ao contrário: só os vínculos falham.
                 fixture.FailFamilyStatuses.Clear(); fixture.FailFamilyStatuses.Add("approved"); fixture.AddFamilyRequest(unit.Id, "João Souza", "11144477735", "52998224725");
-                Pump(vm.LoadFamilyAsync()); Settle(vm);
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
                 Require(vm.FamilyPending.Count == 1 && vm.FamilyPendingState == "" && vm.FamilyApprovedState.Contains("não concluiu", StringComparison.Ordinal), $"Só os vínculos falharam (\"{vm.FamilyPendingState}\" / \"{vm.FamilyApprovedState}\").");
-                Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("vínculos", StringComparison.Ordinal) && !vm.Message.Contains("pedidos de família", StringComparison.Ordinal), "A mensagem deveria falar só dos vínculos: " + vm.Message);
             }
             finally { CloseWindow(window); }
         });

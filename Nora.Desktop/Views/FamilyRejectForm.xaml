@@ -1,0 +1,15 @@
+<UserControl x:Class="Nora.Desktop.Views.FamilyRejectForm" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:enter="clr-namespace:Nora.Desktop.Views">
+  <!-- Corpo do pop-up "Recusar pedido" (DialogService.ShowForm): o pedido, o motivo opcional com contador e o erro do campo. O DataContext é o WorkspaceViewModel, posto por quem abre. Sem card. -->
+  <views:FormGrid>
+    <StackPanel views:FormGrid.FullRow="True">
+      <TextBlock x:Name="SummaryText" Margin="0,0,0,14" />
+      <TextBlock Text="Motivo da recusa (opcional, até 280 caracteres)" FontWeight="SemiBold" />
+      <TextBox Text="{Binding FamilyRejectReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="280" TextWrapping="Wrap" AcceptsReturn="False" MinHeight="84" Padding="10" Margin="0,6,0,0" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Motivo da recusa" enter:EnterNavigation.Group="FamilyRejectForm" />
+      <Grid Margin="0,4,0,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding FamilyRejectReasonError}" Style="{StaticResource FieldError}" Margin="0" Visibility="{Binding FamilyRejectReasonError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Grid.Column="1" Text="{Binding FamilyRejectReasonCounter}" Style="{StaticResource Muted}" FontSize="12" Margin="12,0,0,0" AutomationProperties.Name="Contador do motivo" />
+      </Grid>
+    </StackPanel>
+  </views:FormGrid>
+</UserControl>

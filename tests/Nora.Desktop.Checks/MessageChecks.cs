@@ -60,8 +60,8 @@ internal static partial class Program
                 vm.SuggestClosestObsUnit(-23.5, -46.6); Observe(MessageKind.Info);
                 var content = Layout(window, 1280, 740);
                 SavePreview(content, Path.Combine(previewRoot, "obs-faixa-informacao-dark.png"));
-                fixture.UnavailableUnits.Add(unit.Id);
-                Pump(vm.LoadObsRegistryAsync()); Observe(MessageKind.Error);
+                fixture.UnavailableUnits.Add(unit.Id); vm.CandidateObsUnit = unit;
+                Pump(vm.ConfirmObsUnitAsync()); Observe(MessageKind.Error);
                 Require(icons.Distinct().Count() == 3 && labels.SequenceEqual(["Sucesso", "Informação", "Erro"]), "Os três tipos não se distinguem por ícone e texto.");
                 content = Layout(window, 1280, 740);
                 var bar = Descendants<Border>(content).Single(border => AutomationProperties.GetName(border) == "Retorno da ação");
@@ -74,9 +74,9 @@ internal static partial class Program
                 Require(dismiss.IsVisible && dismiss.Focusable && dismiss.IsTabStop && dismiss.IsEnabled, "Botão de dispensar não é acessível por teclado.");
                 InvokeButton(dismiss);
                 Require(!vm.HasMessage, "Dispensar não limpou a mensagem.");
-                Pump(vm.LoadObsRegistryAsync()); Require(vm.MessageKind == MessageKind.Error, "Falha repetida deveria mostrar erro de novo, por ação do usuário.");
+                Pump(vm.ConfirmObsUnitAsync()); Require(vm.MessageKind == MessageKind.Error, "Falha repetida deveria mostrar erro de novo, por ação do usuário.");
                 fixture.UnavailableUnits.Clear();
-                Pump(vm.LoadObsRegistryAsync()); Observe(MessageKind.Success);
+                Pump(vm.ConfirmObsUnitAsync()); Observe(MessageKind.Success);
                 Require(!vm.Message.Contains("indisponível"), "A próxima ação deveria substituir o erro anterior.");
                 window.ViewModel.Navigate("home");
                 Require(!vm.HasMessage, "Sucesso não foi apagado ao trocar de seção.");
@@ -131,7 +131,7 @@ internal static partial class Program
                 name.Text = "Digitado durante o ciclo";
                 Require(vm.ObsRegistryName == name.Text, "Cadastro não recebeu a digitação durante o ciclo.");
                 vm.ObsRegistryCpf = "11144477735"; vm.ObsRegistryEmail = "novo@example.test";
-                var save = FindActionButton(content, "Salvar cadastro da UBS");
+                var save = FindActionButton(content, "Cadastrar paciente");
                 Require(save.IsEnabled, "O botão de envio foi bloqueado pelo ciclo automático.");
                 InvokeButton(save);
                 PumpUntil(() => vm.ShowProgress);

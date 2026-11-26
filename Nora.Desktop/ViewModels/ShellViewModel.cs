@@ -126,7 +126,8 @@ public sealed partial class ShellViewModel : ObservableObject
         expanded = !preferences.RememberSidebar || preferences.SidebarExpanded;
         sidebarWidth = !preferences.RememberSidebar ? 264 : Math.Clamp(preferences.SidebarWidth, 208, 380);
         Navigation = profile.IsMunicipal ? BuildMunicipalNavigation() : BuildOperationalNavigation();
-        subPage = null;
+        // A rota salva guarda só a página: "family" volta como Família (os pedidos), como era antes de existir "Vínculos aprovados".
+        subPage = page == "family" ? FamilyRequests : null;
         activeArea = AreaFor(page) is { HasChildren: true } area ? area : null;
         if (page == "slots" && !profile.IsMunicipal) Workspace.SlotPanelScope = subPage ?? "";
         MarkSelectedNavigation();
@@ -159,6 +160,8 @@ public sealed partial class ShellViewModel : ObservableObject
 
     // ---- Navegação em dois níveis e histórico (voltar e avançar, na barra de título) ----
     private const int HistoryLimit = 50;
+    /// <summary>Subtela de Família (os pedidos pendentes); "approved" é a dos vínculos aprovados. Ambas são a página "family".</summary>
+    private const string FamilyRequests = "requests";
     private string? subPage;
     private NavigationItem? activeArea;
     private readonly List<string> history = [];
@@ -238,6 +241,8 @@ public sealed partial class ShellViewModel : ObservableObject
         // Sem subaba (atalho, página restaurada ou chamada direta), a página aparece inteira; a subaba vem do clique no menu.
         if (area is { HasChildren: true } && sub is not null && !area.Children.Any(child => child.Id == target && child.Sub == sub)) sub = null;
         if (area is not { HasChildren: true }) sub = null;
+        // O atalho "family" (sem subtela) abre Família, os pedidos: a rota antiga continua valendo e a página não empilha as duas listagens.
+        if (target == "family" && sub is null) sub = FamilyRequests;
         var previous = Route;
         var changed = previous != (sub is null ? target : $"{target}:{sub}");
         if (remember && changed)
@@ -266,7 +271,8 @@ public sealed partial class ShellViewModel : ObservableObject
         Area("patients", "\uE77B", "Pacientes", "Pacientes da UBS: listagem, cadastro e vínculos de família.",
             Leaf("patients", "\uE8FD", "Listagem", "Pesquise, filtre e abra a ficha dos pacientes (duplo clique).", "list"),
             Leaf("patients", "\uE8FA", "Cadastro", "Cadastre um paciente novo ou edite a ficha selecionada.", "register"),
-            Leaf("family", "\uE716", "Família", "Aprove ou recuse vínculos entre responsáveis e dependentes.")),
+            Leaf("family", "\uE716", "Família", "Aprove ou recuse vínculos entre responsáveis e dependentes.", FamilyRequests),
+            Leaf("family", "\uE8FB", "Vínculos aprovados", "Vínculos de família aprovados: encerre os que não valem mais.", "approved")),
         Leaf("agenda", "\uE787", "Agenda", "Calendário de consultas: agende, chame, conclua ou cancele."),
         Area("slots", "\uE945", "Vaga Relâmpago", "Painel automático das vagas: quem tem consulta mais tarde recebe a vaga sozinho.",
             Leaf("slots", "\uE916", "Em andamento", "Vagas abertas e ofertas com o prazo de resposta correndo.", "live"),

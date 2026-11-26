@@ -174,9 +174,7 @@ internal static partial class Program
             try
             {
                 var vm = LoginObs(window);
-                var content = Show(window, "patients", 1280, 1400);
-                Click(window, content, "+ Cadastrar paciente", 1280, 1400);
-                content = Layout(window, 1280, 1400);
+                var content = Show(window, "patients:register", 1280, 1400);
                 var cep = Input(content, "CEP no cadastro da UBS");
                 cep.Focus();
                 Require(cep.IsKeyboardFocusWithin, "Campo de CEP não recebeu foco.");
@@ -284,7 +282,7 @@ internal static partial class Program
                 Require(vm.MessageKind == MessageKind.Error && fixture.Count("PUT", "/registry") == 0, "Edição com contato inválido foi enviada.");
                 vm.NewObsRegistryDraft();
                 var content = Layout(window, 980, 640); window.ViewModel.Navigate("patients"); content = Layout(window, 980, 640);
-                var draft = Descendants<Border>(content).Single(card => Nora.Desktop.Views.SubPage.GetKey(card) == "register");  content = Layout(window, 980, 640);
+                var draft = Descendants<StackPanel>(content).Single(form => Nora.Desktop.Views.SubPage.GetKey(form) == "register");  content = Layout(window, 980, 640);
                 Input(content, "E-mail no cadastro da UBS").Text = "ruim"; Input(content, "Telefone no cadastro da UBS").Text = "12"; content = Layout(window, 980, 640);
                 var errors = VisibleTexts(content);
                 Require(errors.Any(text => text.StartsWith("E-mail inválido", StringComparison.Ordinal)) && errors.Any(text => text.StartsWith("Telefone inválido", StringComparison.Ordinal)), "Mensagens por campo não aparecem sob os campos.");

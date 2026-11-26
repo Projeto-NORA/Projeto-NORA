@@ -28,7 +28,7 @@ internal static partial class Program
                 {
                     window.ViewModel.SetAppearance(mode);
                     var content = Layout(window, 1280, 740);
-                    var expander = Descendants<Border>(content).Single(card => Nora.Desktop.Views.SubPage.GetKey(card) == "register"); 
+                    var expander = Descendants<StackPanel>(content).Single(form => Nora.Desktop.Views.SubPage.GetKey(form) == "register");
                     content = Layout(window, 1280, 740);
                     var label = Descendants<TextBlock>(expander).Single(text => text.Text == "Nome completo");
                     Require(((SolidColorBrush)label.Foreground).Color == ((SolidColorBrush)application.FindResource("TextBrush")).Color, $"Rótulo do cadastro não usa a cor de texto do tema {mode}.");
@@ -107,7 +107,7 @@ internal static partial class Program
                         var prohibited = new[] { "Conta conectada", "NORA OBS", "Seu espaço de cuidado", "Uma jornada organizada, com acesso seguro.", "Preferências salvas neste computador" };
                         Require(!Descendants<TextBlock>(content).Any(text => text.IsVisible && prohibited.Contains(text.Text)), "Texto solicitado para remoção permanece visível.");
                         var search = Input(content, "Pesquisar cadastro da UBS");
-                        Require(search.ActualHeight is >= 42 and <= 46, $"Pesquisa tem altura {search.ActualHeight:F0}, incompatível com filtros de 42px.");
+                        Require(search.ActualHeight is >= 36 and <= 46, $"Pesquisa tem altura {search.ActualHeight:F0}, incompatível com o campo de pesquisa de 36 px.");
                         var inputBorder = Descendants<Border>(search).FirstOrDefault(border => border.CornerRadius.TopLeft > 0);
                         Require(inputBorder is not null && inputBorder.CornerRadius.TopLeft <= 8, "Pesquisa não possui o arredondamento discreto dos inputs.");
                         var presence = Combo(content, "Filtrar presença na UBS");

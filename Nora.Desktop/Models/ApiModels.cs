@@ -75,6 +75,10 @@ public sealed record UnitPatientRecord(string Cpf, string FullName, string Email
     public string ActiveDisplay => IsActive ? "Ativo nesta UBS" : "Desativado nesta UBS";
     public string FormattedCpf => BrazilianDataValidator.FormatCpf(Cpf);
     public string PhoneDisplay => string.IsNullOrWhiteSpace(Phone) ? "Telefone não informado" : Phone;
+    /// <summary>Linha de dados do item da listagem: "CPF | e-mail | telefone", só com o que foi informado.</summary>
+    public string MetaLine => string.Join(" | ", new[] { FormattedCpf, Email, Phone }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    /// <summary>Texto da etiqueta de situação do item: só o cadastro desativado leva etiqueta.</summary>
+    public string StatusText => IsActive ? "" : "Desativado";
     public string PresenceDisplay => IsOnline ? "Online no aplicativo" : "Offline no aplicativo";
     public string CreatedAtDisplay => CreatedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Data não informada";
     /// <summary>Score em pontos e faixa ("742 · Bom"); "—" quando a API não trouxe o dado.</summary>

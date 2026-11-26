@@ -1,66 +1,87 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.ObsUnitRegistryView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:vm="clr-namespace:Nora.Desktop.ViewModels">
+<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.ObsUnitRegistryView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
   <UserControl.Resources>
-    <Style x:Key="PatientRow" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Margin" Value="2,3" />
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
-        <Border x:Name="Row" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12"><ContentPresenter /></Border>
-        <ControlTemplate.Triggers>
-          <Trigger Property="ItemsControl.AlternationIndex" Value="1"><Setter TargetName="Row" Property="Background" Value="{DynamicResource PatientAlternateBrush}" /></Trigger>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /></Trigger>
-          <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource BrandSoftBrush}" /><Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource BrandBrush}" /><Setter TargetName="Row" Property="BorderThickness" Value="2" /></Trigger>
-        </ControlTemplate.Triggers>
-      </ControlTemplate></Setter.Value></Setter>
-    </Style>
+    <!-- Campo do cadastro: o rótulo, a caixa e (quando houver) a mensagem de erro logo abaixo; a margem de baixo é a do FormGrid. -->
+    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,0" /></Style>
+    <Style x:Key="RegistryFieldError" TargetType="TextBlock" BasedOn="{StaticResource FieldError}"><Setter Property="Margin" Value="0,4,0,0" /></Style>
   </UserControl.Resources>
-  <StackPanel>
-    <!-- Sem UBS ativa (nenhuma concedida, várias a escolher): a orientação e o botão que abre o pop-up "Trocar perfil" ficam no lugar do antigo seletor. -->
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <!-- Sem UBS ativa (nenhuma concedida, várias a escolher): a orientação e o botão que abre o pop-up "Trocar perfil" ficam no alto das duas subtelas. -->
     <views:ObsUnitNoticeView />
-    <Grid Margin="0,0,0,24">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-      <StackPanel><TextBlock Text="Pacientes" Style="{StaticResource PageTitle}" /><TextBlock Text="{Binding ActiveObsUnitLabel}" Style="{StaticResource Muted}" /></StackPanel>
-      <Button Grid.Column="1" Content="+ Cadastrar paciente" Style="{StaticResource BigPrimaryButton}" Click="OnNew" IsEnabled="{Binding HasActiveObsUnit}" VerticalAlignment="Top" views:SubPage.Key="list" AutomationProperties.Name="Cadastrar paciente" ToolTip="Abre o formulário de cadastro de um paciente novo nesta UBS." />
-    </Grid>
-    <!-- Subaba Cadastro: formulário de paciente novo ou da ficha em edição. -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" views:SubPage.Key="register" IsEnabled="{Binding CanEditDraft}">
-      <StackPanel IsEnabled="{Binding HasActiveObsUnit}" MaxWidth="720" HorizontalAlignment="Left">
-        <TextBlock Text="{Binding ObsRegistryDraftTitle}" Style="{StaticResource SectionTitle}" />
-        <TextBlock Text="Nome, CPF e e-mail são obrigatórios; o resto é opcional." Style="{StaticResource Muted}" Margin="0,0,0,16" />
-        
-          <TextBlock Text="Nome completo" /><TextBox Text="{Binding ObsRegistryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="CPF" /><TextBox Text="{Binding ObsRegistryCpf, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditingObsRegistry}" AutomationProperties.Name="CPF no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="E-mail cadastrado" /><TextBox Text="{Binding ObsRegistryEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail no cadastro da UBS" Margin="0,6,0,4"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/><TextBlock Text="{Binding ObsRegistryEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail do cadastro" />
-          <TextBlock Text="Telefone (opcional)" /><TextBox Text="{Binding ObsRegistryPhone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Telefone no cadastro da UBS" Margin="0,6,0,4"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/><TextBlock Text="{Binding ObsRegistryPhoneError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do telefone do cadastro" />
-          <TextBlock Text="Endereço (opcional)" FontWeight="SemiBold" Margin="0,4,0,8" />
-          <TextBlock Text="CEP" /><TextBox Text="{Binding ObsRegistryCep, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnCepChanged" AutomationProperties.Name="CEP no cadastro da UBS" ToolTip="Ao digitar os oito dígitos, o endereço é consultado automaticamente."  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="Logradouro" /><TextBox Text="{Binding ObsRegistryStreet, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Logradouro no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="Número" /><TextBox Text="{Binding ObsRegistryNumber, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Número no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="Complemento" /><TextBox Text="{Binding ObsRegistryComplement, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Complemento no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="Bairro" /><TextBox Text="{Binding ObsRegistryNeighborhood, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bairro no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="Cidade" /><TextBox Text="{Binding ObsRegistryCity, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Cidade no cadastro da UBS"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <TextBlock Text="UF" /><TextBox Text="{Binding ObsRegistryState, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="UF no cadastro da UBS" MaxLength="2" CharacterCasing="Upper"  enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-          <Button Content="{Binding ObsRegistrySaveLabel}" Click="OnCreate" Style="{StaticResource ObsPrimaryButton}" HorizontalAlignment="Left" ToolTip="Grava o novo cadastro." enter:EnterNavigation.Group="ObsUnitRegistryView.patient"/>
-      </StackPanel>
-    </Border>
-    <!-- Subaba Listagem: busca, filtros, lista em ordem alfabética e ações da ficha selecionada. -->
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" views:SubPage.Key="list" IsEnabled="{Binding CanEditDraft}">
+    <!-- Subtela Cadastro: sem título da tela e sem card; o formulário (referência do paciente na UBS e endereço opcional) em grade, com o botão primário embaixo à direita. -->
+    <StackPanel Grid.Row="1" views:SubPage.Key="register" IsEnabled="{Binding CanEditDraft}">
       <StackPanel IsEnabled="{Binding HasActiveObsUnit}">
-        <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefresh" AutomationProperties.Name="Atualizar cadastros da UBS" ToolTip="Relê os cadastros desta UBS." /><TextBlock Text="Listagem" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0" /></DockPanel>
-        <views:PageFilterGroup Label="Pacientes" FilterKey="patients">
+        <TextBlock Text="{Binding ObsRegistryDraftTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
+        <views:FormGrid>
+          <StackPanel><TextBlock Text="Nome completo" /><TextBox Text="{Binding ObsRegistryName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nome no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="CPF" /><TextBox Text="{Binding ObsRegistryCpf, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditingObsRegistry}" AutomationProperties.Name="CPF no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
           <StackPanel>
-            <TextBlock Text="Pesquisar por nome, CPF, e-mail ou telefone" /><Grid><TextBox Text="{Binding ObsRegistrySearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar cadastro da UBS" MinHeight="42" Padding="36,10,10,10"  enter:EnterNavigation.Group="ObsUnitRegistryView.filters"/><TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource SecondaryBrush}" IsHitTestVisible="False" VerticalAlignment="Center" Margin="12,0,0,0" /></Grid>
-            <WrapPanel><StackPanel Margin="0,0,12,0"><TextBlock Text="Situação na UBS" /><ComboBox SelectedValue="{Binding ObsRegistryStatusFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar situação na UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Ativos" /><ComboBoxItem Content="Desativados" /></ComboBox></StackPanel><StackPanel Margin="0,0,12,0"><TextBlock Text="Presença no aplicativo" /><ComboBox SelectedValue="{Binding ObsRegistryPresenceFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar presença na UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Online" /><ComboBoxItem Content="Offline" /></ComboBox></StackPanel><StackPanel><TextBlock Text="Ordenar por" /><ComboBox SelectedValue="{Binding ObsRegistrySort}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Ordenar cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Mais recentes" /><ComboBoxItem Content="Nome A–Z" /><ComboBoxItem Content="Nome Z–A" /><ComboBoxItem Content="Maior score" /><ComboBoxItem Content="Menor score" /></ComboBox></StackPanel></WrapPanel>
+            <TextBlock Text="E-mail cadastrado" /><TextBox Text="{Binding ObsRegistryEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" />
+            <TextBlock Text="{Binding ObsRegistryEmailError}" Style="{StaticResource RegistryFieldError}" Visibility="{Binding ObsRegistryEmailError, Converter={StaticResource TextVisibility}}" AutomationProperties.Name="Erro do e-mail do cadastro" />
           </StackPanel>
-        </views:PageFilterGroup>
-        <ListBox ItemsSource="{Binding FilteredObsRegistry}" SelectedItem="{Binding SelectedObsRegistry}" AlternationCount="2" ItemContainerStyle="{StaticResource PatientRow}" MaxHeight="380" MinHeight="60" AutomationProperties.Name="Cadastros de referência da UBS" MouseDoubleClick="OnPatientDoubleClick" PreviewKeyDown="OnPatientKeyDown">
-          <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="6"><TextBlock Text="{Binding FullName}" FontWeight="SemiBold" /><TextBlock Text="{Binding FormattedCpf, StringFormat='CPF: {0}'}" /><TextBlock Text="{Binding Email}" /><TextBlock Text="{Binding PhoneDisplay}" /><TextBlock Text="{Binding ActiveDisplay}" /><TextBlock Text="{Binding PresenceDisplay}" /><TextBlock Text="{Binding ScoreDisplay, StringFormat='Score (12 meses): {0}'}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.Name="Score do paciente nos últimos 12 meses" ToolTip="{x:Static vm:WorkspaceViewModel.ScorePriorityText}" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
-        </ListBox>
-        <WrapPanel Margin="0,16,0,0"><Button Content="Ver ficha" Style="{StaticResource ObsPrimaryButton}" Click="OnDetails" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Abre a ficha completa, com exames e vacinas." ToolTipService.ShowOnDisabled="True" /><Button Content="Editar ficha" Click="OnEdit" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Abre a ficha selecionada na subaba Cadastro." ToolTipService.ShowOnDisabled="True" /><Button Content="{Binding ObsRegistryActiveAction}" Click="OnSetActive" IsEnabled="{Binding HasSelectedObsRegistry}" Margin="0,0,8,8" ToolTip="Ativa ou desativa o paciente nesta UBS. Desativar cancela as consultas futuras." ToolTipService.ShowOnDisabled="True" /></WrapPanel>
-        <Expander Header="Corrigir somente o e-mail" Style="{StaticResource ObsExpander}" Margin="0,16,0,0" ToolTip="Atualiza só o e-mail do paciente selecionado, sem mexer no resto da ficha."><StackPanel>
-          <TextBlock Text="Selecione o paciente acima e informe o endereço atualizado." TextWrapping="Wrap" Margin="0,12,0,4" />
-          <TextBox Text="{Binding CorrectedObsEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail corrigido da UBS" Margin="0,6,0,4"  enter:EnterNavigation.Group="ObsUnitRegistryView.email"/><TextBlock Text="{Binding CorrectedObsEmailError}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap" Margin="0,0,0,12" AutomationProperties.Name="Erro do e-mail corrigido" />
-          <Button Content="Corrigir e-mail" Click="OnUpdateEmail" HorizontalAlignment="Left" ToolTip="Corrige o e-mail do paciente selecionado." enter:EnterNavigation.Group="ObsUnitRegistryView.email"/>
-        </StackPanel></Expander>
+          <StackPanel>
+            <TextBlock Text="Telefone (opcional)" /><TextBox Text="{Binding ObsRegistryPhone, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Telefone no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" />
+            <TextBlock Text="{Binding ObsRegistryPhoneError}" Style="{StaticResource RegistryFieldError}" Visibility="{Binding ObsRegistryPhoneError, Converter={StaticResource TextVisibility}}" AutomationProperties.Name="Erro do telefone do cadastro" />
+          </StackPanel>
+        </views:FormGrid>
+        <TextBlock Text="Endereço (opcional)" Style="{StaticResource SectionTitle}" Margin="0,24,0,12" />
+        <views:FormGrid>
+          <StackPanel><TextBlock Text="CEP" /><TextBox Text="{Binding ObsRegistryCep, UpdateSourceTrigger=PropertyChanged}" TextChanged="OnCepChanged" AutomationProperties.Name="CEP no cadastro da UBS" ToolTip="Ao digitar os oito dígitos, o endereço é consultado automaticamente." enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="Logradouro" /><TextBox Text="{Binding ObsRegistryStreet, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Logradouro no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="Número" /><TextBox Text="{Binding ObsRegistryNumber, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Número no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="Complemento" /><TextBox Text="{Binding ObsRegistryComplement, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Complemento no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="Bairro" /><TextBox Text="{Binding ObsRegistryNeighborhood, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Bairro no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="Cidade" /><TextBox Text="{Binding ObsRegistryCity, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Cidade no cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+          <StackPanel><TextBlock Text="UF" /><TextBox Text="{Binding ObsRegistryState, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="UF no cadastro da UBS" MaxLength="2" CharacterCasing="Upper" enter:EnterNavigation.Group="ObsUnitRegistryView.patient" /></StackPanel>
+        </views:FormGrid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,16">
+          <Button Content="Cancelar edição" Click="OnCancelEdit" Margin="0,0,10,0" MinHeight="40" Visibility="{Binding IsEditingObsRegistry, Converter={StaticResource BoolVisibility}}" ToolTip="Descarta a edição e volta a um cadastro novo, em branco." />
+          <Button Content="{Binding ObsRegistrySaveLabel}" Click="OnCreate" Style="{StaticResource ObsPrimaryButton}" MinHeight="40" MinWidth="160" ToolTip="Grava o cadastro." enter:EnterNavigation.Group="ObsUnitRegistryView.patient" />
+        </StackPanel>
       </StackPanel>
-    </Border>
-  </StackPanel>
+    </StackPanel>
+    <!-- Subtela Listagem: a lista aberta na tela inteira; as ações aparecem no balão com o item selecionado. Filtros (busca, situação, presença, ordenação) no botão Filtros do cabeçalho. -->
+    <Grid Grid.Row="2" views:SubPage.Key="list" views:PageLayout.Fill="True" IsEnabled="{Binding HasActiveObsUnit}">
+      <views:PageFilterGroup Label="Pacientes" FilterKey="patients">
+        <StackPanel>
+          <TextBlock Text="Pesquisar por nome, CPF, e-mail ou telefone" />
+          <TextBox Style="{StaticResource SearchField}" Tag="Nome, CPF, e-mail ou telefone" Text="{Binding ObsRegistrySearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pesquisar cadastro da UBS" Margin="0,6,0,10" enter:EnterNavigation.Group="ObsUnitRegistryView.filters" />
+          <WrapPanel>
+            <StackPanel Margin="0,0,12,0"><TextBlock Text="Situação na UBS" /><ComboBox SelectedValue="{Binding ObsRegistryStatusFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar situação na UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Ativos" /><ComboBoxItem Content="Desativados" /></ComboBox></StackPanel>
+            <StackPanel Margin="0,0,12,0"><TextBlock Text="Presença no aplicativo" /><ComboBox SelectedValue="{Binding ObsRegistryPresenceFilter}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Filtrar presença na UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Todos" /><ComboBoxItem Content="Online" /><ComboBoxItem Content="Offline" /></ComboBox></StackPanel>
+            <StackPanel><TextBlock Text="Ordenar por" /><ComboBox SelectedValue="{Binding ObsRegistrySort}" SelectedValuePath="Content" MinWidth="150" AutomationProperties.Name="Ordenar cadastro da UBS" enter:EnterNavigation.Group="ObsUnitRegistryView.filters"><ComboBoxItem Content="Mais recentes" /><ComboBoxItem Content="Nome A–Z" /><ComboBoxItem Content="Nome Z–A" /><ComboBoxItem Content="Maior score" /><ComboBoxItem Content="Menor score" /></ComboBox></StackPanel>
+          </WrapPanel>
+        </StackPanel>
+      </views:PageFilterGroup>
+      <ListBox x:Name="PatientList" Style="{StaticResource OpenList}" MaxHeight="3000" SizeChanged="OnListSizeChanged" ItemsSource="{Binding FilteredObsRegistry}" SelectedItem="{Binding SelectedObsRegistry}" AutomationProperties.Name="Cadastros de referência da UBS"
+               views:ListingBehavior.Balloon="{Binding ElementName=PatientBalloon}" views:ListingBehavior.LabelPath="FullName" views:ListingBehavior.KeyPath="Cpf" views:ListingBehavior.ComplementPath="FormattedCpf" views:ListingBehavior.PluralName="pacientes">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid AutomationProperties.Name="{Binding FullName}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="{Binding FullName}" Style="{StaticResource ItemTitleText}" ToolTip="{Binding FullName}" />
+                <TextBlock Text="{Binding MetaLine}" Style="{StaticResource ItemMetaText}" ToolTip="{Binding MetaLine}" />
+              </StackPanel>
+              <views:StatusTag Grid.Column="1" Text="{Binding StatusText}" Margin="12,0,0,0" VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <!-- Lista vazia: sem nenhum cadastro na UBS ou sem resultado para a busca (o texto vem do ViewModel). -->
+      <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,4,0,0" IsHitTestVisible="False" Visibility="{Binding ObsRegistryListState, Converter={StaticResource TextVisibility}}">
+        <ProgressBar IsIndeterminate="True" Height="3" Width="220" HorizontalAlignment="Left" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding ObsRegistryLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os pacientes" />
+        <TextBlock Text="{Binding ObsRegistryListState}" Style="{StaticResource Muted}" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+      <views:SelectionBalloon x:Name="PatientBalloon">
+        <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanOperate}">
+          <Button x:Name="ViewButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconEyeGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Ver ficha" Click="OnDetails" AutomationProperties.Name="Ver ficha" ToolTip="Abre a ficha completa, com exames e vacinas." />
+          <Button x:Name="EditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Editar ficha" Click="OnEdit" AutomationProperties.Name="Editar ficha" ToolTip="Abre a ficha selecionada na subtela Cadastro." />
+          <Button x:Name="EmailButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconMailGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Corrigir e-mail" Click="OnCorrectEmail" AutomationProperties.Name="Corrigir e-mail" ToolTip="Atualiza só o e-mail do paciente selecionado, sem mexer no resto da ficha." />
+          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Desativar" Click="OnSetActive" AutomationProperties.Name="Desativar nesta UBS" ToolTip="Desativa o paciente nesta UBS. Cancela as consultas futuras; a confirmação mostra quantas." />
+          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Reativar" Click="OnSetActive" AutomationProperties.Name="Reativar nesta UBS" ToolTip="Reativa o paciente nesta UBS. O que foi cancelado não é restaurado." Visibility="Collapsed" />
+        </StackPanel>
+      </views:SelectionBalloon>
+    </Grid>
+  </Grid>
 </UserControl>

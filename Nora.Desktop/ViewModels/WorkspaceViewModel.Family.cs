@@ -5,16 +5,15 @@ using Nora.Desktop.Services;
 namespace Nora.Desktop.ViewModels;
 
 /// <summary>
-/// OBS: Família. O responsável pede pelo aplicativo o vínculo com um dependente (CPF); a equipe da UBS do dependente confere os documentos e aprova ou recusa aqui.
+/// OBS: Família e Vínculos aprovados. O responsável pede pelo aplicativo o vínculo com um dependente (CPF); a equipe da UBS do dependente confere os documentos e aprova ou recusa aqui.
 /// Aprovado, o responsável age pelo dependente no aplicativo; a equipe pode encerrar o vínculo. Os dois estados (pedidos pendentes e vínculos aprovados) são lidos juntos,
-/// só nesta aba, a cada ciclo de atualização e depois de cada decisão. Os métodos supõem que a confirmação já foi dada na tela.
+/// só nestas duas telas, ao entrar, a cada ciclo de atualização e logo depois de cada decisão. Os métodos supõem que a confirmação já foi dada na tela.
 /// </summary>
 public sealed partial class WorkspaceViewModel
 {
     public const int FamilyReasonMax = 280;
     // Cada leitura tem o próprio indicador: a falha de uma não pode fazer a outra, lida agora, parecer da leitura anterior.
     private bool familyPendingLoaded, familyApprovedLoaded, familyPendingFailed, familyApprovedFailed, familyPendingTruncated, familyApprovedTruncated;
-    private bool familyLoaded => familyPendingLoaded && familyApprovedLoaded;
     private FamilyLink? selectedPendingFamily, selectedApprovedFamily;
     private string familyRejectReason = "";
 
@@ -25,25 +24,27 @@ public sealed partial class WorkspaceViewModel
     public FamilyLink? SelectedApprovedFamily { get => selectedApprovedFamily; set { selectedApprovedFamily = value; Notify(); Notify(nameof(CanEndFamily)); } }
     public bool CanDecideFamily => CanOperate && HasActiveObsUnit && SelectedPendingFamily is not null;
     public bool CanEndFamily => CanOperate && HasActiveObsUnit && SelectedApprovedFamily is not null;
-    /// <summary>Motivo opcional da recusa (de 1 a 280 caracteres); o responsável é informado da recusa e do motivo.</summary>
-    public string FamilyRejectReason { get => familyRejectReason; set { familyRejectReason = value ?? ""; Notify(); Notify(nameof(FamilyRejectReasonError)); } }
+    /// <summary>Motivo opcional da recusa (de 1 a 280 caracteres), digitado no pop-up "Recusar pedido"; o responsável é informado da recusa e do motivo.</summary>
+    public string FamilyRejectReason { get => familyRejectReason; set { familyRejectReason = value ?? ""; Notify(); Notify(nameof(FamilyRejectReasonError)); Notify(nameof(FamilyRejectReasonCounter)); } }
     public string FamilyRejectReasonError => familyRejectReason.Trim().Length > FamilyReasonMax ? $"O motivo pode ter até {FamilyReasonMax} caracteres."
         : familyRejectReason.Any(char.IsControl) ? "O motivo não aceita quebra de linha nem caracteres de controle." : "";
-    public string FamilyPendingState => !HasActiveObsUnit ? "Escolha uma UBS no Painel da UBS para ver os pedidos de família."
-        : !familyPendingLoaded ? (familyPendingFailed ? "Não foi possível ler os pedidos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os pedidos…")
+    /// <summary>Contador do campo de motivo: "12/280".</summary>
+    public string FamilyRejectReasonCounter => $"{familyRejectReason.Trim().Length}/{FamilyReasonMax}";
+    // Sem UBS ativa quem avisa é o ObsUnitNoticeView ("Escolher UBS"); o estado das listas fica em branco para não repetir o aviso.
+    public string FamilyPendingState => !HasActiveObsUnit ? ""
+        : !familyPendingLoaded ? (familyPendingFailed ? "Não foi possível ler os pedidos agora. A tela tenta de novo sozinha." : "Carregando os pedidos…")
         : familyPendingFailed ? "A última leitura não concluiu; estes são os pedidos da leitura anterior."
-        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Decida estes e use Atualizar pedidos para ver os seguintes."
+        : familyPendingTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyPending.Count} mais antigos. Conforme estes forem decididos, os próximos aparecem sozinhos."
         : FamilyPending.Count == 0 ? "Nenhum pedido aguardando decisão nesta UBS." : "";
     public string FamilyApprovedState => !HasActiveObsUnit ? ""
-        : !familyApprovedLoaded ? (familyApprovedFailed ? "Não foi possível ler os vínculos agora. Use Atualizar pedidos para tentar de novo." : "Carregando os vínculos…")
+        : !familyApprovedLoaded ? (familyApprovedFailed ? "Não foi possível ler os vínculos agora. A tela tenta de novo sozinha." : "Carregando os vínculos…")
         : familyApprovedFailed ? "A última leitura não concluiu; estes são os vínculos da leitura anterior."
         : familyApprovedTruncated ? $"A lista passou do limite de leitura desta tela: mostrando os {FamilyApproved.Count} mais antigos; os mais novos não aparecem."
         : FamilyApproved.Count == 0 ? "Nenhum vínculo aprovado nesta UBS." : "";
-    /// <summary>Com a lista cortada no teto de páginas, o total não é conhecido: o resumo diz "ou mais".</summary>
-    public string FamilySummary => !familyLoaded ? ""
-        : $"{FamilyCount(FamilyPending.Count, familyPendingTruncated, "pedido aguardando", "pedidos aguardando")} · {FamilyCount(FamilyApproved.Count, familyApprovedTruncated, "vínculo aprovado", "vínculos aprovados")}";
-    private static string FamilyCount(int count, bool truncated, string one, string many) => truncated ? $"{count} ou mais {many}" : $"{count} {(count == 1 ? one : many)}";
-    private static readonly string[] FamilyNames = [nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(FamilySummary), nameof(CanDecideFamily), nameof(CanEndFamily)];
+    /// <summary>A primeira leitura dos pedidos ainda não terminou (nem falhou): a tela mostra o indicador na cor da marca.</summary>
+    public bool FamilyPendingLoading => HasActiveObsUnit && !familyPendingLoaded && !familyPendingFailed;
+    public bool FamilyApprovedLoading => HasActiveObsUnit && !familyApprovedLoaded && !familyApprovedFailed;
+    private static readonly string[] FamilyNames = [nameof(FamilyPendingState), nameof(FamilyApprovedState), nameof(FamilyPendingLoading), nameof(FamilyApprovedLoading), nameof(CanDecideFamily), nameof(CanEndFamily)];
     private void NotifyFamily() { foreach (var name in FamilyNames) Notify(name); }
 
     /// <summary>Aplica a leitura; mantém a seleção pelo id e não recria linhas que não mudaram.</summary>
@@ -74,36 +75,34 @@ public sealed partial class WorkspaceViewModel
         NotifyFamily();
     }
 
-    public Task LoadFamilyAsync() => RunAsync(async () =>
-    {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS no Painel da UBS antes de ver os pedidos de família.");
-        await LoadUnitScopeAsync(unit, UnitScope.Family);
-        if (ActiveObsUnit?.Id == unit.Id && (familyPendingFailed || familyApprovedFailed))
-        {
-            var what = !familyApprovedFailed ? "os pedidos aguardando decisão" : !familyPendingFailed ? "os vínculos aprovados" : "os pedidos de família";
-            Say(MessageKind.Error, $"Não foi possível ler {what} agora. O que já estava na tela foi mantido."); return;
-        }
-        if (ActiveObsUnit?.Id == unit.Id) Say(MessageKind.Success, FamilyPending.Count == 0 ? "Lista atualizada: nenhum pedido aguardando." : $"Lista atualizada: {FamilySummary}.");
-    });
-
     public Task ApproveFamilyAsync() => RunAsync(async () =>
     {
         var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de aprovar o vínculo.");
         var link = SelectedPendingFamily ?? throw new NoraApiException("Selecione um pedido para aprovar.");
         await DecideFamilyAsync(unit, () => api.ApproveFamilyLinkAsync(unit.Id, link.Id));
-        await ReloadAfterChangeAsync(unit, UnitScope.Family, $"Vínculo aprovado: {link.GuardianName} passa a agir por {link.DependentDisplay} no aplicativo.");
+        await ReloadAfterChangeAsync(unit, UnitScope.Family, "Pedido aprovado.");
     });
 
-    public Task RejectFamilyAsync() => RunAsync(async () =>
+    /// <summary>
+    /// Recusa o pedido selecionado com o motivo digitado no pop-up (opcional). Devolve se a API aceitou: o pop-up fecha só nesse caso e, se falhar, mostra a mensagem dentro dele.
+    /// A faixa de retorno diz "Pedido recusado." ou "Pedido recusado e motivo enviado ao responsável.".
+    /// </summary>
+    public async Task<bool> RejectFamilyAsync()
     {
-        var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de recusar o pedido.");
-        var link = SelectedPendingFamily ?? throw new NoraApiException("Selecione um pedido para recusar.");
-        if (FamilyRejectReasonError.Length > 0) throw new NoraApiException(FamilyRejectReasonError);
-        var reason = string.IsNullOrWhiteSpace(familyRejectReason) ? null : familyRejectReason.Trim();
-        await DecideFamilyAsync(unit, () => api.RejectFamilyLinkAsync(unit.Id, link.Id, reason));
-        FamilyRejectReason = "";
-        await ReloadAfterChangeAsync(unit, UnitScope.Family, $"Pedido de {link.GuardianName} recusado{(reason is null ? "" : " com o motivo informado")}.");
-    });
+        var rejected = false;
+        await RunAsync(async () =>
+        {
+            var unit = ActiveObsUnit ?? throw new NoraApiException("Escolha uma UBS antes de recusar o pedido.");
+            var link = SelectedPendingFamily ?? throw new NoraApiException("Selecione um pedido para recusar.");
+            if (FamilyRejectReasonError.Length > 0) throw new NoraApiException(FamilyRejectReasonError);
+            var reason = string.IsNullOrWhiteSpace(familyRejectReason) ? null : familyRejectReason.Trim();
+            await DecideFamilyAsync(unit, () => api.RejectFamilyLinkAsync(unit.Id, link.Id, reason));
+            rejected = true;
+            FamilyRejectReason = "";
+            await ReloadAfterChangeAsync(unit, UnitScope.Family, reason is null ? "Pedido recusado." : "Pedido recusado e motivo enviado ao responsável.");
+        });
+        return rejected;
+    }
 
     public Task EndFamilyAsync() => RunAsync(async () =>
     {
@@ -127,6 +126,6 @@ public sealed partial class WorkspaceViewModel
     private void ClearFamily()
     {
         familyPendingLoaded = familyApprovedLoaded = familyPendingFailed = familyApprovedFailed = familyPendingTruncated = familyApprovedTruncated = false; FamilyPending.Clear(); FamilyApproved.Clear(); selectedPendingFamily = selectedApprovedFamily = null; familyRejectReason = "";
-        Notify(nameof(SelectedPendingFamily)); Notify(nameof(SelectedApprovedFamily)); Notify(nameof(FamilyRejectReason)); Notify(nameof(FamilyRejectReasonError)); NotifyFamily();
+        Notify(nameof(SelectedPendingFamily)); Notify(nameof(SelectedApprovedFamily)); Notify(nameof(FamilyRejectReason)); Notify(nameof(FamilyRejectReasonError)); Notify(nameof(FamilyRejectReasonCounter)); NotifyFamily();
     }
 }

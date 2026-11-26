@@ -191,8 +191,9 @@ public sealed partial class WorkspaceViewModel
     private void ApplyRegistry(UnitPatientRecord[] records)
     {
         var selectedCpf = SelectedObsRegistry?.Cpf; var correctedEmail = CorrectedObsEmail; var appointmentCpf = AppointmentPatient?.Cpf;
+        if (!obsRegistryLoaded) { obsRegistryLoaded = true; Notify(nameof(ObsRegistryLoading)); Notify(nameof(ObsRegistryListState)); }
         if (!Replace(ObsRegistry, records)) return;
-        Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry));
+        Notify(nameof(FilteredObsRegistry)); Notify(nameof(ActiveObsRegistry)); Notify(nameof(ObsRegistryListState));
         SelectedObsRegistry = selectedCpf is null ? null : ObsRegistry.FirstOrDefault(p => p.Cpf == selectedCpf);
         if (SelectedObsRegistry is not null) CorrectedObsEmail = correctedEmail;
 

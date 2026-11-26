@@ -70,8 +70,23 @@ public sealed partial class WorkspaceViewModel
             UnitPatientRecord patient when ObsRegistry.Contains(patient) => BuildUnitPatientDetails(patient),
             AppointmentInfo appointment when Appointments.Contains(appointment) => BuildAppointmentDetails(appointment),
             UnitLightningSlot slot when UnitLightningSlots.Contains(slot) => new(slot.Specialty, "Vaga Relâmpago da UBS", BuildSlotFields(slot)),
+            FamilyLink link when FamilyPending.Contains(link) || FamilyApproved.Contains(link) => BuildFamilyDetails(link),
             _ => null
         };
+    }
+
+    /// <summary>Ficha de um pedido ou vínculo de família: o que a equipe confere nos documentos (nome e CPF de cada um, com cópia) e quando e por quem foi decidido.</summary>
+    private static ItemDetails BuildFamilyDetails(FamilyLink link)
+    {
+        var approved = link.Status == "approved";
+        var fields = new List<DetailField>
+        {
+            new("Responsável", link.GuardianName, true, "Quem pediu"), new("CPF do responsável", link.GuardianCpfDisplay, true, "Quem pediu"),
+            new("Dependente", link.DependentDisplay, !string.IsNullOrWhiteSpace(link.DependentName), "Para quem"), new("CPF do dependente", link.DependentCpfDisplay, true, "Para quem"),
+            new("Pedido em", link.RequestedAtDisplay, Group: "Pedido")
+        };
+        if (approved) fields.Add(new("Aprovado em", link.DecidedDisplay, Group: "Pedido"));
+        return new($"{link.GuardianName} → {link.DependentDisplay}", approved ? "Vínculo de família aprovado" : "Pedido de vínculo de família", fields);
     }
 
     private static IReadOnlyList<DetailField> BuildSlotFields(UnitLightningSlot slot)
@@ -92,7 +107,7 @@ public sealed partial class WorkspaceViewModel
 
     private static ItemDetails BuildUnitPatientDetails(UnitPatientRecord patient)
     {
-        var fields = new List<DetailField> { new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Contato"),
+        var fields = new List<DetailField> { new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Identificação"),
             new("E-mail", patient.Email, true, "Contato"), new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"), new("Situação na UBS", patient.ActiveDisplay, Group: "Situação"), new("Presença no aplicativo", patient.PresenceDisplay, Group: "Situação"), new("Cadastrado em", patient.CreatedAtDisplay, Group: "Cadastro") };
         if (patient.Address is { } address) fields.AddRange([new("CEP", address.Cep, Group: "Endereço"), new("Endereço", address.Display, Group: "Endereço"), new("Complemento", address.Complement ?? "Não informado", Group: "Endereço")]);
         fields.AddRange(AttendanceFields(patient.Attendance));
@@ -105,7 +120,7 @@ public sealed partial class WorkspaceViewModel
     public const string ScorePriorityText = "Quem tem score maior recebe antes as ofertas de Vaga Relâmpago. O score não muda a prioridade clínica nem o direito ao atendimento.";
     private static IEnumerable<DetailField> AttendanceFields(UnitAttendance? attendance)
     {
-        if (attendance is null) return [new("Score", "—", Group: AttendanceGroup), new("Como é calculado", "A API não enviou o score deste cadastro. Atualize a lista da UBS.", Group: AttendanceGroup)];
+        if (attendance is null) return [new("Score", "—", Group: AttendanceGroup), new("Como é calculado", "A API não enviou o score deste cadastro. A lista da UBS se atualiza sozinha.", Group: AttendanceGroup)];
         return
         [
             new("Score", attendance.ScoreDisplay, Group: AttendanceGroup),

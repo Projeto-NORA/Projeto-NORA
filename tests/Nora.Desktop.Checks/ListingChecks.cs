@@ -30,7 +30,7 @@ internal static partial class Program
                 {
                     ("home", "Resumo do dia", "+ Agendar nova consulta"),
                     ("agenda", "+ Agendar nova consulta", "Resumo do dia"),
-                    ("patients", "Pacientes", "+ Agendar nova consulta"),
+                    ("patients", "Cadastrar referência na UBS", "+ Agendar nova consulta"),
                     ("slots", "Nenhuma vaga cadastrada nesta UBS até agora.", "Fila"),
                     ("indicators", "Por especialidade", "Nenhum alerta."),
                     ("alerts", "Nenhum alerta.", "Por especialidade"),
@@ -220,7 +220,7 @@ internal static partial class Program
                 shell.ViewModel.SetAppearance(Appearance.Light);
                 // Ficha com telefone ausente: o texto substituto nunca é copiável.
                 var withoutPhone = fixture.AddRegistry(unit.Id, "Paciente Sem Telefone", "11144477735", "sem@example.test");
-                Pump(workspace.LoadObsRegistryAsync());
+                Pump(workspace.ConfirmObsUnitAsync());
                 var noPhoneDetails = workspace.BuildDetails(workspace.ObsRegistry.Single(item => item.Cpf == withoutPhone.Cpf))!;
                 Require(!noPhoneDetails.Fields.Single(field => field.Label == "Telefone").CanCopy, "Telefone não informado ganhou cópia de texto substituto.");
                 var usualPopup = new ItemDetailsWindow(workspace.BuildDetails(workspace.ObsRegistry.Single(item => item.Cpf == withoutPhone.Cpf))!, new ClipboardFixture()) { Owner = shell, WindowStartupLocation = WindowStartupLocation.Manual, Left = -10000, Top = -10000, ShowActivated = false };
