@@ -114,6 +114,12 @@ public sealed record FamilyLink(Guid Id, string Status, string GuardianName, str
     [JsonIgnore] public string DependentCpfDisplay => BrazilianDataValidator.FormatCpf(DependentCpf);
     [JsonIgnore] public string RequestedAtDisplay => RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture);
     [JsonIgnore] public string DecidedDisplay => DecidedAt is { } at ? $"{at.ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture)}{(string.IsNullOrWhiteSpace(DecidedByName) ? "" : " por " + DecidedByName)}" : "—";
+    /// <summary>Título do item da listagem: "responsável → dependente".</summary>
+    [JsonIgnore] public string Title => $"{GuardianName} → {DependentDisplay}";
+    /// <summary>Linha de dados do pedido pendente: os dois CPFs (para conferir os documentos) e quando foi pedido.</summary>
+    [JsonIgnore] public string PendingMetaLine => $"CPF do responsável {GuardianCpfDisplay} | CPF do dependente {DependentCpfDisplay} | Pedido em {RequestedAtDisplay}";
+    /// <summary>Linha de dados do vínculo aprovado: os dois CPFs e desde quando vale (a data da aprovação).</summary>
+    [JsonIgnore] public string ApprovedMetaLine => $"CPF do responsável {GuardianCpfDisplay} | CPF do dependente {DependentCpfDisplay} | Desde {(DecidedAt ?? RequestedAt).ToLocalTime().ToString("dd/MM/yyyy HH:mm", DisplayFormat.Culture)}";
     [JsonIgnore] public string AutomationLabel => $"Responsável {GuardianName}, dependente {DependentDisplay}, pedido em {RequestedAtDisplay}.";
 }
 /// <summary>Uma página da lista da equipe: <see cref="Cursor"/> é opaco e vai em <c>after</c> para a página seguinte; <see cref="HasMore"/> diz se ela existe (API antiga sem paginação: falso).</summary>

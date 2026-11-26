@@ -17,8 +17,9 @@
       <Setter Property="Margin" Value="0,6,0,16" />
     </Style>
   </UserControl.Resources>
-  <StackPanel>
-    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="32" MaxWidth="560" HorizontalAlignment="Left" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
+  <!-- Grade (e não pilha): as listagens com PageLayout.Fill (Pacientes) precisam receber a altura da tela. O bloco de entrada e o da sessão aberta nunca aparecem juntos. -->
+  <Grid>
+    <Border Style="{StaticResource Card}" Margin="0,0,0,24" Padding="32" MaxWidth="560" HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{Binding IsSignedOut, Converter={StaticResource BoolVisibility}}">
       <StackPanel>
       <StackPanel IsEnabled="{Binding CanLogin}">
         <Image x:Name="LoginBrandMark" Source="{DynamicResource BrandMarkImage}" Width="56" Height="56" HorizontalAlignment="Left" Margin="0,0,0,20" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="Logotipo NORA" />
@@ -50,7 +51,7 @@
       <ItemsControl ItemsSource="{Binding OpeningSteps}" ItemTemplate="{StaticResource ProgressStepTemplate}" Margin="0,14,0,0" Visibility="{Binding HasOpeningSteps, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Passos da abertura" />
       </StackPanel>
     </Border>
-    <StackPanel Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}">
+    <Grid Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolVisibility}}">
       <views:ObsUnitRegistryView Visibility="{Binding ShowPatients, Converter={StaticResource BoolVisibility}}" />
       <views:UnitLightningSlotsView Visibility="{Binding ShowSlots, Converter={StaticResource BoolVisibility}}" />
       <StackPanel Visibility="{Binding IsMunicipal, Converter={StaticResource BoolVisibility}}">
@@ -62,6 +63,6 @@
           <Border Style="{StaticResource Card}" Margin="8,0,0,16"><StackPanel><TextBlock Text="Ofertas aceitas" /><TextBlock Text="{Binding AcceptedCount}" FontSize="32" FontWeight="SemiBold" Margin="0,12,0,0" /></StackPanel></Border>
         </UniformGrid>
       </StackPanel>
-    </StackPanel>
-  </StackPanel>
+    </Grid>
+  </Grid>
 </UserControl>

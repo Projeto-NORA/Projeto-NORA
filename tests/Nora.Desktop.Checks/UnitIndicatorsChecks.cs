@@ -230,7 +230,7 @@ internal static partial class Program
             }
             finally { CloseWindow(window); }
         });
-        Check("OBS Pacientes: score em pontos (0 a 1000) e faixa na lista, na ficha e na ordenação; sem consulta encerrada = 1000; sem dado da API aparece — com explicação", () =>
+        Check("OBS Pacientes: score em pontos (0 a 1000) e faixa na ficha e na ordenação (a lista traz só nome e contatos); sem consulta encerrada = 1000; sem dado da API aparece — com explicação", () =>
         {
             using var fixture = new ApiFixture();
             var unit = fixture.AddUnit("UBS Participação");
@@ -248,10 +248,9 @@ internal static partial class Program
                 var content = Show(window, "patients", 1280, 1300);
                 var list = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Cadastros de referência da UBS");
                 // A lista rola (altura máxima): só as primeiras linhas estão desenhadas, então o texto é conferido nelas e o resto pelos dados.
+                // O item da listagem aberta traz só o nome e "CPF | e-mail | telefone" (só o que foi informado): o score fica na ficha e na ordenação.
                 var texts = VisibleTexts(list);
-                Require(texts.Contains("Score (12 meses): 900 · Excelente") && texts.Contains("Score (12 meses): 1000 · sem consultas encerradas ainda"), "A lista não mostra o score em pontos: " + string.Join(" | ", texts.Where(text => text.StartsWith("Score", StringComparison.Ordinal))));
-                Require(!texts.Any(text => text.Contains('%')), "A lista não deveria mais mostrar participação em %.");
-                Require(Descendants<TextBlock>(list).Any(text => text.ToolTip?.ToString() == WorkspaceViewModel.ScorePriorityText), "A dica do score deveria explicar seu efeito na Vaga Relâmpago sem mudar a prioridade clínica.");
+                Require(!texts.Any(text => text.StartsWith("Score", StringComparison.Ordinal) || text.Contains('%')) && texts.Contains("Ana Alta") && texts.Contains("529.982.247-25 | ana@example.test"), "A lista deveria trazer só o nome e CPF | e-mail (sem telefone informado) e não o score: " + string.Join(" | ", texts));
                 Require(list.Items.Cast<UnitPatientRecord>().Select(patient => patient.ScoreDisplay).OrderBy(text => text, StringComparer.Ordinal).SequenceEqual(["1000 · sem consultas encerradas ainda", "429 · Regular", "750 · Bom", "900 · Excelente", "—"]), "O score de cada cadastro está incorreto.");
                 var sort = Combo(content, "Ordenar cadastro da UBS");
                 Require(sort.Items.Cast<ComboBoxItem>().Select(item => item.Content?.ToString()).SequenceEqual(["Mais recentes", "Nome A–Z", "Nome Z–A", "Maior score", "Menor score"]), "As ordenações por score não foram renomeadas.");

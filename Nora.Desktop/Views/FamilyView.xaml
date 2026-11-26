@@ -1,66 +1,62 @@
-<UserControl xmlns:enter="clr-namespace:Nora.Desktop.Views" x:Class="Nora.Desktop.Views.FamilyView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
-  <!-- Família (OBS): o responsável pede o vínculo pelo aplicativo; a equipe confere os documentos e decide. Aprovado, o responsável age pelo dependente. -->
+<UserControl x:Class="Nora.Desktop.Views.FamilyView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views">
+  <!-- Família e Vínculos aprovados (OBS): o responsável pede o vínculo pelo aplicativo; a equipe confere os documentos e decide. Aprovado, o responsável age pelo dependente.
+       Cada subtela é uma listagem aberta e uma pesquisa (no cabeçalho); as decisões ficam no balão de ações. A mesma célula guarda as duas subtelas, e só uma aparece por vez (SubPage.Key). -->
   <UserControl.Resources>
-    <Style x:Key="CellText" TargetType="TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /><Setter Property="TextTrimming" Value="CharacterEllipsis" /><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" /></Style>
-    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="Margin" Value="0,6,0,12" /></Style>
+    <!-- O item da listagem: "responsável → dependente" e, embaixo, os CPFs e a data. -->
+    <DataTemplate x:Key="PendingItem">
+      <StackPanel AutomationProperties.Name="{Binding AutomationLabel}">
+        <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitleText}" ToolTip="{Binding Title}" />
+        <TextBlock Text="{Binding PendingMetaLine}" Style="{StaticResource ItemMetaText}" ToolTip="{Binding PendingMetaLine}" />
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate x:Key="ApprovedItem">
+      <StackPanel AutomationProperties.Name="{Binding AutomationLabel}">
+        <TextBlock Text="{Binding Title}" Style="{StaticResource ItemTitleText}" ToolTip="{Binding Title}" />
+        <TextBlock Text="{Binding ApprovedMetaLine}" Style="{StaticResource ItemMetaText}" ToolTip="{Binding ApprovedMetaLine}" />
+      </StackPanel>
+    </DataTemplate>
   </UserControl.Resources>
-  <StackPanel>
-    <TextBlock Text="Família" Style="{StaticResource PageTitle}" Margin="0,0,0,20" ToolTip="A equipe decide pedidos de vínculo entre responsáveis e dependentes cadastrados nesta UBS." />
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
     <views:ObsUnitNoticeView />
-    <DockPanel Margin="0,0,0,14">
-      <Button DockPanel.Dock="Right" Style="{StaticResource IconRefreshButton}" Click="OnRefresh" IsEnabled="{Binding HasActiveObsUnit}" AutomationProperties.Name="Atualizar pedidos" ToolTip="Lê de novo os pedidos e os vínculos desta UBS." />
+    <!-- Família: os pedidos aguardando decisão, do mais antigo ao mais novo. Aprovar e Recusar no balão. -->
+    <Grid Grid.Row="1" views:SubPage.Key="requests" views:PageLayout.Fill="True" IsEnabled="{Binding HasActiveObsUnit}">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
       <StackPanel>
-        <TextBlock Text="{Binding ActiveObsUnitLabel}" FontWeight="SemiBold" />
-        <TextBlock Text="{Binding FamilySummary}" Style="{StaticResource Muted}" FontSize="12" AutomationProperties.LiveSetting="Polite" />
+        <views:PageFilterGroup Label="Pedidos de vínculo" SearchFields="GuardianName,DependentDisplay,GuardianCpfDisplay,DependentCpfDisplay" ItemsTarget="{Binding ElementName=PendingList}" />
+        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyPendingLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os pedidos" />
+        <TextBlock Text="{Binding FamilyPendingState}" Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="{Binding FamilyPendingState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock x:Name="PendingSearchEmpty" Text="Nenhum pedido encontrado para esta busca." Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
-    </DockPanel>
-
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Pedidos aguardando decisão" ToolTip="Pedidos são ordenados do mais antigo. Confira os documentos e a situação do dependente antes de aprovar; o sistema não verifica sua idade.">
-      <StackPanel>
-        <TextBlock Text="Pedidos aguardando decisão" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <views:PageFilterGroup Label="Pedidos aguardando decisão" SearchFields="GuardianName,DependentDisplay" ItemsTarget="{Binding ElementName=PendingFilterList}" />
-        <DataGrid x:Name="PendingFilterList" ItemsSource="{Binding FamilyPending}" SelectedItem="{Binding SelectedPendingFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Pedidos de família pendentes" CanUserSortColumns="True">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Responsável" Binding="{Binding GuardianName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="CPF do responsável" Binding="{Binding GuardianCpfDisplay}" SortMemberPath="GuardianCpf" Width="150" />
-            <DataGridTextColumn Header="Dependente" Binding="{Binding DependentDisplay}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="CPF do dependente" Binding="{Binding DependentCpfDisplay}" SortMemberPath="DependentCpf" Width="150" />
-            <DataGridTextColumn Header="Pedido em" Binding="{Binding RequestedAtDisplay}" SortMemberPath="RequestedAt" Width="140" />
-          </DataGrid.Columns>
-        </DataGrid>
-        <TextBlock Text="{Binding FamilyPendingState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding FamilyPendingState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,12,0,0">
-          <StackPanel MaxWidth="640" HorizontalAlignment="Left">
-            <TextBlock Text="Decidir o pedido selecionado" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" FontSize="16" Margin="0,0,0,10" />
-            <WrapPanel>
-              <Button Content="Aprovar pedido" Click="OnApprove" IsEnabled="{Binding CanDecideFamily}" Style="{StaticResource ObsPrimaryButton}" Margin="0,0,8,8" ToolTip="Pede confirmação: confira os documentos antes." ToolTipService.ShowOnDisabled="True" />
-              <Button Content="Recusar pedido" Style="{StaticResource ObsPrimaryButton}" Click="OnReject" IsEnabled="{Binding CanDecideFamily}" Margin="0,0,8,8" ToolTip="O motivo é opcional." ToolTipService.ShowOnDisabled="True"  enter:EnterNavigation.Group="FamilyView.reject"/>
-            </WrapPanel>
-            <TextBlock Text="Motivo da recusa (opcional, até 280 caracteres)" FontWeight="SemiBold" FontSize="12" Margin="0,6,0,0" />
-            <TextBox Text="{Binding FamilyRejectReason, UpdateSourceTrigger=PropertyChanged}" MaxLength="400" AutomationProperties.Name="Motivo da recusa"  enter:EnterNavigation.Group="FamilyView.reject"/>
-            <TextBlock Text="{Binding FamilyRejectReasonError}" Style="{StaticResource FieldError}" Visibility="{Binding FamilyRejectReasonError, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+      <Grid Grid.Row="1">
+        <ListBox x:Name="PendingList" Style="{StaticResource OpenList}" ItemsSource="{Binding FamilyPending}" SelectedItem="{Binding SelectedPendingFamily}" ItemTemplate="{StaticResource PendingItem}" AutomationProperties.Name="Pedidos de família pendentes"
+                 views:ListingBehavior.Balloon="{Binding ElementName=PendingBalloon}" views:ListingBehavior.LabelPath="Title" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.PluralName="pedidos" />
+        <views:SelectionBalloon x:Name="PendingBalloon">
+          <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanDecideFamily}">
+            <Button Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconCheckGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Aprovar" Click="OnApprove" AutomationProperties.Name="Aprovar pedido" ToolTip="Pede confirmação: confira os documentos do responsável e do dependente antes; o sistema não verifica a idade." />
+            <Button Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconCloseGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Recusar" Click="OnReject" AutomationProperties.Name="Recusar pedido" ToolTip="Abre o pop-up para enviar a recusa; o motivo é opcional." />
           </StackPanel>
-        </Border>
-      </StackPanel>
-    </Border>
-
-    <Border Style="{StaticResource Card}" Margin="0,0,0,18" AutomationProperties.Name="Vínculos aprovados" ToolTip="Encerrar o vínculo remove o acesso do responsável nesta UBS. Algumas consultas futuras podem ser canceladas conforme a situação do dependente.">
+        </views:SelectionBalloon>
+      </Grid>
+    </Grid>
+    <!-- Vínculos aprovados: encerrar o vínculo (lixeira) no balão. -->
+    <Grid Grid.Row="1" views:SubPage.Key="approved" views:PageLayout.Fill="True" IsEnabled="{Binding HasActiveObsUnit}">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
       <StackPanel>
-        <TextBlock Text="Vínculos aprovados" Style="{StaticResource SectionTitle}" Margin="0,0,0,12" />
-        <views:PageFilterGroup Label="Vínculos aprovados" SearchFields="GuardianName,DependentDisplay" ItemsTarget="{Binding ElementName=ApprovedFilterList}" />
-        <DataGrid x:Name="ApprovedFilterList" ItemsSource="{Binding FamilyApproved}" SelectedItem="{Binding SelectedApprovedFamily}" MaxHeight="280" MinHeight="64" AutomationProperties.Name="Vínculos de família aprovados" CanUserSortColumns="True">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Responsável" Binding="{Binding GuardianName}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="CPF do responsável" Binding="{Binding GuardianCpfDisplay}" SortMemberPath="GuardianCpf" Width="150" />
-            <DataGridTextColumn Header="Dependente" Binding="{Binding DependentDisplay}" Width="*" MinWidth="150" ElementStyle="{StaticResource CellText}" />
-            <DataGridTextColumn Header="Aprovado em" Binding="{Binding DecidedDisplay}" SortMemberPath="DecidedAt" Width="*" MinWidth="170" ElementStyle="{StaticResource CellText}" />
-          </DataGrid.Columns>
-        </DataGrid>
-        <TextBlock Text="{Binding FamilyApprovedState}" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="{Binding FamilyApprovedState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
-        <WrapPanel Margin="0,12,0,0">
-          <Button Content="Encerrar vínculo selecionado" Style="{StaticResource ObsPrimaryButton}" Click="OnEnd" IsEnabled="{Binding CanEndFamily}" Margin="0,0,8,8" ToolTip="Pede confirmação." ToolTipService.ShowOnDisabled="True" />
-        </WrapPanel>
+        <views:PageFilterGroup Label="Vínculos aprovados" SearchFields="GuardianName,DependentDisplay,GuardianCpfDisplay,DependentCpfDisplay" ItemsTarget="{Binding ElementName=ApprovedList}" />
+        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,0,0,8" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource BrandBrush}" Visibility="{Binding FamilyApprovedLoading, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Carregando os vínculos" />
+        <TextBlock Text="{Binding FamilyApprovedState}" Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="{Binding FamilyApprovedState, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock x:Name="ApprovedSearchEmpty" Text="Nenhum vínculo encontrado para esta busca." Style="{StaticResource Muted}" Margin="0,0,0,12" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
       </StackPanel>
-    </Border>
-  </StackPanel>
+      <Grid Grid.Row="1">
+        <ListBox x:Name="ApprovedList" Style="{StaticResource OpenList}" ItemsSource="{Binding FamilyApproved}" SelectedItem="{Binding SelectedApprovedFamily}" ItemTemplate="{StaticResource ApprovedItem}" AutomationProperties.Name="Vínculos de família aprovados"
+                 views:ListingBehavior.Balloon="{Binding ElementName=ApprovedBalloon}" views:ListingBehavior.LabelPath="Title" views:ListingBehavior.KeyPath="Id" views:ListingBehavior.PluralName="vínculos" />
+        <views:SelectionBalloon x:Name="ApprovedBalloon">
+          <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanEndFamily}">
+            <Button Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Encerrar vínculo" Click="OnEnd" AutomationProperties.Name="Encerrar vínculo selecionado" ToolTip="Pede confirmação. O responsável perde na hora o acesso ao dependente nesta UBS." />
+          </StackPanel>
+        </views:SelectionBalloon>
+      </Grid>
+    </Grid>
+  </Grid>
 </UserControl>

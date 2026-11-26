@@ -463,12 +463,13 @@ internal static partial class Program
                 Require(FullTexts(content).Contains(vm.FamilyPendingState), "O aviso de falha não aparece na tela.");
                 SaveScrolled(window, Path.Combine(previewRoot, "revisao-familia-falha-light.png"), 1280, 900);
                 window.ViewModel.SetAppearance(Appearance.Dark); Layout(window, 1280, 1400); SaveScrolled(window, Path.Combine(previewRoot, "revisao-familia-falha-dark.png"), 1280, 900); window.ViewModel.SetAppearance(Appearance.Light);
-                Pump(vm.LoadFamilyAsync()); Settle(vm);
-                Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("Não foi possível ler os pedidos de família", StringComparison.Ordinal), "Atualizar com a leitura falha não pode dizer \"Lista atualizada\": " + vm.Message);
+                // Sem botão Atualizar: a releitura é a automática (a mesma do ciclo de 20 s), e a aba continua dizendo que não conseguiu ler.
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                Require(vm.FamilyPendingState.Contains("Não foi possível ler os pedidos", StringComparison.Ordinal) && vm.FamilyApprovedState.Contains("Não foi possível ler os vínculos", StringComparison.Ordinal), "A releitura com a leitura falha não pode ficar em \"Carregando…\" nem dizer que atualizou: " + vm.FamilyPendingState);
                 fixture.FailFamily = false; fixture.AddFamilyRequest(unit.Id, "Responsável", "11144477735", "52998224725");
-                Pump(vm.LoadFamilyAsync()); Settle(vm);
+                Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
                 Require(vm.FamilyPending.Count == 1 && vm.FamilyApprovedState.Contains("Nenhum vínculo", StringComparison.Ordinal) && vm.FamilyPendingState == "", "A leitura que volta deveria preencher as listas: " + vm.FamilyPendingState);
-                fixture.FailFamily = true; Pump(vm.LoadFamilyAsync()); Settle(vm);
+                fixture.FailFamily = true; Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
                 Require(vm.FamilyPending.Count == 1 && vm.FamilyPendingState.Contains("não concluiu", StringComparison.Ordinal), "Uma falha depois de carregar mantém a lista e avisa: " + vm.FamilyPendingState);
             }
             finally { CloseWindow(window); }

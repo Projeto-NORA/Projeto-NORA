@@ -14,6 +14,7 @@ internal static partial class Program
 {
     private static void RunFamilyChecks(string storageRoot, string previewRoot)
     {
+        RunPatientsFamilyChecks(storageRoot, previewRoot);
         Check("OBS Família: lista pedidos pendentes e vínculos aprovados, aprova (lembrando dos documentos), recusa com ou sem motivo e encerra, sempre com confirmação e tratando decisão de outra pessoa", () =>
         {
             using var fixture = new ApiFixture { UseWorkspaceIdentity = true, ObsRole = "attendant" };
@@ -33,25 +34,61 @@ internal static partial class Program
             {
                 var vm = LoginObs(window);
                 Require(fixture.Count("GET", "/family-links") == 0, "Os pedidos de família não deveriam ser lidos antes de abrir a aba.");
-                var content = Show(window, "family", 1280, 2200);
+                var content = Show(window, "family", 1280, 800);
                 Require(fixture.Count("GET", "/family-links") == 2 && vm.FamilyPending.Select(link => link.GuardianName).SequenceEqual(["Maria Santos", "João Souza", "Rosa Costa"]) && vm.FamilyApproved.Single().GuardianName == "Carla Lima", "Abrir a aba deveria ler pendentes e aprovados (duas chamadas), do pedido mais antigo ao mais novo.");
-                Require(vm.FamilySummary == "3 pedidos aguardando · 1 vínculo aprovado" && FullTexts(content).Contains(vm.FamilySummary), "O resumo da aba deveria contar pedidos e vínculos: " + vm.FamilySummary);
-                Require(Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Pedidos de família pendentes" && grid.Items.Count == 3) && Descendants<DataGrid>(content).Any(grid => AutomationProperties.GetName(grid) == "Vínculos de família aprovados" && grid.Items.Count == 1), "As duas tabelas deveriam estar na tela.");
+                Require(window.ViewModel.Route == "family:requests" && window.ViewModel.PageLabel == "Família • Pacientes", "O atalho \"family\" deveria abrir Família (os pedidos), com o título \"Família • Pacientes\": " + window.ViewModel.Route + " / " + window.ViewModel.PageLabel);
+                // Uma listagem só (os pedidos), aberta, sem DataGrid, sem botão Atualizar, sem título repetido e sem o motivo da recusa na tela.
+                var pendingList = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Pedidos de família pendentes");
+                Require(pendingList.Items.Count == 3 && Descendants<ListBox>(content).Count(box => box.IsVisible) == 1 && !Descendants<DataGrid>(content).Any(), "Família deveria ter uma só listagem, com os 3 pedidos, sem tabela.");
+                Require(!Descendants<Button>(content).Any(button => AutomationProperties.GetName(button).StartsWith("Atualizar", StringComparison.Ordinal)) && !Descendants<TextBox>(content).Any(box => AutomationProperties.GetName(box) == "Motivo da recusa"), "Família não deveria ter botão Atualizar nem o campo do motivo na tela.");
+                var page = (FrameworkElement)window.FindName("PageContainer");
+                Require(!VisibleTexts(page).Any(text => text is "Família" or "Pedidos aguardando decisão" or "Vínculos aprovados"), "Família não deveria repetir o título nem trazer títulos de seção: " + string.Join(" | ", VisibleTexts(page)));
+                Require(VisibleTexts(page).Contains("Maria Santos → Lia Santos") && VisibleTexts(page).Any(text => text.StartsWith("CPF do responsável 123.456.789-09 | CPF do dependente 529.982.247-25 | Pedido em ", StringComparison.Ordinal)), "O item deveria trazer responsável → dependente e, embaixo, os CPFs e a data: " + string.Join(" | ", VisibleTexts(page)));
                 Require(vm.FamilyPending[0].GuardianCpfDisplay == "123.456.789-09" && vm.FamilyPending[0].DependentDisplay == "Lia Santos" && vm.FamilyPending[0].DependentCpfDisplay == "529.982.247-25", "A equipe deveria ver nome e CPF do responsável e do dependente para conferir os documentos.");
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-familia-light.png"), 1280, 900);
+                Require(Descendants<SelectionBalloon>(content).All(balloon => !balloon.IsVisible), "Sem pedido selecionado não deveria haver balão de ações.");
+                SaveScrolled(window, Path.Combine(previewRoot, "obs-familia-light.png"), 1280, 800);
                 // Aprovar: pergunta lembrando de conferir os documentos; recusar a pergunta não aprova.
-                vm.SelectedPendingFamily = vm.FamilyPending[0]; content = Layout(window, 1280, 2200);
-                Click(window, content, "Aprovar pedido", 1280, 2200);
+                vm.SelectedPendingFamily = vm.FamilyPending[0]; content = Layout(window, 1280, 800);
+                Require(Descendants<SelectionBalloon>(content).Count(balloon => balloon.IsVisible) == 1 && Descendants<Button>(content).Count(button => button.IsVisible && AutomationProperties.GetName(button) is "Aprovar pedido" or "Recusar pedido") == 2, "Com um pedido selecionado o balão deveria mostrar Aprovar e Recusar.");
+                SavePreview(content, Path.Combine(previewRoot, "obs-familia-balao-light.png"));
+                Click(window, content, "Aprovar pedido", 1280, 800);
                 Require(asked.Count == 1 && asked[0].Title == "Aprovar vínculo de família" && asked[0].Text.Contains("Confira antes os documentos", StringComparison.Ordinal) && asked[0].Text.Contains("Maria Santos", StringComparison.Ordinal) && fixture.Count("POST", "/approve") == 0, "A aprovação deveria perguntar, lembrando dos documentos, e recusar não aprova.");
-                answer = true; vm.SelectedPendingFamily = vm.FamilyPending[0]; content = Layout(window, 1280, 2200); Click(window, content, "Aprovar pedido", 1280, 2200);
-                Require(fixture.Count("POST", "/approve") == 1 && fixture.FamilyBodies.Last().Body.GetProperty("confirmed").GetBoolean() && vm.FamilyPending.Count == 2 && vm.FamilyApproved.Count == 2 && vm.FamilyApproved.Any(link => link.GuardianName == "Maria Santos") && vm.MessageKind == MessageKind.Success && vm.Message.Contains("Maria Santos"), "Aprovar deveria enviar a confirmação e mover o pedido para os vínculos: " + vm.Message);
-                // Recusar: motivo opcional de até 280 caracteres.
+                answer = true; vm.SelectedPendingFamily = vm.FamilyPending[0]; content = Layout(window, 1280, 800); Click(window, content, "Aprovar pedido", 1280, 800);
+                Require(fixture.Count("POST", "/approve") == 1 && fixture.FamilyBodies.Last().Body.GetProperty("confirmed").GetBoolean() && vm.FamilyPending.Count == 2 && vm.FamilyApproved.Count == 2 && vm.FamilyApproved.Any(link => link.GuardianName == "Maria Santos") && vm.MessageKind == MessageKind.Success && vm.Message == "Pedido aprovado.", "Aprovar deveria enviar a confirmação, mover o pedido para os vínculos e dizer \"Pedido aprovado.\": " + vm.Message);
+                // Recusar: motivo opcional de até 280 caracteres, num pop-up (Enviar e Fechar); o campo do motivo não fica na tela.
                 vm.SelectedPendingFamily = vm.FamilyPending.Single(link => link.GuardianName == "João Souza"); vm.FamilyRejectReason = new string('m', 281); Pump(vm.RejectFamilyAsync());
                 Require(vm.FamilyRejectReasonError.Contains("280") && fixture.Count("POST", "/reject") == 0, "Motivo com mais de 280 caracteres foi enviado.");
-                vm.FamilyRejectReason = "Documento ilegível"; content = Layout(window, 1280, 2200); asked.Clear(); Click(window, content, "Recusar pedido", 1280, 2200);
-                Require(asked.Count == 1 && asked[0].Title == "Recusar pedido de família" && asked[0].Text.Contains("motivo informado") && fixture.Count("POST", "/reject") == 1 && fixture.FamilyBodies.Last().Body.GetProperty("reason").GetString() == "Documento ilegível" && vm.FamilyRejectReason == "" && vm.FamilyPending.All(link => link.GuardianName != "João Souza"), "Recusar com motivo deveria pedir confirmação e enviar o motivo.");
-                vm.SelectedPendingFamily = vm.FamilyPending.Single(); asked.Clear(); content = Layout(window, 1280, 2200); answer = false; Click(window, content, "Recusar pedido", 1280, 2200);
-                Require(asked.Count == 1 && asked[0].Text.Contains("Nenhum motivo") && fixture.Count("POST", "/reject") == 1, "Recusar sem motivo deveria avisar que nenhum motivo será informado e respeitar a recusa da pergunta.");
+                vm.FamilyRejectReason = ""; asked.Clear(); content = Layout(window, 1280, 800);
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    Require(dialog.Title == "Recusar pedido" && AutomationProperties.GetName(dialog) == "Recusar pedido", "O pop-up deveria se chamar \"Recusar pedido\".");
+                    var buttons = Descendants<Button>(dialog).ToArray();
+                    Require(buttons.Any(button => button.Content as string == "Enviar" && button.IsDefault) && buttons.Any(button => button.Content as string == "Fechar"), "O pop-up deveria ter os botões Enviar (padrão, à direita) e Fechar.");
+                    Require(Descendants<TextBlock>(dialog).Any(text => text.Text == "Motivo da recusa (opcional, até 280 caracteres)") && FullTexts(dialog).Any(text => text.Contains("Recusar o pedido de João Souza para Davi Souza", StringComparison.Ordinal)), "O pop-up deveria trazer o pedido e o campo do motivo: " + string.Join(" | ", FullTexts(dialog)));
+                    var reason = Descendants<TextBox>(dialog).Single(box => AutomationProperties.GetName(box) == "Motivo da recusa");
+                    Require(!reason.AcceptsReturn && reason.MaxLength == 280, "O motivo não aceita quebra de linha e vai até 280 caracteres.");
+                    reason.Text = "Documento ilegível";
+                    Require(vm.FamilyRejectReason == "Documento ilegível" && FullTexts(dialog).Contains("18/280"), "O contador deveria mostrar 18/280: " + string.Join(" | ", FullTexts(dialog)));
+                    // O pop-up abre com uma animação curta de entrada: a captura espera ela terminar para mostrar o pop-up inteiro.
+                    dialog.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); System.Threading.Thread.Sleep(400); dialog.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); dialog.UpdateLayout();
+                    SavePreview(dialog, Path.Combine(previewRoot, "obs-familia-recusar-light.png"));
+                    InvokeButton(buttons.Single(button => button.Content as string == "Enviar")); PumpUntil(() => !dialog.IsVisible && !vm.IsBusy);
+                }, () => InvokeButton(FindActionButton(content, "Recusar pedido")));
+                Require(asked.Count == 0 && fixture.Count("POST", "/reject") == 1 && fixture.FamilyBodies.Last().Body.GetProperty("reason").GetString() == "Documento ilegível" && vm.FamilyRejectReason == "" && vm.FamilyPending.All(link => link.GuardianName != "João Souza") && vm.MessageKind == MessageKind.Success && vm.Message == "Pedido recusado e motivo enviado ao responsável.", "Recusar com motivo deveria enviar o motivo, sem pergunta extra, e dizer o que aconteceu: " + vm.Message);
+                // Sem motivo: "Pedido recusado."; Fechar desiste sem recusar.
+                fixture.AddFamilyRequest(unit.Id, "Paulo Dias", "52998224725", davi.Cpf, requestedAt: now.AddHours(-1)); Pump(vm.RefreshAutomaticallyAsync()); Settle(vm);
+                vm.SelectedPendingFamily = vm.FamilyPending.Single(link => link.GuardianName == "Paulo Dias"); content = Layout(window, 1280, 800);
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Fechar")); PumpUntil(() => !dialog.IsVisible);
+                    Require(!dialog.Saved, "Fechar não deveria recusar.");
+                }, () => InvokeButton(FindActionButton(content, "Recusar pedido")));
+                Require(fixture.Count("POST", "/reject") == 1 && vm.FamilyPending.Count == 2 && vm.FamilyRejectReason == "", "Fechar o pop-up não deveria recusar o pedido.");
+                InspectModal<FormDialog>(window, dialog =>
+                {
+                    InvokeButton(Descendants<Button>(dialog).Single(button => button.Content as string == "Enviar")); PumpUntil(() => !dialog.IsVisible && !vm.IsBusy);
+                }, () => InvokeButton(FindActionButton(content, "Recusar pedido")));
+                Require(fixture.Count("POST", "/reject") == 2 && fixture.FamilyBodies.Last().Body.GetProperty("reason").ValueKind == System.Text.Json.JsonValueKind.Null && vm.Message == "Pedido recusado." && vm.FamilyPending.Count == 1, "Recusar sem motivo deveria dizer \"Pedido recusado.\": " + vm.Message);
                 // Dependente com cadastro desativado: 409 com mensagem própria; o pedido continua pendente.
                 answer = true; vm.SelectedPendingFamily = vm.FamilyPending.Single(); Pump(vm.ApproveFamilyAsync());
                 Require(vm.MessageKind == MessageKind.Error && vm.Message.Contains("desativado", StringComparison.Ordinal) && vm.FamilyPending.Count == 1 && fixture.FamilyLinkOf(inactiveRequest.Id)!.Status == "pending", "Aprovar com o cadastro do dependente desativado deveria dar a mensagem própria e manter o pedido: " + vm.Message);
@@ -61,18 +98,25 @@ internal static partial class Program
                 vm.SelectedPendingFamily = vm.FamilyPending.Single(); Pump(vm.ApproveFamilyAsync());
                 Require(vm.Message.Contains("já foi decidido", StringComparison.Ordinal) && vm.FamilyPending.Count == 0 && vm.FamilyPendingState.StartsWith("Nenhum pedido", StringComparison.Ordinal), "A decisão de outra pessoa deveria avisar e esvaziar a lista: " + vm.Message);
                 // Encerrar vínculo aprovado, com confirmação.
-                vm.SelectedApprovedFamily = vm.FamilyApproved.Single(link => link.GuardianName == "Maria Santos"); content = Layout(window, 1280, 2200); answer = false; asked.Clear();
-                Click(window, content, "Encerrar vínculo selecionado", 1280, 2200);
+                content = Show(window, "family:approved", 1280, 800);
+                Require(window.ViewModel.PageLabel == "Vínculos aprovados • Pacientes", "O título deveria ser \"Vínculos aprovados • Pacientes\": " + window.ViewModel.PageLabel);
+                var approvedList = Descendants<ListBox>(content).Single(box => AutomationProperties.GetName(box) == "Vínculos de família aprovados");
+                Require(approvedList.Items.Count == 2 && Descendants<ListBox>(content).Count(box => box.IsVisible) == 1 && VisibleTexts(content).Any(text => text.StartsWith("CPF do responsável 123.456.789-09 | CPF do dependente 529.982.247-25 | Desde ", StringComparison.Ordinal)), "Vínculos aprovados deveria ter uma só listagem, com responsável → dependente, CPFs e desde quando: " + string.Join(" | ", VisibleTexts(content)));
+                vm.SelectedApprovedFamily = vm.FamilyApproved.Single(link => link.GuardianName == "Maria Santos"); content = Layout(window, 1280, 800); answer = false; asked.Clear();
+                var danger = FindActionButton(content, "Encerrar vínculo selecionado");
+                Require(danger.Style == (Style)Application.Current.FindResource("ListActionDangerButton"), "Encerrar vínculo deveria ser o botão de perigo (lixeira branca em fundo vermelho).");
+                SavePreview(content, Path.Combine(previewRoot, "obs-vinculos-balao-light.png"));
+                Click(window, content, "Encerrar vínculo selecionado", 1280, 800);
                 Require(asked.Count == 1 && asked[0].Title == "Encerrar vínculo de família" && asked[0].Text.Contains("perde na hora", StringComparison.Ordinal) && fixture.Count("POST", "/end") == 0, "Encerrar deveria perguntar e respeitar a recusa.");
-                answer = true; vm.SelectedApprovedFamily = vm.FamilyApproved.Single(link => link.GuardianName == "Maria Santos"); content = Layout(window, 1280, 2200); Click(window, content, "Encerrar vínculo selecionado", 1280, 2200);
+                answer = true; vm.SelectedApprovedFamily = vm.FamilyApproved.Single(link => link.GuardianName == "Maria Santos"); content = Layout(window, 1280, 800); Click(window, content, "Encerrar vínculo selecionado", 1280, 800);
                 Require(fixture.Count("POST", "/end") == 1 && vm.FamilyApproved.Single().GuardianName == "Carla Lima" && vm.Message.Contains("Vínculo encerrado", StringComparison.Ordinal), "Encerrar deveria tirar o vínculo da lista.");
                 // Ciclo: só a aba Família lê os pedidos, uma vez por tabela.
                 var reads = fixture.Count("GET", "/family-links"); Pump(vm.RefreshAutomaticallyAsync());
                 Require(fixture.Count("GET", "/family-links") == reads + 2, "Na aba Família cada ciclo deveria ler pendentes e aprovados (duas chamadas).");
                 window.ViewModel.Navigate("queue"); Settle(vm); reads = fixture.Count("GET", "/family-links"); Pump(vm.RefreshAutomaticallyAsync());
                 Require(fixture.Count("GET", "/family-links") == reads, "Fora da aba Família o ciclo não deveria ler os pedidos.");
-                window.ViewModel.Navigate("family"); Settle(vm); window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 2200);
-                SaveScrolled(window, Path.Combine(previewRoot, "obs-familia-dark.png"), 1280, 900);
+                window.ViewModel.Navigate("family"); Settle(vm); window.ViewModel.SetAppearance(Appearance.Dark); content = Layout(window, 1280, 800);
+                SaveScrolled(window, Path.Combine(previewRoot, "obs-familia-dark.png"), 1280, 800);
                 vm.LogoutCommand.Execute(null); Settle(vm);
                 Require(vm.FamilyPending.Count == 0 && vm.FamilyApproved.Count == 0, "Sair deveria limpar os pedidos de família.");
             }

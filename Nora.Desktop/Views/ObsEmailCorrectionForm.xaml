@@ -1,0 +1,12 @@
+<UserControl x:Class="Nora.Desktop.Views.ObsEmailCorrectionForm" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:Nora.Desktop.Views" xmlns:enter="clr-namespace:Nora.Desktop.Views">
+  <!-- Corpo do pop-up "Corrigir e-mail" (DialogService.ShowForm): o paciente selecionado e o campo do e-mail corrigido. O DataContext é o WorkspaceViewModel, posto por quem abre. Sem card: o pop-up já é o card. -->
+  <views:FormGrid>
+    <StackPanel views:FormGrid.FullRow="True">
+      <TextBlock Text="{Binding SelectedObsRegistry.FullName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+      <TextBlock Text="{Binding SelectedObsRegistry.FormattedCpf, StringFormat='CPF {0}'}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,12" />
+      <TextBlock Text="E-mail corrigido" />
+      <TextBox Text="{Binding CorrectedObsEmail, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="E-mail corrigido da UBS" Margin="0,6,0,0" MinHeight="42" Padding="10" enter:EnterNavigation.Group="ObsEmailCorrectionForm" />
+      <TextBlock Text="{Binding CorrectedObsEmailError}" Style="{StaticResource FieldError}" Margin="0,4,0,0" Visibility="{Binding CorrectedObsEmailError, Converter={StaticResource TextVisibility}}" AutomationProperties.Name="Erro do e-mail corrigido" AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+  </views:FormGrid>
+</UserControl>

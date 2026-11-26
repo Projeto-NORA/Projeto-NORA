@@ -407,7 +407,7 @@ public sealed class NoraApiClient : IDisposable
             "specialty-limit" => "O paciente já tem uma consulta futura marcada pelo aplicativo nesta especialidade.",
             "booking-window" => "Esse horário já começou ou passou. Escolha outro horário.",
             "confirmation-window" => "A presença é confirmada de 48 horas até 2 horas antes da consulta.",
-            "family-link-closed" => "Este pedido já foi decidido, cancelado ou encerrado por outra pessoa. Atualize a lista.",
+            "family-link-closed" => "Este pedido já foi decidido, cancelado ou encerrado por outra pessoa. A lista se atualiza sozinha.",
             "dependent-inactive" => "O cadastro do dependente está desativado nesta UBS. Reative o cadastro dele antes de aprovar o vínculo.",
             "database-provisioning-failed" => "Não foi possível criar a base de dados da unidade. Confirme se o usuário PostgreSQL da API tem permissão para criar bancos e tente novamente.",
             "conflict" => ConflictMessage(method, path),
@@ -437,11 +437,11 @@ public sealed class NoraApiClient : IDisposable
         if (path.StartsWith("api/municipal/goals/", StringComparison.Ordinal)) return "Essa meta não existe mais. Atualize a lista de metas.";
         if (path.StartsWith("api/municipal/announcements", StringComparison.Ordinal)) return "O comunicado não foi encontrado. Atualize a lista.";
         if (path.StartsWith("api/obs/announcements", StringComparison.Ordinal)) return "Este comunicado não está mais disponível. Atualize a lista.";
-        if (path.Contains("/family-links", StringComparison.Ordinal)) return "O pedido não foi encontrado nesta UBS. Atualize a lista.";
+        if (path.Contains("/family-links", StringComparison.Ordinal)) return "O pedido não foi encontrado nesta UBS. A lista se atualiza sozinha.";
         if (path.EndsWith("/health-records/query", StringComparison.Ordinal) || path.EndsWith("/health-records/exams", StringComparison.Ordinal) || path.EndsWith("/health-records/vaccines", StringComparison.Ordinal))
-            return "O paciente não tem cadastro ativo nesta UBS. Atualize a lista de pacientes.";
+            return "O paciente não tem cadastro ativo nesta UBS. A lista de pacientes se atualiza sozinha.";
         if (path.Contains("/health-records/", StringComparison.Ordinal)) return "O registro não foi encontrado. Atualize a lista de exames e vacinas.";
-        if (path.EndsWith("/registry/deactivation-preview", StringComparison.Ordinal)) return "Não há cadastro deste paciente nesta UBS. Atualize a lista de pacientes.";
+        if (path.EndsWith("/registry/deactivation-preview", StringComparison.Ordinal)) return "Não há cadastro deste paciente nesta UBS. A lista de pacientes se atualiza sozinha.";
         if (path.Contains("/schedule", StringComparison.Ordinal) || path.Contains("/professionals/", StringComparison.Ordinal) || path.Contains("/rooms/", StringComparison.Ordinal))
             return "O item não foi encontrado: outra pessoa pode tê-lo removido. Atualize a tela.";
         return "Registro não encontrado. Atualize os dados e tente novamente.";
