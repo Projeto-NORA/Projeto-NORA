@@ -109,6 +109,7 @@ internal static partial class Program
                 InspectHeaderForm(window, "Nova conta", dialog =>
                 {
                     Require(!Descendants<TextBox>(dialog).Any(input => AutomationProperties.GetName(input).Contains("CPF", StringComparison.Ordinal)) && !VisibleTexts(dialog).Any(text => text == "CPF"), "O formulário não deveria ter campo de CPF.");
+                    Require(VisibleTexts(dialog).Any(text => text.Contains("sem CPF", StringComparison.Ordinal)), "O formulário deveria dizer que a conta é só de acesso, sem CPF.");
                     var primary = Descendants<Button>(dialog).Single(button => button.Content as string == "Criar conta");
                     Input(dialog, "Nome da nova conta").Text = "Paulo Equipe"; Input(dialog, "E-mail da nova conta").Text = "paulo@example.test";
                     Secret(dialog, "Senha provisória da nova conta").Password = "provisoria-123"; Secret(dialog, "Confirmação da senha provisória da nova conta").Password = "provisoria-123";

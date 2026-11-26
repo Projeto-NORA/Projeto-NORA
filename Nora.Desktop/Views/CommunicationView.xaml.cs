@@ -40,7 +40,7 @@ public partial class CommunicationView : UserControl
             if (!Confirmation.Ask(null, "Publicar comunicado", vm.AnnouncementConfirmationText)) { problem = "A publicação não foi confirmada."; return false; }
             return await vm.PublishAnnouncementAsync();
         }
-        DialogService.ShowForm(Window.GetWindow(this), "Novo comunicado", new AnnouncementFormView { DataContext = vm }, Publish, "Publicar", error: () => problem.Length > 0 ? problem : vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, "Novo comunicado", new AnnouncementFormView { DataContext = vm }, Publish, "Publicar", () => problem.Length > 0 ? problem : vm.Message);
     }
 
     private async void OnClose(object sender, RoutedEventArgs e)

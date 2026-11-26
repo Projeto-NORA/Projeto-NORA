@@ -39,7 +39,7 @@ internal static partial class Program
             fixture.AddAppointment(centro.Id, "scheduled", now.AddHours(3), "52998224725", "Ana Beatriz Souza", "Clínica geral", "Dra. Helena");
             fixture.AddAppointment(centro.Id, "completed", now.AddHours(-3), "11144477735", "Carlos Eduardo Lima", "Cardiologia", "Dr. Paulo");
             fixture.AddSpecialty("Cardiologia"); fixture.AddSpecialty("Clínica geral"); fixture.AddSpecialty("Pediatria", active: false);
-            fixture.StaffAccounts.Add(new(Guid.NewGuid(), "Marina Costa", "admin", "marina@example.test", true, true));
+            fixture.StaffAccounts.Add(new(Guid.NewGuid(), "Marina Costa", "administrator", "marina@example.test", true, true));
             fixture.StaffAccounts.Add(new(Guid.NewGuid(), "Rafael Torres", "attendant", "rafael@example.test", false, false));
             fixture.History.Add(new(now.AddMinutes(-5), "staff-granted", "Gestor Fixture", centro.Id, "UBS Centro", "Marina Costa", "c1"));
             fixture.History.Add(new(now.AddHours(-2), "staff-created", "Gestor Fixture", null, null, "Rafael Torres", "c2"));

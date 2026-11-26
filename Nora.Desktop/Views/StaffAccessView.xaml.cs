@@ -9,10 +9,21 @@ namespace Nora.Desktop.Views;
 /// <summary>Acessos às UBS: conceder e retirar o acesso de uma conta a uma UBS, em pop-up, sempre com confirmação.</summary>
 public partial class StaffAccessView : UserControl
 {
-    public StaffAccessView() { InitializeComponent(); MunicipalDetailsHost.Attach(AccessList, this); }
+    public StaffAccessView()
+    {
+        InitializeComponent();
+        MunicipalDetailsHost.Attach(AccessList, this);
+        ListingBehavior.AddBalloonRefreshedHandler(AccessList, OnBalloonRefreshed);
+    }
 
     private WorkspaceViewModel? Workspace => DataContext as WorkspaceViewModel;
     private StaffAccount? Selected => ListingBehavior.GetSelectedItems<StaffAccount>(AccessList).FirstOrDefault();
+
+    /// <summary>Retirar acesso só serve a uma conta que tem UBS: some quando já se sabe que ela não tem nenhuma (enquanto as UBS não foram lidas, continua à vista).</summary>
+    private void OnBalloonRefreshed(object sender, RoutedEventArgs args)
+    {
+        if (ListingBehavior.GetSelectedItems<StaffAccount>(AccessList) is [{ UnitsDisplay: StaffAccount.NoUnitsDisplay }]) RevokeButton.Visibility = Visibility.Collapsed;
+    }
 
     /// <summary>Escolhe a conta (o ViewModel guarda a UBS a conceder e a retirar) e lê as UBS que ela já tem.</summary>
     private async Task<bool> PrepareAsync(WorkspaceViewModel vm, StaffAccount account)
@@ -40,7 +51,7 @@ public partial class StaffAccessView : UserControl
             if (!Confirmation.Ask(null, "Confirmar concessão", $"Conceder a {account.FullName} acesso à UBS {unit.Name}? A conta passa a ver cadastros, agenda e vagas dessa unidade.")) { problem = "A concessão não foi confirmada."; return false; }
             return await vm.ChangeStaffUnitAsync(true);
         }
-        DialogService.ShowForm(owner, "Conceder acesso a uma UBS", form, Grant, "Conceder acesso", error: () => problem.Length > 0 ? problem : vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, "Conceder acesso a uma UBS", form, Grant, "Conceder acesso", () => problem.Length > 0 ? problem : vm.Message);
     }
 
     private async void OnRevoke(object sender, RoutedEventArgs e)
@@ -58,6 +69,6 @@ public partial class StaffAccessView : UserControl
             if (!Confirmation.Ask(null, "Confirmar revogação", $"Revogar o vínculo de {account.FullName} com {unit.Name}?")) { problem = "A retirada não foi confirmada."; return false; }
             return await vm.ChangeStaffUnitAsync(false);
         }
-        DialogService.ShowForm(owner, "Retirar acesso a uma UBS", form, Revoke, "Retirar acesso", error: () => problem.Length > 0 ? problem : vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, "Retirar acesso a uma UBS", form, Revoke, "Retirar acesso", () => problem.Length > 0 ? problem : vm.Message);
     }
 }

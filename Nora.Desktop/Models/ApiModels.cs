@@ -37,6 +37,8 @@ public sealed record StaffAccount(Guid Id, string FullName, string Role, string?
     [JsonIgnore] public string SelectorLabel => IsActive ? FullName : FullName + " (desativada)";
     /// <summary>UBS com acesso, em texto ("UBS Centro, UBS Sul" ou "Sem UBS"); vazio enquanto os vínculos ainda não foram lidos. Preenchido pelo cliente.</summary>
     [JsonIgnore] public string UnitsDisplay { get; init; } = "";
+    /// <summary>O texto de <see cref="UnitsDisplay"/> para a conta que não tem acesso a nenhuma UBS.</summary>
+    public const string NoUnitsDisplay = "Sem UBS";
     /// <summary>Linha de dados da listagem de contas: e-mail, perfil e UBS com acesso, só o que foi informado.</summary>
     [JsonIgnore] public string MetaLine => ListText.Join([string.IsNullOrWhiteSpace(Email) ? null : Email, RoleDisplay, UnitsDisplay]);
     /// <summary>Texto e tom da etiqueta de situação da conta: desativada, senha provisória (troca pendente) ou ativa.</summary>

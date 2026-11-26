@@ -5,7 +5,7 @@
     <StackPanel Orientation="Horizontal">
       <views:PageFilterGroup Label="Contas OBS" SearchFields="FullName,EmailDisplay,RoleDisplay,StatusDisplay,UnitsDisplay" ItemsTarget="{Binding ElementName=StaffList}" />
       <views:PageActions>
-        <Button Style="{StaticResource NewItemButton}" Content="Nova conta" Click="OnNew" AutomationProperties.Name="Nova conta" ToolTip="Cria uma conta de equipe: nome, e-mail, perfil e senha provisória, sem CPF. Depois, conceda as UBS que ela operará." />
+        <Button Style="{StaticResource NewItemButton}" Content="Nova conta" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Nova conta" ToolTip="Cria uma conta de equipe: nome, e-mail, perfil e senha provisória, sem CPF. Depois, conceda as UBS que ela operará." />
       </views:PageActions>
     </StackPanel>
     <Grid Grid.Row="1">
@@ -27,9 +27,9 @@
       <views:ListEmptyText List="{Binding ElementName=StaffList}" EmptyText="{Binding StaffState}" NoMatchText="Nenhuma conta encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
       <views:SelectionBalloon x:Name="Balloon">
         <StackPanel Orientation="Horizontal">
-          <Button x:Name="ResetButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Redefinir senha provisória" Click="OnReset" ToolTip="Define uma nova senha provisória para a conta; as sessões dela são encerradas." />
-          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivate" ToolTip="Reativa as contas desativadas selecionadas; as concessões de UBS preservadas voltam a valer." />
-          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivate" ToolTip="Desativa as contas ativas selecionadas: encerra as sessões e preserva as concessões de UBS (pede confirmação)." AutomationProperties.Name="Desativar conta" />
+          <Button x:Name="ResetButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Redefinir senha provisória" Click="OnReset" IsEnabled="{Binding CanOperate}" ToolTip="Define uma nova senha provisória para a conta; as sessões dela são encerradas." />
+          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivate" IsEnabled="{Binding CanOperate}" ToolTip="Reativa as contas desativadas selecionadas; as concessões de UBS preservadas voltam a valer." />
+          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivate" IsEnabled="{Binding CanOperate}" ToolTip="Desativa as contas ativas selecionadas: encerra as sessões e preserva as concessões de UBS (pede confirmação)." AutomationProperties.Name="Desativar conta" />
         </StackPanel>
       </views:SelectionBalloon>
     </Grid>

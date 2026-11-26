@@ -5,7 +5,7 @@
     <StackPanel Orientation="Horizontal">
       <views:PageFilterGroup Label="Cadastro de UBS" SearchFields="Name,Region,Address,DatabaseLabel" ItemsTarget="{Binding ElementName=UnitList}" />
       <views:PageActions>
-        <Button Style="{StaticResource NewItemButton}" Content="Nova UBS" Click="OnNew" AutomationProperties.Name="Nova UBS" ToolTip="Abre o cadastro de uma nova UBS." />
+        <Button Style="{StaticResource NewItemButton}" Content="Nova UBS" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Nova UBS" ToolTip="Abre o cadastro de uma nova UBS." />
       </views:PageActions>
     </StackPanel>
     <Grid Grid.Row="1">
@@ -27,8 +27,8 @@
       <views:ListEmptyText List="{Binding ElementName=UnitList}" EmptyText="{Binding UnitsState}" NoMatchText="Nenhuma UBS encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
       <views:SelectionBalloon x:Name="Balloon">
         <StackPanel Orientation="Horizontal">
-          <Button x:Name="EditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Editar" Click="OnEdit" ToolTip="Edita os dados da UBS selecionada." />
-          <Button x:Name="ProvisionButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Tentar criar a base de novo" Click="OnProvision" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
+          <Button x:Name="EditButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Editar" Click="OnEdit" IsEnabled="{Binding CanOperate}" ToolTip="Edita os dados da UBS selecionada." />
+          <Button x:Name="ProvisionButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Tentar criar a base de novo" Click="OnProvision" IsEnabled="{Binding CanOperate}" ToolTip="Repete a criação da base desta UBS; é seguro repetir." />
         </StackPanel>
       </views:SelectionBalloon>
     </Grid>

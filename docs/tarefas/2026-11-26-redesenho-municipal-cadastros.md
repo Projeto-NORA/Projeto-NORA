@@ -57,13 +57,39 @@ As nove rotas do grupo no padrão novo (cabeçalho com caminho, listagem aberta 
 - [x] Build 0 erros
 - [x] Capturas nos dois temas, vazio, com balão, pop-up e ficha, conferidas (`.build/redesenho/municipal-cadastros/`, arquivos `cad-*.png`)
 - [x] Loop de verificação (ver Estado)
-- [ ] Commit (feito ao fim, na branch do grupo)
+- [x] Commit (feito ao fim, na branch do grupo: `56ae82e`)
+- [x] Revisão crítica com correções, suíte completa e galeria de novo (ver "Revisão crítica" e "Estado")
 
 ## Estado
 
 - 26/11/2026: fundação integrada por fast-forward; build com 0 erros; nove rotas redesenhadas; checagens adaptadas; galeria visual própria (`MunicipalCadastrosGallery.cs`, só com `--visual-gallery`) gera as capturas e foi conferida nos dois temas, no estado vazio e na largura 980.
 - Validação: ver o resultado final no retorno do agente (build, contagem de PASS/FAIL da suíte completa).
 - Pendências: P-120 (teste do usuário no programa real, ver abaixo).
+- 26/11/2026, revisão crítica: dez achados corrigidos (seção "Revisão crítica"). Build da solução com 0 erros (2 avisos que já existiam, fora do grupo). Suíte completa do desktop **250 PASS e 1 FAIL**, o conhecido P-066 ("faixa de retorno … home"); são as 244 da linha de base mais as 6 checagens novas do grupo. Galeria regenerada (80 capturas `cad-*.png` em `.build/redesenho/municipal-cadastros/`, claro e escuro, com dados, vazio, balão, pop-ups, fichas e 980 px) e conferida a olho.
+- [x] Commit da revisão na branch `worktree-wf_ca153789-8ce-15`.
+
+## Revisão crítica (26/11/2026, branch `worktree-wf_ca153789-8ce-15`)
+
+Revisão do trabalho acima (commit `56ae82e`) contra o pedido do grupo, os itens A e a especificação, frase por frase, com correção. O que ficou igual foi conferido no código e nas capturas: as nove rotas sem título repetido, sem card e sem Atualizar; listas abertas com etiqueta e balão; "+ Novo …" no cabeçalho; cadastros em pop-up com `FormGrid` e primário à direita; ficha em linhas por duplo clique, segundo clique e Enter; confirmações e mensagens de antes; seleção guardada pela chave no ciclo de 20 s.
+
+Achados e correções:
+
+1. **Ação confirmada e descartada em silêncio.** Os botões do balão e o "+ Novo …" do cabeçalho ficavam habilitados durante uma operação em andamento (antes, os botões da tela seguiam `CanOperate`). A pessoa confirmava, por exemplo, "Desativar" e nada acontecia, porque `RunAsync` ignora a ação com outra em curso. Agora as ações que gravam (Editar, Tentar criar a base de novo, Renomear, Reativar, Desativar, Encerrar, Redefinir senha provisória, Conceder e Retirar acesso, e os "+ Novo …") ficam desabilitadas enquanto `CanOperate` é falso; "Ver ficha" continua livre. Isso também impede o duplo clique de abrir dois pop-ups de conceder ou retirar acesso.
+2. **Carregando sem indicador.** As listas mostravam só o texto "Carregando …". `ListEmptyText` passa a mostrar o passo com o indicador girando na cor da marca (`BrandBrush`), que para ao trocar de texto ou sair da tela.
+3. **Pop-up aberto depois de a sessão cair.** Os pop-ups de cadastro (inclusive com a senha provisória digitada) continuavam abertos sobre a tela de acesso. `MunicipalDetailsHost.ShowForm` fecha o pop-up sem salvar quando a sessão termina, como a ficha já fazia.
+4. **Duas fichas.** "Ver ficha" acionado duas vezes seguidas, com a leitura de quem leu ainda em curso, abria duas fichas. Agora abre uma por vez.
+5. **"Nova conta" pelo menu só funcionava uma vez.** Fechado o pop-up, clicar de novo em "Nova conta" não abria outro; agora abre.
+6. **"Retirar acesso" para conta sem UBS.** A lixeira aparecia para conta que comprovadamente não tem UBS; agora some nesse caso (enquanto as UBS não foram lidas, continua, e o pop-up avisa).
+7. **Ficha com linha vazia.** Região, endereço e e-mail não informados apareciam como valor vazio; agora dizem "Não informado(a)".
+8. **Instrução perdida.** O texto curto do cadastro antigo ("Conta só de acesso: nome, e-mail, perfil e senha provisória, sem CPF. Depois, conceda as UBS que ela operará.") voltou ao pop-up de conta nova.
+9. **Código morto.** Saíram as propriedades das botoeiras antigas que nenhuma tela usava mais (`CanEditUnit`, `CanProvisionUnitDatabase`, `CanLoadStaffUnits`, `CanGrantStaffUnit`, `CanRevokeStaffUnit`, `CanChangeStaffActive`, `CanResetStaffPassword`, `StaffActiveActionLabel`, `SelectedStaffLabel`, `HasSelectedSpecialty`, `CanChangeSpecialty`, `CanSaveSpecialty`, `CanChangeMyAnnouncement`, `CanCloseMyAnnouncement`, `CanLoadAnnouncementReaders`) e os nomes delas nas listas de notificação de `WorkspaceViewModel.cs`.
+10. **Checagem que travava a suíte.** A checagem nova das duas fichas repostava um observador em `ApplicationIdle` sem fim, e o `PumpUntil` nunca chegava ao fim; passou a usar um temporizador. A galeria usava o perfil inexistente `admin`; passou a `administrator`.
+
+Checagens novas desta revisão (em `MunicipalCadastrosChecks.cs`, chamadas no fim de `RunCommunicationChecks`): rotas sem título, Atualizar nem card, com a lista ocupando a tela e o "+ Novo" no cabeçalho; rota "Nova conta" duas vezes; pop-up que fecha com a sessão e apaga a senha; uma ficha só com dois "Ver ficha"; ações desabilitadas durante uma operação e de volta no fim; lista carregando com indicador e vazio/busca só com texto.
+
+Decisões mantidas do autor e conferidas: etiqueta "Base pronta"/"Base não criada" (texto que já existia); Cadastros e Agenda da UBS na mesma rota com alternador; linha de dados de cadastros de referência, agenda e acessos montada por conversor no XAML (os modelos `UnitPatientRecord` e `AppointmentInfo` são compartilhados com os grupos do OBS, e um `MetaLine` neles seria conflito certo na integração); a pré-visualização do comunicado deu lugar à confirmação de antes (o campo já mostra o texto puro como sai, e o pedido proíbe card dentro de pop-up).
+
+Validação da revisão: ver "Estado".
 
 ## Testes sugeridos ao usuário
 

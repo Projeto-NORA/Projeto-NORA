@@ -48,13 +48,12 @@ public sealed partial class WorkspaceViewModel
             var sameUnit = selectedUnit?.Id == value?.Id;
             selectedUnit = value;
             if (!sameUnit) { UnitRegistry.Clear(); UnitRegistryLoaded = false; MunicipalAppointments.Clear(); VisibleMunicipalAppointments.Clear(); MunicipalAppointmentsLoaded = false; }
-            Notify(); Notify(nameof(HasSelectedUnit)); Notify(nameof(CanEditUnit)); Notify(nameof(CanReadUnitRegistry)); Notify(nameof(CanProvisionUnitDatabase));
+            Notify(); Notify(nameof(HasSelectedUnit)); Notify(nameof(CanReadUnitRegistry));
             Notify(nameof(SelectedUnitLabel)); Notify(nameof(SelectedUnitDatabasePending)); Notify(nameof(UnitRegistryHint));
         }
     }
     public string SelectedUnitLabel => selectedUnit is { } unit ? $"UBS selecionada: {unit.SelectorLabel}" : "Nenhuma UBS selecionada.";
     public bool SelectedUnitDatabasePending => selectedUnit?.DatabasePending == true;
-    public bool CanProvisionUnitDatabase => IsMunicipal && CanOperate && SelectedUnitDatabasePending;
     public string UnitRegistryHint => SelectedUnitDatabasePending
         ? "A base desta UBS ainda não foi criada: crie a base antes de consultar cadastros e agenda."
         : "A consulta mostra os dados de referência desta unidade e é registrada no histórico de acesso.";
@@ -116,7 +115,6 @@ public sealed partial class WorkspaceViewModel
         Say(MessageKind.Success, "Cadastros da UBS atualizados.");
     });
     public bool HasSelectedUnit => SelectedUnit != null;
-    public bool CanEditUnit => IsMunicipal && CanOperate && HasSelectedUnit;
 
     // Formulário de UBS: mensagem por campo (aparece ao digitar e ao salvar) e avisos de coordenadas que não bloqueiam.
     public string UnitName { get => unitName; set { unitName = value; Notify(); Notify(nameof(UnitNameError)); } }
@@ -281,6 +279,6 @@ public sealed partial class WorkspaceViewModel
         UnitsLoaded = false; summaryUnitFilter = Guid.Empty; appliedSummaryUnitId = null;
         Replace(UnitFilterOptions, new[] { WholeNetwork }); Replace(RegionOptions, new[] { new FilterOption("", "Todas as regiões") });
         ResetAgendaRange(); NewUnitDraft(); UnitProvisionSteps.Clear(); ClearMetrics(); NotifyUnits();
-        foreach (var name in new[] { nameof(SelectedUnit), nameof(SummaryUnitFilter), nameof(HasSelectedUnit), nameof(CanEditUnit), nameof(CanReadUnitRegistry), nameof(SelectedUnitLabel), nameof(SelectedUnitDatabasePending), nameof(CanProvisionUnitDatabase), nameof(UnitRegistryHint) }) Notify(name);
+        foreach (var name in new[] { nameof(SelectedUnit), nameof(SummaryUnitFilter), nameof(HasSelectedUnit), nameof(CanReadUnitRegistry), nameof(SelectedUnitLabel), nameof(SelectedUnitDatabasePending), nameof(UnitRegistryHint) }) Notify(name);
     }
 }

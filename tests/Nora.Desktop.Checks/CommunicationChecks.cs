@@ -176,6 +176,7 @@ internal static partial class Program
             }
             finally { Confirmation.Handler = null; CloseWindow(window); }
         });
+        RunMunicipalCadastrosChecks(storageRoot);
         RunMunicipalCadastrosGallery(storageRoot, previewRoot);
     }
 }

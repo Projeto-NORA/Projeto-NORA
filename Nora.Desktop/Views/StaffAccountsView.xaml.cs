@@ -48,13 +48,20 @@ public partial class StaffAccountsView : UserControl
         if (args.PropertyName is nameof(ShellViewModel.SubPage) or nameof(ShellViewModel.Route)) OpenForRoute();
     }
 
-    /// <summary>O item de menu "Nova conta" (rota <c>users:create</c>) leva a esta tela já com o pop-up aberto; a rota continua existindo para quem a tem salva nas preferências.</summary>
+    /// <summary>
+    /// O item de menu "Nova conta" (rota <c>users:create</c>) leva a esta tela já com o pop-up aberto; a rota continua existindo para quem a tem salva nas preferências.
+    /// Fechado o pop-up, clicar de novo em "Nova conta" no menu abre outro.
+    /// </summary>
     private void OpenForRoute()
     {
         if (shell?.ViewModel.SubPage != "create") { routeFormShown = false; return; }
         if (routeFormShown || !IsVisible || Workspace is not { IsAuthenticated: true }) return;
         routeFormShown = true;
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, OpenCreateForm);
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            try { if (shell?.ViewModel.SubPage == "create" && IsVisible) OpenCreateForm(); }
+            finally { routeFormShown = false; }
+        });
     }
 
     /// <summary>Desativar serve às contas ativas da seleção e Reativar às desativadas; a ação que não serve a nenhuma some. Redefinir senha só vale para uma conta.</summary>
@@ -74,7 +81,7 @@ public partial class StaffAccountsView : UserControl
         vm.NewStaffDraft();
         var form = new StaffCreateFormView { DataContext = vm };
         async Task<bool> Create() { var created = await vm.CreateStaffAsync(form.Password, form.Confirm); if (created) form.ClearPasswords(); return created; }
-        try { DialogService.ShowForm(Window.GetWindow(this), "Nova conta OBS", form, Create, "Criar conta", error: () => vm.Message); }
+        try { MunicipalDetailsHost.ShowForm(this, vm, "Nova conta OBS", form, Create, "Criar conta", () => vm.Message); }
         finally { form.ClearPasswords(); }
     }
 
@@ -94,7 +101,7 @@ public partial class StaffAccountsView : UserControl
             if (done) form.ClearPasswords();
             return done;
         }
-        try { DialogService.ShowForm(Window.GetWindow(this), "Redefinir senha provisória", form, Reset, "Redefinir senha", error: () => problem.Length > 0 ? problem : vm.Message); }
+        try { MunicipalDetailsHost.ShowForm(this, vm, "Redefinir senha provisória", form, Reset, "Redefinir senha", () => problem.Length > 0 ? problem : vm.Message); }
         finally { form.ClearPasswords(); vm.ClearStaffResetErrors(); }
     }
 

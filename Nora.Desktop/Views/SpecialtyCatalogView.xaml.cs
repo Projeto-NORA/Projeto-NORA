@@ -44,7 +44,7 @@ public partial class SpecialtyCatalogView : UserControl
 
     /// <summary>O erro de nome repetido (409) aparece dentro do pop-up, junto do campo e na faixa de erro dele.</summary>
     private void OpenForm(WorkspaceViewModel vm) =>
-        DialogService.ShowForm(Window.GetWindow(this), vm.SpecialtyDraftTitle, new SpecialtyFormView { DataContext = vm }, vm.SaveSpecialtyAsync, vm.SpecialtySaveLabel, error: () => vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, vm.SpecialtyDraftTitle, new SpecialtyFormView { DataContext = vm }, vm.SaveSpecialtyAsync, vm.SpecialtySaveLabel, () => vm.Message);
 
     private async void OnDeactivate(object sender, RoutedEventArgs e)
     {

@@ -29,24 +29,12 @@ public sealed partial class WorkspaceViewModel
             var same = selectedStaff?.Id == value?.Id;
             selectedStaff = value;
             if (!same) { StaffUnits.Clear(); SelectedStaffGrant = null; }
-            Notify(); NotifyStaffActions();
+            Notify();
         }
     }
-    public HealthUnit? SelectedStaffUnit { get => selectedStaffUnit; set { selectedStaffUnit = value; Notify(); NotifyStaffActions(); } }
-    public HealthUnit? SelectedStaffGrant { get => selectedStaffGrant; set { selectedStaffGrant = value; Notify(); NotifyStaffActions(); } }
+    public HealthUnit? SelectedStaffUnit { get => selectedStaffUnit; set { selectedStaffUnit = value; Notify(); } }
+    public HealthUnit? SelectedStaffGrant { get => selectedStaffGrant; set { selectedStaffGrant = value; Notify(); } }
 
-    public bool HasSelectedStaff => selectedStaff is not null;
-    public bool CanLoadStaffUnits => IsMunicipal && CanOperate && HasSelectedStaff;
-    public bool CanGrantStaffUnit => IsMunicipal && CanOperate && HasSelectedStaff && selectedStaffUnit is not null;
-    public bool CanRevokeStaffUnit => IsMunicipal && CanOperate && HasSelectedStaff && selectedStaffGrant is not null;
-    public bool CanChangeStaffActive => IsMunicipal && CanOperate && HasSelectedStaff;
-    public bool CanResetStaffPassword => IsMunicipal && CanOperate && HasSelectedStaff;
-    public string StaffActiveActionLabel => selectedStaff is { IsActive: false } ? "Reativar conta" : "Desativar conta";
-    public string SelectedStaffLabel => selectedStaff is { } account ? $"Conta selecionada: {account.FullName} · {account.RoleDisplay} · {account.StatusDisplay}" : "Nenhuma conta selecionada.";
-    private void NotifyStaffActions()
-    {
-        foreach (var name in new[] { nameof(HasSelectedStaff), nameof(CanLoadStaffUnits), nameof(CanGrantStaffUnit), nameof(CanRevokeStaffUnit), nameof(CanChangeStaffActive), nameof(CanResetStaffPassword), nameof(StaffActiveActionLabel), nameof(SelectedStaffLabel) }) Notify(name);
-    }
     public string StaffState => !IsAuthenticated ? "Entre na Secretaria para gerenciar as contas."
         : !staffLoaded ? (staffLoading ? "Carregando as contas…" : "As contas ainda não foram carregadas.")
         : Staff.Count == 0 ? "Nenhuma conta OBS cadastrada." : "";
@@ -101,7 +89,7 @@ public sealed partial class WorkspaceViewModel
     }
 
     private StaffAccount[] DecorateStaff(IEnumerable<StaffAccount> accounts) =>
-        [.. accounts.Select(account => staffUnitNames.TryGetValue(account.Id, out var names) ? account with { UnitsDisplay = names.Length == 0 ? "Sem UBS" : string.Join(", ", names) } : account)];
+        [.. accounts.Select(account => staffUnitNames.TryGetValue(account.Id, out var names) ? account with { UnitsDisplay = names.Length == 0 ? StaffAccount.NoUnitsDisplay : string.Join(", ", names) } : account)];
 
     /// <summary>Lê as UBS com acesso das contas que ainda não foram lidas (todas, se a última leitura passou de 5 minutos). Falha de uma conta só deixa a UBS dela fora da linha; sessão recusada sobe.</summary>
     private async Task ReadStaffUnitNamesAsync(StaffAccount[] accounts)
@@ -227,6 +215,5 @@ public sealed partial class WorkspaceViewModel
         staffUnitNames.Clear(); staffUnitsReadAt = null;
         ClearStaffForm(); ClearStaffResetErrors(); ClearHistory();
         foreach (var name in new[] { nameof(SelectedStaff), nameof(SelectedStaffUnit), nameof(SelectedStaffGrant), nameof(StaffState) }) Notify(name);
-        NotifyStaffActions();
     }
 }

@@ -40,13 +40,13 @@ public partial class HealthUnitsView : UserControl
 
     /// <summary>Cadastro e edição no pop-up: os passos (localizar o endereço, salvar) aparecem dentro dele; erros da API e dos campos ficam nele também.</summary>
     private void OpenForm(WorkspaceViewModel vm) =>
-        DialogService.ShowForm(Window.GetWindow(this), vm.UnitDraftTitle, new UnitFormView { DataContext = vm }, vm.SaveUnitAsync, "Salvar UBS", error: () => vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, vm.UnitDraftTitle, new UnitFormView { DataContext = vm }, vm.SaveUnitAsync, "Salvar UBS", () => vm.Message);
 
     private void OnProvision(object sender, RoutedEventArgs e)
     {
         if (Workspace is not { } vm || SelectedUnit is not { DatabasePending: true } unit) return;
         vm.SelectedUnit = unit;
         vm.UnitProvisionSteps.Clear();
-        DialogService.ShowForm(Window.GetWindow(this), "Criar a base da UBS", new UnitProvisionFormView { DataContext = vm }, vm.ProvisionSelectedUnitDatabaseAsync, "Criar a base", error: () => vm.Message);
+        MunicipalDetailsHost.ShowForm(this, vm, "Criar a base da UBS", new UnitProvisionFormView { DataContext = vm }, vm.ProvisionSelectedUnitDatabaseAsync, "Criar a base", () => vm.Message);
     }
 }

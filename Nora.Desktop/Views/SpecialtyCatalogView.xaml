@@ -5,7 +5,7 @@
     <StackPanel Orientation="Horizontal">
       <views:PageFilterGroup Label="Cadastro de especialidades" SearchFields="Name,StatusDisplay" ItemsTarget="{Binding ElementName=SpecialtyList}" />
       <views:PageActions>
-        <Button Style="{StaticResource NewItemButton}" Content="Nova especialidade" Click="OnNew" AutomationProperties.Name="Nova especialidade" ToolTip="Abre o cadastro de especialidade." />
+        <Button Style="{StaticResource NewItemButton}" Content="Nova especialidade" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Nova especialidade" ToolTip="Abre o cadastro de especialidade." />
       </views:PageActions>
     </StackPanel>
     <Grid Grid.Row="1">
@@ -24,9 +24,9 @@
       <views:ListEmptyText List="{Binding ElementName=SpecialtyList}" EmptyText="{Binding SpecialtyCatalogState}" NoMatchText="Nenhuma especialidade encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
       <views:SelectionBalloon x:Name="Balloon">
         <StackPanel Orientation="Horizontal">
-          <Button x:Name="RenameButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Renomear" Click="OnRename" ToolTip="Renomeia a especialidade selecionada." />
-          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivate" ToolTip="Reativa as especialidades desativadas selecionadas." />
-          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivate" ToolTip="Desativa as especialidades ativas selecionadas (pede confirmação)." AutomationProperties.Name="Desativar especialidade" />
+          <Button x:Name="RenameButton" Style="{StaticResource ListActionEditButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Renomear" Click="OnRename" IsEnabled="{Binding CanOperate}" ToolTip="Renomeia a especialidade selecionada." />
+          <Button x:Name="ReactivateButton" Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconRestoreGeometry}" Content="Reativar" Click="OnReactivate" IsEnabled="{Binding CanOperate}" ToolTip="Reativa as especialidades desativadas selecionadas." />
+          <Button x:Name="DeactivateButton" Style="{StaticResource ListActionDangerButton}" Content="Desativar" Click="OnDeactivate" IsEnabled="{Binding CanOperate}" ToolTip="Desativa as especialidades ativas selecionadas (pede confirmação)." AutomationProperties.Name="Desativar especialidade" />
         </StackPanel>
       </views:SelectionBalloon>
     </Grid>

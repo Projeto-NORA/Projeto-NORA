@@ -36,8 +36,12 @@ public sealed partial class WorkspaceViewModel
         _ => null
     };
 
+    /// <summary>Valor da ficha: o que não foi informado aparece como tal, em vez de uma linha vazia.</summary>
+    private static string Informed(string? value, string missing = "Não informado") => string.IsNullOrWhiteSpace(value) ? missing : value;
+
     private static ItemDetails BuildUnitDetails(HealthUnit unit) => new(unit.Name, "UBS da rede", [
-        new("Nome", unit.Name, true, "Identificação"), new("Região", unit.Region, Group: "Identificação"), new("Endereço", unit.Address, true, "Identificação"),
+        new("Nome", unit.Name, true, "Identificação"), new("Região", Informed(unit.Region, "Não informada"), Group: "Identificação"),
+        new("Endereço", Informed(unit.Address), !string.IsNullOrWhiteSpace(unit.Address), "Identificação"),
         new("Base de dados", unit.DatabaseLabel.Length > 0 ? unit.DatabaseLabel : "Não informada", Group: "Base"),
         new("Localização cadastrada", $"{unit.Latitude.ToString("0.#####", DisplayFormat.Culture)}, {unit.Longitude.ToString("0.#####", DisplayFormat.Culture)}", Group: "Localização")]);
 
@@ -46,7 +50,7 @@ public sealed partial class WorkspaceViewModel
     {
         var fields = new List<DetailField>
         {
-            new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Contato"), new("E-mail", patient.Email, true, "Contato"),
+            new("Nome completo", patient.FullName, true, "Identificação"), new("CPF", patient.FormattedCpf, true, "Contato"), new("E-mail", Informed(patient.Email), !string.IsNullOrWhiteSpace(patient.Email), "Contato"),
             new("Telefone", patient.PhoneDisplay, !string.IsNullOrWhiteSpace(patient.Phone), "Contato"), new("Situação na UBS", patient.ActiveDisplay, Group: "Situação"),
             new("Presença no aplicativo", patient.PresenceDisplay, Group: "Situação"), new("Cadastrado em", patient.CreatedAtDisplay, Group: "Cadastro")
         };

@@ -30,8 +30,8 @@
       <views:ListEmptyText List="{Binding ElementName=AccessList}" EmptyText="{Binding StaffState}" NoMatchText="Nenhuma conta encontrada para esta busca." Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="4,8" />
       <views:SelectionBalloon x:Name="Balloon">
         <StackPanel Orientation="Horizontal">
-          <Button Style="{StaticResource ListActionEditButton}" views:ListAction.Icon="{StaticResource IconPlusGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Conceder acesso" Click="OnGrant" ToolTip="Dá à conta acesso a uma UBS (pede confirmação)." />
-          <Button Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Retirar acesso" Click="OnRevoke" ToolTip="Retira o acesso da conta a uma UBS (pede confirmação)." AutomationProperties.Name="Retirar acesso" />
+          <Button Style="{StaticResource ListActionEditButton}" views:ListAction.Icon="{StaticResource IconPlusGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Conceder acesso" Click="OnGrant" IsEnabled="{Binding CanOperate}" ToolTip="Dá à conta acesso a uma UBS (pede confirmação)." />
+          <Button x:Name="RevokeButton" Style="{StaticResource ListActionDangerButton}" views:SelectionBalloon.SingleItemOnly="True" Content="Retirar acesso" Click="OnRevoke" IsEnabled="{Binding CanOperate}" ToolTip="Retira o acesso da conta a uma UBS (pede confirmação)." AutomationProperties.Name="Retirar acesso" />
         </StackPanel>
       </views:SelectionBalloon>
     </Grid>

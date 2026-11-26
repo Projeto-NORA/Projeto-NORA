@@ -41,8 +41,6 @@ public sealed partial class WorkspaceViewModel
     public ObservableCollection<AnnouncementSummary> MyAnnouncements { get; } = [];
     public ObservableCollection<AnnouncementReader> AnnouncementReaders { get; } = [];
     public bool CanPublishAnnouncement => IsMunicipal && CanOperate;
-    public bool CanChangeMyAnnouncement => IsMunicipal && CanOperate && SelectedMyAnnouncement is not null;
-    public bool CanCloseMyAnnouncement => CanChangeMyAnnouncement && SelectedMyAnnouncement is { CanClose: true };
     public bool CanLoadMoreAnnouncements => IsMunicipal && CanOperate && myAnnouncementsNext is not null && !loadingMoreAnnouncements;
 
     // ---- Formulário ----
@@ -206,13 +204,13 @@ public sealed partial class WorkspaceViewModel
             var same = selectedMyAnnouncement?.Id == value?.Id;
             selectedMyAnnouncement = value;
             if (!same) ClearAnnouncementReaders();
-            Notify(); Notify(nameof(CanChangeMyAnnouncement)); Notify(nameof(CanCloseMyAnnouncement)); Notify(nameof(AnnouncementReadersState));
+            Notify(); Notify(nameof(AnnouncementReadersState));
         }
     }
     public string MyAnnouncementsState => !IsAuthenticated ? "Entre na Secretaria para ver seus comunicados."
         : !myAnnouncementsLoaded ? (myAnnouncementsFailed ? "Não foi possível ler seus comunicados agora. A leitura é refeita sozinha em instantes." : "Carregando seus comunicados…")
         : MyAnnouncements.Count == 0 ? "Você ainda não publicou comunicados." : "";
-    private static readonly string[] MyAnnouncementNames = [nameof(MyAnnouncementsState), nameof(CanChangeMyAnnouncement), nameof(CanCloseMyAnnouncement), nameof(CanLoadMoreAnnouncements)];
+    private static readonly string[] MyAnnouncementNames = [nameof(MyAnnouncementsState), nameof(CanLoadMoreAnnouncements)];
     private void NotifyMyAnnouncements() { foreach (var name in MyAnnouncementNames) Notify(name); }
 
     /// <summary>Primeira página (carga da seção, ciclo de 20 s e depois de publicar ou encerrar).</summary>
@@ -272,12 +270,11 @@ public sealed partial class WorkspaceViewModel
 
     // ---- Leituras e encerramento ----
 
-    public string AnnouncementReadersState => SelectedMyAnnouncement is null ? "Selecione um comunicado para ver quem da equipe leu."
-        : readersFor != SelectedMyAnnouncement.Id || readers is null ? (SelectedMyAnnouncement.Audience == "patients" ? "Este comunicado é só para pacientes: o app informa a contagem de leituras, sem nomes." : "Use \"Ver quem da equipe leu\" para carregar a lista.")
+    public string AnnouncementReadersState => SelectedMyAnnouncement is null ? "Abra a ficha de um comunicado para ver quem da equipe leu."
+        : readersFor != SelectedMyAnnouncement.Id || readers is null ? (SelectedMyAnnouncement.Audience == "patients" ? "Este comunicado é só para pacientes: o app informa a contagem de leituras, sem nomes." : "Abra a ficha do comunicado para carregar quem da equipe leu.")
         : readers.Staff.Length == 0 ? "Nenhuma conta de equipe marcou este comunicado como lido ainda." : "";
     public string AnnouncementReadersSummary => readersFor is null || readers is null ? ""
         : $"Equipes: {DisplayFormat.Count(readers.StaffReads)} · Pacientes: {DisplayFormat.Count(readers.PatientReads)} (só a contagem, sem nomes).{(readers.Staff.Length < readers.StaffReads ? $" A lista mostra {DisplayFormat.Count(readers.Staff.Length)} contas." : "")}";
-    public bool CanLoadAnnouncementReaders => CanChangeMyAnnouncement && SelectedMyAnnouncement is { Audience: not "patients" };
 
     public Task LoadAnnouncementReadersAsync() => RunAsync(async () =>
     {
@@ -289,7 +286,7 @@ public sealed partial class WorkspaceViewModel
         NotifyReaders();
     });
 
-    private void NotifyReaders() { Notify(nameof(AnnouncementReadersState)); Notify(nameof(AnnouncementReadersSummary)); Notify(nameof(CanLoadAnnouncementReaders)); }
+    private void NotifyReaders() { Notify(nameof(AnnouncementReadersState)); Notify(nameof(AnnouncementReadersSummary)); }
     private void ClearAnnouncementReaders() { readers = null; readersFor = null; AnnouncementReaders.Clear(); NotifyReaders(); }
 
     /// <summary>Encerra os comunicados escolhidos (a confirmação, uma só para o lote, é pedida pela tela). Só um comunicado em vigor pode ser encerrado; a lista é lida de novo uma vez, no fim.</summary>

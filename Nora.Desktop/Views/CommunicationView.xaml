@@ -5,7 +5,7 @@
     <StackPanel Orientation="Horizontal">
       <views:PageFilterGroup Label="Meus comunicados" SearchFields="Title,AudienceDisplay,ScopeDisplay,StatusDisplay" ItemsTarget="{Binding ElementName=PublishedList}" />
       <views:PageActions>
-        <Button Style="{StaticResource NewItemButton}" Content="Novo comunicado" Click="OnNew" AutomationProperties.Name="Novo comunicado" ToolTip="Abre o formulário de um comunicado novo. Título e texto são texto puro: aparecem exatamente como forem digitados, sem formatação e sem links clicáveis. Depois de publicado não dá para editar; dá para encerrar." />
+        <Button Style="{StaticResource NewItemButton}" Content="Novo comunicado" Click="OnNew" IsEnabled="{Binding CanOperate}" AutomationProperties.Name="Novo comunicado" ToolTip="Abre o formulário de um comunicado novo. Título e texto são texto puro: aparecem exatamente como forem digitados, sem formatação e sem links clicáveis. Depois de publicado não dá para editar; dá para encerrar." />
       </views:PageActions>
     </StackPanel>
     <Grid Grid.Row="1">
@@ -28,7 +28,7 @@
       <views:SelectionBalloon x:Name="Balloon">
         <StackPanel Orientation="Horizontal">
           <Button Style="{StaticResource ListActionButton}" views:ListAction.Icon="{StaticResource IconEyeGeometry}" views:SelectionBalloon.SingleItemOnly="True" Content="Ver ficha" Click="OnView" ToolTip="Abre o texto completo e quem da equipe leu." />
-          <Button x:Name="CloseButton" Style="{StaticResource ListActionDangerButton}" Content="Encerrar" Click="OnClose" ToolTip="Pede confirmação. O comunicado continua na lista, mas deixa de aparecer para quem o recebe." AutomationProperties.Name="Encerrar comunicado" />
+          <Button x:Name="CloseButton" Style="{StaticResource ListActionDangerButton}" Content="Encerrar" Click="OnClose" IsEnabled="{Binding CanOperate}" ToolTip="Pede confirmação. O comunicado continua na lista, mas deixa de aparecer para quem o recebe." AutomationProperties.Name="Encerrar comunicado" />
         </StackPanel>
       </views:SelectionBalloon>
     </Grid>

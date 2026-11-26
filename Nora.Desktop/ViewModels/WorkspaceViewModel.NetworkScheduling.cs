@@ -58,10 +58,7 @@ public sealed partial class WorkspaceViewModel
     private Guid? editingSpecialtyId;
     private string specialtyDraftName = "", specialtyServerError = "";
     public ObservableCollection<Specialty> SpecialtyCatalog { get; } = [];
-    public Specialty? SelectedSpecialty { get => selectedSpecialty; set { selectedSpecialty = value; Notify(); Notify(nameof(HasSelectedSpecialty)); Notify(nameof(CanChangeSpecialty)); } }
-    public bool HasSelectedSpecialty => selectedSpecialty is not null;
-    public bool CanChangeSpecialty => IsMunicipal && CanOperate && HasSelectedSpecialty;
-    public bool CanSaveSpecialty => IsMunicipal && CanOperate;
+    public Specialty? SelectedSpecialty { get => selectedSpecialty; set { selectedSpecialty = value; Notify(); } }
     public string SpecialtyDraftTitle => editingSpecialtyId is null ? "Cadastrar especialidade" : "Renomear especialidade";
     public string SpecialtySaveLabel => editingSpecialtyId is null ? "Cadastrar especialidade" : "Salvar novo nome";
     public string SpecialtyDraftName { get => specialtyDraftName; set { specialtyDraftName = value; specialtyServerError = ""; Notify(); Notify(nameof(SpecialtyNameError)); } }
