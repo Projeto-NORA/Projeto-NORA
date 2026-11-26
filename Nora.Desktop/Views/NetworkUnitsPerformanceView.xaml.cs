@@ -8,6 +8,6 @@ public partial class NetworkUnitsPerformanceView : UserControl
     public NetworkUnitsPerformanceView()
     {
         InitializeComponent();
-        new NetworkSearchBinding(this, SearchEmpty).Watch(UnitsGrid, "Name,Region");
+        new NetworkSearchBinding(this, "units:performance", SearchEmpty).Watch(UnitsGrid, "Name,Region");
     }
 }

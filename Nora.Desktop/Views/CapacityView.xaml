@@ -38,7 +38,7 @@
       </DataGrid.Columns>
     </DataGrid>
     <DockPanel Margin="0,28,0,10">
-      <TextBlock DockPanel.Dock="Right" Text="{Binding CapacityCatalogLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+      <views:LoadingStatus DockPanel.Dock="Right" Text="{Binding CapacityCatalogLoadingLabel}" VerticalAlignment="Center" />
       <TextBlock Text="Cadastro de uma UBS" Style="{StaticResource SectionTitle}" Margin="0" ToolTip="Somente leitura: profissionais, consultórios e grade semanal de uma UBS. Só o administrador da própria UBS altera esses dados; a Secretaria consulta." />
     </DockPanel>
     <StackPanel Width="320" HorizontalAlignment="Left"><TextBlock Text="UBS" FontWeight="SemiBold" FontSize="12" />

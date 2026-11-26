@@ -8,6 +8,6 @@ public partial class NetworkSpecialtiesView : UserControl
     public NetworkSpecialtiesView()
     {
         InitializeComponent();
-        new NetworkSearchBinding(this, SearchEmpty).Watch(SpecialtiesGrid, "Name");
+        new NetworkSearchBinding(this, "specialties:demand", SearchEmpty).Watch(SpecialtiesGrid, "Name");
     }
 }

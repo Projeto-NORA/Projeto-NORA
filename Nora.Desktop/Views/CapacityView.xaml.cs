@@ -9,7 +9,7 @@ public partial class CapacityView : UserControl
     {
         InitializeComponent();
         // A pesquisa do cabeçalho filtra os cartões e todas as tabelas da tela pelo que elas mostram.
-        new NetworkSearchBinding(this, SearchEmpty)
+        new NetworkSearchBinding(this, "capacity", SearchEmpty)
             .Watch(CapacityCards, "Title,Value").Watch(UnitsGrid, "Name,Region").Watch(RegionsGrid, "Name")
             .Watch(ProfessionalsGrid, "FullName,SpecialtiesDisplay,CouncilDisplay").Watch(RoomsGrid, "Name").Watch(ScheduleGrid, "WeekdayDisplay,ProfessionalName,RoomName,SpecialtyName");
     }

@@ -25,15 +25,18 @@ internal sealed class NetworkSearchBinding
     }
 
     private readonly FrameworkElement owner;
+    private readonly string screen;
     private readonly TextBlock? emptyText;
     private readonly List<Target> targets = [];
     private WorkspaceViewModel? workspace;
 
     /// <param name="owner">A tela: a pesquisa vale enquanto ela está carregada.</param>
+    /// <param name="screen">Chave da tela (a rota): cada tela guarda a própria pesquisa.</param>
     /// <param name="emptyText">Aviso mostrado quando há busca e nenhuma lista observada tem resultado.</param>
-    public NetworkSearchBinding(FrameworkElement owner, TextBlock? emptyText = null)
+    public NetworkSearchBinding(FrameworkElement owner, string screen, TextBlock? emptyText = null)
     {
         this.owner = owner;
+        this.screen = screen;
         this.emptyText = emptyText;
         owner.Loaded += (_, _) => Attach();
         owner.Unloaded += (_, _) => Detach();
@@ -53,6 +56,7 @@ internal sealed class NetworkSearchBinding
         Detach();
         workspace = owner.DataContext as WorkspaceViewModel;
         if (workspace is null) return;
+        workspace.EnterNetworkSearch(this, screen);
         workspace.PropertyChanged += OnWorkspaceChanged;
         foreach (var target in targets) ((INotifyCollectionChanged)target.List.Items).CollectionChanged += OnItemsChanged;
         Apply();
@@ -66,7 +70,7 @@ internal sealed class NetworkSearchBinding
             if (target.Filter is not null && ReferenceEquals(target.List.Items.Filter, target.Filter)) target.List.Items.Filter = null;
             target.Filter = null;
         }
-        if (workspace is not null) workspace.PropertyChanged -= OnWorkspaceChanged;
+        if (workspace is not null) { workspace.PropertyChanged -= OnWorkspaceChanged; workspace.LeaveNetworkSearch(this); }
         workspace = null;
         if (emptyText is not null) emptyText.Visibility = Visibility.Collapsed;
     }

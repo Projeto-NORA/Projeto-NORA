@@ -322,11 +322,14 @@ public sealed partial class WorkspaceViewModel
     public string NetworkAlertsLoadingLabel => networkAlertsLoading > 0 ? "Avaliando os alertas…" : "";
     public string NetworkAlertsState => !IsAuthenticated ? "Entre na Secretaria para consultar os alertas."
         : networkAlertsFailed && networkAlertsReadAt is null ? "Não foi possível avaliar os alertas da rede agora. A tela tenta de novo sozinha."
-        : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "Avaliando os alertas…" : "Os alertas ainda não foram avaliados.")
+        // Durante a primeira avaliação quem fala é o indicador de andamento (NetworkAlertsLoadingLabel), para a frase não aparecer duas vezes.
+        : networkAlertsLoaded is false ? (networkAlertsLoading > 0 ? "" : "Os alertas ainda não foram avaliados.")
         : NetworkAlerts.Count == 0 && networkAlertsFailed ? $"A última avaliação não concluiu. Na avaliação anterior, das {networkAlertsReadAt:HH:mm}, não havia alerta neste filtro. A tela tenta de novo sozinha."
         : NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0 ? $"Os alertas deste filtro não foram avaliados: {(networkAlertsSkippedUnits == 1 ? "a UBS ainda não tem" : "nenhuma das UBS tem")} base pronta (leitura das {networkAlertsReadAt:HH:mm})."
         : NetworkAlerts.Count == 0 ? $"Nenhum alerta neste filtro. Nenhum critério passou do limite na leitura das {networkAlertsReadAt:HH:mm}.{SkippedUnitsNote}"
-        : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}." : "";
+        : networkAlertsFailed ? $"A última avaliação não concluiu; estes são os alertas da avaliação anterior, das {networkAlertsReadAt:HH:mm}."
+        // Com alertas na lista, a única informação que sobra é a das UBS que não puderam ser avaliadas (sem base pronta).
+        : SkippedUnitsNote.Trim();
     /// <summary>
     /// O estado dos alertas é um aviso (amarelo) quando a avaliação falhou ou não pôde ser feita (UBS sem base); "nenhum alerta" e "ainda avaliando" são só informação,
     /// sem o ícone de atenção.
@@ -334,9 +337,8 @@ public sealed partial class WorkspaceViewModel
     public bool ShowNetworkAlertsWarning => NetworkAlertsState.Length > 0 && IsAuthenticated && (networkAlertsFailed || (networkAlertsLoaded && NetworkAlerts.Count == 0 && networkAlertsEvaluatedUnits == 0 && networkAlertsSkippedUnits > 0));
     public bool ShowNetworkAlertsInfo => NetworkAlertsState.Length > 0 && !ShowNetworkAlertsWarning;
     private string SkippedUnitsNote => networkAlertsSkippedUnits switch { 0 => "", 1 => " 1 UBS sem base pronta ficou de fora.", var count => $" {count} UBS sem base pronta ficaram de fora." };
-    public string NetworkAlertsFootnote => NetworkAlerts.Count == 0 ? "" : $"{NetworkAlerts.Count} {(NetworkAlerts.Count == 1 ? "alerta" : "alertas")} · avaliado às {networkAlertsReadAt:HH:mm}. O \"desde\" só existe para a espera longa; os demais mostram a situação atual. UBS sem base pronta ficam de fora.";
     private bool NetworkAlertsDue => networkAlertsAttemptedAt is null || DateTimeOffset.Now - networkAlertsAttemptedAt >= AlertsRefreshAge;
-    private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(NetworkAlertsFootnote), nameof(CanFilterAlerts), nameof(ShowNetworkAlertsWarning), nameof(ShowNetworkAlertsInfo)];
+    private static readonly string[] NetworkAlertNames = [nameof(NetworkAlertsLoadingLabel), nameof(NetworkAlertsState), nameof(CanFilterAlerts), nameof(ShowNetworkAlertsWarning), nameof(ShowNetworkAlertsInfo)];
     private void NotifyNetworkAlerts() { foreach (var name in NetworkAlertNames) Notify(name); }
 
     /// <summary>Leitura direta (carga da seção e ciclo automático); sem filtro novo.</summary>

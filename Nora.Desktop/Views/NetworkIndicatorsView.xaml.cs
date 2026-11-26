@@ -8,6 +8,6 @@ public partial class NetworkIndicatorsView : UserControl
     public NetworkIndicatorsView()
     {
         InitializeComponent();
-        new NetworkSearchBinding(this, SearchEmpty).Watch(PeriodCards, "Title,Value").Watch(Regions.Table, "Name").Watch(DailyGrid, "DateDisplay").Watch(Charts.List, "Title");
+        new NetworkSearchBinding(this, "indicators", SearchEmpty).Watch(PeriodCards, "Title,Value").Watch(Regions.Table, "Name").Watch(DailyGrid, "DateDisplay").Watch(Charts.List, "Title");
     }
 }

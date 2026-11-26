@@ -105,12 +105,11 @@ public sealed partial class WorkspaceViewModel
         var count => $"{count} UBS estão fora destes números porque a base delas ainda não foi criada. Crie as bases na aba Unidades."
     };
     public string ChartState => NetworkChart.State;
-    public bool HasChartData => NetworkChart.HasData;
 
     private static readonly string[] MetricsNames =
     [
         nameof(MetricsScopeLabel), nameof(HasMetrics), nameof(MetricsStateText), nameof(UnitsWithoutDatabaseCount), nameof(HasUnitsWithoutDatabase), nameof(UnitsWithoutDatabaseNotice),
-        nameof(ChartDays), nameof(ChartState), nameof(HasChartData), nameof(NetworkChartsState)
+        nameof(ChartDays), nameof(ChartState), nameof(NetworkChartsState)
     ];
     private void NotifyMetrics() { foreach (var name in MetricsNames) Notify(name); }
 
@@ -275,7 +274,7 @@ public sealed partial class WorkspaceViewModel
     {
         Interlocked.Exchange(ref networkCts, null)?.Cancel();
         networkVersion++;
-        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; NetworkChart.Clear("Sem indicadores carregados."); networkSearch = "";
+        metrics = null; appliedMetrics = null; appliedCustomRange = null; metricsFailed = false; NetworkChart.Clear("Sem indicadores carregados."); networkSearch = ""; networkSearches.Clear();
         metricsPeriodDays = 30; metricsRegion = ""; metricsSpecialty = ""; metricsFromText = ""; metricsToText = ""; metricsRangeError = "";
         knownSpecialties.Clear();
         Replace(OverviewCards, BuildOverviewCards()); Replace(UnitPerformance, Array.Empty<PerformanceRow>()); Replace(RegionPerformance, Array.Empty<PerformanceRow>());

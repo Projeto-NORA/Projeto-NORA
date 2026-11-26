@@ -49,9 +49,40 @@ public sealed record NetworkAlertEntry(string Key, string UnitName, string Title
 public sealed partial class WorkspaceViewModel
 {
     private string networkSearch = "";
+    // A pesquisa é de cada tela: o que foi digitado numa não filtra a outra, e volta quando a pessoa retorna à tela (como a pesquisa das listagens).
+    private readonly Dictionary<string, string> networkSearches = new(StringComparer.Ordinal);
+    private object? networkSearchOwner;
+    private string networkSearchScreen = "";
 
-    /// <summary>Pesquisa em linha do cabeçalho: filtra os cartões, os gráficos e as linhas de tabela da tela (cada tela diz por quais campos).</summary>
-    public string NetworkSearch { get => networkSearch; set { value ??= ""; if (networkSearch == value) return; networkSearch = value; Notify(); } }
+    /// <summary>Pesquisa em linha do cabeçalho: filtra os cartões, os gráficos e as linhas de tabela da tela aberta (cada tela diz por quais campos).</summary>
+    public string NetworkSearch
+    {
+        get => networkSearch;
+        set
+        {
+            value ??= "";
+            if (networkSearch == value) return;
+            networkSearch = value;
+            if (networkSearchOwner is not null) networkSearches[networkSearchScreen] = value;
+            Notify();
+        }
+    }
+
+    /// <summary>A tela <paramref name="screen"/> entrou: a pesquisa passa a ser a dela (vazia na primeira vez).</summary>
+    internal void EnterNetworkSearch(object owner, string screen)
+    {
+        networkSearchOwner = owner; networkSearchScreen = screen;
+        var text = networkSearches.GetValueOrDefault(screen, "");
+        if (networkSearch == text) return;
+        networkSearch = text; Notify(nameof(NetworkSearch));
+    }
+
+    /// <summary>A tela saiu: o texto dela fica guardado e a pesquisa deixa de valer para qualquer tela até a próxima entrar.</summary>
+    internal void LeaveNetworkSearch(object owner)
+    {
+        if (!ReferenceEquals(networkSearchOwner, owner)) return;
+        networkSearchOwner = null; networkSearchScreen = "";
+    }
 
     // ---- Grade de gráficos ----
 
@@ -80,7 +111,8 @@ public sealed partial class WorkspaceViewModel
             charts.Add(new("Consultas por especialidade", [], TopSlices(network.BySpecialty.Select(item => (item.Specialty, (double)(item.Completed + item.Missed + item.Cancelled)))), "", "Consultas encerradas no período, por especialidade."));
             var waits = network.BySpecialty.Where(item => item.AverageWaitMinutes is not null).OrderBy(item => item.Specialty, StringComparer.CurrentCultureIgnoreCase)
                 .Select(item => new ChartPoint(item.Specialty, Math.Round(item.AverageWaitMinutes ?? 0), null, $"{item.Specialty}: {DisplayFormat.Wait(item.AverageWaitMinutes)}")).ToArray();
-            charts.Add(new("Espera na fila", waits.Length == 0 ? [] : [new ChartLine("Espera média (min)", "ChartBrush5", waits)], TopSlices(network.BySpecialty.Select(item => (item.Specialty, (double)item.ActiveEntries))),
+            // A linha liga especialidades (não é série no tempo): com uma só, seria um ponto solto no gráfico, e o número já está no cartão.
+            charts.Add(new("Espera na fila", waits.Length < 2 ? [] : [new ChartLine("Espera média (min)", "ChartBrush5", waits)], TopSlices(network.BySpecialty.Select(item => (item.Specialty, (double)item.ActiveEntries))),
                 "Espera média até a oferta aceita, em minutos, por especialidade. A API não traz a série no tempo deste número.", "Pessoas aguardando agora, por especialidade."));
             var lightning = network.Totals.Lightning;
             charts.Add(new("Ofertas de Vaga Relâmpago", [], [new("Aceitas", lightning.AcceptedOffers, "StatusCompletedBrush"), new("Recusadas", lightning.DeclinedOffers, "StatusMissedBrush"), new("Vencidas", lightning.ExpiredOffers, "StatusCancelledBrush")], "", "Respostas às ofertas das vagas do período."));
@@ -119,13 +151,16 @@ public sealed partial class WorkspaceViewModel
 
     public ObservableCollection<MetricCard> NetworkLightningCards { get; } = [];
 
-    /// <summary>Os oito cartões da Vaga Relâmpago da rede, no período e na UBS escolhidos em Filtros.</summary>
+    /// <summary>
+    /// Os oito cartões da Vaga Relâmpago da rede, no período (pela data de criação da vaga) e na UBS escolhidos no cabeçalho. A leitura de cada número
+    /// fica na dica do cartão: a oferta é automática, o aceite não confirma o atendimento e a oferta criada não comprova a entrega da notificação.
+    /// </summary>
     private MetricCard[] BuildNetworkLightningCards() =>
     [
         new("Vagas abertas", LightningOpen, "Estado atual das vagas no período", Tone.Teal),
-        new("Ofertas aceitas", LightningAccepted, "Ofertas das vagas no período", Tone.Green),
+        new("Ofertas aceitas", LightningAccepted, "Aceite não confirma o atendimento", Tone.Green),
         new("Vagas registradas", LightningRegistered, "Vagas criadas no período", Tone.Blue),
-        new("Ofertas criadas", LightningCreated, "Não mede envio de notificações", Tone.Teal),
+        new("Ofertas criadas", LightningCreated, "Oferta automática; não comprova a notificação", Tone.Teal),
         new("Recusadas", LightningDeclined, "Ofertas das vagas no período", Tone.Pink),
         new("Expiradas", LightningExpired, "Ofertas das vagas no período", Tone.Yellow),
         new("Pendentes", LightningPending, "Estado atual das ofertas", Tone.Violet),

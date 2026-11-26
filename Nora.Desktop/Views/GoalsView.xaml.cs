@@ -23,6 +23,8 @@ public partial class GoalsView : UserControl
         InitializeComponent();
         ListingBehavior.SetOpenHandler(GoalList, item => { OpenDetails(item); return Task.CompletedTask; });
         ListingBehavior.AddBalloonRefreshedHandler(GoalList, (_, _) => RefreshBalloon());
+        // A tela ocupa a altura da área de conteúdo: a tabela da situação rola sozinha e o balão fica no pé da tela, sem faixa vazia sob as metas.
+        ContentAreaFill.Attach(this);
     }
 
     /// <summary>"Remover" só serve quando todas as metas selecionadas têm meta gravada neste escopo; senão a ação some do balão.</summary>
@@ -41,14 +43,23 @@ public partial class GoalsView : UserControl
     {
         if (DataContext is not WorkspaceViewModel workspace) return;
         var form = BuildForm(goal);
+        string? busy = null;
         var saved = DialogService.ShowForm(Window.GetWindow(this), $"Meta de {goal.Title.ToLowerInvariant()}", form,
-            async () => { await workspace.SaveGoalAsync(goal.Metric); return workspace.MessageKind == MessageKind.Success; },
-            "Salvar meta", error: () => goal.Error.Length > 0 ? goal.Error : workspace.MessageKind == MessageKind.Error ? workspace.Message : null);
-        if (!saved) goal.Revert();
+            async () =>
+            {
+                // Outra ação ainda em andamento: a gravação não chegaria a rodar, e a mensagem de sucesso que estivesse na faixa não pode fechar o pop-up.
+                busy = workspace.CanOperate ? null : "Aguarde a ação em andamento terminar e tente de novo.";
+                if (busy is not null) return false;
+                await workspace.SaveGoalAsync(goal.Metric);
+                // A sessão caiu durante a gravação: o pop-up fecha (a janela volta para o acesso) em vez de ficar aberto sobre ele.
+                return !workspace.IsAuthenticated || workspace.MessageKind == MessageKind.Success;
+            },
+            "Salvar meta", error: () => busy ?? (goal.Error.Length > 0 ? goal.Error : workspace.MessageKind == MessageKind.Error ? workspace.Message : null));
+        if (!saved || !workspace.IsAuthenticated) goal.Revert();
         ListingBehavior.ClearSelection(GoalList);
     }
 
-    /// <summary>O formulário da meta no pop-up (sem card): dica, valor (com a unidade na espera) e o erro do campo.</summary>
+    /// <summary>O formulário da meta no pop-up (sem card): a dica e o valor (com a unidade na espera); o erro aparece no próprio pop-up.</summary>
     private static FormGrid BuildForm(GoalEditor goal)
     {
         static StackPanel Field(string label, FrameworkElement control)
@@ -80,7 +91,8 @@ public partial class GoalsView : UserControl
 
     private async void OnRemove(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not WorkspaceViewModel workspace) return;
+        // Outra ação em andamento: a remoção não chegaria a rodar (e a confirmação seria pedida à toa).
+        if (DataContext is not WorkspaceViewModel { CanEditGoals: true } workspace) return;
         var selected = ListingBehavior.GetSelectedItems<GoalEditor>(GoalList).Where(goal => goal.HasCurrent).ToList();
         if (selected.Count == 0) return;
         var consequence = "Os indicadores passam a usar a meta da rede (ou Sem meta).";
@@ -90,7 +102,12 @@ public partial class GoalsView : UserControl
         if (!asked) return;
         try
         {
-            foreach (var goal in selected) await workspace.RemoveGoalAsync(goal.Metric);
+            foreach (var goal in selected)
+            {
+                await workspace.RemoveGoalAsync(goal.Metric);
+                // Na primeira falha o lote para: a mensagem de erro fica na faixa (a remoção seguinte a trocaria por um sucesso) e as metas restantes continuam selecionadas.
+                if (workspace.MessageKind == MessageKind.Error || !workspace.IsAuthenticated) return;
+            }
             ListingBehavior.ClearSelection(GoalList);
         }
         catch (Exception error) when (error is not OutOfMemoryException) { workspace.ReportUnexpected(error); }
@@ -102,7 +119,7 @@ public partial class GoalsView : UserControl
         if (item is not GoalEditor goal || DataContext is not WorkspaceViewModel workspace) return;
         var fields = new List<DetailField>
         {
-            new("Métrica", goal.Title), new("Limite", goal.Bound), new("Escopo", workspace.GoalScopeLabel), new("Meta neste escopo", goal.Current)
+            new("Métrica", goal.Title), new("Limite", goal.Bound), new("Escopo", ScopeName(workspace)), new("Meta neste escopo", goal.Current)
         };
         if (goal.Inherited.Length > 0) fields.Add(new("Meta da rede", goal.Inherited));
         fields.Add(new("Como funciona", goal.Hint));
@@ -113,6 +130,10 @@ public partial class GoalsView : UserControl
         dialog.Closed += (_, _) => workspace.PropertyChanged -= closeOnSignOut;
         DialogService.ShowModal(dialog, owner);
     }
+
+    /// <summary>O escopo das metas na ficha: "Toda a rede" ou o nome da UBS (a frase longa fica no cabeçalho da tela).</summary>
+    private static string ScopeName(WorkspaceViewModel workspace) =>
+        workspace.GoalScope == Guid.Empty ? "Toda a rede" : workspace.Units.FirstOrDefault(unit => unit.Id == workspace.GoalScope)?.Name ?? "UBS selecionada";
 
     private void OnExport(object sender, RoutedEventArgs e)
     {

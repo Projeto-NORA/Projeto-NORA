@@ -83,6 +83,12 @@ internal static partial class Program
                 Snap(previewRoot, "municipal-visao-geral-busca-vazia-claro", window);
                 search.Text = ""; content = Layout(window, 1280, 900);
                 Require(Descendants<ItemsControl>(content).Single(list => AutomationProperties.GetName(list) == "Indicadores do período").Items.Count == 6 && !HasText(content, "Nenhum resultado para esta busca."), "Apagar a busca devolve os cartões.");
+                // A pesquisa é de cada tela: o que foi digitado na Visão geral não filtra Indicadores e volta ao retornar.
+                search.Text = "Faltas"; content = Show(window, "indicators", 1280, 900);
+                Require(vm.NetworkSearch == "" && Descendants<TextBox>(content).Single(box => AutomationProperties.GetName(box) == "Pesquisar: Indicadores").Text == "" && Descendants<ItemsControl>(content).Single(list => AutomationProperties.GetName(list) == "Indicadores do período").Items.Count == 6, "A pesquisa da Visão geral não deveria filtrar os Indicadores.");
+                content = Show(window, "home", 1280, 900); search = Descendants<TextBox>(content).Single(box => AutomationProperties.GetName(box) == "Pesquisar: Visão geral");
+                Require(vm.NetworkSearch == "Faltas" && search.Text == "Faltas" && Descendants<ItemsControl>(content).Single(list => AutomationProperties.GetName(list) == "Indicadores do período").Items.Count == 1, "Ao voltar à Visão geral a pesquisa dela volta.");
+                search.Text = ""; content = Layout(window, 1280, 900);
                 // Modo gráficos: grade de gráficos, sem tabelas; a escolha fica lembrada.
                 var toggle = Descendants<ViewModeToggle>(content).Single(button => button.IsVisible); InvokeButton(toggle); content = Layout(window, 1280, 900);
                 Require(toggle.Mode == ViewMode.Charts && window.ViewModel.GetViewMode("home") == ViewMode.Charts && !GridsVisible(content) && !HasText(content, "Rede agora"), "O modo gráficos mostra só os gráficos, sem tabelas nem cartões.");
@@ -150,6 +156,12 @@ internal static partial class Program
                 var content = Show(window, "indicators", 1280, 1000);
                 Require(Descendants<ViewModeToggle>(content).Any(button => button.IsVisible) && !AnyRefreshButton(content) && HasText(content, vm.PeriodSummaryTitle), "Indicadores tem o alternador no cabeçalho e não tem botão de atualizar.");
                 Require(vm.OverviewCards.All(card => card.Tone != Tone.Neutral) && Descendants<ItemsControl>(content).Single(list => AutomationProperties.GetName(list) == "Indicadores do período").Items.Count == 6, "Os seis cartões do período vêm coloridos.");
+                // A leitura em andamento mostra o indicador girando na cor da marca com o passo escrito; parada, nada aparece.
+                Require(Descendants<LoadingStatus>(content).Any() && Descendants<LoadingStatus>(content).All(status => !status.IsVisible), "Sem leitura em andamento o indicador fica escondido.");
+                var loading = new LoadingStatus { Text = "Atualizando os indicadores…" }; loading.Measure(new Size(400, 40)); loading.Arrange(new Rect(0, 0, 400, 40));
+                Require(loading.Visibility == Visibility.Visible && Descendants<TextBlock>(loading).Any(text => text.Text == "Atualizando os indicadores…") && AutomationProperties.GetName(loading) == "Atualizando os indicadores…"
+                    && Descendants<System.Windows.Shapes.Path>(loading).Single().Stroke == Application.Current.FindResource("BrandBrush"), "O indicador de leitura mostra o passo escrito e gira na cor da marca.");
+                loading.Text = ""; Require(loading.Visibility == Visibility.Collapsed, "Terminada a leitura o indicador some.");
                 Snap(previewRoot, "municipal-indicadores-cards-claro", window, 1280, 1000);
                 var toggle = Descendants<ViewModeToggle>(content).Single(button => button.IsVisible); InvokeButton(toggle); content = Layout(window, 1280, 1000);
                 var search = Descendants<TextBox>(content).Single(box => AutomationProperties.GetName(box) == "Pesquisar: Indicadores");
@@ -218,10 +230,19 @@ internal static partial class Program
                 var content = Show(window, "slots", 1280, 800);
                 Require(!AnyRefreshButton(content) && vm.NetworkLightningCards.Count == 8 && vm.NetworkLightningCards.Select(card => card.Title).SequenceEqual(["Vagas abertas", "Ofertas aceitas", "Vagas registradas", "Ofertas criadas", "Recusadas", "Expiradas", "Pendentes", "Canceladas"]) && vm.NetworkLightningCards.Count(card => card.Tone != Tone.Neutral) == 7, "Oito cartões de Vaga Relâmpago, a maioria colorida.");
                 Require(vm.NetworkLightningCards.ToDictionary(card => card.Title, card => card.Value)["Vagas abertas"] == vm.LightningOpen && vm.NetworkLightningCards.All(card => HasText(content, card.Title)), "Os cartões mostram os números do resumo.");
-                Require(Combo(content, "Período das vagas").Items.Count == 4 && Combo(content, "Filtrar resumo por UBS") is not null && !Descendants<TextBlock>(content).Any(text => text.IsVisible && text.Text.StartsWith("Os totais seguem a data", StringComparison.Ordinal) && false), "O período fica em linha e a UBS no botão Filtros.");
-                var before = vm.LightningOpen; Combo(content, "Período das vagas").SelectedValue = 7; Settle(vm); content = Layout(window, 1280, 800);
+                // O período da vaga fica em linha no cabeçalho; a UBS fica no pop-up do botão Filtros (não no cabeçalho).
+                var header = (FrameworkElement)window.FindName("PageHeader");
+                Require(Descendants<ComboBox>(header).Count(box => box.IsVisible && AutomationProperties.GetName(box) == "Período das vagas") == 1 && Combo(content, "Período das vagas").Items.Count == 4
+                    && !Descendants<ComboBox>(header).Any(box => box.IsVisible && AutomationProperties.GetName(box) == "Filtrar resumo por UBS"), "O período da vaga deveria estar em linha no cabeçalho, sem a UBS.");
+                Require(Descendants<ComboBox>(OpenPageFilters(window)).Any(box => AutomationProperties.GetName(box) == "Filtrar resumo por UBS"), "A UBS deveria estar no botão Filtros.");
+                ((System.Windows.Controls.Primitives.Popup)window.FindName("FiltersPopup")).IsOpen = false; content = Layout(window, 1280, 800);
+                // Sem texto de leitura solto (item A1): o que cada número significa fica na dica do cartão.
+                var hints = vm.NetworkLightningCards.ToDictionary(card => card.Title, card => card.Hint);
+                Require(!FullTexts(content).Any(text => text.StartsWith("Os totais seguem", StringComparison.Ordinal) || text.Contains("A oferta é automática", StringComparison.Ordinal))
+                    && hints["Ofertas aceitas"].Contains("não confirma o atendimento", StringComparison.Ordinal) && hints["Ofertas criadas"].Contains("não comprova a notificação", StringComparison.Ordinal), "A leitura dos números deveria estar nas dicas dos cartões, sem texto solto na tela.");
+                Combo(content, "Período das vagas").SelectedValue = 7; Settle(vm); content = Layout(window, 1280, 800);
                 Require(vm.LightningPeriodDays == 7 && vm.NetworkLightningCards.ToDictionary(card => card.Title, card => card.Value)["Vagas abertas"] == vm.LightningOpen, "Mudar o período atualiza os cartões na hora.");
-                Snap(previewRoot, "municipal-vaga-relampago-claro", window); _ = before;
+                Snap(previewRoot, "municipal-vaga-relampago-claro", window);
                 window.ViewModel.SetAppearance(Appearance.Dark); Snap(previewRoot, "municipal-vaga-relampago-escuro", window);
             }
             finally { CloseWindow(window); }
@@ -247,6 +268,10 @@ internal static partial class Program
                 list.SelectedItem = list.Items[0]; content = Layout(window, 1280, 760);
                 var details = Descendants<Button>(content).Single(button => button.IsVisible && AutomationProperties.GetName(button) == "Ver detalhes do alerta");
                 Require(balloon.IsVisible && details.IsVisible, "Com um alerta selecionado o balão mostra Ver detalhes.");
+                // Uma nova leitura dos alertas (sem mudança) não tira a seleção nem esconde o balão.
+                var selectedKey = ((NetworkAlertEntry)list.SelectedItem).Key; var alertReads = fixture.NetworkAlertQueries.Count;
+                vm.RefreshCommand.Execute(null); PumpUntil(() => fixture.NetworkAlertQueries.Count > alertReads); Settle(vm); content = Layout(window, 1280, 760);
+                Require(list.SelectedItems.Count == 1 && ((NetworkAlertEntry)list.SelectedItem).Key == selectedKey && balloon.IsVisible, "A releitura dos alertas manteve a seleção e o balão.");
                 Snap(previewRoot, "municipal-alertas-balao-claro", window);
                 InspectModal<ItemDetailsWindow>(window, dialog =>
                 {
@@ -323,12 +348,17 @@ internal static partial class Program
                 wait.Input = "2"; wait.WaitUnit = "d"; Pump(vm.SaveGoalAsync(GoalMetric.AverageWait)); Settle(vm); content = Layout(window, 1280, 900);
                 list.SelectedItems.Clear(); list.SelectedItems.Add(goal); list.SelectedItems.Add(wait); content = Layout(window, 1280, 900);
                 Require(!Descendants<Button>(content).Any(button => button.IsVisible && AutomationProperties.GetName(button) == "Editar meta") && Descendants<Button>(content).Any(button => button.IsVisible && AutomationProperties.GetName(button) == "Remover meta"), "Com várias metas selecionadas a edição some e a lixeira continua.");
+                Snap(previewRoot, "municipal-metas-lixeira-claro", window);
+                window.ViewModel.SetAppearance(Appearance.Dark); Snap(previewRoot, "municipal-metas-lixeira-escuro", window); window.ViewModel.SetAppearance(Appearance.Light); content = Layout(window, 1280, 900);
                 asked.Clear(); InvokeButton(Descendants<Button>(content).Single(button => button.IsVisible && AutomationProperties.GetName(button) == "Remover meta")); Settle(vm); PumpUntil(() => fixture.Goals.Count == 0);
                 Require(asked.SequenceEqual(["Remover metas"]) && fixture.Goals.Count == 0, "A remoção em lote pede uma única confirmação.");
                 // Ficha da meta (duplo clique / Enter).
                 list.UnselectAll(); content = Layout(window, 1280, 900);
-                InspectModal<ItemDetailsWindow>(window, dialog => Require(new[] { "Métrica", "Comparecimento", "Limite", "Mínimo", "Como funciona" }.All(VisibleTexts(dialog).Contains), "A ficha da meta traz as linhas da meta."),
-                    () => ListingBehavior.GetOpenHandler(list)!(goal));
+                InspectModal<ItemDetailsWindow>(window, dialog =>
+                {
+                    Require(new[] { "Métrica", "Comparecimento", "Limite", "Mínimo", "Escopo", "Toda a rede", "Como funciona" }.All(VisibleTexts(dialog).Contains), "A ficha da meta traz as linhas da meta (o escopo pelo nome).");
+                    SaveDialog(dialog, Path.Combine(previewRoot, "municipal-metas-ficha-claro.png"));
+                }, () => ListingBehavior.GetOpenHandler(list)!(goal));
                 Snap(previewRoot, "municipal-metas-claro", window, 1280, 1000);
                 window.ViewModel.SetAppearance(Appearance.Dark); Snap(previewRoot, "municipal-metas-escuro", window, 1280, 1000);
                 _ = alfa;

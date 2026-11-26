@@ -9,7 +9,7 @@ public partial class NetworkOverviewView : UserControl
     {
         InitializeComponent();
         // A pesquisa do cabeçalho filtra os cartões, os gráficos e as regiões pelo que a tela mostra.
-        new NetworkSearchBinding(this, SearchEmpty)
+        new NetworkSearchBinding(this, "home", SearchEmpty)
             .Watch(NowCards, "Title,Value").Watch(PeriodCards, "Title,Value").Watch(Regions.Table, "Name").Watch(Charts.List, "Title");
     }
 }

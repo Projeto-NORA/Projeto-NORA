@@ -12,12 +12,11 @@
             <ComboBox Margin="0,6,0,0" ItemsSource="{Binding RegionOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding AlertsRegion}" IsSynchronizedWithCurrentItem="False" AutomationProperties.Name="Filtrar alertas por região" enter:EnterNavigation.Group="NetworkAlertsView.filters" /></StackPanel>
         </WrapPanel>
       </views:PageFilterGroup>
-      <TextBlock Text="{Binding NetworkAlertsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" Visibility="{Binding NetworkAlertsLoadingLabel, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+      <views:LoadingStatus Text="{Binding NetworkAlertsLoadingLabel}" Margin="0,0,0,8" />
       <ContentControl Style="{StaticResource NoticeItem}" Visibility="{Binding ShowNetworkAlertsWarning, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Estado dos alertas da rede">
         <TextBlock Text="{Binding NetworkAlertsState}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
       </ContentControl>
       <TextBlock Text="{Binding NetworkAlertsState}" TextWrapping="Wrap" Visibility="{Binding ShowNetworkAlertsInfo, Converter={StaticResource BoolVisibility}}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Estado dos alertas da rede" />
-      <TextBlock Text="{Binding NetworkAlertsFootnote}" Style="{StaticResource Muted}" FontSize="12" Margin="0,6,0,0" Visibility="{Binding NetworkAlertsFootnote, Converter={StaticResource TextVisibility}}" />
       <TextBlock x:Name="SearchEmpty" Text="Nenhum alerta encontrado para esta busca." Style="{StaticResource Muted}" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
     </StackPanel>
     <Grid Grid.Row="1">

@@ -44,7 +44,7 @@
         </StackPanel>
       </StackPanel>
     </views:PageFilterGroup>
-    <TextBlock Text="{Binding MetricsLoadingLabel}" Style="{StaticResource Muted}" FontSize="12" Visibility="{Binding MetricsLoadingLabel, Converter={StaticResource TextVisibility}}" AutomationProperties.LiveSetting="Polite" />
+    <views:LoadingStatus Text="{Binding MetricsLoadingLabel}" Margin="0,8,0,0" />
     <TextBlock Text="{Binding MetricsScopeLabel}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0" Visibility="{Binding MetricsScopeLabel, Converter={StaticResource TextVisibility}}" />
     <ContentControl Style="{StaticResource NoticeItem}" Margin="0,10,0,0" Visibility="{Binding HasUnitsWithoutDatabase, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Aviso de UBS sem base">
       <TextBlock Text="{Binding UnitsWithoutDatabaseNotice}" TextWrapping="Wrap" FontSize="12" />

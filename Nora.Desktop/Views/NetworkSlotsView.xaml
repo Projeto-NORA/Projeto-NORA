@@ -3,7 +3,7 @@
   <StackPanel>
     <StackPanel.Resources><ItemsPanelTemplate x:Key="CardsPanel"><views:AdaptiveGridPanel ColumnWidth="215" MaxColumns="4" /></ItemsPanelTemplate></StackPanel.Resources>
     <views:LightningFiltersView />
+    <!-- Sem texto de leitura solto: o que cada número significa (aceite não confirma o atendimento, oferta criada não comprova a notificação) fica na dica do próprio cartão. -->
     <ItemsControl ItemsSource="{Binding NetworkLightningCards}" ItemTemplate="{StaticResource MetricCardTemplate}" ItemsPanel="{StaticResource CardsPanel}" Margin="-8,0,-8,0" Focusable="False" AutomationProperties.Name="Vaga Relâmpago da rede" />
-    <TextBlock Style="{StaticResource Muted}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" Text="Os totais seguem a data de criação da vaga e a UBS escolhida em Filtros. A oferta é automática: aceite não confirma o atendimento, e ofertas criadas não comprovam a entrega da notificação." />
   </StackPanel>
 </UserControl>
