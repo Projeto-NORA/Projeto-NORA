@@ -31,6 +31,8 @@ https://github.com/Projeto-NORA/NORA-downloads/releases/latest/download/Painel-M
 
 Publicados em 24/11/2026 no release `v1.0-escola` (cada zip com cerca de 59 MB). Conferido: o download pelo link, sem login, tem o mesmo SHA-256 do arquivo gerado.
 
+**Versão atual (26/11/2026):** o release mais recente é `v1.2-escola`, gerado da `main` `326c4fa`, com o visual novo do OBS e do Painel e o login salvo no app. Os links `latest` e os QR Codes já baixam essa versão.
+
 ## O que precisa estar pronto antes
 
 1. **API no ar (P-049).** Após a integração da correção da URL do Neon em 24/11/2026, o [endpoint de prontidão](https://nora-api-kw8x.onrender.com/health/ready) respondeu `ready`. Confira os logins e a UBS Escola pelo roteiro de [hospedagem.md](hospedagem.md) antes da apresentação.
