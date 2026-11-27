@@ -163,6 +163,12 @@ internal static partial class Program
     private static void RealCaptureRoute(ShellWindow window, WorkspaceViewModel workspace, string route, string name, string output)
     {
         var vm = window.ViewModel;
+        // "Nova conta" leva à tela Contas já com o pop-up aberto: o pop-up modal bloquearia a navegação, e as duas imagens já saem da rota Contas (-novo).
+        if (string.Equals(route, "users:create", StringComparison.Ordinal))
+        {
+            Console.WriteLine($"Pulada: {route} (mesma tela e pop-up de users:accounts).");
+            return;
+        }
         vm.Navigate(route);
         var content = RealSettle(window, workspace);
         RealSave(window, Path.Combine(output, name + ".png"));
