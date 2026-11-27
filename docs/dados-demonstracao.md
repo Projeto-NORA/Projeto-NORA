@@ -212,3 +212,8 @@ Validação da revisão, num PostgreSQL 18 descartável (porta 55476), com a UBS
 | Oferta real recusada numa vaga fictícia e `-Remover` | a vaga, 2 consultas, 1 paciente, 2 médicos, 2 consultórios e 2 especialidades ficaram, com aviso; a vaga com oferta real só vencida saiu |
 | API real (Release) lendo 36 rotas do OBS, do Painel e do app | 36 com HTTP 200, 0 erros no log da API; 27 consultas no app do paciente de teste; responsável fictício recusado com 401 |
 | Repetir depois da API e `-Remover` | 0 linhas; voltou às contagens de antes, com diferença só em `nora.sessions` (3 → 12) e `nora.unit_access_events` (0 → 3), gravadas pela API nas leituras |
+
+
+### Registros criados pelos vídeos (26/11/2026, só no banco local de capturas)
+
+A gravação dos vídeos cadastrou de verdade, no banco local (porta 55490), a UBS fictícia **UBS Vila Nove de Julho** (endereço real usado só para a busca de localização achar um ponto único) e as pacientes fictícias **Larissa Monteiro Duarte** e **Renata Siqueira Lopes** (CPF gerado com dígitos válidos, e-mail `@email.example`). Nada disso foi para o Neon.

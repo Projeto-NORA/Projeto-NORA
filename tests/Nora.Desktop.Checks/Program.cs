@@ -22,6 +22,7 @@ internal static partial class Program
     {
         if (args.Contains("--secretaria-live-dark") || args.Contains("--secretaria-live-light")) return RunLiveMapPreview(args);
         if (args.Contains("--capturas-reais")) return RunRealCaptures(args);
+        if (args.Contains("--videos-reais")) return RunRealVideos(args);
         var filterArgument = Array.IndexOf(args, "--check-filter");
         checkFilter = filterArgument >= 0 && filterArgument + 1 < args.Length ? args[filterArgument + 1] : null;
         var root = Path.Combine(AppContext.BaseDirectory, "check-data", Guid.NewGuid().ToString("N"));
